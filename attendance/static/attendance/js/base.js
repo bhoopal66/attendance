@@ -52,15 +52,17 @@ function openApprovalModal(requestId) {
                 noDataWarning.style.display = 'none';
                 timeEditSection.style.display = 'none';
                 remoteNotice.style.display = 'flex';
-                approveBtn.disabled = !data.has_data;
+                approveBtn.disabled = false;  // Allow instant approval for remote too
             } else {
                 remoteNotice.style.display = 'none';
 
+                // Always show the time edit section and enable approval
+                // Instant approval is now supported even without biometric data
+                timeEditSection.style.display = 'block';
+                approveBtn.disabled = false;
+
                 if (data.has_data) {
                     noDataWarning.style.display = 'none';
-                    timeEditSection.style.display = 'block';
-                    approveBtn.disabled = false;
-
                     document.getElementById('originalFirstIn').textContent = data.first_in || '--:--';
                     document.getElementById('originalLastOut').textContent = data.last_out || '--:--';
                     document.getElementById('newFirstIn').value = data.first_in || '';
@@ -74,9 +76,12 @@ function openApprovalModal(requestId) {
                     }
                     document.getElementById('newLastOut').value = newLastOutValue;
                 } else {
-                    noDataWarning.style.display = 'flex';
-                    timeEditSection.style.display = 'none';
-                    approveBtn.disabled = true;
+                    // No biometric data - still allow approval, no warning needed
+                    noDataWarning.style.display = 'none';
+                    document.getElementById('originalFirstIn').textContent = '--:--';
+                    document.getElementById('originalLastOut').textContent = '--:--';
+                    document.getElementById('newFirstIn').value = data.leaving_time || '';
+                    document.getElementById('newLastOut').value = data.return_time || '';
                 }
             }
 

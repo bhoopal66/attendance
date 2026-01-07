@@ -52,6 +52,10 @@
                                     <strong>{{ request.get_employee_name }}</strong>
                                     <span class="dropdown-date">{{ request.request_date }}</span>
                                 </div>
+                                <div class="dropdown-request-details">
+                                    <span>📍 {{ request.destination }}</span>
+                                    <span>👤 {{ request.customer_name }}</span>
+                                </div>
                                 <div class="dropdown-request-info">
                                     <span>🕐 {{ request.leaving_time }}</span>
                                     {% if request.return_time %}<span>→ {{ request.return_time }}</span>{% endif %}
@@ -129,10 +133,11 @@
                     </div>
                 </div>
 
-                <!-- Warning for no data -->
+                <!-- Info notice for no biometric data -->
                 <div class="no-data-warning" id="noDataWarning" style="display: none;">
-                    <span>⚠️</span>
-                    <span>No checkin/checkout data found for this date. The employee may not have checked in yet.</span>
+                    <span>ℹ️</span>
+                    <span>No biometric data yet. Times from this approval will be merged with biometric data when
+                        uploaded.</span>
                 </div>
 
                 <!-- Remote employee notice -->
@@ -183,7 +188,7 @@
     </div>
     {% endif %}
 
-    <script src="{% static 'attendance/js/base.js' %}"></script>
+    <script src="{% static 'attendance/js/base.js' %}?v=3"></script>
     {% block extra_js %}{% endblock %}
 </body>
 

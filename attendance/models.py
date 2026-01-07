@@ -297,6 +297,12 @@ class EarlyLeaveRequest(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     admin_notes = models.TextField(blank=True, help_text="Admin comments on the request")
     
+    # Approved times - stored for merging with biometric data during upload
+    approved_first_in = models.TimeField(null=True, blank=True, 
+        help_text="Admin-approved first in time (for merging with biometric data)")
+    approved_last_out = models.TimeField(null=True, blank=True,
+        help_text="Admin-approved last out time (for merging with biometric data)")
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)

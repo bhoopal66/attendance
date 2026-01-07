@@ -78,8 +78,7 @@
                             {% endif %}>
                             <span class="day-number">{{ day }}</span>
                             {% if day_info.status == 'absent' %}
-                            {% if day <= current_day %}<div class="leave-text">Leave
-                        </div>{% endif %}
+                            {% if day <= current_day %}<div class="leave-text">Leave</div>{% endif %}
                         {% elif day_info.status == 'paid_leave' %}
                         <div class="paid-leave-text">Paid Leave</div>
                         {% elif day_info.status == 'holiday' %}
@@ -196,7 +195,7 @@
             updateAttendanceUrl: "{% url 'update_attendance' %}"
     };
 </script>
-<script src="{% static 'attendance/js/report.js' %}"></script>
+<script src="{% static 'attendance/js/report.js' %}?v=2"></script>
 {% endblock %}
 
 {% endblock %}

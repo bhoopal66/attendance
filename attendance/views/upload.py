@@ -10,7 +10,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 
-from ..models import Employee, AttendanceRecord, RemoteEmployee, RemoteCallRecord
+from ..models import Employee, AttendanceRecord, RemoteEmployee, RemoteCallRecord, EarlyLeaveRequest
 from .utils import superuser_required, parse_duration
 
 
@@ -67,9 +67,39 @@ def upload_file(request):
                 fi_time = first_in.time() if not pd.isna(first_in) else None
                 lo_time = last_out.time() if not pd.isna(last_out) else None
                 
+                # Check for approved on-duty requests for this employee on this date
+                # If found, merge times: take earliest check-in and latest checkout
+                approved_request = EarlyLeaveRequest.objects.filter(
+                    employee=employee,
+                    request_date=date_val,
+                    status='approved'
+                ).first()
+                
+                if approved_request:
+                    # Merge with approved times
+                    if approved_request.approved_first_in:
+                        if fi_time:
+                            # Take the earlier of the two check-in times
+                            fi_time = min(fi_time, approved_request.approved_first_in)
+                        else:
+                            fi_time = approved_request.approved_first_in
+                    
+                    if approved_request.approved_last_out:
+                        if lo_time:
+                            # Take the later of the two checkout times
+                            lo_time = max(lo_time, approved_request.approved_last_out)
+                        else:
+                            lo_time = approved_request.approved_last_out
+                
                 # Calculate duration only if both times exist
                 if fi_time and lo_time:
-                    duration = last_out - first_in
+                    # Calculate duration in seconds then convert to timedelta
+                    duration_seconds = (
+                        lo_time.hour * 3600 + lo_time.minute * 60 + lo_time.second
+                    ) - (
+                        fi_time.hour * 3600 + fi_time.minute * 60 + fi_time.second
+                    )
+                    duration = timedelta(seconds=max(0, duration_seconds))
                 else:
                     duration = timedelta(0)
 

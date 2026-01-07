@@ -403,6 +403,21 @@ input[type="file"] {
     color: var(--text-muted);
 }
 
+.dropdown-request-details {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: #374151;
+    margin-bottom: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.dropdown-request-details span {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
 .dropdown-request-info {
     display: flex;
     gap: 0.75rem;

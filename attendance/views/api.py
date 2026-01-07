@@ -212,7 +212,12 @@ def get_request_attendance_data(request, request_id):
 @login_required
 @user_passes_test(superuser_required, login_url='/report/')
 def approve_early_leave(request, request_id):
-    """Approve an early leave request and update attendance times."""
+    """Approve an early leave request and update attendance times.
+    
+    Supports instant approval - can approve even without biometric data.
+    If no attendance record exists, creates one with approved times.
+    Stores approved times on the request for later merging with biometric data.
+    """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'})
     
@@ -226,31 +231,50 @@ def approve_early_leave(request, request_id):
     
     # Only in-house employees have time updates
     if early_leave.employee:
-        attendance = AttendanceRecord.objects.filter(
-            employee=early_leave.employee,
-            date=early_leave.request_date
-        ).first()
-        
-        if not attendance:
-            return JsonResponse({'success': False, 'error': 'No biometric data found for this date. Cannot approve yet.'})
-        
+        # Get admin-provided times from the form
         new_first_in = request.POST.get('new_first_in', '').strip()
         new_last_out = request.POST.get('new_last_out', '').strip()
         
         try:
-            if new_first_in:
-                attendance.first_in = datetime.datetime.strptime(new_first_in, '%H:%M').time()
-            if new_last_out:
-                attendance.last_out = datetime.datetime.strptime(new_last_out, '%H:%M').time()
+            # Parse times
+            first_in_time = datetime.datetime.strptime(new_first_in, '%H:%M').time() if new_first_in else None
+            last_out_time = datetime.datetime.strptime(new_last_out, '%H:%M').time() if new_last_out else None
             
-            # Recalculate work duration
+            # If no checkout time provided, use return_time from the request
+            if not last_out_time and early_leave.return_time:
+                last_out_time = early_leave.return_time
+            
+            # Store approved times on the request for later merging with biometric data
+            early_leave.approved_first_in = first_in_time
+            early_leave.approved_last_out = last_out_time
+            
+            # Get or create attendance record
+            attendance, created = AttendanceRecord.objects.get_or_create(
+                employee=early_leave.employee,
+                date=early_leave.request_date,
+                defaults={
+                    'first_in': first_in_time,
+                    'last_out': last_out_time,
+                    'work_duration': None
+                }
+            )
+            
+            if not created:
+                # Record exists - update with admin times if provided
+                if first_in_time:
+                    attendance.first_in = first_in_time
+                if last_out_time:
+                    attendance.last_out = last_out_time
+            
+            # Recalculate work duration if both times exist
             if attendance.first_in and attendance.last_out:
                 today = datetime.date.today()
                 dt_in = datetime.datetime.combine(today, attendance.first_in)
                 dt_out = datetime.datetime.combine(today, attendance.last_out)
-                attendance.work_duration = dt_out - dt_in
+                attendance.work_duration = dt_out - dt_in if dt_out > dt_in else timedelta(0)
             
             attendance.save()
+            
         except ValueError:
             return JsonResponse({'success': False, 'error': 'Invalid time format'})
     
