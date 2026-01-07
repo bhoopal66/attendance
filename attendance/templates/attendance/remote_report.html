@@ -26,7 +26,7 @@
             <div class="filter-group">
                 <select name="month" onchange="this.form.submit()">
                     {% for m_num, m_name in months %}
-                    <option value="{{ m_num }}" {% if m_num==selected_month %}selected{% endif %}>
+                    <option value="{{ m_num }}" {% if m_num == selected_month %}selected{% endif %}>
                         {{ m_name }}
                     </option>
                     {% endfor %}
@@ -35,7 +35,7 @@
             <div class="filter-group">
                 <select name="year" onchange="this.form.submit()">
                     {% for y in years %}
-                    <option value="{{ y }}" {% if y==selected_year %}selected{% endif %}>
+                    <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>
                         {{ y }}
                     </option>
                     {% endfor %}
@@ -75,8 +75,7 @@
             <div class="summary-info">
                 <strong>{{ employee.name }}</strong>
                 <span class="text-muted">({{ employee.extension_id }})</span>
-                {% if not employee.is_active %}<span class="badge inactive" title="Inactive Employee">Inactive</span>{%
-                endif %}
+                {% if not employee.is_active %}<span class="badge inactive" title="Inactive Employee">Inactive</span>{% endif %}
             </div>
             <div class="summary-meta">
                 <span class="badge present" title="Present Days">✅ {{ employee.summary.present_days }}</span>
@@ -162,7 +161,7 @@
 <script>
     window.remoteReportConfig = {
         selectedYear: {{ selected_year }},
-    selectedMonth: { { selected_month } },
+    selectedMonth: {{ selected_month }},
     showInactive: {% if show_inactive %} true{% else %} false{% endif %},
     downloadReportUrl: "{% url 'download_remote_report' %}",
         downloadEmployeeReportUrl: "{% url 'download_remote_employee_report' employee_id=0 %}"
