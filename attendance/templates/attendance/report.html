@@ -19,7 +19,7 @@
         </div>
 
         <div class="header-actions">
-            <h1>Attendance Report</h1>
+            <h1>Checkin/Checkout Report</h1>
             <!-- Report Filters - DO NOT EDIT INLINE, modify includes/report_filters.html instead -->
             {% include 'attendance/includes/report_filters.html' %}
         </div>
@@ -30,6 +30,7 @@
                 <span class="legend-item"><span class="legend-color yellow"></span> Late/Early</span>
                 <span class="legend-item"><span class="legend-color red"></span> Leave</span>
                 <span class="legend-item"><span class="legend-color blue"></span> Approved Leave</span>
+                <span class="legend-item"><span class="legend-color incomplete"></span> Incomplete</span>
                 <span class="legend-item"><span class="legend-color holiday"></span> Holiday</span>
             </div>
             <div class="download-dropdown">
@@ -83,6 +84,12 @@
                         <div class="paid-leave-text">Paid Leave</div>
                         {% elif day_info.status == 'holiday' %}
                         <div class="no-work">Holiday</div>
+                        {% elif day_info.status == 'incomplete' %}
+                        <div class="time-info">
+                            <span>In: {% if day_info.record.first_in %}{{ day_info.record.first_in|time:"H:i" }}{% else %}--:--{% endif %}</span>
+                            <span>Out: {% if day_info.record.last_out %}{{ day_info.record.last_out|time:"H:i" }}{% else %}--:--{% endif %}</span>
+                        </div>
+                        <div class="incomplete-text">Missing {% if not day_info.record.first_in %}In{% else %}Out{% endif %}</div>
                         {% else %}
                         <div class="work-hours">{{ day_info.record.work_duration }}</div>
                         <div class="time-info">
@@ -149,7 +156,7 @@
 {% if user.is_superuser %}
 <div class="edit-modal-overlay" id="editModal">
     <div class="edit-modal">
-        <h3>Edit Attendance</h3>
+        <h3>Edit Checkin/Checkout</h3>
         <div class="modal-subtitle">
             <span id="modalEmployeeName"></span> - <span id="modalDate"></span>
         </div>
@@ -182,8 +189,8 @@
     // Report page configuration (Django template variables)
     window.reportConfig = {
         selectedYear: {{ selected_year }},
-    selectedMonth: {{ selected_month }},
-    showInactive: {% if show_inactive %}true{% else %}false{% endif %},
+    selectedMonth: { { selected_month } },
+    showInactive: {% if show_inactive %} true{% else %} false{% endif %},
     downloadReportUrl: "{% url 'download_report' %}",
         downloadEmployeeReportUrl: "{% url 'download_employee_report' employee_id=0 %}",
             updateAttendanceUrl: "{% url 'update_attendance' %}"

@@ -389,6 +389,10 @@
     background: linear-gradient(135deg, #3B82F6, #2563EB);
 }
 
+.legend-color.incomplete {
+    background: linear-gradient(135deg, #F97316, #EA580C);
+}
+
 .filter-form {
     display: flex;
     gap: 1rem;
@@ -569,6 +573,7 @@ details[open] summary {
     flex-direction: column;
     align-items: center;
     transition: all 0.2s;
+    position: relative;
 }
 
 .calendar-day.empty {
@@ -622,6 +627,45 @@ details[open] summary {
 
 .calendar-day.status-paid_leave .day-number {
     color: #2563EB;
+}
+
+/* Incomplete Record Styles - Needs HR Attention */
+.calendar-day.status-incomplete {
+    background: linear-gradient(135deg, #FED7AA, #FDBA74);
+    border-left: 3px solid #EA580C;
+    animation: incomplete-pulse 2s ease-in-out infinite;
+}
+
+.calendar-day.status-incomplete .day-number {
+    color: #C2410C;
+}
+
+.calendar-day.status-incomplete::after {
+    content: "⚠️";
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.65rem;
+}
+
+@keyframes incomplete-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.2);
+    }
+}
+
+.incomplete-text {
+    font-size: 0.55rem;
+    color: #C2410C;
+    font-weight: 600;
+    margin-top: 0.25rem;
+    text-align: center;
 }
 
 .day-number {

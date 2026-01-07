@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TCR Attendance</title>
+    <title>Taamul Checkin/Checkout Report</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}">
     {% block extra_css %}{% endblock %}
@@ -17,7 +17,7 @@
             <!-- Logo -->
             <a href="{% url 'report' %}" class="nav-logo">
                 <span class="logo-icon">📊</span>
-                <span class="logo-text">TCR <span class="logo-accent">Attendance</span></span>
+                <span class="logo-text">Taamul <span class="logo-accent">Checkin/Checkout</span></span>
             </a>
 
             <!-- Navigation Links -->
@@ -132,7 +132,7 @@
                 <!-- Warning for no data -->
                 <div class="no-data-warning" id="noDataWarning" style="display: none;">
                     <span>⚠️</span>
-                    <span>No attendance data found for this date. The employee may not have checked in yet.</span>
+                    <span>No checkin/checkout data found for this date. The employee may not have checked in yet.</span>
                 </div>
 
                 <!-- Remote employee notice -->
@@ -144,7 +144,7 @@
 
                 <!-- Time Edit Section -->
                 <div class="time-edit-section" id="timeEditSection" style="display: none;">
-                    <h4>Attendance Adjustment</h4>
+                    <h4>Checkin/Checkout Adjustment</h4>
                     <div class="time-display">
                         <div class="time-display-row">
                             <span class="time-label">Original First In:</span>

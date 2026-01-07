@@ -60,16 +60,18 @@ def upload_file(request):
                 first_in = group["First-In"].min()
                 last_out = group["Last-Out"].max()
 
-                if pd.isna(first_in) or pd.isna(last_out):
-                    duration = timedelta(0)
-                    fi_time = None
-                    lo_time = None
-                    date_val = pd.to_datetime(selected_date_str).date()
-                else:
+                # Get the date value - use first_in if available, otherwise use selected date
+                date_val = pd.to_datetime(selected_date_str).date()
+                
+                # Preserve partial times - don't lose check-in if checkout is missing or vice versa
+                fi_time = first_in.time() if not pd.isna(first_in) else None
+                lo_time = last_out.time() if not pd.isna(last_out) else None
+                
+                # Calculate duration only if both times exist
+                if fi_time and lo_time:
                     duration = last_out - first_in
-                    fi_time = first_in.time()
-                    lo_time = last_out.time()
-                    date_val = first_in.date()
+                else:
+                    duration = timedelta(0)
 
                 # Create or Update AttendanceRecord
                 AttendanceRecord.objects.update_or_create(

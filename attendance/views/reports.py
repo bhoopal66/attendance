@@ -173,6 +173,11 @@ def attendance_report(request):
             elif record:
                 total_secs = record.work_duration.total_seconds() if record.work_duration else 0
                 
+                # Check for incomplete records (only check-in or only checkout)
+                has_first_in = record.first_in is not None
+                has_last_out = record.last_out is not None
+                is_incomplete = (has_first_in and not has_last_out) or (has_last_out and not has_first_in)
+                
                 if total_secs > 0 and not is_sunday:
                     actual_working_days_count += 1
                 
@@ -212,7 +217,10 @@ def attendance_report(request):
                 if is_half_day:
                     half_day_count += 1
                 
-                if total_secs == 0:
+                # Determine status - prioritize incomplete status for HR attention
+                if is_incomplete:
+                    status = 'incomplete'  # New status for incomplete records
+                elif total_secs == 0:
                     status = 'absent'
                 elif is_half_day:
                     status = 'yellow'
@@ -221,6 +229,7 @@ def attendance_report(request):
                 else:
                     status = 'yellow'
             else:
+                is_incomplete = False
                 if day > current_day:
                     pass
                 else:
@@ -233,9 +242,9 @@ def attendance_report(request):
                 'is_saturday': is_saturday,
                 'is_half_day': is_half_day,
                 'is_late': is_late,
-                'is_late': is_late,
                 'is_holiday': is_holiday_date,
                 'is_paid_leave': is_paid_leave,
+                'is_incomplete': is_incomplete if record else False,
             }
         
         full_days = actual_working_days_count - half_day_count

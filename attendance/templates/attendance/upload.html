@@ -2,8 +2,8 @@
 
 {% block content %}
 <div class="card">
-    <h1>Upload Attendance File</h1>
-    <p>Upload an Excel file (.xlsx or .xls) containing employee daily attendance.</p>
+    <h1>Upload Checkin/Checkout File</h1>
+    <p>Upload an Excel file (.xlsx or .xls) containing employee daily checkin/checkout data.</p>
 
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
@@ -24,7 +24,7 @@
     <p>Upload a CSV file containing remote team call statistics for attendance tracking.</p>
 
     <div class="attendance-rules">
-        <h3>Attendance Rules (based on Talk Duration)</h3>
+        <h3>Checkin/Checkout Rules (based on Talk Duration)</h3>
         <table class="rules-table">
             <thead>
                 <tr>
