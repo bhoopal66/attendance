@@ -27,14 +27,17 @@ from .employee_portal import (
     employee_logout,
     employee_portal,
     submit_early_leave_request,
-    submit_leave_request
+    submit_leave_request,
+    get_my_requests
 )
 from .api import (
     update_attendance,
     recalculate_monthly_summary,
     get_request_attendance_data,
     approve_early_leave,
-    decline_early_leave
+    decline_early_leave,
+    get_pending_count,
+    get_pending_requests
 )
 from .employee_management import (
     employee_management,
@@ -69,12 +72,15 @@ __all__ = [
     'employee_portal',
     'submit_early_leave_request',
     'submit_leave_request',
+    'get_my_requests',
     # API
     'update_attendance',
     'recalculate_monthly_summary',
     'get_request_attendance_data',
     'approve_early_leave',
     'decline_early_leave',
+    'get_pending_count',
+    'get_pending_requests',
     # Employee Management
     'employee_management',
     'update_employee',

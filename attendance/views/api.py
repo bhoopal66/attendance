@@ -19,6 +19,42 @@ from .utils import superuser_required
 
 
 @login_required
+def get_pending_count(request):
+    """API endpoint to get current pending request count for real-time updates."""
+    if not request.user.is_superuser:
+        return JsonResponse({'count': 0})
+    
+    count = EarlyLeaveRequest.objects.filter(status='pending').count()
+    return JsonResponse({'count': count})
+
+
+@login_required
+def get_pending_requests(request):
+    """API endpoint to get all pending requests with full details for real-time dropdown."""
+    if not request.user.is_superuser:
+        return JsonResponse({'requests': [], 'count': 0})
+    
+    pending = EarlyLeaveRequest.objects.filter(status='pending').order_by('-request_date')[:10]
+    
+    requests_data = []
+    for req in pending:
+        requests_data.append({
+            'id': req.id,
+            'employee_name': req.get_employee_name(),
+            'request_date': req.request_date.strftime('%Y-%m-%d'),
+            'destination': req.destination,
+            'customer_name': req.customer_name,
+            'leaving_time': req.leaving_time.strftime('%H:%M'),
+            'return_time': req.return_time.strftime('%H:%M') if req.return_time else None,
+        })
+    
+    return JsonResponse({
+        'requests': requests_data,
+        'count': len(requests_data)
+    })
+
+
+@login_required
 def update_attendance(request):
     """API endpoint to update attendance records. Super admin only."""
     # Only super admins can edit attendance

@@ -18,6 +18,96 @@ document.addEventListener('click', function (e) {
 });
 
 // ============================================
+// Real-time Pending Count and Dropdown Updates
+// ============================================
+
+function updatePendingCount() {
+    const badge = document.getElementById('pendingBadge');
+    const dropdownContent = document.getElementById('requestsDropdown');
+
+    if (!badge) return; // Not on a page with the badge
+
+    fetch('/api/pending-requests/')
+        .then(response => response.json())
+        .then(data => {
+            const count = data.count;
+            const requests = data.requests;
+
+            // Update badge count
+            badge.textContent = count;
+            if (count > 0) {
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+
+            // Update dropdown content dynamically
+            if (dropdownContent) {
+                updateDropdownContent(requests, count);
+            }
+        })
+        .catch(error => {
+            console.log('Error fetching pending requests:', error);
+        });
+}
+
+function updateDropdownContent(requests, count) {
+    const dropdownContent = document.getElementById('requestsDropdown');
+    if (!dropdownContent) return;
+
+    if (count > 0) {
+        let html = `
+            <div class="dropdown-header">
+                <span>Pending Requests</span>
+                <span class="dropdown-badge">${count}</span>
+            </div>
+            <div class="dropdown-content">
+        `;
+
+        requests.forEach(req => {
+            html += `
+                <div class="dropdown-request">
+                    <div class="dropdown-request-header">
+                        <strong>${req.employee_name}</strong>
+                        <span class="dropdown-date">${req.request_date}</span>
+                    </div>
+                    <div class="dropdown-request-details">
+                        <span>📍 ${req.destination}</span>
+                        <span>👤 ${req.customer_name}</span>
+                    </div>
+                    <div class="dropdown-request-info">
+                        <span>🕐 ${req.leaving_time}</span>
+                        ${req.return_time ? `<span>→ ${req.return_time}</span>` : ''}
+                    </div>
+                    <div class="dropdown-request-actions">
+                        <button class="btn-sm-approve" onclick="openApprovalModal(${req.id})">✓ Approve</button>
+                        <button class="btn-sm-decline" onclick="declineRequest(${req.id})">✗ Decline</button>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        dropdownContent.innerHTML = html;
+    } else {
+        dropdownContent.innerHTML = `
+            <div class="dropdown-empty">
+                <span>✓ No pending requests</span>
+            </div>
+        `;
+    }
+}
+
+// Poll for updates every 30 seconds
+document.addEventListener('DOMContentLoaded', function () {
+    // Initial check after 2 seconds
+    setTimeout(updatePendingCount, 2000);
+
+    // Then poll every 30 seconds
+    setInterval(updatePendingCount, 30000);
+});
+
+// ============================================
 // Request Approval Modal Functions
 // ============================================
 

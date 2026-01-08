@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Checkin/Checkout - Taamul Employee Portal</title>
 
-    <link rel="stylesheet" href="{% static 'attendance/css/employee_portal.css' %}">
+    <link rel="stylesheet" href="{% static 'attendance/css/employee_portal.css' %}?v=4">
 </head>
 
 <body>
@@ -52,133 +52,164 @@
         </div>
 
         <!-- Calendar -->
-        <div class="calendar-card">
-            <div class="calendar-header">
-                {% for day in weekdays %}
-                <div class="weekday {% if day == 'Sun' %}holiday-header{% endif %}">{{ day }}</div>
-                {% endfor %}
-            </div>
-            <div class="calendar-grid">
-                {% for day in calendar_days %}
-                {% if day %}
-                {% with day_info=calendar_data|get_item:day %}
-                {% if day_info %}
-                <div class="calendar-day status-{{ day_info.status }}">
-                    <span class="day-number">{{ day }}</span>
-                    {% if day_info.status == 'holiday' %}
-                    <span class="status-text holiday">Holiday</span>
-                    {% elif day_info.status == 'absent' %}
-                    {% elif day_info.status == 'absent' %}
-                    <span class="status-text leave">Leave</span>
-                    {% elif day_info.status == 'paid_leave' %}
-                    <span class="status-text paid-leave">Approved Leave</span>
-                    {% elif day_info.record %}
-                    {% if employee_type == 'Remote' %}
-                    <!-- Remote employee: show call stats like admin report -->
-                    <div class="work-hours">{{ day_info.talk_minutes }} min</div>
-                    <div class="call-count">📞 {{ day_info.answered_calls }} calls</div>
-                    <div class="status-badge status-badge-{{ day_info.status }}">
-                        {% if day_info.status == 'green' %}Present{% elif day_info.status == 'yellow' %}Half Day{% else
-                        %}Absent{% endif %}
+        <div class="dashboard-layout">
+            <div class="main-column">
+                <div class="calendar-card">
+                    <div class="calendar-header">
+                        {% for day in weekdays %}
+                        <div class="weekday {% if day == 'Sun' %}holiday-header{% endif %}">{{ day }}</div>
+                        {% endfor %}
                     </div>
-                    {% else %}
-                    <!-- In-house employee: show work duration and times -->
-                    {% if day_info.record.work_duration %}
-                    <div class="work-hours">{{ day_info.record.work_duration }}</div>
-                    <div class="time-info">
-                        <span>In: {{ day_info.record.first_in|time:"H:i" }}</span>
-                        <span>Out: {{ day_info.record.last_out|time:"H:i" }}</span>
+                    <div class="calendar-grid">
+                        {% for day in calendar_days %}
+                        {% if day %}
+                        {% with day_info=calendar_data|get_item:day %}
+                        {% if day_info %}
+                        <div class="calendar-day status-{{ day_info.status }}">
+                            <span class="day-number">{{ day }}</span>
+                            {% if day_info.status == 'holiday' %}
+                            <span class="status-text holiday">Holiday</span>
+                            {% elif day_info.status == 'absent' %}
+                            {% elif day_info.status == 'absent' %}
+                            <span class="status-text leave">Leave</span>
+                            {% elif day_info.status == 'paid_leave' %}
+                            <span class="status-text paid-leave">Approved Leave</span>
+                            {% elif day_info.record %}
+                            {% if employee_type == 'Remote' %}
+                            <!-- Remote employee: show call stats like admin report -->
+                            <div class="work-hours">{{ day_info.talk_minutes }} min</div>
+                            <div class="call-count">📞 {{ day_info.answered_calls }} calls</div>
+                            <div class="status-badge status-badge-{{ day_info.status }}">
+                                {% if day_info.status == 'green' %}Present{% elif day_info.status == 'yellow' %}Half
+                                Day{% else
+                                %}Absent{% endif %}
+                            </div>
+                            {% else %}
+                            <!-- In-house employee: show work duration and times -->
+                            {% if day_info.record.work_duration %}
+                            <div class="work-hours">{{ day_info.record.work_duration }}</div>
+                            <div class="time-info">
+                                <span>In: {{ day_info.record.first_in|time:"H:i" }}</span>
+                                <span>Out: {{ day_info.record.last_out|time:"H:i" }}</span>
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <div class="calendar-day">
+                            <span class="day-number">{{ day }}</span>
+                        </div>
+                        {% endif %}
+                        {% endwith %}
+                        {% else %}
+                        <div class="calendar-day empty"></div>
+                        {% endif %}
+                        {% endfor %}
                     </div>
-                    {% endif %}
-                    {% endif %}
-                    {% endif %}
                 </div>
-                {% else %}
-                <div class="calendar-day">
-                    <span class="day-number">{{ day }}</span>
-                </div>
-                {% endif %}
-                {% endwith %}
-                {% else %}
-                <div class="calendar-day empty"></div>
-                {% endif %}
-                {% endfor %}
-            </div>
-        </div>
 
-        <!-- Summary Stats -->
-        <div class="summary-section">
-            <h3>Monthly Summary</h3>
-            <div class="summary-grid">
-                {% if employee_type == 'In-House' %}
-                <div class="summary-stat working">
-                    <span class="stat-icon">💼</span>
-                    <span class="stat-value">{{ summary.total_working }}</span>
-                    <span class="stat-label">Total Working</span>
+                <!-- Summary Stats -->
+                <div class="summary-section">
+                    <h3>Monthly Summary</h3>
+                    <div class="summary-grid">
+                        {% if employee_type == 'In-House' %}
+                        <div class="summary-stat working">
+                            <span class="stat-icon">💼</span>
+                            <span class="stat-value">{{ summary.total_working }}</span>
+                            <span class="stat-label">Total Working</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="stat-icon">✅</span>
+                            <span class="stat-value">{{ summary.full_days }}</span>
+                            <span class="stat-label">Full Days</span>
+                        </div>
+                        <div class="summary-stat half-day">
+                            <span class="stat-icon">½</span>
+                            <span class="stat-value">{{ summary.half_days }}</span>
+                            <span class="stat-label">Half Days</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="stat-icon">🗓️</span>
+                            <span class="stat-value">{{ summary.holidays }}</span>
+                            <span class="stat-label">Holidays</span>
+                        </div>
+                        <div class="summary-stat leave">
+                            <span class="stat-icon">🏖️</span>
+                            <span class="stat-value">{{ summary.leave_days }}</span>
+                            <span class="stat-label">Leave Days</span>
+                        </div>
+                        <div class="summary-stat late">
+                            <span class="stat-icon">⏰</span>
+                            <span class="stat-value">{{ summary.late_days }}</span>
+                            <span class="stat-label">Late Arrivals</span>
+                        </div>
+                        <!-- Paid Leave Stats -->
+                        <div class="summary-stat paid-leave">
+                            <span class="stat-icon">🌟</span>
+                            <span class="stat-value">{{ summary.paid_leave_days }}</span>
+                            <span class="stat-label">Paid Leave Days</span>
+                        </div>
+                        {% else %}
+                        <div class="summary-stat working">
+                            <span class="stat-icon">💼</span>
+                            <span class="stat-value">{{ summary.total_working }}</span>
+                            <span class="stat-label">Total Working</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="stat-icon">✅</span>
+                            <span class="stat-value">{{ summary.present_days }}</span>
+                            <span class="stat-label">Present Days</span>
+                        </div>
+                        <div class="summary-stat half-day">
+                            <span class="stat-icon">½</span>
+                            <span class="stat-value">{{ summary.half_days }}</span>
+                            <span class="stat-label">Half Days</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="stat-icon">🗓️</span>
+                            <span class="stat-value">{{ summary.holidays }}</span>
+                            <span class="stat-label">Holidays</span>
+                        </div>
+                        <div class="summary-stat leave">
+                            <span class="stat-icon">🏖️</span>
+                            <span class="stat-value">{{ summary.absent_days }}</span>
+                            <span class="stat-label">Absent Days</span>
+                        </div>
+                        <div class="summary-stat late">
+                            <span class="stat-icon">📞</span>
+                            <span class="stat-value">{{ summary.total_talk_hours }}</span>
+                            <span class="stat-label">Talk Hours</span>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="summary-stat">
-                    <span class="stat-icon">✅</span>
-                    <span class="stat-value">{{ summary.full_days }}</span>
-                    <span class="stat-label">Full Days</span>
+
+            </div>
+
+            <div class="side-column">
+                <!-- My Requests Section -->
+                <div class="requests-section">
+                    <h3>📋 My Requests</h3>
+                    <div class="requests-tabs">
+                        <button class="tab-btn active" onclick="switchTab('onduty')">🚗 On Duty</button>
+                        <button class="tab-btn" onclick="switchTab('leave')">📝 Leave</button>
+                    </div>
+
+                    <!-- On Duty Requests Tab -->
+                    <div class="tab-content active" id="onduty-tab">
+                        <div class="requests-list" id="onduty-requests">
+                            <div class="loading-placeholder">Loading requests...</div>
+                        </div>
+                    </div>
+
+                    <!-- Leave Requests Tab -->
+                    <div class="tab-content" id="leave-tab">
+                        <div class="requests-list" id="leave-requests">
+                            <div class="loading-placeholder">Loading requests...</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="summary-stat half-day">
-                    <span class="stat-icon">½</span>
-                    <span class="stat-value">{{ summary.half_days }}</span>
-                    <span class="stat-label">Half Days</span>
-                </div>
-                <div class="summary-stat">
-                    <span class="stat-icon">🗓️</span>
-                    <span class="stat-value">{{ summary.holidays }}</span>
-                    <span class="stat-label">Holidays</span>
-                </div>
-                <div class="summary-stat leave">
-                    <span class="stat-icon">🏖️</span>
-                    <span class="stat-value">{{ summary.leave_days }}</span>
-                    <span class="stat-label">Leave Days</span>
-                </div>
-                <div class="summary-stat late">
-                    <span class="stat-icon">⏰</span>
-                    <span class="stat-value">{{ summary.late_days }}</span>
-                    <span class="stat-label">Late Arrivals</span>
-                </div>
-                <!-- Paid Leave Stats -->
-                <div class="summary-stat paid-leave">
-                    <span class="stat-icon">🌟</span>
-                    <span class="stat-value">{{ summary.paid_leave_days }}</span>
-                    <span class="stat-label">Paid Leave Days</span>
-                </div>
-                {% else %}
-                <div class="summary-stat working">
-                    <span class="stat-icon">💼</span>
-                    <span class="stat-value">{{ summary.total_working }}</span>
-                    <span class="stat-label">Total Working</span>
-                </div>
-                <div class="summary-stat">
-                    <span class="stat-icon">✅</span>
-                    <span class="stat-value">{{ summary.present_days }}</span>
-                    <span class="stat-label">Present Days</span>
-                </div>
-                <div class="summary-stat half-day">
-                    <span class="stat-icon">½</span>
-                    <span class="stat-value">{{ summary.half_days }}</span>
-                    <span class="stat-label">Half Days</span>
-                </div>
-                <div class="summary-stat">
-                    <span class="stat-icon">🗓️</span>
-                    <span class="stat-value">{{ summary.holidays }}</span>
-                    <span class="stat-label">Holidays</span>
-                </div>
-                <div class="summary-stat leave">
-                    <span class="stat-icon">🏖️</span>
-                    <span class="stat-value">{{ summary.absent_days }}</span>
-                    <span class="stat-label">Absent Days</span>
-                </div>
-                <div class="summary-stat late">
-                    <span class="stat-icon">📞</span>
-                    <span class="stat-value">{{ summary.total_talk_hours }}</span>
-                    <span class="stat-label">Talk Hours</span>
-                </div>
-                {% endif %}
             </div>
         </div>
 
@@ -200,8 +231,8 @@
                             <input type="time" name="leaving_time" required class="form-input">
                         </div>
                         <div class="form-group">
-                            <label>Expected Return Time</label>
-                            <input type="time" name="return_time" class="form-input">
+                            <label>Expected Return Time *</label>
+                            <input type="time" name="return_time" required class="form-input">
                         </div>
                         <div class="form-group">
                             <label>Destination *</label>
@@ -288,11 +319,11 @@
         <script>
             window.portalConfig = {
                 selectedYear: {{ selected_year }},
-            selectedMonth: {{ selected_month }},
+            selectedMonth: { { selected_month } },
             employeeType: "{{ employee_type }}"
     };
         </script>
-        <script src="{% static 'attendance/js/employee_portal.js' %}?v=1.2"></script>
+        <script src="{% static 'attendance/js/employee_portal.js' %}?v=1.5"></script>
 </body>
 
 </html>

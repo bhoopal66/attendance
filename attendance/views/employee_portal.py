@@ -357,8 +357,8 @@ def submit_early_leave_request(request):
     customer_name = request.POST.get('customer_name', '').strip()
     reason = request.POST.get('reason', '').strip()
     
-    if not leaving_time_str or not destination or not customer_name:
-        return JsonResponse({'success': False, 'error': 'Please fill in all required fields'})
+    if not leaving_time_str or not return_time_str or not destination or not customer_name:
+        return JsonResponse({'success': False, 'error': 'Please fill in all required fields (leaving time, return time, destination, customer name)'})
     
     try:
         leaving_time = datetime.datetime.strptime(leaving_time_str, '%H:%M').time()
@@ -464,4 +464,82 @@ def submit_leave_request(request):
         return JsonResponse({'success': True, 'message': 'Leave request submitted successfully'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+def get_my_requests(request):
+    """API endpoint to get the logged-in employee's own requests for real-time display.
+    
+    Supports pagination with query parameters:
+    - on_duty_offset: starting position for on-duty requests (default 0)
+    - leave_offset: starting position for leave requests (default 0)
+    - limit: number of items per request (default 5)
+    """
+    if 'employee_id' not in request.session:
+        return JsonResponse({'on_duty': [], 'leave': [], 'on_duty_has_more': False, 'leave_has_more': False})
+    
+    employee_id = request.session.get('employee_id')
+    employee_type = request.session.get('employee_type')
+    
+    # Pagination parameters
+    try:
+        on_duty_offset = int(request.GET.get('on_duty_offset', 0))
+        leave_offset = int(request.GET.get('leave_offset', 0))
+        limit = int(request.GET.get('limit', 5))
+    except ValueError:
+        on_duty_offset = 0
+        leave_offset = 0
+        limit = 5
+    
+    # Get on-duty requests (EarlyLeaveRequest)
+    on_duty_requests = []
+    if employee_type == 'inhouse':
+        total_on_duty = EarlyLeaveRequest.objects.filter(employee_id=employee_id).count()
+        requests_qs = EarlyLeaveRequest.objects.filter(employee_id=employee_id).order_by('-created_at')[on_duty_offset:on_duty_offset + limit]
+    else:
+        total_on_duty = EarlyLeaveRequest.objects.filter(remote_employee_id=employee_id).count()
+        requests_qs = EarlyLeaveRequest.objects.filter(remote_employee_id=employee_id).order_by('-created_at')[on_duty_offset:on_duty_offset + limit]
+    
+    on_duty_has_more = (on_duty_offset + limit) < total_on_duty
+    
+    for req in requests_qs:
+        on_duty_requests.append({
+            'id': req.id,
+            'request_date': req.request_date.strftime('%Y-%m-%d'),
+            'destination': req.destination,
+            'customer_name': req.customer_name,
+            'leaving_time': req.leaving_time.strftime('%H:%M'),
+            'return_time': req.return_time.strftime('%H:%M') if req.return_time else None,
+            'status': req.status,
+            'created_at': req.created_at.strftime('%Y-%m-%d %H:%M'),
+        })
+    
+    # Get leave requests (in-house only)
+    leave_requests = []
+    leave_has_more = False
+    if employee_type == 'inhouse':
+        total_leave = LeaveRequest.objects.filter(employee_id=employee_id).count()
+        leave_qs = LeaveRequest.objects.filter(employee_id=employee_id).order_by('-created_at')[leave_offset:leave_offset + limit]
+        leave_has_more = (leave_offset + limit) < total_leave
+        
+        for leave in leave_qs:
+            leave_requests.append({
+                'id': leave.id,
+                'leave_type': leave.get_leave_type_display(),
+                'start_date': leave.start_date.strftime('%Y-%m-%d'),
+                'end_date': leave.end_date.strftime('%Y-%m-%d'),
+                'requested_days': leave.requested_days,
+                'approved_days': leave.approved_days,
+                'reason': leave.reason[:100] + '...' if len(leave.reason) > 100 else leave.reason,
+                'status': leave.status,
+                'admin_notes': leave.admin_notes if leave.status == 'rejected' else '',
+                'created_at': leave.created_at.strftime('%Y-%m-%d %H:%M'),
+            })
+    
+    return JsonResponse({
+        'on_duty': on_duty_requests,
+        'leave': leave_requests,
+        'on_duty_has_more': on_duty_has_more,
+        'leave_has_more': leave_has_more
+    })
+
 

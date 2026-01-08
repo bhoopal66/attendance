@@ -20,10 +20,13 @@ urlpatterns = [
     path('portal/logout/', views.employee_logout, name='employee_logout'),
     path('portal/early-leave-request/', views.submit_early_leave_request, name='submit_early_leave'),
     path('portal/leave-request/', views.submit_leave_request, name='submit_leave_request'),
+    path('portal/api/my-requests/', views.get_my_requests, name='get_my_requests'),
     # Request Approval Endpoints (Admin)
     path('request/<int:request_id>/data/', views.get_request_attendance_data, name='get_request_data'),
     path('request/<int:request_id>/approve/', views.approve_early_leave, name='approve_request'),
     path('request/<int:request_id>/decline/', views.decline_early_leave, name='decline_request'),
+    path('api/pending-count/', views.get_pending_count, name='get_pending_count'),
+    path('api/pending-requests/', views.get_pending_requests, name='get_pending_requests'),
     # Employee Management (Admin)
     path('employees/', views.employee_management, name='employee_management'),
     path('employees/update/', views.update_employee, name='update_employee'),

@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Taamul Checkin/Checkout Report</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}?v=5">
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -31,13 +31,15 @@
                 <a href="{% url 'payroll_dashboard' %}" class="nav-item">Payroll</a>
                 <a href="{% url 'leave_management' %}" class="nav-item">Leave Requests</a>
 
-                <!-- Requests Dropdown -->
+                <!-- Notification Bell Dropdown -->
                 <div class="nav-dropdown">
-                    <button class="requests-btn" onclick="toggleRequestsDropdown()">
-                        📝 Requests
-                        {% if nav_pending_count > 0 %}
-                        <span class="badge">{{ nav_pending_count }}</span>
-                        {% endif %}
+                    <button class="notification-btn" id="requestsBtn" onclick="toggleRequestsDropdown()">
+                        <svg class="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        <span class="notification-badge" id="pendingBadge" {% if nav_pending_count == 0 %}style="display: none;"{% endif %}>{{ nav_pending_count }}</span>
+                        <span class="btn-text">Requests</span>
                     </button>
                     <div class="nav-dropdown-menu" id="requestsDropdown">
                         {% if nav_pending_count > 0 %}
@@ -162,11 +164,11 @@
                     </div>
                     <div class="time-edit-inputs">
                         <div class="form-group">
-                            <label for="newFirstIn">New First In</label>
+                            <label for="newFirstIn">From</label>
                             <input type="time" id="newFirstIn">
                         </div>
                         <div class="form-group">
-                            <label for="newLastOut">New Last Out</label>
+                            <label for="newLastOut">To</label>
                             <input type="time" id="newLastOut">
                         </div>
                     </div>
@@ -188,7 +190,7 @@
     </div>
     {% endif %}
 
-    <script src="{% static 'attendance/js/base.js' %}?v=3"></script>
+    <script src="{% static 'attendance/js/base.js' %}?v=4"></script>
     {% block extra_js %}{% endblock %}
 </body>
 
