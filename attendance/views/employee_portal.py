@@ -426,9 +426,9 @@ def submit_leave_request(request):
     if not reason:
         return JsonResponse({'success': False, 'error': 'Please provide a reason for your leave request'})
     
-    # Check document requirement for sick/medical leave
-    if leave_type in ('sick', 'medical') and not document:
-        return JsonResponse({'success': False, 'error': f'{leave_type.title()} leave requires a supporting document'})
+    # Check document requirement - only mandatory for medical leave
+    if leave_type == 'medical' and not document:
+        return JsonResponse({'success': False, 'error': 'Medical leave requires a supporting document'})
     
     # Parse dates
     try:

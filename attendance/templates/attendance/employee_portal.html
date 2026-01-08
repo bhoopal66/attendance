@@ -244,7 +244,7 @@
                                 <option value="">Select leave type...</option>
                                 <option value="annual">Annual Leave</option>
                                 <option value="casual">Casual Leave</option>
-                                <option value="sick">Sick Leave (Document Required)</option>
+                                <option value="sick">Sick Leave</option>
                                 <option value="medical">Medical Leave (Document Required)</option>
                             </select>
                         </div>
@@ -288,11 +288,11 @@
         <script>
             window.portalConfig = {
                 selectedYear: {{ selected_year }},
-            selectedMonth: { { selected_month } },
+            selectedMonth: {{ selected_month }},
             employeeType: "{{ employee_type }}"
     };
         </script>
-        <script src="{% static 'attendance/js/employee_portal.js' %}?v=1.1"></script>
+        <script src="{% static 'attendance/js/employee_portal.js' %}?v=1.2"></script>
 </body>
 
 </html>

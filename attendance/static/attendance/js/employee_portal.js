@@ -139,11 +139,20 @@ function toggleDocumentField() {
     const leaveType = document.getElementById('leaveType').value;
     const docGroup = document.getElementById('documentGroup');
     const docInput = document.getElementById('leaveDocument');
+    const docLabel = docGroup.querySelector('label');
 
-    if (leaveType === 'sick' || leaveType === 'medical') {
+    if (leaveType === 'medical') {
+        // Medical leave - document is required
         docGroup.style.display = 'block';
         docInput.required = true;
+        docLabel.textContent = 'Supporting Document *';
+    } else if (leaveType === 'sick') {
+        // Sick leave - document is optional
+        docGroup.style.display = 'block';
+        docInput.required = false;
+        docLabel.textContent = 'Supporting Document (Optional)';
     } else {
+        // Other leave types - no document needed
         docGroup.style.display = 'none';
         docInput.required = false;
         docInput.value = '';
