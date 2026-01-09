@@ -4,7 +4,11 @@
     <div class="filter-group search-group">
         <input type="text" name="search" placeholder="Search employee name..." value="{{ search_query }}"
             class="search-input">
-        <button type="submit" class="search-btn">🔍</button>
+        <button type="submit" class="search-btn"><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg></button>
     </div>
     <div class="filter-group">
         <select name="month" onchange="this.form.submit()">
@@ -22,7 +26,8 @@
     </div>
     <div class="filter-group checkbox-group">
         <label class="checkbox-label">
-            <input type="checkbox" name="show_inactive" value="1" {% if show_inactive %}checked{% endif %} onchange="this.form.submit()">
+            <input type="checkbox" name="show_inactive" value="1" {% if show_inactive %}checked{% endif %}
+                onchange="this.form.submit()">
             <span>Show inactive employees</span>
         </label>
     </div>

@@ -3,7 +3,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'attendance/css/report.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'attendance/css/report.css' %}?v=4">
 {% endblock %}
 
 {% block content %}
@@ -35,10 +35,22 @@
             </div>
             <div class="download-dropdown">
                 <button class="download-btn" onclick="toggleDownloadMenu()">
-                    📥 Download XLSX ▼
+                    <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download XLSX ▼
                 </button>
                 <div class="download-menu" id="downloadMenu">
-                    <a href="javascript:void(0)" onclick="downloadReport()">📊 All Employees (Summary)</a>
+                    <a href="javascript:void(0)" onclick="downloadReport()">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        All Employees (Summary)
+                    </a>
                 </div>
             </div>
         </div>
@@ -53,11 +65,46 @@
                         title="Inactive Employee">Inactive</span>{% endif %}
                 </div>
                 <div class="summary-meta">
-                    <span class="badge working" title="Working Days">💼 {{ employee.summary.total_working }}</span>
-                    <span class="badge paid-leave" title="Paid Leave Days">🌟 {{ employee.summary.paid_leaves }}</span>
-                    <span class="badge leave" title="Leave Days">🏖️ {{ employee.summary.leave_days }}</span>
-                    <span class="badge late" title="Late Arrivals">⏰ {{ employee.summary.late_days }}</span>
-                    <span class="badge half-day" title="Half Days">½ {{ employee.summary.half_days }}</span>
+                    <span class="badge working" title="Working Days">
+                        <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        {{ employee.summary.total_working }}
+                    </span>
+                    <span class="badge paid-leave" title="Paid Leave Days">
+                        <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                        {{ employee.summary.paid_leaves }}
+                    </span>
+                    <span class="badge leave" title="Leave Days">
+                        <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {{ employee.summary.leave_days }}
+                    </span>
+                    <span class="badge late" title="Late Arrivals">
+                        <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {{ employee.summary.late_days }}
+                    </span>
+                    <span class="badge half-day" title="Half Days">
+                        <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        {{ employee.summary.half_days }}
+                    </span>
                 </div>
             </summary>
             <div class="details-content">
@@ -78,7 +125,8 @@
                             {% endif %}>
                             <span class="day-number">{{ day }}</span>
                             {% if day_info.status == 'absent' %}
-                            {% if day <= current_day %}<div class="leave-text">Leave</div>{% endif %}
+                            {% if day <= current_day %}<div class="leave-text">Leave
+                        </div>{% endif %}
                         {% elif day_info.status == 'paid_leave' %}
                         <div class="paid-leave-text">Paid Leave</div>
                         {% elif day_info.status == 'holiday' %}
@@ -96,7 +144,12 @@
                             <span>Out: {{ day_info.record.last_out|time:"H:i" }}</span>
                         </div>
                         {% endif %}
-                        {% if user.is_superuser %}<span class="edit-icon">✏️</span>{% endif %}
+                        {% if user.is_superuser %}<span class="edit-icon"><svg class="icon-svg-sm"
+                                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg></span>{% endif %}
                     </div>
                     {% endif %}
                     {% endwith %}
@@ -111,34 +164,37 @@
             <div class="employee-actions">
                 <button onclick="downloadEmployeeReport({{ employee.id }}, '{{ employee.name }}')"
                     class="download-employee-btn">
-                    📥 Download Report
+                    <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download Report
                 </button>
             </div>
-            <div class="monthly-summary">
-                <div class="summary-stat working">
-                    <span class="stat-icon">💼</span>
-                    <span class="stat-value">{{ employee.summary.total_working }}</span>
-                    <span class="stat-label">Working Days</span>
-                </div>
-                <div class="summary-stat leave">
-                    <span class="stat-icon">🏖️</span>
-                    <span class="stat-value">{{ employee.summary.leave_days }}</span>
-                    <span class="stat-label">Leave Days</span>
-                </div>
-                <div class="summary-stat paid-leave">
-                    <span class="stat-icon">🌟</span>
-                    <span class="stat-value">{{ employee.summary.paid_leaves }}</span>
-                    <span class="stat-label">Paid Leaves</span>
-                </div>
-                <div class="summary-stat late">
-                    <span class="stat-icon">⏰</span>
-                    <span class="stat-value">{{ employee.summary.late_days }}</span>
-                    <span class="stat-label">Late Arrivals</span>
-                </div>
-                <div class="summary-stat half-day">
-                    <span class="stat-icon">½</span>
-                    <span class="stat-value">{{ employee.summary.half_days }}</span>
-                    <span class="stat-label">Half Days</span>
+            <div class="monthly-summary metrics-section">
+                <div class="metrics-section-header">Monthly Summary</div>
+                <div class="metrics-row">
+                    <div class="metric-item hero">
+                        <span class="metric-label">Working Days</span>
+                        <span class="metric-value">{{ employee.summary.total_working }}</span>
+                    </div>
+                    <div class="metric-item danger">
+                        <span class="metric-label">Leave Days</span>
+                        <span class="metric-value bad">{{ employee.summary.leave_days }}</span>
+                    </div>
+                    <div class="metric-item info">
+                        <span class="metric-label">Paid Leaves</span>
+                        <span class="metric-value info">{{ employee.summary.paid_leaves }}</span>
+                    </div>
+                    <div class="metric-item warning">
+                        <span class="metric-label">Late Arrivals</span>
+                        <span class="metric-value warning">{{ employee.summary.late_days }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Half Days</span>
+                        <span class="metric-value">{{ employee.summary.half_days }}</span>
+                    </div>
                 </div>
             </div>
     </div>

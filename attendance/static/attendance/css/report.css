@@ -641,11 +641,13 @@ details[open] summary {
 }
 
 .calendar-day.status-incomplete::after {
-    content: "⚠️";
+    content: "!";
     position: absolute;
     top: 2px;
-    right: 2px;
-    font-size: 0.65rem;
+    right: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: #EA580C;
 }
 
 @keyframes incomplete-pulse {
@@ -709,74 +711,170 @@ details[open] summary {
     margin-top: auto;
 }
 
-/* Monthly Summary Styles */
-.monthly-summary {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
+/* Monthly Summary - Refined Professional Design (matches employee portal) */
+.monthly-summary.metrics-section {
+    display: block;
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem 2rem;
     margin-top: 1.5rem;
-    padding: 1rem;
-    background: linear-gradient(135deg, #F9FAFB, #F3F4F6);
-    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e2e8f0;
 }
 
-.summary-stat {
+.metrics-section-header {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #64748b;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.metrics-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.metric-item {
+    flex: 1;
+    min-width: 100px;
+    padding: 0.75rem 1.25rem;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    padding: 1rem;
-    background: white;
-    border-radius: 0.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s;
+    position: relative;
+    border-right: 1px solid #f1f5f9;
 }
 
-.summary-stat:hover {
-    transform: translateY(-2px);
+.metric-item:last-child {
+    border-right: none;
 }
 
-.stat-icon {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
+/* Colored accent bar at top of each metric */
+.metric-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 1.25rem;
+    right: 1.25rem;
+    height: 3px;
+    background: #e2e8f0;
+    border-radius: 2px;
 }
 
-.stat-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: #374151;
+.metric-item.hero::before {
+    background: linear-gradient(90deg, #3b82f6, #6366f1);
 }
 
-.stat-label {
-    font-size: 0.75rem;
-    color: #6B7280;
+.metric-item.success::before {
+    background: #10B981;
+}
+
+.metric-item.warning::before {
+    background: #F59E0B;
+}
+
+.metric-item.danger::before {
+    background: #EF4444;
+}
+
+.metric-item.info::before {
+    background: #3B82F6;
+}
+
+.metric-item .metric-label {
+    font-size: 0.7rem;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-top: 0.25rem;
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+    margin-top: 0.5rem;
 }
 
-.summary-stat.working {
-    border-top: 3px solid #10B981;
+.metric-item .metric-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1;
 }
 
-.summary-stat.leave {
-    border-top: 3px solid #EF4444;
+/* Hero metric styling */
+.metric-item.hero {
+    min-width: 140px;
 }
 
-.summary-stat.late {
-    border-top: 3px solid #F59E0B;
+.metric-item.hero .metric-value {
+    font-size: 2.25rem;
+    background: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-.summary-stat.early {
-    border-top: 3px solid #8B5CF6;
+/* Colored values */
+.metric-value.good {
+    color: #10B981;
 }
 
-.summary-stat.paid-leave {
-    border-top: 3px solid #3B82F6;
+.metric-value.warning {
+    color: #F59E0B;
 }
 
+.metric-value.bad {
+    color: #EF4444;
+}
+
+.metric-value.info {
+    color: #3B82F6;
+}
+
+/* Icon sizing classes */
+.icon-svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.icon-svg-sm {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-    .monthly-summary {
-        grid-template-columns: repeat(2, 1fr);
+    .monthly-summary.metrics-section {
+        padding: 1rem 1.25rem;
+    }
+
+    .metric-item {
+        min-width: 80px;
+        padding: 0.5rem 0.75rem;
+        border-right: none;
+        border-bottom: 1px solid #f1f5f9;
+        flex: 0 0 50%;
+    }
+
+    .metric-item:nth-last-child(-n+2) {
+        border-bottom: none;
+    }
+
+    .metric-item::before {
+        left: 0.75rem;
+        right: 0.75rem;
+    }
+
+    .metric-item .metric-value {
+        font-size: 1.5rem;
+    }
+
+    .metric-item.hero .metric-value {
+        font-size: 1.75rem;
     }
 }
 

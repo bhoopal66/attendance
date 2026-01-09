@@ -850,3 +850,18 @@ input[type="file"] {
     background: #FEE2E2;
     color: #991B1B;
 }
+/* ============================================
+   Icon Sizing Classes
+   ============================================ */
+
+.icon-svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.icon-svg-sm {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}

@@ -21,7 +21,11 @@
             <div class="filter-group search-group">
                 <input type="text" name="search" placeholder="Search employee name..." value="{{ search_query }}"
                     class="search-input">
-                <button type="submit" class="search-btn">🔍</button>
+                <button type="submit" class="search-btn"><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg></button>
             </div>
             <div class="filter-group">
                 <select name="month" onchange="this.form.submit()">
@@ -61,10 +65,18 @@
         </div>
         <div class="download-dropdown">
             <button class="download-btn" onclick="toggleDownloadMenu()">
-                📥 Download XLSX ▼
+                <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg> Download XLSX ▼
             </button>
             <div class="download-menu" id="downloadMenu">
-                <a href="javascript:void(0)" onclick="downloadRemoteReport()">📊 All Employees (Summary)</a>
+                <a href="javascript:void(0)" onclick="downloadRemoteReport()"><svg class="icon-svg"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg> All Employees (Summary)</a>
             </div>
         </div>
     </div>
@@ -78,10 +90,26 @@
                 {% if not employee.is_active %}<span class="badge inactive" title="Inactive Employee">Inactive</span>{% endif %}
             </div>
             <div class="summary-meta">
-                <span class="badge present" title="Present Days">✅ {{ employee.summary.present_days }}</span>
-                <span class="badge half-day" title="Half Days">½ {{ employee.summary.half_days }}</span>
-                <span class="badge absent" title="Absent Days">❌ {{ employee.summary.absent_days }}</span>
-                <span class="badge talk-time" title="Total Talk Time">📞 {{ employee.summary.total_talk_hours }}h</span>
+                <span class="badge present" title="Present Days"><svg class="icon-svg-sm"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg> {{ employee.summary.present_days }}</span>
+                <span class="badge half-day" title="Half Days"><svg class="icon-svg-sm"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg> {{ employee.summary.half_days }}</span>
+                <span class="badge absent" title="Absent Days"><svg class="icon-svg-sm"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg> {{ employee.summary.absent_days }}</span>
+                <span class="badge talk-time" title="Total Talk Time"><svg class="icon-svg-sm"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg> {{ employee.summary.total_talk_hours }}h</span>
             </div>
         </summary>
         <div class="details-content">
@@ -105,7 +133,11 @@
                         <!-- Future day empty -->
                         {% else %}
                         <div class="talk-duration">{{ day_info.talk_minutes }} min</div>
-                        <div class="answered-calls">📞 {{ day_info.answered_calls }} calls</div>
+                        <div class="answered-calls"><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg> {{ day_info.answered_calls }} calls</div>
                         <div class="status-badge-{{ day_info.status }}">
                             {% if day_info.status == 'present' %}Present{% elif day_info.status == 'half_day' %}Half
                             Day{% else %}Absent{% endif %}
@@ -125,29 +157,32 @@
             <div class="employee-actions">
                 <button onclick="downloadRemoteEmployeeReport({{ employee.id }}, '{{ employee.name }}')"
                     class="download-employee-btn">
-                    📥 Download Report
+                    <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg> Download Report
                 </button>
             </div>
-            <div class="monthly-summary">
-                <div class="summary-stat present">
-                    <span class="stat-icon">✅</span>
-                    <span class="stat-value">{{ employee.summary.present_days }}</span>
-                    <span class="stat-label">Present Days</span>
-                </div>
-                <div class="summary-stat half-day">
-                    <span class="stat-icon">½</span>
-                    <span class="stat-value">{{ employee.summary.half_days }}</span>
-                    <span class="stat-label">Half Days</span>
-                </div>
-                <div class="summary-stat absent">
-                    <span class="stat-icon">❌</span>
-                    <span class="stat-value">{{ employee.summary.absent_days }}</span>
-                    <span class="stat-label">Absent Days</span>
-                </div>
-                <div class="summary-stat talk-time">
-                    <span class="stat-icon">📞</span>
-                    <span class="stat-value">{{ employee.summary.total_talk_hours }}</span>
-                    <span class="stat-label">Total Hours</span>
+            <div class="monthly-summary metrics-section">
+                <div class="metrics-section-header">Monthly Summary</div>
+                <div class="metrics-row">
+                    <div class="metric-item hero">
+                        <span class="metric-label">Present Days</span>
+                        <span class="metric-value">{{ employee.summary.present_days }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Half Days</span>
+                        <span class="metric-value">{{ employee.summary.half_days }}</span>
+                    </div>
+                    <div class="metric-item danger">
+                        <span class="metric-label">Absent Days</span>
+                        <span class="metric-value bad">{{ employee.summary.absent_days }}</span>
+                    </div>
+                    <div class="metric-item info">
+                        <span class="metric-label">Total Hours</span>
+                        <span class="metric-value info">{{ employee.summary.total_talk_hours }}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -161,7 +196,7 @@
 <script>
     window.remoteReportConfig = {
         selectedYear: {{ selected_year }},
-    selectedMonth: {{ selected_month }},
+    selectedMonth: { { selected_month } },
     showInactive: {% if show_inactive %} true{% else %} false{% endif %},
     downloadReportUrl: "{% url 'download_remote_report' %}",
         downloadEmployeeReportUrl: "{% url 'download_remote_employee_report' employee_id=0 %}"
