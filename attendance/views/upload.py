@@ -134,11 +134,20 @@ def upload_file(request):
             
             processed_count = 0
             for (person_id, name), group in grouped:
-                # Get or create employee by ID + Name combo
-                employee, created = Employee.objects.get_or_create(
-                    person_id=person_id,
-                    name=name
-                )
+                # Look up employee by name first (primary identifier)
+                # If exists, update person_id if different; only create if name doesn't exist
+                try:
+                    employee = Employee.objects.get(name=name)
+                    # Update person_id if it has changed
+                    if employee.person_id != person_id:
+                        employee.person_id = person_id
+                        employee.save()
+                except Employee.DoesNotExist:
+                    # Only create new employee if name doesn't exist
+                    employee = Employee.objects.create(
+                        person_id=person_id,
+                        name=name
+                    )
 
                 first_in = group["First-In"].min()
                 last_out = group["Last-Out"].max()
