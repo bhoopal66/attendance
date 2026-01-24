@@ -134,20 +134,36 @@ def upload_file(request):
             
             processed_count = 0
             for (person_id, name), group in grouped:
-                # Look up employee by name first (primary identifier)
-                # If exists, update person_id if different; only create if name doesn't exist
-                try:
-                    employee = Employee.objects.get(name=name)
-                    # Update person_id if it has changed
-                    if employee.person_id != person_id:
-                        employee.person_id = person_id
-                        employee.save()
-                except Employee.DoesNotExist:
-                    # Only create new employee if name doesn't exist
-                    employee = Employee.objects.create(
-                        person_id=person_id,
-                        name=name
-                    )
+                # Look up employee - try multiple strategies:
+                # 1. Exact match on person_id + name
+                # 2. Match by name only (if unique)  
+                # 3. Create new if no match
+                employee = None
+                
+                # First try exact match on both fields
+                employee = Employee.objects.filter(person_id=person_id, name=name).first()
+                
+                if not employee:
+                    # Try matching by name only if unique
+                    name_matches = Employee.objects.filter(name=name)
+                    if name_matches.count() == 1:
+                        employee = name_matches.first()
+                        # Update person_id if it changed
+                        if employee.person_id != person_id:
+                            employee.person_id = person_id
+                            employee.save()
+                    elif name_matches.count() == 0:
+                        # No match - create new employee
+                        employee = Employee.objects.create(
+                            person_id=person_id,
+                            name=name
+                        )
+                    else:
+                        # Multiple matches by name - try to find by person_id among them
+                        employee = name_matches.filter(person_id=person_id).first()
+                        if not employee:
+                            # Use the first one with matching name
+                            employee = name_matches.first()
 
                 first_in = group["First-In"].min()
                 last_out = group["Last-Out"].max()
