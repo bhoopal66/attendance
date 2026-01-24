@@ -11,7 +11,7 @@ function toggleRequestsDropdown() {
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function (e) {
-    if (!e.target.closest('.nav-dropdown')) {
+    if (!e.target.closest('.sidebar-dropdown') && !e.target.closest('.nav-dropdown')) {
         const dropdown = document.getElementById('requestsDropdown');
         if (dropdown) dropdown.classList.remove('show');
     }

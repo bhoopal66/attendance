@@ -1,74 +1,380 @@
 {% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'attendance/css/upload.css' %}">
+{% endblock %}
 
 {% block content %}
-<div class="card">
-    <h1>Upload Checkin/Checkout File</h1>
-    <p>Upload an Excel file (.xlsx or .xls) containing employee daily checkin/checkout data.</p>
-
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        <div class="form-group">
-            <label for="date">Select Date:</label>
-            <input type="date" name="date" id="date" required>
+<div class="upload-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-content">
+            <div class="header-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+            </div>
+            <div class="header-text">
+                <h1>Data Upload Center</h1>
+                <p>Import attendance records and remote call statistics</p>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="file">Select Excel File:</label>
-            <input type="file" name="file" id="file" accept=".xlsx, .xls" required>
-        </div>
-        <button type="submit">Upload and Process</button>
-    </form>
-</div>
-
-<div class="card" style="margin-top: 2rem;">
-    <h1>Remote Call Statistics Upload</h1>
-    <p>Upload a CSV file containing remote team call statistics for attendance tracking.</p>
-
-    <div class="attendance-rules">
-        <h3>Checkin/Checkout Rules (based on Talk Duration)</h3>
-        <table class="rules-table">
-            <thead>
-                <tr>
-                    <th>Day</th>
-                    <th>Absent</th>
-                    <th>Half Day</th>
-                    <th>Present</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Mon-Thu</td>
-                    <td>&lt; 45 min</td>
-                    <td>45-89 min</td>
-                    <td>≥ 90 min</td>
-                </tr>
-                <tr>
-                    <td>Friday</td>
-                    <td>&lt; 30 min</td>
-                    <td>30-59 min</td>
-                    <td>≥ 60 min</td>
-                </tr>
-                <tr>
-                    <td>Saturday</td>
-                    <td>≤ 20 min</td>
-                    <td>21-44 min</td>
-                    <td>≥ 45 min</td>
-                </tr>
-            </tbody>
-        </table>
     </div>
 
-    <form method="post" action="{% url 'upload_remote' %}" enctype="multipart/form-data">
-        {% csrf_token %}
-        <div class="form-group">
-            <label for="remote_date">Select Date:</label>
-            <input type="date" name="remote_date" id="remote_date" required>
+    <!-- Upload Cards Container -->
+    <div class="upload-cards-grid">
+        <!-- Checkin/Checkout Upload Card -->
+        <div class="upload-card checkin-card">
+            <div class="card-header">
+                <div class="card-icon checkin-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                        <path d="M9 16l2 2 4-4"></path>
+                    </svg>
+                </div>
+                <div class="card-title-group">
+                    <h2>Checkin/Checkout Upload</h2>
+                    <span class="card-badge excel-badge">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                            fill="currentColor">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        </svg>
+                        Excel
+                    </span>
+                </div>
+            </div>
+
+            <p class="card-description">
+                Upload your daily employee attendance data from Excel files. The system automatically extracts the date
+                from <strong>.xls</strong> punch reports. You can also use <strong>.xlsx</strong> files.
+            </p>
+
+            <form method="post" enctype="multipart/form-data" class="upload-form">
+                {% csrf_token %}
+                <div class="form-field">
+                    <label for="date">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        Select Date <span class="optional-badge">(Optional for .xls)</span>
+                    </label>
+                    <input type="date" name="date" id="date">
+                </div>
+
+                <div class="form-field">
+                    <label for="file">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                            <polyline points="13 2 13 9 20 9"></polyline>
+                        </svg>
+                        Select Excel File
+                    </label>
+                    <div class="file-upload-area" id="checkin-upload-area">
+                        <input type="file" name="file" id="file" accept=".xlsx, .xls" required>
+                        <div class="file-upload-content">
+                            <div class="upload-icon-wrapper">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </div>
+                            <p class="upload-text">Drag & drop your file here or <span>browse</span></p>
+                            <p class="upload-hint">Supports .xlsx and .xls files</p>
+                        </div>
+                        <div class="file-selected" style="display: none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                <polyline points="13 2 13 9 20 9"></polyline>
+                            </svg>
+                            <span class="file-name"></span>
+                            <button type="button" class="remove-file-btn">&times;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn checkin-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Upload & Process
+                </button>
+            </form>
         </div>
-        <div class="form-group">
-            <label for="remote_file">Select CSV File:</label>
-            <input type="file" name="remote_file" id="remote_file" accept=".csv" required>
+
+        <!-- Remote Call Statistics Card -->
+        <div class="upload-card remote-card">
+            <div class="card-header">
+                <div class="card-icon remote-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
+                        </path>
+                    </svg>
+                </div>
+                <div class="card-title-group">
+                    <h2>Remote Call Statistics</h2>
+                    <span class="card-badge csv-badge">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                            fill="currentColor">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        </svg>
+                        CSV
+                    </span>
+                </div>
+            </div>
+
+            <p class="card-description">
+                Import remote team call statistics for attendance tracking. Attendance is calculated based on talk
+                duration thresholds.
+            </p>
+
+            <!-- Rules Section -->
+            <div class="rules-section">
+                <div class="rules-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    <h3>Attendance Rules (Talk Duration)</h3>
+                </div>
+                <div class="rules-grid">
+                    <div class="rule-item">
+                        <div class="rule-day">Mon-Thu</div>
+                        <div class="rule-thresholds">
+                            <span class="threshold absent">&lt; 45 min</span>
+                            <span class="threshold half">45-89 min</span>
+                            <span class="threshold present">≥ 90 min</span>
+                        </div>
+                    </div>
+                    <div class="rule-item">
+                        <div class="rule-day">Friday</div>
+                        <div class="rule-thresholds">
+                            <span class="threshold absent">&lt; 30 min</span>
+                            <span class="threshold half">30-59 min</span>
+                            <span class="threshold present">≥ 60 min</span>
+                        </div>
+                    </div>
+                    <div class="rule-item">
+                        <div class="rule-day">Saturday</div>
+                        <div class="rule-thresholds">
+                            <span class="threshold absent">≤ 20 min</span>
+                            <span class="threshold half">21-44 min</span>
+                            <span class="threshold present">≥ 45 min</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="rules-legend">
+                    <span class="legend-item"><span class="dot absent"></span> Absent</span>
+                    <span class="legend-item"><span class="dot half"></span> Half Day</span>
+                    <span class="legend-item"><span class="dot present"></span> Present</span>
+                </div>
+            </div>
+
+            <form method="post" action="{% url 'upload_remote' %}" enctype="multipart/form-data" class="upload-form">
+                {% csrf_token %}
+                <div class="form-field">
+                    <label for="remote_date">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        Select Date
+                    </label>
+                    <input type="date" name="remote_date" id="remote_date" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="remote_file">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                            <polyline points="13 2 13 9 20 9"></polyline>
+                        </svg>
+                        Select CSV File
+                    </label>
+                    <div class="file-upload-area" id="remote-upload-area">
+                        <input type="file" name="remote_file" id="remote_file" accept=".csv" required>
+                        <div class="file-upload-content">
+                            <div class="upload-icon-wrapper remote">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </div>
+                            <p class="upload-text">Drag & drop your file here or <span>browse</span></p>
+                            <p class="upload-hint">Supports .csv files only</p>
+                        </div>
+                        <div class="file-selected" style="display: none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                <polyline points="13 2 13 9 20 9"></polyline>
+                            </svg>
+                            <span class="file-name"></span>
+                            <button type="button" class="remove-file-btn">&times;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn remote-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Upload Remote Statistics
+                </button>
+            </form>
         </div>
-        <button type="submit" class="btn-remote">Upload Remote Statistics</button>
-    </form>
+    </div>
+
+    <!-- Info Section -->
+    <div class="upload-info-section">
+        <div class="info-card">
+            <div class="info-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+            </div>
+            <div class="info-content">
+                <h4>File Format Guidelines</h4>
+                <p>Ensure your files contain the required columns and follow the expected format for accurate data
+                    processing.</p>
+            </div>
+        </div>
+        <div class="info-card">
+            <div class="info-icon success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            </div>
+            <div class="info-content">
+                <h4>Automatic Processing</h4>
+                <p>Files are validated and processed automatically. Check the reports section after upload completion.
+                </p>
+            </div>
+        </div>
+        <div class="info-card">
+            <div class="info-icon warning">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div class="info-content">
+                <h4>Duplicate Prevention</h4>
+                <p>Uploading data for the same date will update existing records rather than create duplicates.</p>
+            </div>
+        </div>
+    </div>
 </div>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // File upload interaction for both upload areas
+        const uploadAreas = document.querySelectorAll('.file-upload-area');
+
+        uploadAreas.forEach(area => {
+            const input = area.querySelector('input[type="file"]');
+            const content = area.querySelector('.file-upload-content');
+            const selected = area.querySelector('.file-selected');
+            const fileName = area.querySelector('.file-name');
+            const removeBtn = area.querySelector('.remove-file-btn');
+
+            // Drag and drop events
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                area.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                area.addEventListener(eventName, () => {
+                    area.classList.add('drag-over');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                area.addEventListener(eventName, () => {
+                    area.classList.remove('drag-over');
+                }, false);
+            });
+
+            area.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files.length) {
+                    input.files = files;
+                    showFileSelected(files[0].name);
+                }
+            });
+
+            input.addEventListener('change', function () {
+                if (this.files.length) {
+                    showFileSelected(this.files[0].name);
+                }
+            });
+
+            function showFileSelected(name) {
+                content.style.display = 'none';
+                selected.style.display = 'flex';
+                fileName.textContent = name;
+                area.classList.add('has-file');
+            }
+
+            removeBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                input.value = '';
+                content.style.display = 'flex';
+                selected.style.display = 'none';
+                area.classList.remove('has-file');
+            });
+        });
+    });
+</script>
 {% endblock %}

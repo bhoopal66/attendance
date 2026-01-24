@@ -4,373 +4,27 @@
 {% block title %}Leave Requests - Admin{% endblock %}
 
 {% block extra_css %}
-<style>
-    .leave-container {
-        max-width: 1200px;
-        margin: 2rem auto;
-        padding: 0 1rem;
-    }
-
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-
-    .page-title {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #1e293b;
-    }
-
-    /* Tabs */
-    .tabs {
-        display: flex;
-        gap: 0.5rem;
-        margin-bottom: 1.5rem;
-        border-bottom: 2px solid #e2e8f0;
-        padding-bottom: 0;
-    }
-
-    .tab {
-        padding: 0.75rem 1.25rem;
-        text-decoration: none;
-        color: #64748b;
-        font-weight: 500;
-        border-bottom: 2px solid transparent;
-        margin-bottom: -2px;
-        transition: all 0.2s;
-    }
-
-    .tab:hover {
-        color: #1e293b;
-    }
-
-    .tab.active {
-        color: #4F46E5;
-        border-bottom-color: #4F46E5;
-    }
-
-    .tab-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 1.5rem;
-        height: 1.5rem;
-        padding: 0 0.5rem;
-        margin-left: 0.5rem;
-        background: #e2e8f0;
-        color: #64748b;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-
-    .tab.active .tab-badge {
-        background: #EEF2FF;
-        color: #4F46E5;
-    }
-
-    .tab-badge.pending {
-        background: #FEF3C7;
-        color: #92400E;
-    }
-
-    /* Request Cards */
-    .requests-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .request-card {
-        background: white;
-        border-radius: 0.75rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        padding: 1.5rem;
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 1rem;
-        align-items: start;
-    }
-
-    .request-info {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .request-header {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .employee-name {
-        font-weight: 600;
-        font-size: 1.125rem;
-        color: #1e293b;
-    }
-
-    .leave-type-badge {
-        padding: 0.25rem 0.75rem;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-    }
-
-    .leave-type-badge.sick {
-        background: #FEE2E2;
-        color: #991B1B;
-    }
-
-    .leave-type-badge.medical {
-        background: #DBEAFE;
-        color: #1E40AF;
-    }
-
-    .leave-type-badge.annual {
-        background: #D1FAE5;
-        color: #065F46;
-    }
-
-    .leave-type-badge.casual {
-        background: #F3E8FF;
-        color: #6B21A8;
-    }
-
-    .status-badge {
-        padding: 0.25rem 0.75rem;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-
-    .status-badge.pending {
-        background: #FEF3C7;
-        color: #92400E;
-    }
-
-    .status-badge.approved {
-        background: #D1FAE5;
-        color: #065F46;
-    }
-
-    .status-badge.rejected {
-        background: #FEE2E2;
-        color: #991B1B;
-    }
-
-    .request-dates {
-        color: #64748b;
-        font-size: 0.875rem;
-    }
-
-    .request-dates strong {
-        color: #1e293b;
-    }
-
-    .request-reason {
-        color: #475569;
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
-    }
-
-    .request-document {
-        margin-top: 0.5rem;
-    }
-
-    .doc-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        color: #4F46E5;
-        font-size: 0.875rem;
-        text-decoration: none;
-    }
-
-    .doc-link:hover {
-        text-decoration: underline;
-    }
-
-    .admin-notes {
-        margin-top: 0.5rem;
-        padding: 0.5rem;
-        background: #f8fafc;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        color: #64748b;
-    }
-
-    /* Action Buttons */
-    .request-actions {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-    }
-
-    .btn {
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: none;
-    }
-
-    .btn-approve {
-        background: linear-gradient(135deg, #10B981, #059669);
-        color: white;
-    }
-
-    .btn-approve:hover {
-        background: linear-gradient(135deg, #059669, #047857);
-    }
-
-    .btn-reject {
-        background: linear-gradient(135deg, #EF4444, #DC2626);
-        color: white;
-    }
-
-    .btn-reject:hover {
-        background: linear-gradient(135deg, #DC2626, #B91C1C);
-    }
-
-    /* Empty State */
-    .empty-state {
-        text-align: center;
-        padding: 3rem;
-        color: #64748b;
-    }
-
-    .empty-icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-    }
-
-    /* Modal */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 1000;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .modal-overlay.show {
-        display: flex;
-    }
-
-    .modal {
-        background: white;
-        border-radius: 0.75rem;
-        width: 90%;
-        max-width: 450px;
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
-    }
-
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem 1.5rem;
-        border-bottom: 1px solid #e2e8f0;
-    }
-
-    .modal-header h3 {
-        margin: 0;
-        font-size: 1.125rem;
-    }
-
-    .modal-close {
-        background: none;
-        border: none;
-        font-size: 1.5rem;
-        color: #64748b;
-        cursor: pointer;
-    }
-
-    .modal-body {
-        padding: 1.5rem;
-    }
-
-    .form-group {
-        margin-bottom: 1rem;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-        font-size: 0.875rem;
-    }
-
-    .form-input {
-        width: 100%;
-        padding: 0.75rem;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-    }
-
-    .form-input:focus {
-        outline: none;
-        border-color: #4F46E5;
-    }
-
-    .modal-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.75rem;
-        padding: 1rem 1.5rem;
-        border-top: 1px solid #e2e8f0;
-        background: #f9fafb;
-        border-radius: 0 0 0.75rem 0.75rem;
-    }
-
-    .btn-cancel {
-        padding: 0.5rem 1rem;
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.375rem;
-        color: #374151;
-        cursor: pointer;
-    }
-</style>
+<link rel="stylesheet" href="{% static 'attendance/css/leave_management.css' %}?v=5">
 {% endblock %}
 
 {% block content %}
 <div class="leave-container">
     <div class="page-header">
-        <h1 class="page-title"><svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg> Leave Requests</h1>
+        <h1 class="page-title">Leave Requests</h1>
     </div>
 
-    <!-- Tabs -->
     <div class="tabs">
-        <a href="?status=pending" class="tab {% if status_filter == 'pending' %}active{% endif %}">
-            Pending <span class="tab-badge pending">{{ pending_count }}</span>
-        </a>
-        <a href="?status=approved" class="tab {% if status_filter == 'approved' %}active{% endif %}">
-            Approved <span class="tab-badge">{{ approved_count }}</span>
-        </a>
-        <a href="?status=rejected" class="tab {% if status_filter == 'rejected' %}active{% endif %}">
-            Rejected <span class="tab-badge">{{ rejected_count }}</span>
-        </a>
-        <a href="?status=all" class="tab {% if status_filter == 'all' %}active{% endif %}">
-            All
-        </a>
+        <a href="?status=pending" class="tab {% if status_filter == 'pending' %}active{% endif %}">Pending <span
+                class="tab-badge pending">{{ pending_count }}</span></a>
+        <a href="?status=approved" class="tab {% if status_filter == 'approved' %}active{% endif %}">Approved <span
+                class="tab-badge">{{ approved_count }}</span></a>
+        <a href="?status=rejected" class="tab {% if status_filter == 'rejected' %}active{% endif %}">Rejected <span
+                class="tab-badge">{{ rejected_count }}</span></a>
+        <a href="?status=all" class="tab {% if status_filter == 'all' %}active{% endif %}">All</a>
     </div>
 
-    <!-- Request Cards -->
     <div class="requests-grid">
+        {% if leave_requests %}
         {% for req in leave_requests %}
         <div class="request-card" data-id="{{ req.id }}">
             <div class="request-info">
@@ -381,48 +35,43 @@
                 </div>
                 <div class="request-dates">
                     <strong>{{ req.start_date|date:"M d, Y" }}</strong> to <strong>{{ req.end_date|date:"M d, Y" }}</strong>
-                    &nbsp;·&nbsp; {{ req.requested_days }} day{% if req.requested_days != 1 %}s{% endif %} requested
-                    {% if req.approved_days and req.approved_days != req.requested_days %}
-                    &nbsp;·&nbsp; <strong>{{ req.approved_days }} day{% if req.approved_days != 1 %}s{% endif %} approved</strong>
-                    {% endif %}
+                    <span class="duration-pill">{{ req.requested_days }} day{{ req.requested_days|pluralize }}</span>
                 </div>
-                <div class="request-reason">
-                    <strong>Reason:</strong> {{ req.reason }}
-                </div>
+                {% if req.approved_days and req.approved_days != req.requested_days %}
+                <div class="approved-info"><strong>Approved: {{ req.approved_days }} days</strong></div>
+                {% endif %}
+                <div class="request-reason">{{ req.reason }}</div>
                 {% if req.document %}
-                <div class="request-document">
-                    <a href="{{ req.document.url }}" target="_blank" class="doc-link">📎 View Document</a>
-                </div>
+                <div class="request-document"><a href="{{ req.document.url }}" target="_blank" class="doc-link">View
+                        Document</a></div>
                 {% endif %}
                 {% if req.admin_notes %}
-                <div class="admin-notes">
-                    <strong>Admin Notes:</strong> {{ req.admin_notes }}
-                </div>
+                <div class="admin-notes"><strong>Admin Notes:</strong> {{ req.admin_notes }}</div>
                 {% endif %}
             </div>
             {% if req.status == 'pending' %}
             <div class="request-actions">
-                <button class="btn btn-approve"
-                    onclick="openApproveModal({{ req.id }}, {{ req.requested_days }}, '{{ req.start_date|date:'Y-m-d' }}', '{{ req.end_date|date:'Y-m-d' }}')">✓
-                    Approve</button>
-                <button class="btn btn-reject" onclick="openRejectModal({{ req.id }})">✗ Reject</button>
+                <button class="btn btn-approve" data-leave-id="{{ req.id }}" data-days="{{ req.requested_days }}"
+                    data-start="{{ req.start_date|date:'Y-m-d' }}"
+                    data-end="{{ req.end_date|date:'Y-m-d' }}">Approve</button>
+                <button class="btn btn-reject" data-leave-id="{{ req.id }}">Reject</button>
             </div>
             {% endif %}
         </div>
-        {% empty %}
-        <div class="empty-state">
-            <div class="empty-icon"><svg class="icon-svg" style="width: 48px; height: 48px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg></div>
-            <p>No {{ status_filter }} leave requests</p>
-        </div>
         {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <h3>No Requests Found</h3>
+            <p>There are no {{ status_filter }} leave requests at the moment.</p>
+        </div>
+        {% endif %}
     </div>
 </div>
 
-<!-- Approve Modal -->
 <div class="modal-overlay" id="approveModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>✓ Approve Leave Request</h3>
+            <h3>Approve Leave Request</h3>
             <button class="modal-close" onclick="closeModal('approveModal')">&times;</button>
         </div>
         <form id="approveForm" onsubmit="submitApproval(event)">
@@ -439,26 +88,24 @@
                 <div class="form-group">
                     <label>Approved Days</label>
                     <input type="number" name="approved_days" id="approvedDays" min="1" required class="form-input">
-                    <small style="color: #64748b;">You can approve fewer days than requested</small>
                 </div>
                 <div class="form-group">
                     <label>Admin Notes (Optional)</label>
-                    <textarea name="admin_notes" rows="2" class="form-input" placeholder="Any notes..."></textarea>
+                    <textarea name="admin_notes" rows="2" class="form-input"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn-cancel" onclick="closeModal('approveModal')">Cancel</button>
-                <button type="submit" class="btn btn-approve">Approve</button>
+                <button type="submit" class="btn btn-approve">Confirm</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Reject Modal -->
 <div class="modal-overlay" id="rejectModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>✗ Reject Leave Request</h3>
+            <h3>Reject Leave Request</h3>
             <button class="modal-close" onclick="closeModal('rejectModal')">&times;</button>
         </div>
         <form id="rejectForm" onsubmit="submitRejection(event)">
@@ -466,13 +113,12 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>Reason for Rejection *</label>
-                    <textarea name="admin_notes" rows="3" required class="form-input"
-                        placeholder="Please provide a reason for rejection..."></textarea>
+                    <textarea name="admin_notes" rows="3" required class="form-input"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn-cancel" onclick="closeModal('rejectModal')">Cancel</button>
-                <button type="submit" class="btn btn-reject">Reject</button>
+                <button type="submit" class="btn btn-reject">Confirm</button>
             </div>
         </form>
     </div>
@@ -488,14 +134,24 @@
         if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    function openApproveModal(leaveId, requestedDays, startDate, endDate) {
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.btn-approve').forEach(btn => {
+            btn.addEventListener('click', function () {
+                openApproveModal(this.dataset.leaveId, this.dataset.days, this.dataset.start, this.dataset.end);
+            });
+        });
+        document.querySelectorAll('.btn-reject').forEach(btn => {
+            btn.addEventListener('click', function () {
+                openRejectModal(this.dataset.leaveId);
+            });
+        });
+    });
+
+    function openApproveModal(leaveId, days, start, end) {
         document.getElementById('approveLeaveId').value = leaveId;
-        document.getElementById('approvedDays').value = requestedDays;
-        // document.getElementById('approvedDays').max = requestedDays; // Remove max constraint to allow flexibility if dates change
-
-        document.getElementById('approveStartDate').value = startDate;
-        document.getElementById('approveEndDate').value = endDate;
-
+        document.getElementById('approvedDays').value = days;
+        document.getElementById('approveStartDate').value = start;
+        document.getElementById('approveEndDate').value = end;
         document.getElementById('approveModal').classList.add('show');
     }
 
@@ -513,23 +169,16 @@
         const form = document.getElementById('approveForm');
         const leaveId = document.getElementById('approveLeaveId').value;
         const formData = new FormData(form);
-
         try {
-            const response = await fetch(`/leave/${leaveId}/approve/`, {
+            const response = await fetch('/leave/' + leaveId + '/approve/', {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCsrfToken() },
                 body: formData
             });
             const data = await response.json();
-
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.error);
-            }
-        } catch (err) {
-            alert('Error processing request');
-        }
+            if (data.success) location.reload();
+            else alert(data.error);
+        } catch (err) { alert('Error processing request'); }
     }
 
     async function submitRejection(event) {
@@ -537,31 +186,21 @@
         const form = document.getElementById('rejectForm');
         const leaveId = document.getElementById('rejectLeaveId').value;
         const formData = new FormData(form);
-
         try {
-            const response = await fetch(`/leave/${leaveId}/reject/`, {
+            const response = await fetch('/leave/' + leaveId + '/reject/', {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCsrfToken() },
                 body: formData
             });
             const data = await response.json();
-
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.error);
-            }
-        } catch (err) {
-            alert('Error processing request');
-        }
+            if (data.success) location.reload();
+            else alert(data.error);
+        } catch (err) { alert('Error processing request'); }
     }
 
-    // Close modals on outside click
     document.querySelectorAll('.modal-overlay').forEach(modal => {
         modal.addEventListener('click', function (e) {
-            if (e.target === this) {
-                this.classList.remove('show');
-            }
+            if (e.target === this) this.classList.remove('show');
         });
     });
 </script>

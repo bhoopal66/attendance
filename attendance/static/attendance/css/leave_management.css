@@ -1,0 +1,510 @@
+/* ===========================================
+   Leave Management Styles - Modern Redesign
+   =========================================== */
+
+/* Page Container */
+.leave-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-light);
+}
+
+.page-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.page-title svg {
+    color: var(--primary-color);
+    background: var(--primary-light);
+    padding: 8px;
+    border-radius: 10px;
+    width: 40px;
+    height: 40px;
+}
+
+/* Tabs */
+.tabs {
+    display: inline-flex;
+    background: white;
+    padding: 6px;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-light);
+}
+
+.tab {
+    padding: 0.75rem 1.5rem;
+    text-decoration: none;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tab:hover {
+    background: var(--bg-light);
+    color: var(--primary-color);
+}
+
+.tab.active {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: var(--shadow-primary);
+}
+
+.tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.4rem;
+    background: rgba(0, 0, 0, 0.1);
+    color: currentColor;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.tab.active .tab-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+/* Request Cards */
+.requests-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+}
+
+.request-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-light);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    transition: all 0.2s ease;
+    height: 100%;
+}
+
+.request-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-color);
+}
+
+.request-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    flex: 1;
+}
+
+.request-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.employee-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.employee-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-color);
+}
+
+.leave-type-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    align-self: flex-start;
+    margin-top: 4px;
+}
+
+.leave-type-badge.sick {
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FECACA;
+}
+
+.leave-type-badge.medical {
+    background: #EFF6FF;
+    color: #2563EB;
+    border: 1px solid #BFDBFE;
+}
+
+.leave-type-badge.annual {
+    background: #ECFDF5;
+    color: #059669;
+    border: 1px solid #A7F3D0;
+}
+
+.leave-type-badge.casual {
+    background: #F5F3FF;
+    color: #7C3AED;
+    border: 1px solid #DDD6FE;
+}
+
+.status-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.status-badge.pending {
+    background: #FFFBEB;
+    color: #D97706;
+    border: 1px solid #FDE68A;
+}
+
+.status-badge.approved {
+    background: #ECFDF5;
+    color: #059669;
+    border: 1px solid #A7F3D0;
+}
+
+.status-badge.rejected {
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FECACA;
+}
+
+.request-dates {
+    background: var(--bg-light);
+    padding: 0.75rem;
+    border-radius: 10px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    border: 1px solid var(--border-light);
+}
+
+.request-dates svg {
+    color: var(--text-muted);
+}
+
+.duration-pill {
+    background: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border: 1px solid var(--border-light);
+    margin-left: auto;
+}
+
+.request-reason {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    padding: 0 0.25rem;
+}
+
+.request-document {
+    margin-top: 0.25rem;
+}
+
+.doc-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--primary-color);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 0.5rem 0.75rem;
+    background: var(--primary-light);
+    border-radius: 8px;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.doc-link:hover {
+    background: #E0E7FF;
+}
+
+.admin-notes {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: #F8FAFC;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    border-left: 3px solid var(--border-color);
+}
+
+.admin-notes strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--text-color);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Action Buttons */
+.request-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-light);
+}
+
+.btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-approve {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+}
+
+.btn-approve:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px -1px rgba(16, 185, 129, 0.3);
+}
+
+.btn-reject {
+    background: white;
+    color: #EF4444;
+    border: 1px solid #FECACA;
+}
+
+.btn-reject:hover {
+    background: #FEF2F2;
+    border-color: #EF4444;
+}
+
+/* Empty State */
+.empty-state {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    background: white;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    color: var(--text-muted);
+}
+
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    background: var(--bg-light);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    color: var(--text-muted);
+}
+
+.empty-state p {
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+/* Modal Styles */
+/* Inherit common modal styles from base.css or define here matching the theme */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+
+.modal-overlay.show {
+    display: flex;
+}
+
+.modal {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.modal-close {
+    background: var(--bg-light);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--danger-light);
+    color: var(--danger-color);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--border-light);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    background: white;
+    transition: all 0.2s;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px var(--primary-light);
+}
+
+textarea.form-input {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-light);
+    background: var(--bg-light);
+    border-radius: 0 0 20px 20px;
+}
+
+.btn-cancel {
+    padding: 0.75rem 1.5rem;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    color: var(--text-color);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+    background: #F8FAFC;
+    border-color: var(--text-muted);
+}

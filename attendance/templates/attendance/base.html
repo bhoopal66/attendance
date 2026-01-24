@@ -7,100 +7,191 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Taamul Checkin/Checkout Report</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}?v=6">
+    <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}?v=11">
     {% block extra_css %}{% endblock %}
 </head>
 
 <body>
-    <header class="main-header">
-        <nav class="main-nav">
+    <div class="app-layout">
+        <!-- Left Sidebar -->
+        <aside class="sidebar">
             <!-- Logo -->
-            <a href="{% url 'report' %}" class="nav-logo">
-                <span class="logo-icon"><svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></span>
-                <span class="logo-text">Taamul <span class="logo-accent">Checkin/Checkout</span></span>
+            <a href="{% url 'report' %}" class="sidebar-logo">
+                <span class="logo-icon"><svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg></span>
+                <span class="logo-text">Taamul</span>
             </a>
 
             <!-- Navigation Links -->
-            <div class="nav-links-container">
+            <nav class="sidebar-nav">
                 {% if user.is_authenticated %}
-                <a href="{% url 'report' %}" class="nav-item">Reports</a>
+                <div class="nav-section">
+                    <span class="nav-section-title">Main</span>
+                    <a href="{% url 'report' %}"
+                        class="sidebar-item {% if request.resolver_match.url_name == 'report' or request.resolver_match.url_name == 'remote_report' %}active{% endif %}">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Reports</span>
+                    </a>
+                </div>
 
                 {% if user.is_superuser %}
-                <a href="{% url 'upload' %}" class="nav-item">Upload</a>
-                <a href="{% url 'employee_management' %}" class="nav-item">Employees</a>
-                <a href="{% url 'payroll_dashboard' %}" class="nav-item">Payroll</a>
-                <a href="{% url 'leave_management' %}" class="nav-item">Leave Requests</a>
-
-                <!-- Notification Bell Dropdown -->
-                <div class="nav-dropdown">
-                    <button class="notification-btn" id="requestsBtn" onclick="toggleRequestsDropdown()">
-                        <svg class="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                <div class="nav-section">
+                    <span class="nav-section-title">Management</span>
+                    <a href="{% url 'upload' %}"
+                        class="sidebar-item {% if request.resolver_match.url_name == 'upload' %}active{% endif %}">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                         </svg>
-                        <span class="notification-badge" id="pendingBadge" {% if nav_pending_count == 0 %}style="display: none;"{% endif %}>{{ nav_pending_count }}</span>
-                        <span class="btn-text">Requests</span>
-                    </button>
-                    <div class="nav-dropdown-menu" id="requestsDropdown">
-                        {% if nav_pending_count > 0 %}
-                        <div class="dropdown-header">
-                            <span>Pending Requests</span>
-                            <span class="dropdown-badge">{{ nav_pending_count }}</span>
-                        </div>
-                        <div class="dropdown-content">
-                            {% for request in nav_pending_requests %}
-                            <div class="dropdown-request">
-                                <div class="dropdown-request-header">
-                                    <strong>{{ request.get_employee_name }}</strong>
-                                    <span class="dropdown-date">{{ request.request_date }}</span>
-                                </div>
-                                <div class="dropdown-request-details">
-                                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg> {{ request.destination }}</span>
-                                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> {{ request.customer_name }}</span>
-                                </div>
-                                <div class="dropdown-request-info">
-                                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {{ request.leaving_time }}</span>
-                                    {% if request.return_time %}<span>→ {{ request.return_time }}</span>{% endif %}
-                                </div>
-                                <div class="dropdown-request-actions">
-                                    <button class="btn-sm-approve" onclick="openApprovalModal({{ request.id }})">✓
-                                        Approve</button>
-                                    <button class="btn-sm-decline" onclick="declineRequest({{ request.id }})">✗
-                                        Decline</button>
-                                </div>
+                        <span>Upload</span>
+                    </a>
+                    <a href="{% url 'employee_management' %}"
+                        class="sidebar-item {% if request.resolver_match.url_name == 'employee_management' %}active{% endif %}">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <span>Employees</span>
+                    </a>
+                    <a href="{% url 'payroll_dashboard' %}"
+                        class="sidebar-item {% if request.resolver_match.url_name == 'payroll_dashboard' %}active{% endif %}">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <span>Payroll</span>
+                    </a>
+                    <a href="{% url 'leave_management' %}"
+                        class="sidebar-item {% if request.resolver_match.url_name == 'leave_management' %}active{% endif %}">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>Leave Requests</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-section-title">Requests</span>
+                    <!-- Notification Bell Dropdown -->
+                    <div class="sidebar-dropdown">
+                        <button class="sidebar-item notification-btn" id="requestsBtn"
+                            onclick="toggleRequestsDropdown()">
+                            <svg class="icon-svg bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                            </svg>
+                            <span>Pending</span>
+                            <span class="notification-badge" id="pendingBadge" {% if nav_pending_count==0
+                                %}style="display: none;" {% endif %}>{{ nav_pending_count }}</span>
+                        </button>
+                        <div class="sidebar-dropdown-menu" id="requestsDropdown">
+                            {% if nav_pending_count > 0 %}
+                            <div class="dropdown-header">
+                                <span>Pending Requests</span>
+                                <span class="dropdown-badge">{{ nav_pending_count }}</span>
                             </div>
-                            {% endfor %}
+                            <div class="dropdown-content">
+                                {% for request in nav_pending_requests %}
+                                <div class="dropdown-request">
+                                    <div class="dropdown-request-header">
+                                        <strong>{{ request.get_employee_name }}</strong>
+                                        <span class="dropdown-date">{{ request.request_date }}</span>
+                                    </div>
+                                    <div class="dropdown-request-details">
+                                        <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg> {{ request.destination }}</span>
+                                        <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                            </svg> {{ request.customer_name }}</span>
+                                    </div>
+                                    <div class="dropdown-request-info">
+                                        <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg> {{ request.leaving_time }}</span>
+                                        {% if request.return_time %}<span>→ {{ request.return_time }}</span>{% endif %}
+                                    </div>
+                                    <div class="dropdown-request-actions">
+                                        <button class="btn-sm-approve"
+                                            onclick="openApprovalModal({{ request.id }})">Approve</button>
+                                        <button class="btn-sm-decline"
+                                            onclick="declineRequest({{ request.id }})">Decline</button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="dropdown-empty">
+                                <span>No pending requests</span>
+                            </div>
+                            {% endif %}
                         </div>
-                        {% else %}
-                        <div class="dropdown-empty">
-                            <span>✓ No pending requests</span>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
 
-                <a href="{% url 'admin:index' %}" class="nav-item admin-link" target="_blank"><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> Admin</a>
+                <div class="nav-section">
+                    <span class="nav-section-title">System</span>
+                    <a href="{% url 'admin:index' %}" class="sidebar-item admin-link" target="_blank">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>Admin Panel</span>
+                    </a>
+                </div>
                 {% endif %}
-                {% endif %}
-            </div>
+            </nav>
 
-            <!-- User Section -->
-            <div class="nav-user">
+            <!-- User Section at Bottom -->
+            <div class="sidebar-user">
                 {% if user.is_authenticated %}
-                <div class="user-avatar">{{ user.username|slice:":1"|upper }}</div>
-                <span class="user-name">{{ user.username }}</span>
+                <div class="user-info">
+                    <div class="user-avatar">{{ user.username|slice:":1"|upper }}</div>
+                    <span class="user-name">{{ user.username }}</span>
+                </div>
                 <form action="{% url 'logout' %}" method="post" class="logout-form">
                     {% csrf_token %}
-                    <button type="submit" class="logout-btn" title="Logout"><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
+                    <button type="submit" class="logout-btn" title="Logout">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                    </button>
                 </form>
                 {% endif %}
             </div>
-        </nav>
-    </header>
+        </aside>
 
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+        <!-- Main Content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
 
     <!-- Global Approval Modal -->
     {% if user.is_superuser %}
@@ -137,14 +228,22 @@
 
                 <!-- Info notice for no biometric data -->
                 <div class="no-data-warning" id="noDataWarning" style="display: none;">
-                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></span>
+                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg></span>
                     <span>No biometric data yet. Times from this approval will be merged with biometric data when
                         uploaded.</span>
                 </div>
 
                 <!-- Remote employee notice -->
                 <div class="remote-notice" id="remoteNotice" style="display: none;">
-                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></span>
+                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg></span>
                     <span>This is a remote employee. Approval will mark the request as completed without time
                         adjustments.</span>
                 </div>
@@ -190,7 +289,7 @@
     </div>
     {% endif %}
 
-    <script src="{% static 'attendance/js/base.js' %}?v=4"></script>
+    <script src="{% static 'attendance/js/base.js' %}?v=5"></script>
     {% block extra_js %}{% endblock %}
 </body>
 

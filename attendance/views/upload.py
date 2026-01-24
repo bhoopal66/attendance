@@ -5,37 +5,119 @@ Handles Excel uploads for in-house employees and CSV uploads for remote employee
 
 import pandas as pd
 import os
-from datetime import timedelta
+import re
+from datetime import timedelta, datetime
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from bs4 import BeautifulSoup
 
 from ..models import Employee, AttendanceRecord, RemoteEmployee, RemoteCallRecord, EarlyLeaveRequest
 from .utils import superuser_required, parse_duration
+
+
+def parse_html_excel(file_content):
+    """
+    Parse HTML-based Excel file (.xls exported from web systems).
+    Returns a tuple of (dataframe, extracted_date).
+    """
+    # Decode content if bytes
+    if isinstance(file_content, bytes):
+        content = file_content.decode('utf-8', errors='ignore')
+    else:
+        content = file_content
+    
+    soup = BeautifulSoup(content, 'html.parser')
+    
+    # Extract date from the Detail2 table (contains date range)
+    extracted_date = None
+    detail_table = soup.find('table', class_='Detail2')
+    if detail_table:
+        text = detail_table.get_text()
+        date_match = re.search(r'(\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}:\d{2}\s*-', text)
+        if date_match:
+            extracted_date = date_match.group(1)
+    
+    # Find the Punch_Report table which contains the actual data
+    punch_table = soup.find('table', class_='Punch_Report')
+    if not punch_table:
+        raise ValueError("Could not find attendance data table in the file")
+    
+    # Get all td elements
+    tds = punch_table.find_all('td')
+    
+    # Each row has 11 columns: Index, Person ID, Name, Department, Position, Gender, Date, Day Of Week, Timetable, First-In, Last-Out
+    rows = []
+    for i in range(0, len(tds), 11):
+        if i + 11 <= len(tds):
+            row = [td.get_text(strip=True) for td in tds[i:i+11]]
+            rows.append(row)
+    
+    if not rows:
+        raise ValueError("No attendance data found in the file")
+    
+    columns = ['Index', 'Person ID', 'Name', 'Department', 'Position', 'Gender', 'Date', 'Day Of Week', 'Timetable', 'First-In', 'Last-Out']
+    df = pd.DataFrame(rows, columns=columns)
+    
+    return df, extracted_date
+
+
+def is_html_excel(file_content):
+    """Check if the file content is HTML-based Excel."""
+    try:
+        # Check for HTML signature at the beginning
+        if isinstance(file_content, bytes):
+            content_start = file_content[:500].decode('utf-8', errors='ignore').lower()
+        else:
+            content_start = file_content[:500].lower()
+        return '<html' in content_start or '<!doctype html' in content_start
+    except:
+        return False
 
 
 @login_required
 @user_passes_test(superuser_required, login_url='/report/')
 def upload_file(request):
     """Handle Excel file upload for in-house attendance data."""
-    if request.method == 'POST' and request.FILES['file']:
+    if request.method == 'POST' and request.FILES.get('file'):
         excel_file = request.FILES['file']
-        selected_date_str = request.POST.get('date')
+        selected_date_str = request.POST.get('date')  # Optional now - can be extracted from file
         
-        if not selected_date_str:
-            messages.error(request, 'Please select a date.')
-            return redirect('upload')
-
-        # Determine engine based on extension
         filename = excel_file.name
         _, ext = os.path.splitext(filename)
-        engine = "xlrd" if ext == ".xls" else "openpyxl"
-
+        ext = ext.lower()
+        
         try:
-            df = pd.read_excel(excel_file, engine=engine)
+            # Read file content
+            file_content = excel_file.read()
+            excel_file.seek(0)  # Reset file pointer
+            
+            # Check if it's an HTML-based Excel file
+            if is_html_excel(file_content):
+                # Parse HTML-based .xls file
+                df, extracted_date = parse_html_excel(file_content)
+                
+                # Use extracted date if no date was selected
+                if not selected_date_str and extracted_date:
+                    selected_date_str = extracted_date
+                elif not selected_date_str:
+                    messages.error(request, 'Could not extract date from file. Please select a date manually.')
+                    return redirect('upload')
+                    
+            else:
+                # Standard Excel file processing
+                if not selected_date_str:
+                    messages.error(request, 'Please select a date.')
+                    return redirect('upload')
+                
+                engine = "xlrd" if ext == ".xls" else "openpyxl"
+                df = pd.read_excel(excel_file, engine=engine)
 
             # Replace '-' with NaN
             df.replace("-", pd.NA, inplace=True)
+
+            # Parse date
+            date_val = pd.to_datetime(selected_date_str).date()
 
             # Combine Selected Date + Time columns
             df["First-In"] = pd.to_datetime(
@@ -49,7 +131,8 @@ def upload_file(request):
             )
 
             grouped = df.groupby(["Person ID", "Name"])
-
+            
+            processed_count = 0
             for (person_id, name), group in grouped:
                 # Get or create employee by ID + Name combo
                 employee, created = Employee.objects.get_or_create(
@@ -59,9 +142,6 @@ def upload_file(request):
 
                 first_in = group["First-In"].min()
                 last_out = group["Last-Out"].max()
-
-                # Get the date value - use first_in if available, otherwise use selected date
-                date_val = pd.to_datetime(selected_date_str).date()
                 
                 # Preserve partial times - don't lose check-in if checkout is missing or vice versa
                 fi_time = first_in.time() if not pd.isna(first_in) else None
@@ -113,8 +193,9 @@ def upload_file(request):
                         'work_duration': duration
                     }
                 )
+                processed_count += 1
 
-            messages.success(request, 'File uploaded and processed successfully!')
+            messages.success(request, f'File uploaded and processed successfully! {processed_count} employees updated for {selected_date_str}.')
             return redirect('report')
 
         except Exception as e:
