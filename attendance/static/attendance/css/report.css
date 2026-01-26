@@ -349,7 +349,7 @@
 .calendar-section {
     background: white;
     border-radius: 14px;
-    padding: 1.25rem;
+    padding: 1rem;
     margin-bottom: 1.5rem;
     box-shadow: var(--shadow-sm);
 }
@@ -357,17 +357,17 @@
 .calendar-header {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    margin-bottom: 8px;
+    gap: 5px;
+    margin-bottom: 6px;
 }
 
 .calendar-header .weekday {
     text-align: center;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
-    padding: 0.5rem;
+    padding: 0.35rem;
 }
 
 .calendar-header .weekday.sunday {
@@ -377,20 +377,22 @@
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 6px;
+    gap: 5px;
 }
 
 .calendar-day {
     aspect-ratio: 1;
-    min-height: 80px;
+    min-height: 65px;
     background: white;
     border: 1px solid var(--border-light);
     border-radius: var(--radius-md);
-    padding: 0.5rem;
+    padding: 0.4rem;
     display: flex;
     flex-direction: column;
     position: relative;
     transition: all 0.15s ease;
+    overflow: hidden;
+    justify-content: space-between;
 }
 
 .calendar-day.empty {
@@ -409,9 +411,10 @@
 }
 
 .day-number {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-color);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
 }
 
 .calendar-day.sunday .day-number {
@@ -458,31 +461,35 @@
 }
 
 .work-hours {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #059669;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #047857;
     margin-top: auto;
+    line-height: 1.2;
 }
 
 .time-info {
     display: flex;
     flex-direction: column;
     gap: 1px;
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
 .time-info span {
-    font-size: 0.65rem;
-    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #334155;
+    line-height: 1.2;
 }
 
 .day-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    padding: 0.15rem 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.4rem;
     border-radius: var(--radius-sm);
     margin-top: auto;
     text-align: center;
+    line-height: 1.2;
 }
 
 .day-label.leave {
@@ -791,18 +798,24 @@
     }
 
     .calendar-day {
-        min-height: 50px;
-        padding: 0.25rem;
+        min-height: 55px;
+        padding: 0.3rem;
     }
 
     .day-number {
-        font-size: 0.75rem;
+        font-size: 0.85rem;
     }
 
-    .work-hours,
-    .time-info,
+    .work-hours {
+        font-size: 0.65rem;
+    }
+
+    .time-info span {
+        font-size: 0.6rem;
+    }
+
     .day-label {
-        display: none;
+        font-size: 0.6rem;
     }
 
     .summary-stats {
