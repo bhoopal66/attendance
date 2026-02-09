@@ -17,6 +17,7 @@ from ..models import (
     Employee, AttendanceRecord, MonthlySummary, ShiftHistory, Holiday,
     RemoteEmployee, RemoteCallRecord, RemoteMonthlySummary, LeaveRequest
 )
+from .utils import get_employee_shift_for_date, get_saturday_shift, SATURDAY_WORK_DURATION_SECONDS
 
 
 @login_required
@@ -261,13 +262,15 @@ def download_employee_report(request, employee_id):
     paid_leave_days = 0
     late_arrivals = 0
     holidays_count = 0
-    
-    # Default shift times (can be customized per employee if ShiftHistory is used)
-    emp_shift_start = time(9, 0)  # 9:00 AM
-    emp_shift_end = time(18, 0)   # 6:00 PM
 
     month_start = datetime.date(selected_year, selected_month, 1)
     month_end = datetime.date(selected_year, selected_month, days_in_month)
+
+    # Get employee's shift timings using 3-tier lookup (ShiftHistory -> Employee -> Default)
+    emp_shift_start, emp_shift_end = get_employee_shift_for_date(employee, month_start)
+
+    # Saturday is always 10:00 AM - 2:00 PM for all employees
+    sat_shift_start, sat_shift_end = get_saturday_shift()
 
     approved_leaves = LeaveRequest.objects.filter(
         employee=employee,
@@ -308,22 +311,26 @@ def download_employee_report(request, employee_id):
             duration = str(record.work_duration) if record.work_duration else "-"
             
             total_secs = record.work_duration.total_seconds() if record.work_duration else 0
-            is_late = record.first_in and record.first_in > emp_shift_start
-            arrived_after_noon = record.first_in and record.first_in.hour >= 12
-            
+
+            # Noon rule (arrival after 12:00 = Half Day) applies to weekdays only, not Saturday
+            arrived_after_noon = record.first_in and record.first_in.hour >= 12 and not is_saturday
+
             if is_saturday:
-                sat_shift_end = time(emp_shift_start.hour + 4, emp_shift_start.minute)
+                # Saturday: fixed 10:00 AM - 2:00 PM
+                is_late = record.first_in and record.first_in > sat_shift_start
                 left_early = record.last_out and (
-                    record.last_out.hour < sat_shift_end.hour or 
+                    record.last_out.hour < sat_shift_end.hour or
                     (record.last_out.hour == sat_shift_end.hour and record.last_out.minute < sat_shift_end.minute)
                 )
             else:
+                # Weekdays: use employee's shift timings
+                is_late = record.first_in and record.first_in > emp_shift_start
                 left_early = record.last_out and (
-                    record.last_out.hour < emp_shift_end.hour or 
+                    record.last_out.hour < emp_shift_end.hour or
                     (record.last_out.hour == emp_shift_end.hour and record.last_out.minute < emp_shift_end.minute)
                 )
-            
-            is_half_day = arrived_after_noon or left_early
+
+            is_half_day = arrived_after_noon or left_early  # arrived_after_noon is already False for Saturday
             
             if total_secs == 0:
                 if date in approved_leave_dates and not is_sunday and not is_holiday:

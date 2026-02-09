@@ -66,11 +66,11 @@ class Employee(BaseEmployee):
     salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     designation = models.CharField(max_length=100, null=True, blank=True)
     
-    # Work shift timings (defaults: 10:00-19:00)
-    shift_start = models.TimeField(null=True, blank=True, 
-        help_text="Expected arrival time (e.g., 09:30)")
-    shift_end = models.TimeField(null=True, blank=True, 
-        help_text="Expected departure time (e.g., 18:30)")
+    # Work shift timings (defaults: 10:00-19:00 for Mon-Fri; Saturday is always 10:00-14:00)
+    shift_start = models.TimeField(null=True, blank=True,
+        help_text="Expected arrival time for Mon-Fri (e.g., 09:30). Saturday is always 10:00-14:00.")
+    shift_end = models.TimeField(null=True, blank=True,
+        help_text="Expected departure time for Mon-Fri (e.g., 18:30). Saturday is always 10:00-14:00.")
 
     class Meta:
         unique_together = ('person_id', 'name')  # Same ID can exist for different people
@@ -123,10 +123,15 @@ class MonthlySummary(models.Model):
 
 
 class ShiftHistory(models.Model):
-    """Tracks shift timing changes for employees over time."""
+    """
+    Tracks shift timing changes for employees over time.
+
+    Note: Shift history applies to Monday-Friday only. Saturday is always 10:00 AM - 2:00 PM
+    for all employees, regardless of their regular shift timings or shift history.
+    """
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='shift_history')
-    shift_start = models.TimeField(help_text="Expected arrival time (e.g., 09:30)")
-    shift_end = models.TimeField(help_text="Expected departure time (e.g., 18:30)")
+    shift_start = models.TimeField(help_text="Expected arrival time for Mon-Fri (e.g., 09:30)")
+    shift_end = models.TimeField(help_text="Expected departure time for Mon-Fri (e.g., 18:30)")
     effective_from = models.DateField(help_text="Date from which this shift timing applies")
     
     # Audit timestamps

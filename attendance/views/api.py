@@ -15,7 +15,7 @@ from ..models import (
     Employee, AttendanceRecord, MonthlySummary, ShiftHistory,
     EarlyLeaveRequest, RemoteCallRecord
 )
-from .utils import superuser_required
+from .utils import superuser_required, get_employee_shift_for_date, get_saturday_shift
 
 
 @login_required
@@ -145,21 +145,26 @@ def recalculate_monthly_summary(employee, year, month):
         date__month=month
     )
     
-    # Get employee shift timings (default 10:00-19:00)
-    default_shift_start = time(10, 0)
-    default_shift_end = time(19, 0)
-    shift_start = employee.shift_start or default_shift_start
-    shift_end = employee.shift_end or default_shift_end
-    
+    # Get employee shift timings using 3-tier lookup (ShiftHistory -> Employee -> Default)
+    month_start = datetime.date(year, month, 1)
+    shift_start, shift_end = get_employee_shift_for_date(employee, month_start)
+    sat_shift_start, sat_shift_end = get_saturday_shift()
+
     # Count attendance metrics
     working_days = records.count()
     late_days = 0
     early_departure_days = 0
-    
+
     for record in records:
-        if record.first_in and record.first_in > shift_start:
+        # Use Saturday shift times if record is on Saturday
+        if record.date.weekday() == 5:  # Saturday
+            day_shift_start, day_shift_end = sat_shift_start, sat_shift_end
+        else:
+            day_shift_start, day_shift_end = shift_start, shift_end
+
+        if record.first_in and record.first_in > day_shift_start:
             late_days += 1
-        if record.last_out and record.last_out < shift_end:
+        if record.last_out and record.last_out < day_shift_end:
             early_departure_days += 1
     
     # Calculate leave days (workdays minus working_days)
@@ -344,5 +349,5 @@ def decline_early_leave(request, request_id):
     early_leave.admin_notes = admin_notes
     early_leave.reviewed_at = timezone.now()
     early_leave.save()
-    
+
     return JsonResponse({'success': True, 'message': 'Request declined'})

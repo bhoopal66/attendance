@@ -326,12 +326,12 @@
 <script>
     window.reportConfig = {
         selectedYear: {{ selected_year }},
-    selectedMonth: { { selected_month } },
-    showInactive: {% if show_inactive %} true{% else %} false{% endif %},
-    downloadReportUrl: "{% url 'download_report' %}",
+        selectedMonth: {{ selected_month }},
+        showInactive: {% if show_inactive %}true{% else %}false{% endif %},
+        downloadReportUrl: "{% url 'download_report' %}",
         downloadEmployeeReportUrl: "{% url 'download_employee_report' employee_id=0 %}",
-            updateAttendanceUrl: "{% url 'update_attendance' %}"
+        updateAttendanceUrl: "{% url 'update_attendance' %}"
     };
 </script>
-<script src="{% static 'attendance/js/report.js' %}?v=3"></script>
+<script src="{% static 'attendance/js/report.js' %}?v=4"></script>
 {% endblock %}

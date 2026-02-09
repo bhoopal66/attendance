@@ -15,6 +15,7 @@ from ..models import (
     RemoteEmployee, RemoteCallRecord, RemoteMonthlySummary, EarlyLeaveRequest,
     LeaveRequest
 )
+from .utils import get_employee_shift_for_date, get_saturday_shift, SATURDAY_WORK_DURATION_SECONDS
 
 
 @login_required
@@ -104,29 +105,17 @@ def attendance_report(request):
         half_day_count = 0
         actual_working_days_count = 0
         
-        # Get employee's shift timings
-        applicable_shift = ShiftHistory.objects.filter(
-            employee=employee,
-            effective_from__lte=month_start
-        ).order_by('-effective_from').first()
-        
-        if applicable_shift:
-            emp_shift_start = applicable_shift.shift_start
-            emp_shift_end = applicable_shift.shift_end
-        elif employee.shift_start and employee.shift_end:
-            emp_shift_start = employee.shift_start
-            emp_shift_end = employee.shift_end
-        else:
-            emp_shift_start = time(10, 0)
-            emp_shift_end = time(19, 0)
-        
-        # Calculate expected work hours
+        # Get employee's shift timings using 3-tier lookup (ShiftHistory -> Employee -> Default)
+        emp_shift_start, emp_shift_end = get_employee_shift_for_date(employee, month_start)
+
+        # Calculate expected work hours for weekdays
         shift_duration_weekday = (
-            (emp_shift_end.hour * 60 + emp_shift_end.minute) - 
+            (emp_shift_end.hour * 60 + emp_shift_end.minute) -
             (emp_shift_start.hour * 60 + emp_shift_start.minute)
         ) * 60
-        
-        sat_shift_end = time(emp_shift_start.hour + 4, emp_shift_start.minute)
+
+        # Saturday is always 10:00 AM - 2:00 PM for all employees
+        sat_shift_start, sat_shift_end = get_saturday_shift()
 
         records_dict = {r.date.day: r for r in employee.filtered_records}
         
@@ -180,36 +169,41 @@ def attendance_report(request):
                 
                 if total_secs > 0 and not is_sunday:
                     actual_working_days_count += 1
-                
-                arrived_after_noon = record.first_in and record.first_in.hour >= 12
-                
+
+                # Noon rule (arrival after 12:00 = Half Day) applies to weekdays only, not Saturday
+                arrived_after_noon = record.first_in and record.first_in.hour >= 12 and not is_saturday
+
                 if is_saturday:
-                    hours_ok = total_secs >= 14400
+                    # Saturday: fixed 10:00 AM - 2:00 PM, requires 4 hours
+                    hours_ok = total_secs >= SATURDAY_WORK_DURATION_SECONDS
                     time_in_ok = record.first_in and (
-                        record.first_in.hour < emp_shift_start.hour or 
-                        (record.first_in.hour == emp_shift_start.hour and record.first_in.minute <= emp_shift_start.minute)
+                        record.first_in.hour < sat_shift_start.hour or
+                        (record.first_in.hour == sat_shift_start.hour and record.first_in.minute <= sat_shift_start.minute)
                     )
                     time_out_ok = record.last_out and (
-                        record.last_out.hour > sat_shift_end.hour or 
+                        record.last_out.hour > sat_shift_end.hour or
                         (record.last_out.hour == sat_shift_end.hour and record.last_out.minute >= sat_shift_end.minute)
                     )
                 else:
+                    # Weekdays: use employee's shift timings
                     hours_ok = total_secs >= shift_duration_weekday
                     time_in_ok = record.first_in and (
-                        record.first_in.hour < emp_shift_start.hour or 
+                        record.first_in.hour < emp_shift_start.hour or
                         (record.first_in.hour == emp_shift_start.hour and record.first_in.minute <= emp_shift_start.minute)
                     )
                     time_out_ok = record.last_out and (
-                        record.last_out.hour > emp_shift_end.hour or 
+                        record.last_out.hour > emp_shift_end.hour or
                         (record.last_out.hour == emp_shift_end.hour and record.last_out.minute >= emp_shift_end.minute)
                     )
-                
+
+                # Late check: arrived after shift start (excluding noon rule)
                 if not is_sunday and record.first_in and not time_in_ok and not arrived_after_noon:
                     late_count += 1
                     is_late = True
-                
+
+                # Half day check
                 if not is_sunday and total_secs > 0:
-                    if arrived_after_noon:
+                    if arrived_after_noon:  # This is already False for Saturday
                         is_half_day = True
                     elif not time_out_ok:
                         is_half_day = True

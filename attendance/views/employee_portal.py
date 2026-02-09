@@ -13,6 +13,7 @@ from ..models import (
     Employee, AttendanceRecord, RemoteEmployee, RemoteCallRecord,
     Holiday, EarlyLeaveRequest, LeaveRequest
 )
+from .utils import get_employee_shift_for_date, get_saturday_shift
 
 
 def employee_login(request):
@@ -156,10 +157,12 @@ def employee_portal(request):
                 approved_leave_days.add(curr.day)
                 curr += datetime.timedelta(days=1)
         
-        default_shift_start = datetime.time(10, 0)
-        default_shift_end = datetime.time(19, 0)
-        shift_start = employee.shift_start or default_shift_start
-        shift_end = employee.shift_end or default_shift_end
+        # Get employee's shift timings using 3-tier lookup (ShiftHistory -> Employee -> Default)
+        month_start = datetime.date(selected_year, selected_month, 1)
+        shift_start, shift_end = get_employee_shift_for_date(employee, month_start)
+
+        # Saturday is always 10:00 AM - 2:00 PM for all employees
+        sat_shift_start, sat_shift_end = get_saturday_shift()
         
         calendar_data = {}
         summary = {'full_days': 0, 'leave_days': 0, 'late_days': 0, 'half_days': 0, 'holidays': 0, 'paid_leave_days': 0}
@@ -193,15 +196,34 @@ def employee_portal(request):
                 }
             elif record:
                 total_secs = record.work_duration.total_seconds() if record.work_duration else 0
-                is_late = record.first_in and record.first_in > shift_start
-                arrived_after_noon = record.first_in and record.first_in.hour >= 12
-                
+
                 is_saturday = weekday == 5
+
+                # Noon rule (arrival after 12:00 = Half Day) applies to weekdays only, not Saturday
+                arrived_after_noon = record.first_in and record.first_in.hour >= 12 and not is_saturday
+
                 if is_saturday:
-                    sat_shift_end = datetime.time(shift_start.hour + 4, shift_start.minute)
-                    left_early = record.last_out and record.last_out < sat_shift_end
+                    # Saturday: fixed 10:00 AM - 2:00 PM
+                    # Compare only hours and minutes (not seconds) to match admin panel behavior
+                    is_late = record.first_in and (
+                        record.first_in.hour > sat_shift_start.hour or
+                        (record.first_in.hour == sat_shift_start.hour and record.first_in.minute > sat_shift_start.minute)
+                    )
+                    left_early = record.last_out and (
+                        record.last_out.hour < sat_shift_end.hour or
+                        (record.last_out.hour == sat_shift_end.hour and record.last_out.minute < sat_shift_end.minute)
+                    )
                 else:
-                    left_early = record.last_out and record.last_out < shift_end
+                    # Weekdays: use employee's shift timings
+                    # Compare only hours and minutes (not seconds) to match admin panel behavior
+                    is_late = record.first_in and (
+                        record.first_in.hour > shift_start.hour or
+                        (record.first_in.hour == shift_start.hour and record.first_in.minute > shift_start.minute)
+                    )
+                    left_early = record.last_out and (
+                        record.last_out.hour < shift_end.hour or
+                        (record.last_out.hour == shift_end.hour and record.last_out.minute < shift_end.minute)
+                    )
                 
                 if total_secs == 0:
                     status = 'absent'
@@ -225,7 +247,8 @@ def employee_portal(request):
                     'is_sunday': False,
                     'is_holiday': False
                 }
-            elif day <= current_day:
+            elif day < current_day:
+                # Don't mark today as absent since data is uploaded the next day
                 calendar_data[day] = {
                     'record': None,
                     'status': 'absent',
@@ -300,7 +323,8 @@ def employee_portal(request):
                     'talk_minutes': talk_minutes,
                     'answered_calls': record.answered_calls
                 }
-            elif day <= current_day:
+            elif day < current_day:
+                # Don't mark today as absent since data is uploaded the next day
                 calendar_data[day] = {
                     'record': None,
                     'status': 'absent',

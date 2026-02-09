@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 last_out: document.getElementById('editLastOut').value || null
             };
 
-            fetch(config.updateAttendanceUrl || '/api/update-attendance/', {
+            fetch(config.updateAttendanceUrl || '/api/attendance/update/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
