@@ -8,6 +8,8 @@ __pycache__/
 local_settings.py
 db.sqlite3
 media/
+staticfiles/
+logs/*.log
 
 # Virtual Environment
 venv/
@@ -19,7 +21,14 @@ env/
 .idea/
 .DS_Store
 
-# Temporary / Specific files
+# OS files
+Thumbs.db
+
+# Uploaded data files (keep out of repo)
 *.xlsx
+*.xls
 *.csv
-0d93701d-2408-465f-bbb6-77c8d1643df0
+
+# Backup files
+*.bak
+*.backup

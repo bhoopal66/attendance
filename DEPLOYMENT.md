@@ -165,7 +165,7 @@ Run these commands one by one:
 source venv/bin/activate
 
 # Create database tables
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py migrate
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py migrate
 ```
 
 You should see output like:
@@ -182,7 +182,7 @@ Running migrations:
 ## STEP 9: Create Admin User
 
 ```bash
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py createsuperuser
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py createsuperuser
 ```
 
 Enter when prompted:
@@ -195,7 +195,7 @@ Enter when prompted:
 ## STEP 10: Collect Static Files
 
 ```bash
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py collectstatic --noinput
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py collectstatic --noinput
 ```
 
 ---
@@ -203,7 +203,7 @@ DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py c
 ## STEP 11: Test the Application
 
 ```bash
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production gunicorn --bind 0.0.0.0:8000 attendance_project.wsgi:application
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production gunicorn --bind 0.0.0.0:8000 attendance_project.wsgi:application
 ```
 
 Now open a web browser on any computer in your network and go to:
@@ -307,8 +307,8 @@ When you make changes and push to GitHub, run these on the server:
 cd /var/www/attendance
 source venv/bin/activate
 git pull origin main
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py migrate
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py collectstatic --noinput
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py migrate
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py collectstatic --noinput
 sudo systemctl restart attendance
 ```
 

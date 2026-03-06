@@ -111,22 +111,12 @@
                         {% endif %}
                     </div>
                     <div class="employee-stats">
-                        <span class="stat-pill working" title="Working Days">
+                        <span class="stat-pill deduction" title="Total Deductions">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
                                 fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"></path>
                             </svg>
-                            {{ employee.summary.total_working }}
-                        </span>
-                        <span class="stat-pill paid-leave" title="Paid Leave">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2">
-                                <polygon
-                                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
-                                </polygon>
-                            </svg>
-                            {{ employee.summary.paid_leaves }}
+                            {{ employee.summary.total_deductions }}
                         </span>
                         <span class="stat-pill leave" title="Leave Days">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
@@ -137,7 +127,16 @@
                             </svg>
                             {{ employee.summary.leave_days }}
                         </span>
-                        <span class="stat-pill late" title="Late Arrivals">
+                        <span class="stat-pill half" title="Half Days">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                            </svg>
+                            {{ employee.summary.half_days }}
+                        </span>
+                        <span class="stat-pill late" title="Late Arrivals (every 3 = half day)">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
                                 fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="10"></circle>
@@ -145,20 +144,14 @@
                             </svg>
                             {{ employee.summary.late_days }}
                         </span>
-                        <span class="stat-pill half" title="Half Days">
+                        <span class="stat-pill paid-leave" title="Paid Leave">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
                                 fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="5"></circle>
-                                <line x1="12" y1="1" x2="12" y2="3"></line>
-                                <line x1="12" y1="21" x2="12" y2="23"></line>
-                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                                <line x1="1" y1="12" x2="3" y2="12"></line>
-                                <line x1="21" y1="12" x2="23" y2="12"></line>
-                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                                <polygon
+                                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                                </polygon>
                             </svg>
-                            {{ employee.summary.half_days }}
+                            {{ employee.summary.paid_leaves }}
                         </span>
                         <span class="expand-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
@@ -245,25 +238,25 @@
                         </button>
                     </div>
                     <div class="summary-stats">
-                        <div class="summary-stat primary">
-                            <span class="stat-value">{{ employee.summary.total_working }}</span>
-                            <span class="stat-label">Working Days</span>
-                        </div>
                         <div class="summary-stat danger">
-                            <span class="stat-value">{{ employee.summary.leave_days }}</span>
-                            <span class="stat-label">Leave Days</span>
-                        </div>
-                        <div class="summary-stat info">
-                            <span class="stat-value">{{ employee.summary.paid_leaves }}</span>
-                            <span class="stat-label">Paid Leaves</span>
+                            <span class="stat-value">{{ employee.summary.total_deductions }}</span>
+                            <span class="stat-label">Total Deductions</span>
                         </div>
                         <div class="summary-stat warning">
-                            <span class="stat-value">{{ employee.summary.late_days }}</span>
-                            <span class="stat-label">Late Arrivals</span>
+                            <span class="stat-value">{{ employee.summary.leave_days }}</span>
+                            <span class="stat-label">Leave Days</span>
                         </div>
                         <div class="summary-stat neutral">
                             <span class="stat-value">{{ employee.summary.half_days }}</span>
                             <span class="stat-label">Half Days</span>
+                        </div>
+                        <div class="summary-stat warning">
+                            <span class="stat-value">{{ employee.summary.late_days }}{% if employee.summary.late_half_days > 0 %} <small>({{ employee.summary.late_half_days }}&times;&frac12;)</small>{% endif %}</span>
+                            <span class="stat-label">Late Arrivals</span>
+                        </div>
+                        <div class="summary-stat info">
+                            <span class="stat-value">{{ employee.summary.paid_leaves }}</span>
+                            <span class="stat-label">Paid Leaves</span>
                         </div>
                     </div>
                 </div>

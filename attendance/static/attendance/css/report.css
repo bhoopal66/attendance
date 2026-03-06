@@ -295,6 +295,12 @@
     font-weight: 600;
 }
 
+.stat-pill.deduction {
+    background: #FEE2E2;
+    color: #DC2626;
+    font-weight: 700;
+}
+
 .stat-pill.working {
     background: #ECFDF5;
     color: #059669;

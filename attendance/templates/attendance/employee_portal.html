@@ -179,40 +179,36 @@
                         <div class="metrics-section-header">Monthly Summary</div>
                         <div class="metrics-row">
                             {% if employee_type == 'In-House' %}
-                            <div class="metric-item hero">
-                                <span class="metric-label">Total Working</span>
-                                <span class="metric-value">{{ summary.total_working }}</span>
-                            </div>
-                            <div class="metric-item success">
-                                <span class="metric-label">Full Days</span>
-                                <span class="metric-value">{{ summary.full_days }}</span>
-                            </div>
-                            <div class="metric-item info">
-                                <span class="metric-label">Paid Leave</span>
-                                <span class="metric-value info">{{ summary.paid_leave_days }}</span>
-                            </div>
                             <div class="metric-item danger">
-                                <span class="metric-label">Leave</span>
-                                <span class="metric-value bad">{{ summary.leave_days }}</span>
+                                <span class="metric-label">Total Deductions</span>
+                                <span class="metric-value bad">{{ summary.total_deductions }}</span>
                             </div>
-                            <div class="metric-item warning">
-                                <span class="metric-label">Late</span>
-                                <span class="metric-value warning">{{ summary.late_days }}</span>
+                            <div class="metric-item">
+                                <span class="metric-label">Leave Days</span>
+                                <span class="metric-value bad">{{ summary.leave_days }}</span>
                             </div>
                             <div class="metric-item">
                                 <span class="metric-label">Half Days</span>
                                 <span class="metric-value">{{ summary.half_days }}</span>
                             </div>
+                            <div class="metric-item warning">
+                                <span class="metric-label">Late{% if summary.late_half_days > 0 %} ({{ summary.late_half_days }}&times;&frac12;){% endif %}</span>
+                                <span class="metric-value warning">{{ summary.late_days }}</span>
+                            </div>
+                            <div class="metric-item info">
+                                <span class="metric-label">Paid Leave</span>
+                                <span class="metric-value info">{{ summary.paid_leave_days }}</span>
+                            </div>
                             {% else %}
-                            <div class="metric-item hero">
-                                <span class="metric-label">Total Working</span>
-                                <span class="metric-value">{{ summary.total_working }}</span>
+                            <div class="metric-item danger">
+                                <span class="metric-label">Total Deductions</span>
+                                <span class="metric-value bad">{{ summary.total_deductions }}</span>
                             </div>
                             <div class="metric-item success">
                                 <span class="metric-label">Present</span>
                                 <span class="metric-value">{{ summary.present_days }}</span>
                             </div>
-                            <div class="metric-item danger">
+                            <div class="metric-item">
                                 <span class="metric-label">Absent</span>
                                 <span class="metric-value bad">{{ summary.absent_days }}</span>
                             </div>

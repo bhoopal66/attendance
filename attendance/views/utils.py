@@ -1,24 +1,52 @@
 """
-Utility functions and decorators shared across views.
+Utility functions, decorators, and shared constants for attendance views.
 """
 
+import datetime
+import calendar
+import logging
 from datetime import timedelta, time
+from functools import wraps
 
+from django.http import JsonResponse
+
+logger = logging.getLogger('attendance')
 
 # Saturday working hours (fixed for all employees)
 SATURDAY_SHIFT_START = time(10, 0)  # 10:00 AM
 SATURDAY_SHIFT_END = time(14, 0)    # 2:00 PM (14:00)
 SATURDAY_WORK_DURATION_SECONDS = 14400  # 4 hours
 
+# Shared month data for templates
+MONTH_CHOICES = [
+    (1, 'January'), (2, 'February'), (3, 'March'), (4, 'April'),
+    (5, 'May'), (6, 'June'), (7, 'July'), (8, 'August'),
+    (9, 'September'), (10, 'October'), (11, 'November'), (12, 'December')
+]
+MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+               'July', 'August', 'September', 'October', 'November', 'December']
+YEAR_RANGE = range(2020, 2036)
+WEEKDAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 
 def superuser_required(user):
-    """Check if user is a superuser."""
+    """Check if user is a superuser. Used with @user_passes_test."""
     return user.is_superuser
+
+
+def require_post_json(view_func):
+    """Decorator that requires POST method and returns JSON for errors."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if request.method != 'POST':
+            return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+        return view_func(request, *args, **kwargs)
+    return wrapper
 
 
 def parse_duration(duration_str):
     """Parse duration string like 'HH:MM:SS' to timedelta."""
-    if not duration_str or duration_str == '':
+    if not duration_str or str(duration_str).strip() == '':
         return timedelta(0)
     try:
         parts = str(duration_str).split(':')
@@ -29,14 +57,13 @@ def parse_duration(duration_str):
             minutes, seconds = map(int, parts)
             return timedelta(minutes=minutes, seconds=seconds)
     except (ValueError, AttributeError):
-        pass
+        logger.warning("Failed to parse duration string: %s", duration_str)
     return timedelta(0)
 
 
 def get_saturday_shift():
     """
     Returns fixed Saturday shift timings (always 10:00 AM - 2:00 PM for all employees).
-
     Returns: (shift_start, shift_end) as time objects
     """
     return SATURDAY_SHIFT_START, SATURDAY_SHIFT_END
@@ -46,19 +73,12 @@ def get_employee_shift_for_date(employee, target_date):
     """
     Get employee's shift timings for a specific date using 3-tier lookup strategy.
 
-    This function checks shift timings in the following priority:
+    Priority:
     1. ShiftHistory: Most recent shift with effective_from <= target_date
     2. Employee direct fields: employee.shift_start and employee.shift_end
     3. System defaults: 10:00-19:00
 
-    Note: This applies to Monday-Friday only. Saturday always uses 10:00-14:00
-    regardless of shift history (use get_saturday_shift() instead).
-
-    Args:
-        employee: Employee object
-        target_date: date object for which to get shift timings
-
-    Returns: (shift_start, shift_end) as time objects
+    Note: This applies to Monday-Friday only. Saturday always uses 10:00-14:00.
     """
     from attendance.models import ShiftHistory
 
@@ -77,3 +97,127 @@ def get_employee_shift_for_date(employee, target_date):
 
     # Tier 3: System defaults
     return time(10, 0), time(19, 0)
+
+
+def get_selected_month_year(request):
+    """Extract and validate month/year from request GET params. Returns (month, year)."""
+    now = datetime.datetime.now()
+    try:
+        month = int(request.GET.get('month', now.month))
+        year = int(request.GET.get('year', now.year))
+        if not (1 <= month <= 12):
+            month = now.month
+        if not (2000 <= year <= 2099):
+            year = now.year
+    except (ValueError, TypeError):
+        month = now.month
+        year = now.year
+    return month, year
+
+
+def build_calendar_grid(year, month):
+    """
+    Build calendar grid data for a given month.
+
+    Returns dict with: days_in_month, calendar_days (list with None padding),
+    first_weekday_sunday, month_start, month_end.
+    """
+    first_weekday, days_in_month = calendar.monthrange(year, month)
+    first_weekday_sunday = (first_weekday + 1) % 7
+
+    calendar_days = [None] * first_weekday_sunday + list(range(1, days_in_month + 1))
+    while len(calendar_days) % 7 != 0:
+        calendar_days.append(None)
+
+    month_start = datetime.date(year, month, 1)
+    month_end = datetime.date(year, month, days_in_month)
+
+    return {
+        'days_in_month': days_in_month,
+        'calendar_days': calendar_days,
+        'month_start': month_start,
+        'month_end': month_end,
+    }
+
+
+def get_holiday_data(month_start, month_end):
+    """
+    Get holiday dates and names for a date range.
+    Returns: (holiday_dates: set, holiday_names: dict, holidays_queryset)
+    """
+    from attendance.models import Holiday
+
+    holidays_qs = Holiday.objects.filter(date__gte=month_start, date__lte=month_end)
+    holiday_dates = set(h.date for h in holidays_qs)
+    holiday_names = {h.date: h.name for h in holidays_qs}
+    return holiday_dates, holiday_names, holidays_qs
+
+
+def count_holidays_in_range(year, month, end_day, holiday_dates):
+    """
+    Count Sundays and custom holidays from day 1 to end_day (inclusive).
+
+    Returns: (sundays_count, custom_holidays_count, total_holidays, expected_working_days)
+    """
+    sundays = 0
+    custom_holidays = 0
+    for day in range(1, end_day + 1):
+        date = datetime.date(year, month, day)
+        if date.weekday() == 6:
+            sundays += 1
+        elif date in holiday_dates:
+            custom_holidays += 1
+
+    total = sundays + custom_holidays
+    expected_working = end_day - total
+    return sundays, custom_holidays, total, expected_working
+
+
+def get_approved_leave_days(employee, month_start, month_end):
+    """
+    Get set of day numbers that have approved leave for an employee in a month.
+    Returns: set of day integers (1-31)
+    """
+    from attendance.models import LeaveRequest
+
+    approved_leaves = LeaveRequest.objects.filter(
+        employee=employee,
+        status='approved',
+        start_date__lte=month_end,
+        end_date__gte=month_start
+    )
+    leave_days = set()
+    for leave in approved_leaves:
+        start = max(leave.start_date, month_start)
+        end = min(leave.end_date, month_end)
+        curr = start
+        while curr <= end:
+            leave_days.add(curr.day)
+            curr += datetime.timedelta(days=1)
+    return leave_days
+
+
+def get_common_report_context(month, year, cal_data, holidays_qs, show_inactive, search_query):
+    """Build the common template context used by report views."""
+    today = datetime.date.today()
+    if year == today.year and month == today.month:
+        current_day = today.day
+    elif (year < today.year) or (year == today.year and month < today.month):
+        current_day = 32  # Past month: show all days
+    else:
+        current_day = 0  # Future month
+
+    return {
+        'selected_month': month,
+        'selected_year': year,
+        'months': MONTH_CHOICES,
+        'years': YEAR_RANGE,
+        'calendar_days': cal_data['calendar_days'],
+        'weekdays': WEEKDAY_HEADERS,
+        'days_in_month': cal_data['days_in_month'],
+        'show_inactive': show_inactive,
+        'search_query': search_query,
+        'holiday_days': [h.date.day for h in holidays_qs],
+        'holiday_names': {h.date.day: h.name for h in holidays_qs},
+        'current_day': current_day,
+    }

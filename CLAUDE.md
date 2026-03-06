@@ -8,215 +8,158 @@ Django-based attendance management system for TCR with dual employee tracking:
 - **In-house employees**: Tracked via biometric attendance machines (uploaded as XLS files)
 - **Remote employees**: Tracked via phone call statistics (uploaded as CSV files)
 
-The system includes an admin panel for attendance management and an employee portal for viewing attendance and submitting leave requests.
+The system includes an admin panel for attendance management, an employee portal for viewing attendance and submitting leave requests, and a payroll module.
 
-## Development Setup
+## Development Commands
 
-### Local Development (SQLite)
 ```bash
 # Activate virtual environment
 source venv/bin/activate
 
-# Run development server on port 8080
+# Run development server (SQLite, port 8080)
 python manage.py runserver 8080
 
 # Run migrations
+python manage.py makemigrations
 python manage.py migrate
 
 # Create superuser
 python manage.py createsuperuser
+
+# Recalculate monthly summaries
+python manage.py recalculate_summaries 2026 3
+python manage.py recalculate_summaries 2026 3 --remote
+python manage.py recalculate_summaries 2026 3 --employee-id 42
+
+# Production commands (MySQL)
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py migrate
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py collectstatic --noinput
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production gunicorn --bind 0.0.0.0:8000 attendance_project.wsgi:application
 ```
 
-### Production Setup (MySQL)
-Uses `settings_production.py` with MySQL. See `DEPLOYMENT.md` for full Ubuntu deployment guide.
+No test suite or linting configuration exists yet. Both `attendance/tests.py` and `payroll/tests.py` are empty placeholders.
 
-```bash
-# Run with production settings
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py migrate
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production gunicorn --bind 0.0.0.0:8000 attendance_project.wsgi:application
-```
+## Environment Configuration
 
-### Environment Configuration
 Copy `.env.example` to `.env` and configure:
 - `SECRET_KEY`: Django secret key
 - `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
-- `DB_PASSWORD`: MySQL password (production only)
+- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`: MySQL connection (production only)
 
 ## Architecture
 
-### Apps Structure
+### Settings (Package)
 
-**attendance/** - Main app for attendance tracking and employee management
-- `models.py`: Data models (Employee, RemoteEmployee, AttendanceRecord, RemoteCallRecord, requests)
-- `views/`: Modular view structure
-  - `upload.py`: XLS/CSV file upload and processing
-  - `reports.py`: Attendance reports for in-house employees
-  - `downloads.py`: Excel report generation
-  - `employee_portal.py`: Employee portal (login, attendance view, leave requests)
-  - `employee_management.py`: Employee CRUD operations
-  - `leave_management.py`: Leave request approval workflow
-  - `api.py`: JSON API endpoints for frontend interactions
-- `templates/attendance/`: HTML templates with modern purple-themed UI
-- `static/attendance/`: CSS and JavaScript files
+Settings are organized as a Python package under `attendance_project/settings/`:
+- `base.py` - Shared settings (middleware, apps, templates, logging, session config)
+- `development.py` - Development overrides (SQLite, DEBUG=True, console logging)
+- `production.py` - Production overrides (MySQL, security hardening, WhiteNoise, file logging)
+- `__init__.py` - Defaults to development settings
 
-**payroll/** - Payroll management (separate module)
+Production uses `DJANGO_SETTINGS_MODULE=attendance_project.settings.production`.
+
+### Apps
+
+- **attendance/** - Main app: attendance tracking, employee management, leave requests, employee portal
+- **payroll/** - Payroll adjustments (incentives/reductions per employee per month)
+- **attendance_project/** - Django project settings and URL routing
+
+### Views (Modular Structure)
+
+Views are split into modules under `attendance/views/`:
+- `utils.py` - Shared utilities, constants, decorators, and helper functions
+- `upload.py` - XLS/CSV file upload and processing
+- `reports.py` - Attendance reports for in-house and remote employees
+- `downloads.py` - Excel report generation (openpyxl) with shared styles
+- `employee_portal.py` - Employee portal (login, attendance view, leave/early-leave requests)
+- `employee_management.py` - Employee CRUD operations with field allowlists
+- `leave_management.py` - Leave request approval workflow
+- `api.py` - JSON API endpoints for frontend interactions
+
+All view functions are re-exported from `attendance/views/__init__.py`.
+
+**Key shared utilities in `utils.py`:**
+- `MONTH_CHOICES`, `MONTH_NAMES`, `YEAR_RANGE`, `WEEKDAY_HEADERS` - Shared template constants
+- `get_selected_month_year()` - Extract/validate month/year from request params
+- `build_calendar_grid()` - Build calendar grid data for templates
+- `get_holiday_data()` - Get holiday dates/names for a date range
+- `count_holidays_in_range()` - Count Sundays and holidays up to a given day
+- `get_approved_leave_days()` - Get approved leave day numbers for an employee
+- `get_common_report_context()` - Build shared template context for report views
+- `superuser_required()` - Single source of truth for the superuser check
 
 ### Data Models
 
-#### Employee Tracking Models
-- `BaseEmployee` (abstract): Shared fields for both employee types
-- `Employee`: In-house employees with `person_id` from biometric machines
-- `RemoteEmployee`: Remote employees with `extension_id` from phone system
-- `AttendanceRecord`: Daily attendance for in-house (first_in, last_out, work_duration)
-- `RemoteCallRecord`: Daily call stats for remote (answered_calls, talk_duration, auto-calculated status)
-- `MonthlySummary` / `RemoteMonthlySummary`: Monthly aggregates
+**Employee Tracking:**
+- `BaseEmployee` (abstract) - Shared fields for both employee types, with date validation
+- `Employee` - In-house employees with `person_id` from biometric machines
+- `RemoteEmployee` - Remote employees with `extension_id` from phone system
+- `AttendanceRecord` - Daily attendance for in-house (unique_together: employee+date)
+- `RemoteCallRecord` - Daily call stats for remote (unique_together: employee+date)
+- `MonthlySummary` / `RemoteMonthlySummary` - Monthly aggregates
 
-#### Request Management Models
-- `EarlyLeaveRequest`: On-duty/field visit requests with approval workflow
-- `LeaveRequest`: 4 types (sick, medical, annual, casual) with document upload support
-- `Holiday`: Custom holidays (Sundays are auto-detected)
+**Request Management:**
+- `EarlyLeaveRequest` - On-duty/field visit requests with clean() validation ensuring exactly one employee FK is set
+- `LeaveRequest` - 4 types (sick, medical, annual, casual) with clean() date validation
+- `Holiday` - Custom holidays (Sundays are auto-detected)
 
-#### Employee Lookup Strategy (Critical)
-When processing XLS uploads, the system uses a **3-tier lookup strategy** to handle duplicate names:
-1. Try exact match: `person_id` + `name`
-2. If multiple matches: Use most recently updated employee
-3. If no match: Create new employee record
-
-This prevents duplicate employee creation when names match but IDs differ.
+**Payroll:**
+- `PayrollAdjustment` - Monthly incentives/reductions per employee
 
 ### URL Structure
 
-**Admin Panel:**
-- `/` - Upload attendance files (XLS for in-house, CSV for remote)
-- `/report/` - In-house employee attendance reports
-- `/report/remote/` - Remote employee call statistics
-- `/employees/` - Employee management
-- `/leave-requests/` - Leave request approval
-- `/admin/` - Django admin
+**Admin Panel:** `/` (upload), `/report/` (in-house reports), `/report/remote/` (remote reports), `/employees/`, `/leave-requests/`
 
-**Employee Portal:**
-- `/portal/` - Employee dashboard with calendar view
-- `/portal/login/` - Employee login (uses `portal_password` field)
-- `/portal/early-leave-request/` - Submit on-duty requests
-- `/portal/leave-request/` - Submit leave requests
-- `/portal/api/my-requests/` - API for fetching employee's requests
+**Employee Portal:** `/portal/` (dashboard), `/portal/login/`, `/portal/early-leave-request/`, `/portal/leave-request/`, `/portal/api/my-requests/`
 
-**API Endpoints:**
-- `/api/attendance/update/` - Update attendance records (admin)
-- `/api/pending-requests/` - Get pending requests count
-- `/request/<id>/approve/` - Approve early leave request
-- `/leave/<id>/approve/` - Approve leave request
+**APIs:** `/api/attendance/update/`, `/api/pending-requests/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
 
-### Frontend Architecture
-
-Modern, responsive UI with purple theme (`--primary-color: #4F46E5`):
-- **Admin Panel**: Collapsible employee cards with monthly calendar views
-- **Employee Portal**: Sidebar navigation with dashboard showing attendance calendar and request history
-- **Real-time Updates**: Periodic polling for pending requests (30s interval)
-- **Modals**: AJAX-based approval workflows without page reloads
-
-Key CSS files:
-- `base.css`: Shared styles, navigation, filter components (purple theme, card designs)
-- `report.css`: Admin calendar view (optimized for smaller cells, readable text)
-- `employee_portal.css`: Employee portal sidebar and calendar
-- `upload.css`, `employee_management.css`, `leave_management.css`: Page-specific styles
-
-Calendar visibility optimizations:
-- Admin: Smaller cells (65px) with readable text (0.7-0.95rem, bold weights)
-- Portal: Standard cells (90px) with proper overflow handling
-- All calendars use `line-height: 1.2` and `overflow: hidden` to prevent text bleeding
-
-### Attendance Upload Processing
-
-**In-house (XLS):**
-1. Parse XLS with `openpyxl`
-2. Lookup employee by `person_id` using 3-tier strategy
-3. Create/update `AttendanceRecord` (first_in, last_out, work_duration)
-4. Calculate monthly summary (working_days, late_days, half_days)
-5. Merge with approved early leave requests
-
-**Remote (CSV):**
-1. Parse CSV call statistics
-2. Lookup employee by `extension_id`
-3. Create/update `RemoteCallRecord`
-4. Auto-calculate attendance status based on talk duration:
-   - Mon-Thu: <45min=Absent, 45-89min=Half, ≥90min=Present
-   - Friday: <30min=Absent, 30-59min=Half, ≥60min=Present
-   - Saturday: ≤20min=Absent, 21-44min=Half, ≥45min=Present
+**Payroll:** `/payroll/`, `/payroll/api/adjustments/<id>/`, `/payroll/api/adjustments/add/`, `/payroll/api/adjustments/delete/<id>/`
 
 ### Authentication
 
-**Admin Users:**
-- Standard Django authentication (`django.contrib.auth`)
-- Login: `/login/`
-- Redirect: `/report/` after login
+**Admin Users:** Standard Django authentication (`@login_required`, `@user_passes_test(superuser_required)`). Login at `/login/`, redirects to `/report/`.
 
-**Employees (Portal):**
-- Custom authentication using `portal_password` field (hashed with `make_password`)
-- Login: `/portal/login/`
-- Session-based with `employee_id` stored in session
-- No Django User objects created
+**Employee Portal:** Custom authentication using `portal_password` field (hashed with `make_password`). Session-based with `employee_id` stored in session. No Django User objects created.
 
-### Static Files Handling
+### Frontend
 
-Development: Files served from `attendance/static/`
-Production: Use WhiteNoise middleware + `collectstatic`
+Server-rendered templates with AJAX for admin approval workflows. No frontend build step.
 
-CSS versioning in templates: `?v=X` query params for cache busting
+Key patterns:
+- Purple-themed UI (`--primary-color: #4F46E5`) with CSS variables in `base.css`
+- Calendar grid components shared between admin and portal views
+- AJAX form submissions with CSRF token headers for approval/decline actions
+- Real-time polling for pending requests (30s interval)
+- CSS versioning in templates via `?v=X` query params for cache busting
 
-## Common Tasks
+### Logging
 
-### Adding a New Employee
-```python
-from attendance.models import Employee
-from django.contrib.auth.hashers import make_password
+Structured logging via Python `logging` module, configured in `settings/base.py`:
+- Two loggers: `attendance` and `payroll`
+- Development: console output only
+- Production: console + rotating file (`logs/attendance.log`, 5MB max, 5 backups)
+- All views use `logger = logging.getLogger('attendance')` for structured logging
+- Key operations logged: uploads, login/logout, approval actions, attendance edits
 
-emp = Employee.objects.create(
-    person_id="12345",
-    name="John Doe",
-    email="john@example.com",
-    portal_password=make_password("password123"),
-    is_active=True
-)
-```
+### Error Pages
 
-### Uploading Attendance Files
-Admin panel UI handles this, but programmatically:
-```python
-from attendance.views.upload import process_attendance_file
-process_attendance_file(file_path)  # XLS for in-house
-```
+Custom error templates at `attendance/templates/`: `400.html`, `403.html`, `404.html`, `500.html`
 
-### Generating Reports
-Reports are generated on-demand via views, downloaded as Excel files using `openpyxl`.
+### Other Components
 
-### Database Migrations
-```bash
-# Development
-python manage.py makemigrations
-python manage.py migrate
-
-# Production
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py migrate
-```
-
-### Updating Production
-```bash
-cd /var/www/attendance
-source venv/bin/activate
-git pull origin main
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py migrate
-DJANGO_SETTINGS_MODULE=attendance_project.settings_production python manage.py collectstatic --noinput
-sudo systemctl restart attendance
-```
+- `attendance/context_processors.py` - `pending_requests_processor` makes pending on-duty request counts available to all templates for authenticated superusers
+- `attendance/templatetags/attendance_extras.py` - Custom template filters
+- `attendance/management/commands/recalculate_summaries.py` - Management command to rebuild monthly summaries
 
 ## Critical Implementation Details
 
-### Duplicate Employee Handling
-The upload process uses a **3-tier lookup strategy** to prevent duplicate employee creation:
-1. Exact match on `person_id` + `name`
-2. If multiple matches exist, use the most recently updated employee
-3. If no match, create new employee
+### Employee Lookup Strategy (XLS Upload)
+
+When processing XLS uploads (`upload.py:_lookup_or_create_employee`), the system uses a **3-tier lookup strategy** to prevent duplicate employee creation:
+1. Try exact match: `person_id` + `name`
+2. If multiple matches: Use most recently updated employee
+3. If no match: Create new employee record
 
 This is critical when the same `person_id` is reused for different employees or when names are duplicated.
 
@@ -231,86 +174,46 @@ This is critical when the same `person_id` is reused for different employees or 
 - Purple (Holiday): Sunday or custom holiday
 
 **Remote employees:**
-Status auto-calculated on save via `calculate_attendance_status()` based on talk duration and weekday.
-
-### Leave Request Workflow
-1. Employee submits request via portal
-2. Admin reviews in `/leave-requests/`
-3. Admin can approve with custom `approved_days` (can be less than requested)
-4. Document upload required for sick/medical leave
-5. Approved leaves appear in attendance calendar
+Status auto-calculated on save via `calculate_attendance_status()` based on talk duration and weekday:
+- Mon-Thu: <45min=Absent, 45-89min=Half, >=90min=Present
+- Friday: <30min=Absent, 30-59min=Half, >=60min=Present
+- Saturday: <=20min=Absent, 21-44min=Half, >=45min=Present
 
 ### Early Leave Request Workflow
+
 1. Employee submits with destination, customer name, times
 2. Admin reviews existing attendance data in modal
 3. Admin approves with optional `approved_first_in`/`approved_last_out` times
-4. These times are merged with biometric data during next upload
-5. Used for field visits, customer meetings, etc.
+4. These times are merged with biometric data during next XLS upload
 
-## Design System
+### Leave Request Workflow
 
-Purple-themed modern UI based on CSS variables:
-- Primary: `#4F46E5` (purple)
-- Success: `#10B981` (green)
-- Warning: `#F59E0B` (orange)
-- Danger: `#EF4444` (red)
-- Info: `#3B82F6` (blue)
-- Accent Purple: `#8B5CF6`
+1. Employee submits request via portal (document upload required for sick/medical)
+2. Admin reviews and can approve with custom `approved_days` (can be less than requested)
+3. Approved leaves appear in attendance calendar as Paid Leave (blue)
 
-Components:
-- Cards with rounded corners (16-20px)
-- Gradient buttons with shadow effects
-- Calendar with color-coded status indicators
-- Modals with gradient headers
-- Sidebar navigation (employee portal)
+## Static Files
 
-## Known Patterns
-
-### AJAX Form Submissions
-Most admin actions use AJAX to avoid page reloads:
-```javascript
-fetch(url, {
-    method: 'POST',
-    headers: {'X-CSRFToken': csrfToken},
-    body: JSON.stringify(data)
-})
-```
-
-### Employee Portal Session Management
-```python
-# Check if employee logged in
-if 'employee_id' not in request.session:
-    return redirect('employee_login')
-```
-
-### Calendar Rendering
-Both admin and portal use similar calendar grid structure:
-```html
-<div class="calendar-grid">
-    <div class="calendar-day status-{status}">
-        <div class="day-number">{day}</div>
-        <div class="work-hours">{hours}h</div>
-        <div class="time-info">{in_time} - {out_time}</div>
-    </div>
-</div>
-```
+- Development: Served from `attendance/static/`
+- Production: WhiteNoise middleware + `collectstatic` to `staticfiles/`
 
 ## Git Workflow
 
 Main branch: `main`
 Remote: `git@github.com:yadhumanikandan/attendance_system.git`
 
-Always include co-authorship in commits:
-```
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
-```
-
 ## Production Deployment
 
-Deployed on Ubuntu 24.04 with:
-- Gunicorn WSGI server
-- MySQL database
-- Systemd service (`attendance.service`)
-- WhiteNoise for static files
+Deployed on Ubuntu 24.04 with Gunicorn, MySQL, systemd service (`attendance.service`), and WhiteNoise. See `DEPLOYMENT.md` for complete setup guide.
 
-See `DEPLOYMENT.md` for complete production setup guide.
+Update process:
+```bash
+cd /var/www/attendance
+source venv/bin/activate
+git pull origin main
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py migrate
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py collectstatic --noinput
+sudo systemctl restart attendance
+```
+
+**Note:** The deployment `attendance.service` file needs `DJANGO_SETTINGS_MODULE` updated from `attendance_project.settings_production` to `attendance_project.settings.production`.
