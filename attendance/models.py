@@ -183,6 +183,9 @@ class RemoteEmployee(BaseEmployee):
     """Remote employee tracked via phone call statistics."""
     extension_id = models.CharField(max_length=50, db_index=True)
 
+    salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    designation = models.CharField(max_length=100, null=True, blank=True)
+
     class Meta:
         unique_together = ('extension_id', 'name')
         verbose_name = 'Remote Employee'

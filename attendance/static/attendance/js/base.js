@@ -1,6 +1,29 @@
 /* Base JavaScript - Global functionality across all pages */
 
 // ============================================
+// Sidebar Collapse Toggle
+// ============================================
+
+function toggleSidebar() {
+    const body = document.body;
+    const isCollapsed = body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
+
+    // Update dropdown menu left position for the notification panel
+    const dropdownMenu = document.getElementById('requestsDropdown');
+    if (dropdownMenu) {
+        // CSS handles positioning via body class
+    }
+}
+
+// Restore sidebar state on load
+(function() {
+    if (localStorage.getItem('sidebarCollapsed') === '1') {
+        document.body.classList.add('sidebar-collapsed');
+    }
+})();
+
+// ============================================
 // Requests Dropdown Toggle
 // ============================================
 

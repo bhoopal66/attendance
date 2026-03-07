@@ -8,60 +8,45 @@
     margin: 0 auto;
 }
 
-/* Page Header */
+/* Page Header — flat enterprise style */
 .page-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 2.5rem;
-    margin-bottom: 2rem;
-    box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
-    position: relative;
-    overflow: hidden;
-}
-
-.page-header::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -20%;
-    width: 60%;
-    height: 200%;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
-    transform: rotate(15deg);
-    pointer-events: none;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+    flex-wrap: wrap;
 }
 
 .header-content {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    position: relative;
-    z-index: 1;
+    gap: 1rem;
 }
 
 .header-icon {
-    width: 70px;
-    height: 70px;
-    background: rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(10px);
-    border-radius: 18px;
+    width: 44px;
+    height: 44px;
+    background: var(--primary-light);
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--primary-color);
+    flex-shrink: 0;
 }
 
 .header-text h1 {
-    color: white;
-    font-size: 2rem;
+    color: var(--text-color);
+    font-size: 1.5rem;
     font-weight: 700;
-    margin: 0 0 0.5rem 0;
-    letter-spacing: -0.5px;
+    margin: 0 0 0.2rem 0;
+    letter-spacing: -0.03em;
 }
 
 .header-text p {
-    color: rgba(255, 255, 255, 0.85);
-    font-size: 1.05rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
     margin: 0;
 }
 

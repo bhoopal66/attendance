@@ -1,124 +1,282 @@
 {% extends 'attendance/base.html' %}
 {% load static %}
 
-{% block title %}Leave Requests - Admin{% endblock %}
+{% block title %}Leave Requests - Taamul{% endblock %}
+
+{% block page_title %}Leave Requests{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'attendance/css/leave_management.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'attendance/css/leave_management.css' %}?v=7">
 {% endblock %}
 
 {% block content %}
 <div class="leave-container">
+
+    <!-- Page Header -->
     <div class="page-header">
-        <h1 class="page-title">Leave Requests</h1>
-    </div>
-
-    <div class="tabs">
-        <a href="?status=pending" class="tab {% if status_filter == 'pending' %}active{% endif %}">Pending <span
-                class="tab-badge pending">{{ pending_count }}</span></a>
-        <a href="?status=approved" class="tab {% if status_filter == 'approved' %}active{% endif %}">Approved <span
-                class="tab-badge">{{ approved_count }}</span></a>
-        <a href="?status=rejected" class="tab {% if status_filter == 'rejected' %}active{% endif %}">Rejected <span
-                class="tab-badge">{{ rejected_count }}</span></a>
-        <a href="?status=all" class="tab {% if status_filter == 'all' %}active{% endif %}">All</a>
-    </div>
-
-    <div class="requests-grid">
-        {% if leave_requests %}
-        {% for req in leave_requests %}
-        <div class="request-card" data-id="{{ req.id }}">
-            <div class="request-info">
-                <div class="request-header">
-                    <span class="employee-name">{{ req.employee.name }}</span>
-                    <span class="leave-type-badge {{ req.leave_type }}">{{ req.get_leave_type_display }}</span>
-                    <span class="status-badge {{ req.status }}">{{ req.get_status_display }}</span>
-                </div>
-                <div class="request-dates">
-                    <strong>{{ req.start_date|date:"M d, Y" }}</strong> to <strong>{{ req.end_date|date:"M d, Y" }}</strong>
-                    <span class="duration-pill">{{ req.requested_days }} day{{ req.requested_days|pluralize }}</span>
-                </div>
-                {% if req.approved_days and req.approved_days != req.requested_days %}
-                <div class="approved-info"><strong>Approved: {{ req.approved_days }} days</strong></div>
-                {% endif %}
-                <div class="request-reason">{{ req.reason }}</div>
-                {% if req.document %}
-                <div class="request-document"><a href="{{ req.document.url }}" target="_blank" class="doc-link">View
-                        Document</a></div>
-                {% endif %}
-                {% if req.admin_notes %}
-                <div class="admin-notes"><strong>Admin Notes:</strong> {{ req.admin_notes }}</div>
-                {% endif %}
+        <div class="header-content">
+            <div class="header-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
             </div>
-            {% if req.status == 'pending' %}
-            <div class="request-actions">
-                <button class="btn btn-approve" data-leave-id="{{ req.id }}" data-days="{{ req.requested_days }}"
-                    data-start="{{ req.start_date|date:'Y-m-d' }}"
-                    data-end="{{ req.end_date|date:'Y-m-d' }}">Approve</button>
-                <button class="btn btn-reject" data-leave-id="{{ req.id }}">Reject</button>
+            <div class="header-text">
+                <h1>Leave Requests</h1>
+                <p>Review and manage employee leave applications</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="leave-stats-grid">
+        <a href="?status=pending" class="leave-stat-card {% if status_filter == 'pending' %}active{% endif %}">
+            <div class="leave-stat-icon warning">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div class="leave-stat-content">
+                <span class="leave-stat-value">{{ pending_count }}</span>
+                <span class="leave-stat-label">Pending</span>
+            </div>
+            {% if pending_count > 0 %}
+            <span class="leave-stat-pulse"></span>
+            {% endif %}
+        </a>
+
+        <a href="?status=approved" class="leave-stat-card {% if status_filter == 'approved' %}active{% endif %}">
+            <div class="leave-stat-icon success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            </div>
+            <div class="leave-stat-content">
+                <span class="leave-stat-value">{{ approved_count }}</span>
+                <span class="leave-stat-label">Approved</span>
+            </div>
+        </a>
+
+        <a href="?status=rejected" class="leave-stat-card {% if status_filter == 'rejected' %}active{% endif %}">
+            <div class="leave-stat-icon danger">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+            </div>
+            <div class="leave-stat-content">
+                <span class="leave-stat-value">{{ rejected_count }}</span>
+                <span class="leave-stat-label">Rejected</span>
+            </div>
+        </a>
+
+        <a href="?status=all" class="leave-stat-card {% if status_filter == 'all' %}active{% endif %}">
+            <div class="leave-stat-icon primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+            </div>
+            <div class="leave-stat-content">
+                <span class="leave-stat-value">{{ pending_count|add:approved_count|add:rejected_count }}</span>
+                <span class="leave-stat-label">All Requests</span>
+            </div>
+        </a>
+    </div>
+
+    <!-- Content Card -->
+    <div class="leave-content-card">
+
+        <!-- Card Header with Tab Navigation -->
+        <div class="leave-card-header">
+            <div class="leave-tabs">
+                <a href="?status=pending" class="leave-tab {% if status_filter == 'pending' %}active{% endif %}">
+                    Pending
+                    {% if pending_count > 0 %}
+                    <span class="leave-tab-badge warning">{{ pending_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="?status=approved" class="leave-tab {% if status_filter == 'approved' %}active{% endif %}">
+                    Approved
+                    <span class="leave-tab-badge">{{ approved_count }}</span>
+                </a>
+                <a href="?status=rejected" class="leave-tab {% if status_filter == 'rejected' %}active{% endif %}">
+                    Rejected
+                    <span class="leave-tab-badge">{{ rejected_count }}</span>
+                </a>
+                <a href="?status=all" class="leave-tab {% if status_filter == 'all' %}active{% endif %}">All</a>
+            </div>
+        </div>
+
+        <!-- Requests Table -->
+        <div class="requests-table-wrap">
+            {% if leave_requests %}
+            <table class="requests-table">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Leave Type</th>
+                        <th>Period</th>
+                        <th>Days</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in leave_requests %}
+                    <tr class="request-row{% if req.status == 'pending' %} row-pending{% endif %}" data-id="{{ req.id }}">
+                        <td class="td-employee">
+                            <div class="emp-cell">
+                                <div class="req-initials">{{ req.employee.name|slice:":1"|upper }}</div>
+                                <div class="emp-cell-info">
+                                    <span class="emp-cell-name">{{ req.employee.name }}</span>
+                                    {% if req.reason %}<span class="emp-cell-reason">{{ req.reason }}</span>{% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="leave-type-badge {{ req.leave_type }}">{{ req.get_leave_type_display }}</span></td>
+                        <td class="td-period">
+                            <span class="date-range">{{ req.start_date|date:"M d" }} – {{ req.end_date|date:"M d, Y" }}</span>
+                        </td>
+                        <td class="td-days">
+                            <span class="days-val">{{ req.requested_days }}<span class="days-unit">d</span></span>
+                            {% if req.approved_days and req.approved_days != req.requested_days %}
+                            <span class="approved-days-badge">{{ req.approved_days }}d appr.</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="status-dot {{ req.status }}"></span><span class="status-badge {{ req.status }}">{{ req.get_status_display }}</span></td>
+                        <td class="td-actions">
+                            <div class="row-action-group">
+                                {% if req.document %}
+                                <a href="{{ req.document.url }}" target="_blank" class="action-btn action-doc" title="View document">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                                    Doc
+                                </a>
+                                {% endif %}
+                                {% if req.admin_notes %}
+                                <span class="action-btn action-notes" title="{{ req.admin_notes }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                    Note
+                                </span>
+                                {% endif %}
+                                {% if req.status == 'pending' %}
+                                <button class="action-btn action-approve btn-approve" data-leave-id="{{ req.id }}" data-days="{{ req.requested_days }}" data-start="{{ req.start_date|date:'Y-m-d' }}" data-end="{{ req.end_date|date:'Y-m-d' }}">Approve</button>
+                                <button class="action-btn action-reject btn-reject" data-leave-id="{{ req.id }}">Reject</button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                </div>
+                <p>No {{ status_filter }} leave requests at the moment.</p>
             </div>
             {% endif %}
         </div>
-        {% endfor %}
-        {% else %}
-        <div class="empty-state">
-            <h3>No Requests Found</h3>
-            <p>There are no {{ status_filter }} leave requests at the moment.</p>
-        </div>
-        {% endif %}
     </div>
 </div>
 
+<!-- Approve Modal -->
 <div class="modal-overlay" id="approveModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Approve Leave Request</h3>
+            <div>
+                <h3>Approve Leave Request</h3>
+                <p class="modal-subtitle">Adjust dates and duration if needed</p>
+            </div>
             <button class="modal-close" onclick="closeModal('approveModal')">&times;</button>
         </div>
         <form id="approveForm" onsubmit="submitApproval(event)">
             <input type="hidden" name="leave_id" id="approveLeaveId">
             <div class="modal-body">
-                <div class="form-group">
-                    <label>Start Date</label>
-                    <input type="date" name="start_date" id="approveStartDate" required class="form-input">
-                </div>
-                <div class="form-group">
-                    <label>End Date</label>
-                    <input type="date" name="end_date" id="approveEndDate" required class="form-input">
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>Start Date</label>
+                        <input type="date" name="start_date" id="approveStartDate" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label>End Date</label>
+                        <input type="date" name="end_date" id="approveEndDate" required class="form-input">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Approved Days</label>
                     <input type="number" name="approved_days" id="approvedDays" min="1" required class="form-input">
                 </div>
                 <div class="form-group">
-                    <label>Admin Notes (Optional)</label>
-                    <textarea name="admin_notes" rows="2" class="form-input"></textarea>
+                    <label>Admin Notes <span class="optional-text">(optional)</span></label>
+                    <textarea name="admin_notes" rows="2" class="form-input" placeholder="Add any notes for the employee..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn-cancel" onclick="closeModal('approveModal')">Cancel</button>
-                <button type="submit" class="btn btn-approve">Confirm</button>
+                <button type="button" class="btn-modal-cancel" onclick="closeModal('approveModal')">Cancel</button>
+                <button type="submit" class="btn-modal-approve">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Confirm Approval
+                </button>
             </div>
         </form>
     </div>
 </div>
 
+<!-- Reject Modal -->
 <div class="modal-overlay" id="rejectModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Reject Leave Request</h3>
+            <div>
+                <h3>Reject Leave Request</h3>
+                <p class="modal-subtitle">Provide a reason for the employee</p>
+            </div>
             <button class="modal-close" onclick="closeModal('rejectModal')">&times;</button>
         </div>
         <form id="rejectForm" onsubmit="submitRejection(event)">
             <input type="hidden" name="leave_id" id="rejectLeaveId">
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Reason for Rejection *</label>
-                    <textarea name="admin_notes" rows="3" required class="form-input"></textarea>
+                    <label>Reason for Rejection <span class="required-star">*</span></label>
+                    <textarea name="admin_notes" rows="3" required class="form-input"
+                        placeholder="Explain why this request is being rejected..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn-cancel" onclick="closeModal('rejectModal')">Cancel</button>
-                <button type="submit" class="btn btn-reject">Confirm</button>
+                <button type="button" class="btn-modal-cancel" onclick="closeModal('rejectModal')">Cancel</button>
+                <button type="submit" class="btn-modal-reject">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    Reject Request
+                </button>
             </div>
         </form>
     </div>

@@ -5,97 +5,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Taamul Checkin/Checkout Report</title>
+    <title>{% block title %}Taamul Attendance{% endblock %}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}?v=11">
+    <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}?v=21">
     {% block extra_css %}{% endblock %}
 </head>
 
 <body>
     <div class="app-layout">
-        <!-- Left Sidebar -->
-        <aside class="sidebar">
-            <!-- Logo -->
-            <a href="{% url 'report' %}" class="sidebar-logo">
-                <span class="logo-icon"><svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none"
-                        viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg></span>
-                <span class="logo-text">Taamul</span>
-            </a>
 
-            <!-- Navigation Links -->
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+
+            <!-- Logo & Collapse Toggle -->
+            <div class="sidebar-logo-area">
+                <a href="{% url 'report' %}" class="sidebar-logo">
+                    <span class="logo-icon">
+                        <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </span>
+                    <span class="logo-text">Taamul</span>
+                </a>
+                <button class="sidebar-collapse-btn" onclick="toggleSidebar()" title="Collapse sidebar">
+                    <svg width="15" height="15" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Navigation -->
             <nav class="sidebar-nav">
                 {% if user.is_authenticated %}
+
                 <div class="nav-section">
-                    <span class="nav-section-title">Main</span>
+                    <span class="nav-section-label">Main</span>
                     <a href="{% url 'report' %}"
-                        class="sidebar-item {% if request.resolver_match.url_name == 'report' or request.resolver_match.url_name == 'remote_report' %}active{% endif %}">
-                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        class="sidebar-item {% if request.resolver_match.url_name == 'report' or request.resolver_match.url_name == 'remote_report' %}active{% endif %}"
+                        title="Reports">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <span>Reports</span>
+                        <span class="sidebar-item-text">Reports</span>
                     </a>
                 </div>
 
                 {% if user.is_superuser %}
                 <div class="nav-section">
-                    <span class="nav-section-title">Management</span>
+                    <span class="nav-section-label">Management</span>
                     <a href="{% url 'upload' %}"
-                        class="sidebar-item {% if request.resolver_match.url_name == 'upload' %}active{% endif %}">
-                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        class="sidebar-item {% if request.resolver_match.url_name == 'upload' %}active{% endif %}"
+                        title="Upload Data">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                         </svg>
-                        <span>Upload</span>
+                        <span class="sidebar-item-text">Upload Data</span>
                     </a>
                     <a href="{% url 'employee_management' %}"
-                        class="sidebar-item {% if request.resolver_match.url_name == 'employee_management' %}active{% endif %}">
-                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        class="sidebar-item {% if request.resolver_match.url_name == 'employee_management' %}active{% endif %}"
+                        title="Employees">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
-                        <span>Employees</span>
+                        <span class="sidebar-item-text">Employees</span>
                     </a>
                     <a href="{% url 'payroll_dashboard' %}"
-                        class="sidebar-item {% if request.resolver_match.url_name == 'payroll_dashboard' %}active{% endif %}">
-                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        class="sidebar-item {% if request.resolver_match.url_name == 'payroll_dashboard' %}active{% endif %}"
+                        title="Payroll">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
-                        <span>Payroll</span>
+                        <span class="sidebar-item-text">Payroll</span>
                     </a>
                     <a href="{% url 'leave_management' %}"
-                        class="sidebar-item {% if request.resolver_match.url_name == 'leave_management' %}active{% endif %}">
-                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        class="sidebar-item {% if request.resolver_match.url_name == 'leave_management' %}active{% endif %}"
+                        title="Leave Requests">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <span>Leave Requests</span>
+                        <span class="sidebar-item-text">Leave Requests</span>
                     </a>
                 </div>
 
                 <div class="nav-section">
-                    <span class="nav-section-title">Requests</span>
-                    <!-- Notification Bell Dropdown -->
+                    <span class="nav-section-label">Requests</span>
                     <div class="sidebar-dropdown">
-                        <button class="sidebar-item notification-btn" id="requestsBtn"
-                            onclick="toggleRequestsDropdown()">
-                            <svg class="icon-svg bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        <button class="sidebar-item notification-btn" id="requestsBtn" onclick="toggleRequestsDropdown()" title="Pending Requests">
+                            <svg class="icon-svg bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.73 21a2 2 0 0 1-3.46 0"></path>
                             </svg>
-                            <span>Pending</span>
-                            <span class="notification-badge" id="pendingBadge" {% if nav_pending_count==0
-                                %}style="display: none;" {% endif %}>{{ nav_pending_count }}</span>
+                            <span class="sidebar-item-text">Pending</span>
+                            <span class="notification-badge" id="pendingBadge" {% if nav_pending_count == 0 %}style="display: none;"{% endif %}>{{ nav_pending_count }}</span>
                         </button>
                         <div class="sidebar-dropdown-menu" id="requestsDropdown">
                             {% if nav_pending_count > 0 %}
@@ -111,32 +112,32 @@
                                         <span class="dropdown-date">{{ request.request_date }}</span>
                                     </div>
                                     <div class="dropdown-request-details">
-                                        <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                                viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            </svg> {{ request.destination }}</span>
-                                        <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                                viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                            </svg> {{ request.customer_name }}</span>
+                                        <span>
+                                            <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                            {{ request.destination }}
+                                        </span>
+                                        <span>
+                                            <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                            </svg>
+                                            {{ request.customer_name }}
+                                        </span>
                                     </div>
                                     <div class="dropdown-request-info">
-                                        <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                                viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg> {{ request.leaving_time }}</span>
-                                        {% if request.return_time %}<span>→ {{ request.return_time }}</span>{% endif %}
+                                        <span>
+                                            <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            {{ request.leaving_time }}
+                                        </span>
+                                        {% if request.return_time %}<span>&rarr; {{ request.return_time }}</span>{% endif %}
                                     </div>
                                     <div class="dropdown-request-actions">
-                                        <button class="btn-sm-approve"
-                                            onclick="openApprovalModal({{ request.id }})">Approve</button>
-                                        <button class="btn-sm-decline"
-                                            onclick="declineRequest({{ request.id }})">Decline</button>
+                                        <button class="btn-sm-approve" onclick="openApprovalModal({{ request.id }})">Approve</button>
+                                        <button class="btn-sm-decline" onclick="declineRequest({{ request.id }})">Decline</button>
                                     </div>
                                 </div>
                                 {% endfor %}
@@ -150,46 +151,78 @@
                     </div>
                 </div>
 
+                <div class="nav-divider"></div>
+
                 <div class="nav-section">
-                    <span class="nav-section-title">System</span>
-                    <a href="{% url 'admin:index' %}" class="sidebar-item admin-link" target="_blank">
-                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <a href="{% url 'admin:index' %}" class="sidebar-item admin-link" target="_blank" title="Django Admin">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
-                        <span>Admin Panel</span>
+                        <span class="sidebar-item-text">Django Admin</span>
                     </a>
                 </div>
                 {% endif %}
+
+                {% endif %}
             </nav>
 
-            <!-- User Section at Bottom -->
-            <div class="sidebar-user">
+            <!-- User footer -->
+            <div class="sidebar-footer">
                 {% if user.is_authenticated %}
-                <div class="user-info">
+                <div class="sidebar-user-row">
                     <div class="user-avatar">{{ user.username|slice:":1"|upper }}</div>
-                    <span class="user-name">{{ user.username }}</span>
+                    <div class="user-info-text">
+                        <div class="user-name">{{ user.username }}</div>
+                        <div class="user-role">{% if user.is_superuser %}Administrator{% else %}Staff{% endif %}</div>
+                    </div>
+                    <form action="{% url 'logout' %}" method="post" class="logout-form">
+                        {% csrf_token %}
+                        <button type="submit" class="logout-btn" title="Sign out">
+                            <svg width="13" height="13" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </button>
+                    </form>
                 </div>
-                <form action="{% url 'logout' %}" method="post" class="logout-form">
-                    {% csrf_token %}
-                    <button type="submit" class="logout-btn" title="Logout">
-                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                    </button>
-                </form>
                 {% endif %}
             </div>
+
         </aside>
 
         <!-- Main Content -->
         <main class="main-content">
-            {% block content %}{% endblock %}
+
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <div class="top-bar-left">
+                    <button class="topbar-toggle-btn" onclick="toggleSidebar()" title="Toggle sidebar">
+                        <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <div class="top-bar-breadcrumb">
+                        <span>Taamul</span>
+                        <span class="separator">/</span>
+                        <span class="current">{% block page_title %}Dashboard{% endblock %}</span>
+                    </div>
+                </div>
+                <div class="top-bar-right">
+                    <span class="topbar-date" id="topbarDate"></span>
+                    {% if user.is_authenticated %}
+                    <div class="topbar-user">
+                        <div class="topbar-avatar">{{ user.username|slice:":1"|upper }}</div>
+                        <span class="topbar-username">{{ user.username }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="main-inner">
+                {% block content %}{% endblock %}
+            </div>
+
         </main>
     </div>
 
@@ -198,66 +231,52 @@
     <div class="approval-modal-overlay" id="approvalModal">
         <div class="approval-modal">
             <div class="approval-modal-header">
-                <h3>Approve Request</h3>
-                <button class="modal-close-btn" onclick="closeApprovalModal()">×</button>
+                <h3>Review On-Duty Request</h3>
+                <button class="modal-close-btn" onclick="closeApprovalModal()">&times;</button>
             </div>
             <div class="approval-modal-body">
-                <!-- Request Info -->
                 <div class="approval-info-section">
                     <div class="approval-info-row">
-                        <span class="info-label">Employee:</span>
-                        <span class="info-value" id="approvalEmployeeName">-</span>
+                        <span class="info-label">Employee</span>
+                        <span class="info-value" id="approvalEmployeeName">—</span>
                     </div>
                     <div class="approval-info-row">
-                        <span class="info-label">Date:</span>
-                        <span class="info-value" id="approvalRequestDate">-</span>
+                        <span class="info-label">Date</span>
+                        <span class="info-value" id="approvalRequestDate">—</span>
                     </div>
                     <div class="approval-info-row">
-                        <span class="info-label">Destination:</span>
-                        <span class="info-value" id="approvalDestination">-</span>
+                        <span class="info-label">Destination</span>
+                        <span class="info-value" id="approvalDestination">—</span>
                     </div>
                     <div class="approval-info-row">
-                        <span class="info-label">Customer:</span>
-                        <span class="info-value" id="approvalCustomer">-</span>
+                        <span class="info-label">Customer</span>
+                        <span class="info-value" id="approvalCustomer">—</span>
                     </div>
                     <div class="approval-info-row" id="approvalReasonRow" style="display: none;">
-                        <span class="info-label">Reason:</span>
-                        <span class="info-value" id="approvalReason">-</span>
+                        <span class="info-label">Reason</span>
+                        <span class="info-value" id="approvalReason">—</span>
                     </div>
                 </div>
 
-                <!-- Info notice for no biometric data -->
                 <div class="no-data-warning" id="noDataWarning" style="display: none;">
-                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg></span>
-                    <span>No biometric data yet. Times from this approval will be merged with biometric data when
-                        uploaded.</span>
+                    <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>No biometric data yet. Times from this approval will be merged when uploaded.</span>
                 </div>
 
-                <!-- Remote employee notice -->
                 <div class="remote-notice" id="remoteNotice" style="display: none;">
-                    <span><svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg></span>
-                    <span>This is a remote employee. Approval will mark the request as completed without time
-                        adjustments.</span>
+                    <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>Remote employee — approval marks the request as completed without time adjustments.</span>
                 </div>
 
-                <!-- Time Edit Section -->
                 <div class="time-edit-section" id="timeEditSection" style="display: none;">
-                    <h4>Checkin/Checkout Adjustment</h4>
+                    <h4>Check-in / Check-out Adjustment</h4>
                     <div class="time-display">
                         <div class="time-display-row">
-                            <span class="time-label">Original First In:</span>
+                            <span class="time-label">Original First In</span>
                             <span class="time-value" id="originalFirstIn">--:--</span>
                         </div>
                         <div class="time-display-row">
-                            <span class="time-label">Original Last Out:</span>
+                            <span class="time-label">Original Last Out</span>
                             <span class="time-value" id="originalLastOut">--:--</span>
                         </div>
                     </div>
@@ -273,15 +292,13 @@
                     </div>
                 </div>
 
-                <!-- Actions -->
                 <div class="approval-modal-actions">
                     <button type="button" class="btn-cancel-modal" onclick="closeApprovalModal()">Cancel</button>
                     <button type="button" class="btn-approve-modal" id="approveBtn" onclick="submitApproval()">
-                        ✓ Approve & Update
+                        Approve &amp; Update
                     </button>
                 </div>
 
-                <!-- Message Area -->
                 <div class="approval-message" id="approvalMessage" style="display: none;"></div>
             </div>
             <input type="hidden" id="currentRequestId">
@@ -289,7 +306,16 @@
     </div>
     {% endif %}
 
-    <script src="{% static 'attendance/js/base.js' %}?v=5"></script>
+    <script src="{% static 'attendance/js/base.js' %}?v=6"></script>
+    <script>
+        // Top bar date
+        (function() {
+            const d = new Date();
+            const opts = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+            const el = document.getElementById('topbarDate');
+            if (el) el.textContent = d.toLocaleDateString('en-US', opts);
+        })();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 

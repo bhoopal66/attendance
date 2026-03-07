@@ -1,10 +1,12 @@
 {% extends 'attendance/base.html' %}
 {% load static %}
 
-{% block title %}Employee Management - TCR Attendance System{% endblock %}
+{% block title %}Employee Management - Taamul{% endblock %}
+
+{% block page_title %}Employee Directory{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'attendance/css/employee_management.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'attendance/css/employee_management.css' %}?v=4">
 {% endblock %}
 
 {% block content %}
@@ -482,6 +484,10 @@
                         <label class="form-label">Monthly Salary (AED)</label>
                         <input type="number" class="form-control" id="editSalary" step="0.01" min="0" placeholder="5000.00">
                     </div>
+                    <div class="form-field" id="designationField" style="display:none;">
+                        <label class="form-label">Designation</label>
+                        <input type="text" class="form-control" id="editDesignation" placeholder="e.g. Sales Executive">
+                    </div>
                     <div class="form-field">
                         <label class="form-label">Joining Date</label>
                         <input type="date" class="form-control" id="editJoiningDate">
@@ -761,10 +767,14 @@
         document.getElementById('editLocation').value = emp.location || '';
         document.getElementById('editTeam').value = emp.team || '';
         document.getElementById('editIsActive').value = emp.is_active.toString();
-        document.getElementById('editSalary').value = emp.monthly_salary || '';
+        document.getElementById('editSalary').value = emp.salary || '';
         document.getElementById('editJoiningDate').value = emp.joining_date || '';
         document.getElementById('editLeavingDate').value = emp.leaving_date || '';
         document.getElementById('editPassword').value = '';
+
+        const isRemote = emp.type === 'remote';
+        document.getElementById('designationField').style.display = isRemote ? '' : 'none';
+        document.getElementById('editDesignation').value = emp.designation || '';
 
         document.getElementById('editModal').classList.add('active');
     }
@@ -791,6 +801,7 @@
             team: document.getElementById('editTeam').value,
             is_active: document.getElementById('editIsActive').value === 'true',
             salary: salaryValue === '' ? null : salaryValue,
+            designation: document.getElementById('editDesignation').value || null,
             joining_date: document.getElementById('editJoiningDate').value || null,
             leaving_date: document.getElementById('editLeavingDate').value || null,
             portal_password: document.getElementById('editPassword').value

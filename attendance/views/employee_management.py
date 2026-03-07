@@ -19,7 +19,7 @@ logger = logging.getLogger('attendance')
 # Fields that are safe to update via the API
 ALLOWED_UPDATE_FIELDS = {
     'name', 'email', 'phone', 'department', 'location', 'team',
-    'is_active', 'salary', 'joining_date', 'leaving_date',
+    'is_active', 'salary', 'designation', 'joining_date', 'leaving_date',
 }
 ALLOWED_BULK_FIELDS = {'department', 'location', 'team', 'is_active'}
 
@@ -40,10 +40,8 @@ def _serialize_employee(emp, emp_type):
         'joining_date': emp.joining_date.strftime('%Y-%m-%d') if emp.joining_date else '',
         'leaving_date': emp.leaving_date.strftime('%Y-%m-%d') if emp.leaving_date else '',
     }
-    if emp_type == 'inhouse':
-        data['salary'] = float(emp.salary) if emp.salary else None
-    else:
-        data['salary'] = None
+    data['salary'] = float(emp.salary) if emp.salary else None
+    data['designation'] = emp.designation if emp_type == 'remote' else None
     return data
 
 
@@ -114,11 +112,15 @@ def update_employee(request):
 
     # Update allowed fields
     for field in ALLOWED_UPDATE_FIELDS:
-        if field in data:
-            value = data[field]
-            if field in ('email', 'phone', 'department', 'location', 'team', 'joining_date', 'leaving_date'):
-                value = value or None
-            setattr(emp, field, value)
+        if field not in data:
+            continue
+        # designation only exists on RemoteEmployee
+        if field == 'designation' and not hasattr(emp, 'designation'):
+            continue
+        value = data[field]
+        if field in ('email', 'phone', 'department', 'location', 'team', 'designation', 'joining_date', 'leaving_date'):
+            value = value or None
+        setattr(emp, field, value)
 
     # Handle password separately (needs hashing)
     if data.get('portal_password'):

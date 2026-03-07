@@ -2,8 +2,10 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'attendance/css/upload.css' %}">
+<link rel="stylesheet" href="{% static 'attendance/css/upload.css' %}?v=2">
 {% endblock %}
+
+{% block page_title %}Upload Data{% endblock %}
 
 {% block content %}
 <div class="upload-page">

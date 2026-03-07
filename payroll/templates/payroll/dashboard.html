@@ -3,29 +3,17 @@
 
 {% block title %}Payroll - {{ month_name }} {{ selected_year }}{% endblock %}
 
+{% block page_title %}Payroll — {{ month_name }} {{ selected_year }}{% endblock %}
+
 {% block extra_css %}
 <style>
-    :root {
-        --bg-primary: #f8fafc;
-        --bg-secondary: #ffffff;
-        --bg-tertiary: #f1f5f9;
-        --text-primary: #1e293b;
-        --text-secondary: #64748b;
-        --text-muted: #94a3b8;
-        --border-color: #e2e8f0;
-        --primary-color: #3b82f6;
-        --success-color: #10b981;
-        --warning-color: #f59e0b;
-        --danger-color: #ef4444;
-    }
-
     .payroll-container {
         padding: 20px;
         max-width: 1600px;
         margin: 0 auto;
     }
 
-    .page-header {
+    .payroll-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -35,12 +23,13 @@
     }
 
     .page-title {
-        font-size: 1.75rem;
+        font-size: 1.5rem;
         font-weight: 700;
-        color: var(--text-primary);
+        color: #0f172a;
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
+        letter-spacing: -0.02em;
     }
 
     .month-selector {
@@ -51,15 +40,15 @@
 
     .month-selector select {
         padding: 10px 16px;
-        border: 1px solid var(--border-color);
+        border: 1px solid #e2e8f0;
         border-radius: 8px;
         font-size: 0.875rem;
-        background: var(--bg-secondary);
+        background: #fff;
     }
 
     .btn-go {
         padding: 10px 20px;
-        background: var(--primary-color);
+        background: #4F46E5;
         color: white;
         border: none;
         border-radius: 8px;
@@ -67,8 +56,57 @@
         font-weight: 500;
     }
 
+    /* Grand Total Banner */
+    .grand-total-banner {
+        background: linear-gradient(135deg, #1e1b4b 0%, #4F46E5 100%);
+        border-radius: 12px;
+        padding: 20px 28px;
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: white;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .grand-total-label {
+        font-size: 1rem;
+        opacity: 0.85;
+    }
+
+    .grand-total-amount {
+        font-size: 2rem;
+        font-weight: 700;
+        font-family: 'SF Mono', 'Monaco', monospace;
+    }
+
+    .grand-total-breakdown {
+        display: flex;
+        gap: 32px;
+        flex-wrap: wrap;
+    }
+
+    .breakdown-item {
+        text-align: center;
+    }
+
+    .breakdown-item .label {
+        font-size: 0.75rem;
+        opacity: 0.7;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .breakdown-item .value {
+        font-size: 1.1rem;
+        font-weight: 600;
+        font-family: 'SF Mono', 'Monaco', monospace;
+    }
+
+    /* Payroll Section */
     .payroll-section {
-        background: var(--bg-secondary);
+        background: #fff;
         border-radius: 12px;
         margin-bottom: 24px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -89,30 +127,48 @@
     }
 
     .section-title {
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
     .section-total {
-        font-size: 1.5rem;
+        font-size: 1.4rem;
         font-weight: 700;
+        font-family: 'SF Mono', 'Monaco', monospace;
     }
 
+    /* Sub-section header inside Sales */
+    .sub-section-header {
+        padding: 10px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+    }
+
+    /* Payroll Table */
     .payroll-table {
         width: 100%;
         border-collapse: collapse;
     }
 
     .payroll-table th {
-        padding: 14px 12px;
+        padding: 12px 14px;
         text-align: left;
         font-size: 0.7rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        color: var(--text-secondary);
-        background: var(--bg-tertiary);
-        border-bottom: 1px solid var(--border-color);
+        color: #64748b;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
     }
 
     .payroll-table th.text-right,
@@ -121,79 +177,69 @@
     }
 
     .payroll-table td {
-        padding: 12px;
-        border-bottom: 1px solid var(--border-color);
+        padding: 11px 14px;
+        border-bottom: 1px solid #e2e8f0;
         font-size: 0.85rem;
+        color: #1e293b;
     }
 
     .payroll-table tbody tr {
         cursor: pointer;
-        transition: background 0.2s;
+        transition: background 0.15s;
     }
 
     .payroll-table tbody tr:hover {
-        background: #e0f2fe;
-    }
-
-    .employee-name {
-        font-weight: 600;
-        color: var(--text-primary);
-    }
-
-    .salary-amount {
-        font-family: 'SF Mono', 'Monaco', monospace;
-        color: var(--text-primary);
-    }
-
-    .base-payroll {
-        font-family: 'SF Mono', 'Monaco', monospace;
-        color: var(--text-secondary);
-    }
-
-    .incentive-amount {
-        font-family: 'SF Mono', 'Monaco', monospace;
-        color: var(--success-color);
-        font-weight: 600;
-    }
-
-    .reduction-amount {
-        font-family: 'SF Mono', 'Monaco', monospace;
-        color: var(--danger-color);
-        font-weight: 600;
-    }
-
-    .net-payroll {
-        font-family: 'SF Mono', 'Monaco', monospace;
-        font-weight: 700;
-        color: var(--primary-color);
-        font-size: 1rem;
-    }
-
-    .days-breakdown {
-        font-size: 0.7rem;
-        color: var(--text-muted);
+        background: #eff6ff;
     }
 
     .payroll-table tfoot td {
         font-weight: 700;
-        background: var(--bg-tertiary);
-        border-top: 2px solid var(--border-color);
+        background: #f1f5f9;
+        border-top: 2px solid #e2e8f0;
+        font-size: 0.875rem;
     }
 
-    .empty-state,
-    .coming-soon {
+    .employee-name {
+        font-weight: 600;
+    }
+
+    .employee-designation {
+        font-size: 0.72rem;
+        color: #94a3b8;
+        margin-top: 2px;
+    }
+
+    .mono { font-family: 'SF Mono', 'Monaco', monospace; }
+
+    .text-green { color: #10b981; font-weight: 600; }
+    .text-red   { color: #ef4444; font-weight: 600; }
+    .text-blue  { color: #3b82f6; font-weight: 700; }
+    .text-muted { color: #94a3b8; }
+
+    .days-breakdown {
+        font-size: 0.68rem;
+        color: #94a3b8;
+        margin-top: 2px;
+    }
+
+    .click-hint {
+        font-size: 0.75rem;
+        color: #64748b;
+        text-align: center;
+        padding: 8px;
+        background: #fef9c3;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .empty-state {
         padding: 40px 20px;
         text-align: center;
-        color: var(--text-muted);
-    }
-
-    .coming-soon-icon {
-        font-size: 3rem;
-        margin-bottom: 16px;
+        color: #94a3b8;
+        font-size: 0.875rem;
     }
 
     /* Adjustment Modal */
-    .adjustment-modal-overlay {
+    .modal-overlay {
         display: none;
         position: fixed;
         inset: 0;
@@ -204,132 +250,115 @@
         backdrop-filter: blur(4px);
     }
 
-    .adjustment-modal-overlay.show {
+    .modal-overlay.show {
         display: flex;
     }
 
-    .adjustment-modal {
+    .modal-box {
         background: white;
         border-radius: 16px;
         width: 90%;
-        max-width: 600px;
+        max-width: 560px;
         max-height: 85vh;
         overflow-y: auto;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
     }
 
-    .adjustment-modal-header {
-        padding: 20px 24px;
+    .modal-head {
+        padding: 18px 24px;
         background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
         color: white;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        border-radius: 16px 16px 0 0;
     }
 
-    .adjustment-modal-header h3 {
+    .modal-head h3 {
         margin: 0;
-        font-size: 1.25rem;
+        font-size: 1.1rem;
+        font-weight: 600;
     }
 
-    .modal-close-btn {
+    .modal-close {
         background: none;
         border: none;
         color: white;
         font-size: 1.5rem;
         cursor: pointer;
-        padding: 0;
+        line-height: 1;
         opacity: 0.8;
     }
+    .modal-close:hover { opacity: 1; background: none; }
 
-    .modal-close-btn:hover {
-        opacity: 1;
-        background: none;
+    .modal-body {
+        padding: 20px 24px;
     }
 
-    .adjustment-modal-body {
-        padding: 24px;
-    }
-
-    .existing-adjustments {
-        margin-bottom: 24px;
-    }
-
-    .existing-adjustments h4 {
-        margin: 0 0 12px 0;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
+    /* Existing adjustments */
+    .adj-section-title {
+        font-size: 0.75rem;
+        font-weight: 600;
         text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        margin: 0 0 10px 0;
     }
 
-    .adjustment-item {
+    .adj-item {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        padding: 12px;
-        background: var(--bg-tertiary);
+        align-items: flex-start;
+        padding: 10px 12px;
+        background: #f8fafc;
         border-radius: 8px;
         margin-bottom: 8px;
+        gap: 12px;
     }
 
-    .adjustment-info {
-        flex: 1;
-    }
-
-    .adjustment-type-badge {
+    .adj-badge {
         display: inline-block;
         padding: 2px 8px;
         border-radius: 4px;
-        font-size: 0.7rem;
+        font-size: 0.68rem;
         font-weight: 600;
         text-transform: uppercase;
-        margin-right: 8px;
+        margin-right: 6px;
     }
 
-    .adjustment-type-badge.incentive {
-        background: #dcfce7;
-        color: #166534;
+    .adj-badge.incentive { background: #dcfce7; color: #166534; }
+    .adj-badge.reduction { background: #fee2e2; color: #991b1b; }
+
+    .adj-reason {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-top: 3px;
     }
 
-    .adjustment-type-badge.reduction {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-
-    .adjustment-reason {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        margin-top: 4px;
-    }
-
-    .delete-adjustment-btn {
-        padding: 6px 12px;
+    .adj-delete-btn {
+        flex-shrink: 0;
+        padding: 5px 10px;
         background: #fee2e2;
         color: #dc2626;
         border: none;
         border-radius: 6px;
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         cursor: pointer;
     }
+    .adj-delete-btn:hover { background: #fecaca; }
 
-    .delete-adjustment-btn:hover {
-        background: #fecaca;
-    }
-
-    .no-adjustments {
-        padding: 20px;
+    .no-adj {
         text-align: center;
-        color: var(--text-muted);
-        font-size: 0.875rem;
+        color: #94a3b8;
+        font-size: 0.85rem;
+        padding: 16px;
     }
 
-    .add-adjustment-form h4 {
-        margin: 0 0 16px 0;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        text-transform: uppercase;
+    /* Add form */
+    .add-form-title {
+        margin: 16px 0 12px 0;
         padding-top: 16px;
-        border-top: 1px solid var(--border-color);
+        border-top: 1px solid #e2e8f0;
     }
 
     .form-row {
@@ -338,23 +367,22 @@
         margin-bottom: 12px;
     }
 
-    .form-group {
-        flex: 1;
-    }
+    .form-group { flex: 1; }
 
     .form-group label {
         display: block;
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-        margin-bottom: 6px;
+        font-size: 0.78rem;
+        color: #64748b;
+        margin-bottom: 5px;
+        font-weight: 500;
     }
 
     .form-group input,
     .form-group select,
     .form-group textarea {
         width: 100%;
-        padding: 10px 12px;
-        border: 1px solid var(--border-color);
+        padding: 9px 12px;
+        border: 1px solid #e2e8f0;
         border-radius: 8px;
         font-size: 0.875rem;
         box-sizing: border-box;
@@ -367,307 +395,452 @@
 
     .modal-actions {
         display: flex;
-        gap: 12px;
+        gap: 10px;
         justify-content: flex-end;
-        margin-top: 20px;
+        margin-top: 16px;
     }
 
     .btn-cancel {
-        padding: 10px 20px;
-        background: var(--bg-tertiary);
-        color: var(--text-primary);
-        border: 1px solid var(--border-color);
+        padding: 9px 18px;
+        background: #f1f5f9;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
         border-radius: 8px;
         cursor: pointer;
+        font-size: 0.875rem;
     }
 
     .btn-save {
-        padding: 10px 20px;
-        background: var(--primary-color);
+        padding: 9px 18px;
+        background: #4F46E5;
         color: white;
         border: none;
         border-radius: 8px;
         cursor: pointer;
         font-weight: 500;
-    }
-
-    .click-hint {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        text-align: center;
-        padding: 8px;
-        background: #fef9c3;
-        border-radius: 0 0 8px 8px;
+        font-size: 0.875rem;
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="payroll-container">
-    <div class="page-header">
-        <h1 class="page-title">
-            <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Payroll Calculator
-        </h1>
 
+    <!-- Page Header -->
+    <div class="payroll-header">
+        <h1 class="page-title">
+            <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Payroll — {{ month_name }} {{ selected_year }}
+        </h1>
         <form class="month-selector" method="GET">
             {% include 'payroll/includes/month_year_selector.html' %}
             <button type="submit" class="btn-go">Calculate</button>
         </form>
     </div>
 
-    <!-- Admin Section -->
+    <!-- Grand Total Banner -->
+    <div class="grand-total-banner">
+        <div>
+            <div class="grand-total-label">Total Payroll — {{ month_name }} {{ selected_year }}</div>
+            <div class="grand-total-amount">AED {{ grand_total|floatformat:2 }}</div>
+        </div>
+        <div class="grand-total-breakdown">
+            <div class="breakdown-item">
+                <div class="label">Admin</div>
+                <div class="value">AED {{ total_admin|floatformat:2 }}</div>
+            </div>
+            <div class="breakdown-item">
+                <div class="label">Sales</div>
+                <div class="value">AED {{ total_sales|floatformat:2 }}</div>
+            </div>
+            <div class="breakdown-item">
+                <div class="label">Holidays</div>
+                <div class="value">{{ total_holidays }} days</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ ADMIN SECTION ============ -->
     <div class="payroll-section">
         <div class="section-header">
-            <span class="section-title"><svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> Admin Department Payroll</span>
-            <span class="section-total">AED {{ total_admin_payroll|floatformat:2 }}</span>
+            <span class="section-title">
+                <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Admin Department
+            </span>
+            <span class="section-total">AED {{ total_admin|floatformat:2 }}</span>
         </div>
 
-        {% if admin_payroll_data %}
+        {% if admin_data %}
         <table class="payroll-table">
             <thead>
                 <tr>
                     <th>Employee</th>
                     <th class="text-right">Salary</th>
-                    <th class="text-right">Working Days</th>
-                    <th class="text-right">Base Payroll</th>
+                    <th class="text-right">Days Worked</th>
+                    <th class="text-right">Payable Days</th>
+                    <th class="text-right">Base Pay</th>
                     <th class="text-right">Incentives</th>
                     <th class="text-right">Reductions</th>
-                    <th class="text-right">Net Payroll</th>
+                    <th class="text-right">Net Pay</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in admin_payroll_data %}
-                <tr onclick="openAdjustmentModal({{ item.employee.id }}, '{{ item.employee.name }}')">
-                    <td class="employee-name">{{ item.employee.name }}</td>
-                    <td class="text-right salary-amount">{{ item.salary|floatformat:0 }}</td>
-                    <td class="text-right">
-                        {{ item.working_days|floatformat:1 }}
-                        <div class="days-breakdown">{{ item.full_days }}+{{ item.half_days }}×0.5+{{ item.holidays }}h
-                        </div>
+                {% for item in admin_data %}
+                <tr onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', 'inhouse')">
+                    <td>
+                        <div class="employee-name">{{ item.employee.name }}</div>
+                        {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                     </td>
-                    <td class="text-right base-payroll">{{ item.base_payroll|floatformat:2 }}</td>
-                    <td class="text-right incentive-amount">{% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}-{% endif %}</td>
-                    <td class="text-right reduction-amount">{% if item.reductions > 0 %}-{{ item.reductions|floatformat:2 }}{% else %}-{% endif %}</td>
-                    <td class="text-right net-payroll">AED {{ item.net_payroll|floatformat:2 }}</td>
+                    <td class="text-right mono">{{ item.salary|floatformat:0 }}</td>
+                    <td class="text-right">
+                        {{ item.effective_work_days }}
+                        <div class="days-breakdown">{{ item.full_days }}full + {{ item.half_days }}×½</div>
+                    </td>
+                    <td class="text-right">
+                        {{ item.total_working_days }}
+                        <div class="days-breakdown">+{{ item.holidays }} holiday{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
+                    </td>
+                    <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
+                    <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
+                        {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-right mono {% if item.reductions > 0 %}text-red{% else %}text-muted{% endif %}">
+                        {% if item.reductions > 0 %}-{{ item.reductions|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-right mono text-blue">AED {{ item.net_payroll|floatformat:2 }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="3" class="text-right">Totals</td>
-                    <td class="text-right">-</td>
-                    <td class="text-right incentive-amount">+{{ total_incentives|floatformat:2 }}</td>
-                    <td class="text-right reduction-amount">-{{ total_reductions|floatformat:2 }}</td>
-                    <td class="text-right net-payroll">AED {{ total_admin_payroll|floatformat:2 }}</td>
+                    <td colspan="5" class="text-right">Totals</td>
+                    <td class="text-right mono text-green">+{{ admin_incentives_total|floatformat:2 }}</td>
+                    <td class="text-right mono text-red">-{{ admin_reductions_total|floatformat:2 }}</td>
+                    <td class="text-right mono text-blue">AED {{ total_admin|floatformat:2 }}</td>
                 </tr>
             </tfoot>
         </table>
-        <div class="click-hint">💡 Click on any row to add incentives or reductions</div>
+        <div class="click-hint">Click any row to add incentives or reductions for that employee</div>
         {% else %}
-        <div class="empty-state">
-            <p>No Admin employees found or no attendance data for {{ month_name }} {{ selected_year }}.</p>
-            <p>Make sure employees have department set to "Admin" and salary is configured.</p>
-        </div>
+        <div class="empty-state">No active Admin employees found. Assign "Admin" department and salary to employees.</div>
         {% endif %}
     </div>
 
-    <!-- Sales Section (Coming Soon) -->
+    <!-- ============ SALES SECTION ============ -->
     <div class="payroll-section">
         <div class="section-header sales">
-            <span class="section-title"><svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> Sales Department Payroll</span>
-            <span class="section-total">Coming Soon</span>
+            <span class="section-title">
+                <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Sales Department
+            </span>
+            <span class="section-total">AED {{ total_sales|floatformat:2 }}</span>
         </div>
-        <div class="coming-soon">
-            <div class="coming-soon-icon">🚧</div>
-            <p>Sales payroll calculation will be implemented soon.</p>
+
+        <!-- Sales: In-house employees -->
+        {% if sales_inhouse_data %}
+        <div class="sub-section-header">In-House Sales Employees</div>
+        <table class="payroll-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th class="text-right">Salary</th>
+                    <th class="text-right">Days Worked</th>
+                    <th class="text-right">Payable Days</th>
+                    <th class="text-right">Base Pay</th>
+                    <th class="text-right">Incentives</th>
+                    <th class="text-right">Reductions</th>
+                    <th class="text-right">Net Pay</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in sales_inhouse_data %}
+                <tr onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', 'inhouse')">
+                    <td>
+                        <div class="employee-name">{{ item.employee.name }}</div>
+                        {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
+                    </td>
+                    <td class="text-right mono">{{ item.salary|floatformat:0 }}</td>
+                    <td class="text-right">
+                        {{ item.effective_work_days }}
+                        <div class="days-breakdown">{{ item.full_days }}full + {{ item.half_days }}×½</div>
+                    </td>
+                    <td class="text-right">
+                        {{ item.total_working_days }}
+                        <div class="days-breakdown">+{{ item.holidays }} holiday{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
+                    </td>
+                    <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
+                    <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
+                        {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-right mono {% if item.reductions > 0 %}text-red{% else %}text-muted{% endif %}">
+                        {% if item.reductions > 0 %}-{{ item.reductions|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-right mono text-blue">AED {{ item.net_payroll|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="5" class="text-right">Sub-total (In-House)</td>
+                    <td class="text-right"></td>
+                    <td class="text-right"></td>
+                    <td class="text-right mono text-blue">AED {{ total_sales_inhouse|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+        </table>
+        {% endif %}
+
+        <!-- Sales: Remote employees -->
+        {% if remote_data %}
+        <div class="sub-section-header">Remote Sales Employees (Call-Based)</div>
+        <table class="payroll-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th class="text-right">Salary</th>
+                    <th class="text-right">Present Days</th>
+                    <th class="text-right">Payable Days</th>
+                    <th class="text-right">Base Pay</th>
+                    <th class="text-right">Incentives</th>
+                    <th class="text-right">Reductions</th>
+                    <th class="text-right">Net Pay</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in remote_data %}
+                <tr onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', 'remote')">
+                    <td>
+                        <div class="employee-name">{{ item.employee.name }}</div>
+                        {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
+                    </td>
+                    <td class="text-right mono">{{ item.salary|floatformat:0 }}</td>
+                    <td class="text-right">
+                        {{ item.effective_work_days }}
+                        <div class="days-breakdown">{{ item.present_days }}full + {{ item.half_days }}×½</div>
+                    </td>
+                    <td class="text-right">
+                        {{ item.total_working_days }}
+                        <div class="days-breakdown">+{{ item.holidays }} holiday</div>
+                    </td>
+                    <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
+                    <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
+                        {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-right mono {% if item.reductions > 0 %}text-red{% else %}text-muted{% endif %}">
+                        {% if item.reductions > 0 %}-{{ item.reductions|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-right mono text-blue">AED {{ item.net_payroll|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="5" class="text-right">Sub-total (Remote)</td>
+                    <td class="text-right"></td>
+                    <td class="text-right"></td>
+                    <td class="text-right mono text-blue">AED {{ total_remote|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+        </table>
+        {% endif %}
+
+        {% if not sales_inhouse_data and not remote_data %}
+        <div class="empty-state">No active Sales employees found. Assign "Sales" department and salary to in-house employees, or add salary to remote employees.</div>
+        {% else %}
+        <!-- Sales combined footer -->
+        <div style="padding: 10px 14px; background: #f0fdf4; border-top: 2px solid #14b8a6; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.8rem; font-weight: 600; color: #0f766e; text-transform: uppercase; letter-spacing: 0.5px;">Sales Total</span>
+            <span style="font-size: 1.1rem; font-weight: 700; font-family: monospace; color: #0f766e;">AED {{ total_sales|floatformat:2 }}</span>
         </div>
+        {% endif %}
+
+        {% if sales_inhouse_data or remote_data %}
+        <div class="click-hint">Click any row to add incentives or reductions for that employee</div>
+        {% endif %}
     </div>
+
 </div>
 
-<!-- Adjustment Modal -->
-<div class="adjustment-modal-overlay" id="adjustmentModal">
-    <div class="adjustment-modal">
-        <div class="adjustment-modal-header">
-            <h3><svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Payroll Adjustments - <span id="modalEmployeeName"></span></h3>
-            <button class="modal-close-btn" onclick="closeAdjustmentModal()">×</button>
+<!-- ============ ADJUSTMENT MODAL ============ -->
+<div class="modal-overlay" id="adjModal">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>Adjustments — <span id="modalEmpName"></span></h3>
+            <button class="modal-close" onclick="closeModal()">&#x2715;</button>
         </div>
-        <div class="adjustment-modal-body">
-            <!-- Existing Adjustments -->
-            <div class="existing-adjustments">
-                <h4>Current Adjustments for {{ month_name }} {{ selected_year }}</h4>
-                <div id="adjustmentsList">
-                    <div class="no-adjustments">Loading...</div>
-                </div>
-            </div>
+        <div class="modal-body">
+            <p class="adj-section-title">Current Adjustments — {{ month_name }} {{ selected_year }}</p>
+            <div id="adjList"><div class="no-adj">Loading...</div></div>
 
-            <!-- Add New Adjustment -->
-            <div class="add-adjustment-form">
-                <h4>Add New Adjustment</h4>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Type</label>
-                        <select id="adjustmentType">
-                            <option value="incentive">Incentive (+)</option>
-                            <option value="reduction">Reduction (-)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Amount (AED)</label>
-                        <input type="number" id="adjustmentAmount" step="0.01" min="0" placeholder="0.00">
-                    </div>
+            <div class="add-form-title">
+                <p class="adj-section-title">Add New Adjustment</p>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="adjType">
+                        <option value="incentive">Incentive (+)</option>
+                        <option value="reduction">Reduction (-)</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>Reason</label>
-                    <textarea id="adjustmentReason"
-                        placeholder="e.g., Performance bonus, Advance recovery..."></textarea>
+                    <label>Amount (AED)</label>
+                    <input type="number" id="adjAmount" step="0.01" min="0.01" placeholder="0.00">
                 </div>
-                <div class="modal-actions">
-                    <button class="btn-cancel" onclick="closeAdjustmentModal()">Cancel</button>
-                    <button class="btn-save" onclick="saveAdjustment()">Add Adjustment</button>
-                </div>
+            </div>
+            <div class="form-group">
+                <label>Reason</label>
+                <textarea id="adjReason" placeholder="e.g., Performance bonus, Advance recovery..."></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn-save" onclick="saveAdjustment()">Add Adjustment</button>
             </div>
         </div>
     </div>
 </div>
 
-<input type="hidden" id="currentEmployeeId" value="">
-<input type="hidden" id="selectedYear" value="{{ selected_year }}">
-<input type="hidden" id="selectedMonth" value="{{ selected_month }}">
+<input type="hidden" id="hiddenEmpId" value="">
+<input type="hidden" id="hiddenEmpType" value="">
+<input type="hidden" id="hiddenYear" value="{{ selected_year }}">
+<input type="hidden" id="hiddenMonth" value="{{ selected_month }}">
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    let currentEmployeeId = null;
+    let currentEmpId = null;
+    let currentEmpType = null; // 'inhouse' or 'remote'
 
-    function openAdjustmentModal(employeeId, employeeName) {
-        currentEmployeeId = employeeId;
-        document.getElementById('currentEmployeeId').value = employeeId;
-        document.getElementById('modalEmployeeName').textContent = employeeName;
-        document.getElementById('adjustmentModal').classList.add('show');
-        loadAdjustments(employeeId);
+    function openModal(empId, empName, empType) {
+        currentEmpId = empId;
+        currentEmpType = empType;
+        document.getElementById('hiddenEmpId').value = empId;
+        document.getElementById('hiddenEmpType').value = empType;
+        document.getElementById('modalEmpName').textContent = empName;
+        document.getElementById('adjModal').classList.add('show');
+        loadAdjustments();
     }
 
-    function closeAdjustmentModal() {
-        document.getElementById('adjustmentModal').classList.remove('show');
-        document.getElementById('adjustmentType').value = 'incentive';
-        document.getElementById('adjustmentAmount').value = '';
-        document.getElementById('adjustmentReason').value = '';
+    function closeModal() {
+        document.getElementById('adjModal').classList.remove('show');
+        document.getElementById('adjType').value = 'incentive';
+        document.getElementById('adjAmount').value = '';
+        document.getElementById('adjReason').value = '';
+        currentEmpId = null;
+        currentEmpType = null;
     }
 
-    function getCookie(name) {
-        let value = "; " + document.cookie;
-        let parts = value.split("; " + name + "=");
-        if (parts.length == 2) return parts.pop().split(";").shift();
+    function getCsrf() {
+        const match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : '';
     }
 
-    async function loadAdjustments(employeeId) {
-        const year = document.getElementById('selectedYear').value;
-        const month = document.getElementById('selectedMonth').value;
-        const listEl = document.getElementById('adjustmentsList');
+    async function loadAdjustments() {
+        const year = document.getElementById('hiddenYear').value;
+        const month = document.getElementById('hiddenMonth').value;
+        const listEl = document.getElementById('adjList');
+
+        const url = currentEmpType === 'remote'
+            ? `/payroll/api/remote-adjustments/${currentEmpId}/?year=${year}&month=${month}`
+            : `/payroll/api/adjustments/${currentEmpId}/?year=${year}&month=${month}`;
 
         try {
-            const response = await fetch(`/payroll/api/adjustments/${employeeId}/?year=${year}&month=${month}`);
-            const data = await response.json();
+            const res = await fetch(url);
+            const data = await res.json();
 
             if (data.success && data.adjustments.length > 0) {
                 listEl.innerHTML = data.adjustments.map(adj => `
-                    <div class="adjustment-item">
-                        <div class="adjustment-info">
-                            <span class="adjustment-type-badge ${adj.type}">${adj.type}</span>
-                            <strong>AED ${adj.amount.toFixed(2)}</strong>
-                            <div class="adjustment-reason">${adj.reason}</div>
+                    <div class="adj-item">
+                        <div style="flex:1">
+                            <span class="adj-badge ${adj.type}">${adj.type}</span>
+                            <strong class="mono">AED ${adj.amount.toFixed(2)}</strong>
+                            <div class="adj-reason">${escapeHtml(adj.reason)}</div>
                         </div>
-                        <button class="delete-adjustment-btn" onclick="deleteAdjustment(${adj.id})">🗑️ Delete</button>
+                        <button class="adj-delete-btn" onclick="deleteAdj(${adj.id})">Delete</button>
                     </div>
                 `).join('');
             } else {
-                listEl.innerHTML = '<div class="no-adjustments">No adjustments yet for this month</div>';
+                listEl.innerHTML = '<div class="no-adj">No adjustments for this month</div>';
             }
-        } catch (err) {
-            listEl.innerHTML = '<div class="no-adjustments">Error loading adjustments</div>';
+        } catch {
+            listEl.innerHTML = '<div class="no-adj">Error loading adjustments</div>';
         }
     }
 
     async function saveAdjustment() {
-        const employeeId = currentEmployeeId;
-        const year = parseInt(document.getElementById('selectedYear').value);
-        const month = parseInt(document.getElementById('selectedMonth').value);
-        const type = document.getElementById('adjustmentType').value;
-        const amount = parseFloat(document.getElementById('adjustmentAmount').value);
-        const reason = document.getElementById('adjustmentReason').value.trim();
+        const type = document.getElementById('adjType').value;
+        const amount = parseFloat(document.getElementById('adjAmount').value);
+        const reason = document.getElementById('adjReason').value.trim();
+        const year = parseInt(document.getElementById('hiddenYear').value);
+        const month = parseInt(document.getElementById('hiddenMonth').value);
 
-        if (!amount || amount <= 0) {
-            alert('Please enter a valid amount');
-            return;
-        }
+        if (!amount || amount <= 0) { alert('Enter a valid amount greater than 0.'); return; }
+        if (!reason) { alert('Please enter a reason for the adjustment.'); return; }
 
-        if (!reason) {
-            alert('Please enter a reason for the adjustment');
-            return;
-        }
+        const url = currentEmpType === 'remote'
+            ? '/payroll/api/remote-adjustments/add/'
+            : '/payroll/api/adjustments/add/';
 
         try {
-            const response = await fetch('/payroll/api/adjustments/add/', {
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
+                    'X-CSRFToken': getCsrf(),
                 },
                 body: JSON.stringify({
-                    employee_id: employeeId,
-                    year: year,
-                    month: month,
-                    type: type,
-                    amount: amount,
-                    reason: reason
-                })
+                    employee_id: currentEmpId,
+                    year, month, type, amount, reason,
+                }),
             });
-
-            const data = await response.json();
-
+            const data = await res.json();
             if (data.success) {
-                document.getElementById('adjustmentAmount').value = '';
-                document.getElementById('adjustmentReason').value = '';
-                loadAdjustments(employeeId);
-                // Reload page to update totals
-                setTimeout(() => location.reload(), 500);
+                document.getElementById('adjAmount').value = '';
+                document.getElementById('adjReason').value = '';
+                await loadAdjustments();
+                setTimeout(() => location.reload(), 400);
             } else {
                 alert('Error: ' + data.error);
             }
-        } catch (err) {
-            alert('Error saving adjustment');
+        } catch {
+            alert('Error saving adjustment. Please try again.');
         }
     }
 
-    async function deleteAdjustment(adjustmentId) {
+    async function deleteAdj(adjId) {
         if (!confirm('Delete this adjustment?')) return;
-
         try {
-            const response = await fetch(`/payroll/api/adjustments/delete/${adjustmentId}/`, {
+            const res = await fetch(`/payroll/api/adjustments/delete/${adjId}/`, {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                }
+                headers: { 'X-CSRFToken': getCsrf() },
             });
-
-            const data = await response.json();
-
+            const data = await res.json();
             if (data.success) {
-                loadAdjustments(currentEmployeeId);
-                setTimeout(() => location.reload(), 500);
+                await loadAdjustments();
+                setTimeout(() => location.reload(), 400);
             } else {
                 alert('Error: ' + data.error);
             }
-        } catch (err) {
-            alert('Error deleting adjustment');
+        } catch {
+            alert('Error deleting adjustment.');
         }
     }
 
-    // Close modal on outside click
-    document.getElementById('adjustmentModal').addEventListener('click', function (e) {
-        if (e.target === this) {
-            closeAdjustmentModal();
-        }
+    function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.appendChild(document.createTextNode(str));
+        return d.innerHTML;
+    }
+
+    // Close on overlay click
+    document.getElementById('adjModal').addEventListener('click', function (e) {
+        if (e.target === this) closeModal();
     });
 </script>
 {% endblock %}
