@@ -26,6 +26,7 @@ from .employee_portal import (
     employee_login,
     employee_logout,
     employee_portal,
+    employee_change_password,
     submit_early_leave_request,
     submit_leave_request,
     get_my_requests
@@ -70,6 +71,7 @@ __all__ = [
     'employee_login',
     'employee_logout',
     'employee_portal',
+    'employee_change_password',
     'submit_early_leave_request',
     'submit_leave_request',
     'get_my_requests',

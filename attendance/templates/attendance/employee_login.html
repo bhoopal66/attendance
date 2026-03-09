@@ -5,44 +5,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Portal Login - Taamul Checkin/Checkout Report</title>
-
-    <link rel="stylesheet" href="{% static 'attendance/css/employee_login.css' %}">
+    <title>Employee Portal — Taamul Attendance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'attendance/css/employee_login.css' %}?v=2">
 </head>
 
 <body>
-    <div class="login-container">
-        <div class="login-card">
-            <div class="logo">
-                <div class="icon"><svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>
-                <h1>Employee Portal</h1>
-                <p>View your checkin/checkout calendar</p>
+
+    <!-- Brand Panel -->
+    <div class="brand-panel">
+        <div class="brand-logo">
+            <div class="brand-icon">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+            </div>
+            <span class="brand-name">Taamul</span>
+        </div>
+
+        <div class="brand-center">
+            <div class="brand-badge">
+                <span class="brand-badge-dot"></span>
+                Employee Portal
+            </div>
+            <h1 class="brand-headline">
+                Your Attendance<br>
+                <span class="brand-headline-accent">at a glance</span>
+            </h1>
+            <p class="brand-description">
+                View your monthly attendance calendar, check-in/check-out records, and manage your leave requests.
+            </p>
+            <ul class="brand-features">
+                <li><span class="feature-dot"></span>Monthly attendance calendar</li>
+                <li><span class="feature-dot"></span>Check-in &amp; check-out history</li>
+                <li><span class="feature-dot"></span>Submit leave requests</li>
+                <li><span class="feature-dot"></span>On-duty &amp; field visit requests</li>
+            </ul>
+        </div>
+
+        <p class="brand-footer">&copy; 2026 TCR &middot; Taamul Attendance</p>
+    </div>
+
+    <!-- Form Panel -->
+    <div class="form-panel">
+        <div class="form-container">
+            <div class="form-header">
+                <p class="form-eyebrow">Employee Access</p>
+                <h2 class="form-title">Sign in to portal</h2>
+                <p class="form-subtitle">Enter your work email and password to view your attendance.</p>
             </div>
 
             {% if error_message %}
-            <div class="error-message">
+            <div class="error-alert">
                 {{ error_message }}
             </div>
             {% endif %}
 
             <form method="post">
                 {% csrf_token %}
-                <div class="form-group">
+
+                <div class="form-field">
                     <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                    <div class="input-wrapper">
+                        <span class="input-icon">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                            </svg>
+                        </span>
+                        <input type="email" id="email" name="email" placeholder="you@company.com" required>
+                    </div>
                 </div>
-                <div class="form-group">
+
+                <div class="form-field">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                    <div class="input-wrapper">
+                        <span class="input-icon">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </span>
+                        <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                    </div>
                 </div>
-                <button type="submit" class="login-btn">Sign In</button>
+
+                <button type="submit" class="submit-btn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                    Sign In
+                </button>
             </form>
 
-            <div class="footer-link">
-                <a href="{% url 'login' %}">Admin Login →</a>
-            </div>
+            <div class="divider"><span class="divider-text">or</span></div>
+
+            <a href="{% url 'login' %}" class="admin-link">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                Administrator? Sign in to admin console
+            </a>
         </div>
     </div>
-</body>
 
+</body>
 </html>

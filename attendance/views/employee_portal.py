@@ -8,7 +8,7 @@ import logging
 
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, make_password
 
 from ..models import (
     AttendanceRecord, EarlyLeaveRequest, Employee, Holiday,
@@ -520,4 +520,50 @@ def get_my_requests(request):
         'leave': leave_requests,
         'on_duty_has_more': on_duty_has_more,
         'leave_has_more': leave_has_more
+    })
+
+
+def employee_change_password(request):
+    """Allow a logged-in portal employee to change their own password."""
+    employee_id = request.session.get('employee_id')
+    employee_type = request.session.get('employee_type')
+    if not employee_id or not employee_type:
+        return redirect('employee_login')
+
+    success = False
+    error_message = None
+
+    if request.method == 'POST':
+        current_password = request.POST.get('current_password', '')
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        if not current_password or not new_password or not confirm_password:
+            error_message = "Please fill in all fields."
+        elif new_password != confirm_password:
+            error_message = "New passwords do not match."
+        elif len(new_password) < 8:
+            error_message = "New password must be at least 8 characters."
+        else:
+            try:
+                if employee_type == 'inhouse':
+                    employee = Employee.objects.get(id=employee_id, is_active=True)
+                else:
+                    employee = RemoteEmployee.objects.get(id=employee_id, is_active=True)
+
+                if not employee.portal_password or not check_password(current_password, employee.portal_password):
+                    error_message = "Current password is incorrect."
+                else:
+                    employee.portal_password = make_password(new_password)
+                    employee.save(update_fields=['portal_password'])
+                    logger.info("Password changed for employee_id=%s (%s)", employee_id, employee_type)
+                    success = True
+            except (Employee.DoesNotExist, RemoteEmployee.DoesNotExist):
+                return redirect('employee_logout')
+
+    return render(request, 'attendance/employee_change_password.html', {
+        'employee_name': request.session.get('employee_name'),
+        'employee_type': 'In-House' if employee_type == 'inhouse' else 'Remote',
+        'success': success,
+        'error_message': error_message,
     })
