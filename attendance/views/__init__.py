@@ -50,6 +50,12 @@ from .leave_management import (
     approve_leave as approve_leave_request,
     reject_leave as reject_leave_request
 )
+from .shift_management import (
+    special_shift_periods,
+    add_special_shift_period,
+    update_special_shift_period,
+    delete_special_shift_period,
+)
 
 # Make all views available when importing from attendance.views
 __all__ = [
@@ -91,4 +97,9 @@ __all__ = [
     'leave_management',
     'approve_leave_request',
     'reject_leave_request',
+    # Shift Management
+    'special_shift_periods',
+    'add_special_shift_period',
+    'update_special_shift_period',
+    'delete_special_shift_period',
 ]

@@ -36,5 +36,10 @@ urlpatterns = [
     path('leave-requests/', views.leave_management, name='leave_management'),
     path('leave/<int:leave_id>/approve/', views.approve_leave_request, name='approve_leave'),
     path('leave/<int:leave_id>/reject/', views.reject_leave_request, name='reject_leave'),
+    # Special Shift Periods (Admin)
+    path('special-shifts/', views.special_shift_periods, name='special_shift_periods'),
+    path('special-shifts/add/', views.add_special_shift_period, name='add_special_shift_period'),
+    path('special-shifts/<int:period_id>/update/', views.update_special_shift_period, name='update_special_shift_period'),
+    path('special-shifts/<int:period_id>/delete/', views.delete_special_shift_period, name='delete_special_shift_period'),
 ]
 

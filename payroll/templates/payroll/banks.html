@@ -1,0 +1,509 @@
+{% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block title %}Manage Banks — DSA Commission Rates{% endblock %}
+{% block page_title %}Manage Banks{% endblock %}
+
+{% block extra_css %}
+<style>
+    .banks-container {
+        padding: 20px;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .banks-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .btn-primary {
+        padding: 10px 20px;
+        background: #4F46E5;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+    }
+    .btn-primary:hover { background: #4338ca; }
+
+    .btn-back {
+        padding: 9px 16px;
+        background: #f1f5f9;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .btn-back:hover { background: #e2e8f0; }
+
+    .info-banner {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 24px;
+        font-size: 0.875rem;
+        color: #1e40af;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .banks-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .banks-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .banks-table th {
+        padding: 12px 16px;
+        text-align: left;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .banks-table th.text-right, .banks-table td.text-right { text-align: right; }
+    .banks-table th.text-center, .banks-table td.text-center { text-align: center; }
+
+    .banks-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.875rem;
+        color: #1e293b;
+    }
+
+    .banks-table tbody tr:last-child td { border-bottom: none; }
+
+    .bank-name { font-weight: 600; }
+
+    .charge-badge {
+        display: inline-block;
+        background: #f0fdf4;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        font-family: 'SF Mono', monospace;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-active { background: #dcfce7; color: #166534; }
+    .status-inactive { background: #f1f5f9; color: #94a3b8; }
+
+    .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+    .btn-edit {
+        padding: 5px 12px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.78rem;
+        font-weight: 500;
+    }
+    .btn-edit:hover { background: #dbeafe; }
+
+    .btn-toggle {
+        padding: 5px 12px;
+        background: #f8fafc;
+        color: #64748b;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.78rem;
+    }
+    .btn-toggle:hover { background: #e2e8f0; }
+
+    .empty-state {
+        padding: 50px 20px;
+        text-align: center;
+        color: #94a3b8;
+    }
+
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.9rem; margin-bottom: 16px; }
+
+    /* Add/Edit Modal */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        backdrop-filter: blur(4px);
+    }
+    .modal-overlay.show { display: flex; }
+
+    .modal-box {
+        background: white;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 480px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    }
+
+    .modal-head {
+        padding: 18px 24px;
+        background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .modal-head h3 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.4rem;
+        cursor: pointer;
+        opacity: 0.8;
+        line-height: 1;
+    }
+    .modal-close:hover { opacity: 1; background: none; }
+
+    .modal-body { padding: 22px 24px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+        display: block;
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-bottom: 6px;
+        font-weight: 500;
+    }
+    .form-group input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        box-sizing: border-box;
+    }
+    .form-group input:focus { outline: none; border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+
+    .form-hint { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+
+    .modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    .btn-cancel {
+        padding: 9px 18px;
+        background: #f1f5f9;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.875rem;
+    }
+
+    .btn-save {
+        padding: 9px 20px;
+        background: #4F46E5;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+    .btn-save:hover { background: #4338ca; }
+
+    .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        z-index: 2000;
+        display: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .toast.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .toast.error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .toast.show    { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="banks-container">
+
+    <div class="banks-header">
+        <h1 class="page-title">
+            <svg width="22" height="22" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 6l9-3 9 3M3 6v12l9 3 9-3V6M12 3v18" />
+            </svg>
+            Manage Banks
+        </h1>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <a href="{% url 'payroll_dashboard' %}" class="btn-back">
+                ← Back to Payroll
+            </a>
+            <button class="btn-primary" onclick="openAddModal()">
+                + Add Bank
+            </button>
+        </div>
+    </div>
+
+    <div class="info-banner">
+        <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Set the per-account commission charge for each bank. When entering monthly submissions for a sales agent, the commission is automatically calculated as <strong>submissions × per-account charge</strong>.
+    </div>
+
+    <div class="banks-card">
+        {% if banks %}
+        <table class="banks-table">
+            <thead>
+                <tr>
+                    <th>Bank Name</th>
+                    <th class="text-right">Per Account Charge</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="banksTableBody">
+                {% for bank in banks %}
+                <tr id="bank-row-{{ bank.id }}">
+                    <td class="bank-name">{{ bank.name }}</td>
+                    <td class="text-right">
+                        <span class="charge-badge">AED {{ bank.per_account_charge }}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="status-badge {% if bank.is_active %}status-active{% else %}status-inactive{% endif %}" id="status-{{ bank.id }}">
+                            {% if bank.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-btns">
+                            <button class="btn-edit" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }})">
+                                Edit
+                            </button>
+                            <button class="btn-toggle" onclick="toggleBank({{ bank.id }}, this)" data-active="{{ bank.is_active|yesno:'true,false' }}">
+                                {% if bank.is_active %}Deactivate{% else %}Activate{% endif %}
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" id="emptyState">
+            <div class="icon">🏦</div>
+            <p>No banks added yet. Add your first bank to start tracking DSA submissions.</p>
+            <button class="btn-primary" onclick="openAddModal()">+ Add First Bank</button>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="bankModal">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3 id="modalTitle">Add Bank</h3>
+            <button class="modal-close" onclick="closeModal()">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editBankId" value="">
+            <div class="form-group">
+                <label>Bank Name</label>
+                <input type="text" id="bankName" placeholder="e.g., Emirates NBD, ADCB, FAB..." autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>Per Account Charge (AED)</label>
+                <input type="number" id="bankCharge" step="0.01" min="0.01" placeholder="e.g., 150.00">
+                <div class="form-hint">Commission amount paid for each successfully submitted account.</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn-save" onclick="saveBank()">Save Bank</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let editingId = null;
+
+    function getCsrf() {
+        const match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : '';
+    }
+
+    function showToast(msg, type = 'success') {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = `toast ${type} show`;
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function openAddModal() {
+        editingId = null;
+        document.getElementById('modalTitle').textContent = 'Add Bank';
+        document.getElementById('editBankId').value = '';
+        document.getElementById('bankName').value = '';
+        document.getElementById('bankCharge').value = '';
+        document.getElementById('bankModal').classList.add('show');
+        document.getElementById('bankName').focus();
+    }
+
+    function openEditModal(id, name, charge) {
+        editingId = id;
+        document.getElementById('modalTitle').textContent = 'Edit Bank';
+        document.getElementById('editBankId').value = id;
+        document.getElementById('bankName').value = name;
+        document.getElementById('bankCharge').value = charge;
+        document.getElementById('bankModal').classList.add('show');
+        document.getElementById('bankName').focus();
+    }
+
+    function closeModal() {
+        document.getElementById('bankModal').classList.remove('show');
+        editingId = null;
+    }
+
+    async function saveBank() {
+        const name = document.getElementById('bankName').value.trim();
+        const charge = parseFloat(document.getElementById('bankCharge').value);
+
+        if (!name) { showToast('Please enter a bank name.', 'error'); return; }
+        if (!charge || charge <= 0) { showToast('Enter a valid charge greater than 0.', 'error'); return; }
+
+        try {
+            let url, body;
+            if (editingId) {
+                url = `/payroll/api/banks/${editingId}/`;
+                body = { action: 'update', name, per_account_charge: charge };
+            } else {
+                url = '/payroll/api/banks/';
+                body = { name, per_account_charge: charge };
+            }
+
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                showToast(editingId ? 'Bank updated.' : 'Bank added successfully.');
+                closeModal();
+                setTimeout(() => location.reload(), 600);
+            } else {
+                showToast(data.error || 'Error saving bank.', 'error');
+            }
+        } catch {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
+    async function toggleBank(bankId, btn) {
+        const isActive = btn.dataset.active === 'true';
+        if (!confirm(`${isActive ? 'Deactivate' : 'Activate'} this bank? ${isActive ? 'It will no longer appear in submission forms.' : 'It will appear in submission forms again.'}`)) return;
+
+        try {
+            const res = await fetch(`/payroll/api/banks/${bankId}/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                body: JSON.stringify({ action: 'toggle' }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                const statusEl = document.getElementById(`status-${bankId}`);
+                if (data.is_active) {
+                    statusEl.textContent = 'Active';
+                    statusEl.className = 'status-badge status-active';
+                    btn.textContent = 'Deactivate';
+                    btn.dataset.active = 'true';
+                } else {
+                    statusEl.textContent = 'Inactive';
+                    statusEl.className = 'status-badge status-inactive';
+                    btn.textContent = 'Activate';
+                    btn.dataset.active = 'false';
+                }
+                showToast(data.is_active ? 'Bank activated.' : 'Bank deactivated.');
+            } else {
+                showToast(data.error || 'Error.', 'error');
+            }
+        } catch {
+            showToast('Network error.', 'error');
+        }
+    }
+
+    // Close modal on overlay click
+    document.getElementById('bankModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+
+    // Enter key submits form
+    document.getElementById('bankName').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
+    document.getElementById('bankCharge').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
+</script>
+{% endblock %}

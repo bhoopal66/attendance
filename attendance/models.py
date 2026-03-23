@@ -74,6 +74,46 @@ class Holiday(models.Model):
         return f"{self.name} ({self.date})"
 
 
+class SpecialShiftPeriod(models.Model):
+    """
+    A named date range during which all in-house employees work different hours.
+    e.g., Ramadan working hours (9:00 AM - 4:00 PM) for a specific date range.
+
+    During this period, the special shift overrides each employee's normal shift
+    when computing attendance status in the report.
+    """
+    name = models.CharField(max_length=100, help_text="e.g., 'Ramadan 2025'")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    shift_start = models.TimeField(help_text="Weekday (Mon-Fri) shift start time during this period")
+    shift_end = models.TimeField(help_text="Weekday (Mon-Fri) shift end time during this period")
+    sat_shift_start = models.TimeField(
+        null=True, blank=True,
+        help_text="Saturday shift start (leave blank to keep the regular 10:00 AM)"
+    )
+    sat_shift_end = models.TimeField(
+        null=True, blank=True,
+        help_text="Saturday shift end (leave blank to keep the regular 2:00 PM)"
+    )
+    notes = models.TextField(blank=True, help_text="Optional notes about this period")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-start_date']
+
+    def __str__(self):
+        return f"{self.name} ({self.start_date} – {self.end_date})"
+
+    def clean(self):
+        super().clean()
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError({'end_date': "End date cannot be before start date."})
+        if self.shift_end and self.shift_start and self.shift_end <= self.shift_start:
+            raise ValidationError({'shift_end': "Shift end must be after shift start."})
+        if bool(self.sat_shift_start) != bool(self.sat_shift_end):
+            raise ValidationError("Both Saturday shift start and end must be set together.")
+
+
 class Employee(BaseEmployee):
     """In-house employee tracked via attendance machine."""
     person_id = models.CharField(max_length=50, db_index=True)

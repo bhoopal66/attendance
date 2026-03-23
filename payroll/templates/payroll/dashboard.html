@@ -32,6 +32,13 @@
         letter-spacing: -0.02em;
     }
 
+    .header-right {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
     .month-selector {
         display: flex;
         gap: 12px;
@@ -55,6 +62,22 @@
         cursor: pointer;
         font-weight: 500;
     }
+
+    .btn-banks {
+        padding: 10px 16px;
+        background: #f0fdf4;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    .btn-banks:hover { background: #dcfce7; }
 
     /* Grand Total Banner */
     .grand-total-banner {
@@ -211,10 +234,11 @@
 
     .mono { font-family: 'SF Mono', 'Monaco', monospace; }
 
-    .text-green { color: #10b981; font-weight: 600; }
-    .text-red   { color: #ef4444; font-weight: 600; }
-    .text-blue  { color: #3b82f6; font-weight: 700; }
-    .text-muted { color: #94a3b8; }
+    .text-green  { color: #10b981; font-weight: 600; }
+    .text-red    { color: #ef4444; font-weight: 600; }
+    .text-blue   { color: #3b82f6; font-weight: 700; }
+    .text-amber  { color: #d97706; font-weight: 600; }
+    .text-muted  { color: #94a3b8; }
 
     .days-breakdown {
         font-size: 0.68rem;
@@ -238,7 +262,7 @@
         font-size: 0.875rem;
     }
 
-    /* Adjustment Modal */
+    /* Modal */
     .modal-overlay {
         display: none;
         position: fixed;
@@ -258,8 +282,8 @@
         background: white;
         border-radius: 16px;
         width: 90%;
-        max-width: 560px;
-        max-height: 85vh;
+        max-width: 580px;
+        max-height: 88vh;
         overflow-y: auto;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
     }
@@ -272,6 +296,9 @@
         justify-content: space-between;
         align-items: center;
         border-radius: 16px 16px 0 0;
+        position: sticky;
+        top: 0;
+        z-index: 1;
     }
 
     .modal-head h3 {
@@ -290,6 +317,37 @@
         opacity: 0.8;
     }
     .modal-close:hover { opacity: 1; background: none; }
+
+    /* Tabs */
+    .modal-tabs {
+        display: flex;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8fafc;
+    }
+
+    .tab-btn {
+        flex: 1;
+        padding: 12px 16px;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #64748b;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .tab-btn.active {
+        color: #4F46E5;
+        border-bottom-color: #4F46E5;
+        background: white;
+    }
+
+    .tab-btn:hover:not(.active) { background: #f1f5f9; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
 
     .modal-body {
         padding: 20px 24px;
@@ -420,6 +478,72 @@
         font-weight: 500;
         font-size: 0.875rem;
     }
+
+    /* Bank submissions tab */
+    .submissions-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 16px;
+    }
+
+    .submissions-table th {
+        padding: 8px 10px;
+        text-align: left;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .submissions-table th.text-right,
+    .submissions-table td.text-right { text-align: right; }
+
+    .submissions-table td {
+        padding: 9px 10px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.85rem;
+    }
+
+    .submissions-table tfoot td {
+        font-weight: 700;
+        background: #f1f5f9;
+        border-top: 2px solid #e2e8f0;
+        padding: 10px;
+    }
+
+    .sub-input {
+        width: 70px;
+        padding: 6px 8px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        text-align: center;
+        font-family: 'SF Mono', monospace;
+    }
+    .sub-input:focus { outline: none; border-color: #4F46E5; }
+
+    .commission-cell {
+        font-family: 'SF Mono', monospace;
+        color: #d97706;
+        font-weight: 600;
+    }
+
+    .no-banks-msg {
+        text-align: center;
+        padding: 24px;
+        color: #94a3b8;
+        font-size: 0.875rem;
+    }
+
+    .total-commission-row {
+        font-size: 1rem;
+        font-family: 'SF Mono', monospace;
+        color: #d97706;
+        font-weight: 700;
+    }
 </style>
 {% endblock %}
 
@@ -434,10 +558,15 @@
             </svg>
             Payroll — {{ month_name }} {{ selected_year }}
         </h1>
-        <form class="month-selector" method="GET">
-            {% include 'payroll/includes/month_year_selector.html' %}
-            <button type="submit" class="btn-go">Calculate</button>
-        </form>
+        <div class="header-right">
+            <a href="{% url 'manage_banks' %}" class="btn-banks">
+                🏦 Manage Banks
+            </a>
+            <form class="month-selector" method="GET">
+                {% include 'payroll/includes/month_year_selector.html' %}
+                <button type="submit" class="btn-go">Calculate</button>
+            </form>
+        </div>
     </div>
 
     <!-- Grand Total Banner -->
@@ -455,6 +584,12 @@
                 <div class="label">Sales</div>
                 <div class="value">AED {{ total_sales|floatformat:2 }}</div>
             </div>
+            {% if total_sales_commission > 0 %}
+            <div class="breakdown-item">
+                <div class="label">Bank Commission</div>
+                <div class="value">AED {{ total_sales_commission|floatformat:2 }}</div>
+            </div>
+            {% endif %}
             <div class="breakdown-item">
                 <div class="label">Holidays</div>
                 <div class="value">{{ total_holidays }} days</div>
@@ -553,6 +688,7 @@
                     <th class="text-right">Days Worked</th>
                     <th class="text-right">Payable Days</th>
                     <th class="text-right">Base Pay</th>
+                    <th class="text-right">Commission</th>
                     <th class="text-right">Incentives</th>
                     <th class="text-right">Reductions</th>
                     <th class="text-right">Net Pay</th>
@@ -575,6 +711,9 @@
                         <div class="days-breakdown">+{{ item.holidays }} holiday{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
                     </td>
                     <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
+                    <td class="text-right mono {% if item.commission > 0 %}text-amber{% else %}text-muted{% endif %}">
+                        {% if item.commission > 0 %}+{{ item.commission|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
                     <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
                         {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
                     </td>
@@ -588,6 +727,7 @@
             <tfoot>
                 <tr>
                     <td colspan="5" class="text-right">Sub-total (In-House)</td>
+                    <td class="text-right"></td>
                     <td class="text-right"></td>
                     <td class="text-right"></td>
                     <td class="text-right mono text-blue">AED {{ total_sales_inhouse|floatformat:2 }}</td>
@@ -607,6 +747,7 @@
                     <th class="text-right">Present Days</th>
                     <th class="text-right">Payable Days</th>
                     <th class="text-right">Base Pay</th>
+                    <th class="text-right">Commission</th>
                     <th class="text-right">Incentives</th>
                     <th class="text-right">Reductions</th>
                     <th class="text-right">Net Pay</th>
@@ -629,6 +770,9 @@
                         <div class="days-breakdown">+{{ item.holidays }} holiday</div>
                     </td>
                     <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
+                    <td class="text-right mono {% if item.commission > 0 %}text-amber{% else %}text-muted{% endif %}">
+                        {% if item.commission > 0 %}+{{ item.commission|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
                     <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
                         {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
                     </td>
@@ -642,6 +786,7 @@
             <tfoot>
                 <tr>
                     <td colspan="5" class="text-right">Sub-total (Remote)</td>
+                    <td class="text-right"></td>
                     <td class="text-right"></td>
                     <td class="text-right"></td>
                     <td class="text-right mono text-blue">AED {{ total_remote|floatformat:2 }}</td>
@@ -661,46 +806,69 @@
         {% endif %}
 
         {% if sales_inhouse_data or remote_data %}
-        <div class="click-hint">Click any row to add incentives or reductions for that employee</div>
+        <div class="click-hint">Click any row to manage bank submissions, incentives, or reductions</div>
         {% endif %}
     </div>
 
 </div>
 
-<!-- ============ ADJUSTMENT MODAL ============ -->
+<!-- ============ EMPLOYEE MODAL (two tabs) ============ -->
 <div class="modal-overlay" id="adjModal">
     <div class="modal-box">
         <div class="modal-head">
-            <h3>Adjustments — <span id="modalEmpName"></span></h3>
+            <h3 id="modalEmpName"></h3>
             <button class="modal-close" onclick="closeModal()">&#x2715;</button>
         </div>
-        <div class="modal-body">
-            <p class="adj-section-title">Current Adjustments — {{ month_name }} {{ selected_year }}</p>
-            <div id="adjList"><div class="no-adj">Loading...</div></div>
 
-            <div class="add-form-title">
-                <p class="adj-section-title">Add New Adjustment</p>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Type</label>
-                    <select id="adjType">
-                        <option value="incentive">Incentive (+)</option>
-                        <option value="reduction">Reduction (-)</option>
-                    </select>
+        <!-- Tabs (only shown for sales employees) -->
+        <div class="modal-tabs" id="modalTabs">
+            <button class="tab-btn active" id="tabBtnAdj" onclick="switchTab('adj')">Adjustments</button>
+            <button class="tab-btn" id="tabBtnSub" onclick="switchTab('sub')">Bank Submissions</button>
+        </div>
+
+        <!-- Tab: Adjustments -->
+        <div class="tab-panel active" id="panelAdj">
+            <div class="modal-body">
+                <p class="adj-section-title">Current Adjustments — {{ month_name }} {{ selected_year }}</p>
+                <div id="adjList"><div class="no-adj">Loading...</div></div>
+
+                <div class="add-form-title">
+                    <p class="adj-section-title">Add New Adjustment</p>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="adjType">
+                            <option value="incentive">Incentive (+)</option>
+                            <option value="reduction">Reduction (-)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount (AED)</label>
+                        <input type="number" id="adjAmount" step="0.01" min="0.01" placeholder="0.00">
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label>Amount (AED)</label>
-                    <input type="number" id="adjAmount" step="0.01" min="0.01" placeholder="0.00">
+                    <label>Reason</label>
+                    <textarea id="adjReason" placeholder="e.g., Performance bonus, Advance recovery..."></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+                    <button class="btn-save" onclick="saveAdjustment()">Add Adjustment</button>
                 </div>
             </div>
-            <div class="form-group">
-                <label>Reason</label>
-                <textarea id="adjReason" placeholder="e.g., Performance bonus, Advance recovery..."></textarea>
-            </div>
-            <div class="modal-actions">
-                <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-                <button class="btn-save" onclick="saveAdjustment()">Add Adjustment</button>
+        </div>
+
+        <!-- Tab: Bank Submissions -->
+        <div class="tab-panel" id="panelSub">
+            <div class="modal-body">
+                <p class="adj-section-title">Bank Submissions — {{ month_name }} {{ selected_year }}</p>
+                <p style="font-size:0.8rem;color:#64748b;margin:0 0 14px;">Enter the number of accounts submitted to each bank this month. Commission = submissions × per-account charge.</p>
+                <div id="submissionsContent"><div class="no-adj">Loading...</div></div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+                    <button class="btn-save" onclick="saveSubmissions()">Save Submissions</button>
+                </div>
             </div>
         </div>
     </div>
@@ -716,6 +884,7 @@
 <script>
     let currentEmpId = null;
     let currentEmpType = null; // 'inhouse' or 'remote'
+    let currentTab = 'adj';
 
     function openModal(empId, empName, empType) {
         currentEmpId = empId;
@@ -724,7 +893,12 @@
         document.getElementById('hiddenEmpType').value = empType;
         document.getElementById('modalEmpName').textContent = empName;
         document.getElementById('adjModal').classList.add('show');
-        loadAdjustments();
+
+        // Show tabs only for sales (inhouse or remote in sales section)
+        // Admin section uses 'inhouse' type but we show tabs for all — bank submissions tab will just be empty for admin
+        document.getElementById('modalTabs').style.display = 'flex';
+
+        switchTab('adj');
     }
 
     function closeModal() {
@@ -736,10 +910,23 @@
         currentEmpType = null;
     }
 
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById('tabBtnAdj').classList.toggle('active', tab === 'adj');
+        document.getElementById('tabBtnSub').classList.toggle('active', tab === 'sub');
+        document.getElementById('panelAdj').classList.toggle('active', tab === 'adj');
+        document.getElementById('panelSub').classList.toggle('active', tab === 'sub');
+
+        if (tab === 'adj') loadAdjustments();
+        else loadSubmissions();
+    }
+
     function getCsrf() {
         const match = document.cookie.match(/csrftoken=([^;]+)/);
         return match ? match[1] : '';
     }
+
+    // ---- Adjustments ----
 
     async function loadAdjustments() {
         const year = document.getElementById('hiddenYear').value;
@@ -829,6 +1016,124 @@
             }
         } catch {
             alert('Error deleting adjustment.');
+        }
+    }
+
+    // ---- Bank Submissions ----
+
+    let banksData = [];
+
+    async function loadSubmissions() {
+        const year = document.getElementById('hiddenYear').value;
+        const month = document.getElementById('hiddenMonth').value;
+        const el = document.getElementById('submissionsContent');
+
+        const url = `/payroll/api/submissions/${currentEmpType}/${currentEmpId}/?year=${year}&month=${month}`;
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (!data.success) {
+                el.innerHTML = `<div class="no-adj">Error: ${escapeHtml(data.error || 'Unknown error')}</div>`;
+                return;
+            }
+
+            banksData = data.banks;
+
+            if (banksData.length === 0) {
+                el.innerHTML = `
+                    <div class="no-banks-msg">
+                        No active banks configured.<br>
+                        <a href="/payroll/banks/" style="color:#4F46E5;font-weight:500;">Add banks →</a>
+                    </div>`;
+                return;
+            }
+
+            el.innerHTML = renderSubmissionsTable(banksData, data.total_commission);
+        } catch {
+            el.innerHTML = '<div class="no-adj">Error loading submissions</div>';
+        }
+    }
+
+    function renderSubmissionsTable(banks, totalCommission) {
+        const rows = banks.map(b => `
+            <tr>
+                <td style="font-weight:500;">${escapeHtml(b.bank_name)}</td>
+                <td class="text-right mono" style="color:#64748b;">AED ${b.per_account_charge.toFixed(2)}</td>
+                <td class="text-right">
+                    <input type="number" class="sub-input" id="sub-${b.bank_id}"
+                        value="${b.submission_count}" min="0" step="1"
+                        oninput="recalcLive()">
+                </td>
+                <td class="text-right commission-cell" id="comm-${b.bank_id}">
+                    AED ${b.commission.toFixed(2)}
+                </td>
+            </tr>
+        `).join('');
+
+        return `
+            <table class="submissions-table">
+                <thead>
+                    <tr>
+                        <th>Bank</th>
+                        <th class="text-right">Rate / Account</th>
+                        <th class="text-right">Submissions</th>
+                        <th class="text-right">Commission</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="text-right">Total Commission</td>
+                        <td class="text-right total-commission-row" id="totalCommission">AED ${totalCommission.toFixed(2)}</td>
+                    </tr>
+                </tfoot>
+            </table>`;
+    }
+
+    function recalcLive() {
+        let total = 0;
+        banksData.forEach(b => {
+            const input = document.getElementById(`sub-${b.bank_id}`);
+            const count = parseInt(input ? input.value : 0) || 0;
+            const commission = count * b.per_account_charge;
+            total += commission;
+            const commEl = document.getElementById(`comm-${b.bank_id}`);
+            if (commEl) commEl.textContent = `AED ${commission.toFixed(2)}`;
+        });
+        const totalEl = document.getElementById('totalCommission');
+        if (totalEl) totalEl.textContent = `AED ${total.toFixed(2)}`;
+    }
+
+    async function saveSubmissions() {
+        const year = parseInt(document.getElementById('hiddenYear').value);
+        const month = parseInt(document.getElementById('hiddenMonth').value);
+
+        const submissions = {};
+        banksData.forEach(b => {
+            const input = document.getElementById(`sub-${b.bank_id}`);
+            submissions[b.bank_id] = parseInt(input ? input.value : 0) || 0;
+        });
+
+        try {
+            const res = await fetch('/payroll/api/submissions/save/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                body: JSON.stringify({
+                    emp_type: currentEmpType,
+                    employee_id: currentEmpId,
+                    year, month, submissions,
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setTimeout(() => location.reload(), 300);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch {
+            alert('Error saving submissions. Please try again.');
         }
     }
 

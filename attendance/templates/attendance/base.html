@@ -77,6 +77,14 @@
                         </svg>
                         <span class="sidebar-item-text">Payroll</span>
                     </a>
+                    <a href="{% url 'manage_banks' %}"
+                        class="sidebar-item {% if request.resolver_match.url_name == 'manage_banks' %}active{% endif %}"
+                        title="Banks">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 6l9-3 9 3M3 6v12l9 3 9-3V6M12 3v18" />
+                        </svg>
+                        <span class="sidebar-item-text">Banks</span>
+                    </a>
                     <a href="{% url 'leave_management' %}"
                         class="sidebar-item {% if request.resolver_match.url_name == 'leave_management' %}active{% endif %}"
                         title="Leave Requests">
@@ -84,6 +92,14 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         <span class="sidebar-item-text">Leave Requests</span>
+                    </a>
+                    <a href="{% url 'special_shift_periods' %}"
+                        class="sidebar-item {% if request.resolver_match.url_name == 'special_shift_periods' %}active{% endif %}"
+                        title="Special Shift Periods">
+                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <span class="sidebar-item-text">Special Shifts</span>
                     </a>
                 </div>
 

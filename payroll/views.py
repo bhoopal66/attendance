@@ -22,7 +22,7 @@ from attendance.views.utils import (
     MONTH_CHOICES, MONTH_NAMES, YEAR_RANGE,
     get_selected_month_year, superuser_required,
 )
-from .models import PayrollAdjustment
+from .models import PayrollAdjustment, Bank, BankSubmission
 
 logger = logging.getLogger('payroll')
 
@@ -39,6 +39,19 @@ def _count_holidays(year, month, days_in_month):
     )
     custom = Holiday.objects.filter(date__year=year, date__month=month).count()
     return sundays + custom
+
+
+def _get_commission(year, month, employee=None, remote_employee=None):
+    """Calculate total commission from bank submissions for the period."""
+    if employee:
+        submissions = BankSubmission.objects.filter(
+            employee=employee, year=year, month=month
+        ).select_related('bank')
+    else:
+        submissions = BankSubmission.objects.filter(
+            remote_employee=remote_employee, year=year, month=month
+        ).select_related('bank')
+    return float(sum(s.submission_count * s.bank.per_account_charge for s in submissions))
 
 
 def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_holidays):
@@ -77,7 +90,8 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     reductions = float(
         adjustments.filter(adjustment_type='reduction').aggregate(total=Sum('amount'))['total'] or 0
     )
-    net_payroll = base_payroll + incentives - reductions
+    commission = _get_commission(year, month, employee=emp)
+    net_payroll = base_payroll + incentives + commission - reductions
 
     return {
         'employee': emp,
@@ -93,6 +107,7 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'base_payroll': round(base_payroll, 2),
         'incentives': round(incentives, 2),
         'reductions': round(reductions, 2),
+        'commission': round(commission, 2),
         'net_payroll': round(net_payroll, 2),
     }
 
@@ -123,7 +138,8 @@ def _get_remote_payroll_row(emp, year, month, total_holidays):
     reductions = float(
         adjustments.filter(adjustment_type='reduction').aggregate(total=Sum('amount'))['total'] or 0
     )
-    net_payroll = base_payroll + incentives - reductions
+    commission = _get_commission(year, month, remote_employee=emp)
+    net_payroll = base_payroll + incentives + commission - reductions
 
     return {
         'employee': emp,
@@ -138,16 +154,18 @@ def _get_remote_payroll_row(emp, year, month, total_holidays):
         'base_payroll': round(base_payroll, 2),
         'incentives': round(incentives, 2),
         'reductions': round(reductions, 2),
+        'commission': round(commission, 2),
         'net_payroll': round(net_payroll, 2),
     }
 
 
 def _build_section_totals(rows):
-    """Sum net, incentives, reductions across a list of payroll rows."""
+    """Sum net, incentives, reductions, commission across a list of payroll rows."""
     return (
         round(sum(r['net_payroll'] for r in rows), 2),
         round(sum(r['incentives'] for r in rows), 2),
         round(sum(r['reductions'] for r in rows), 2),
+        round(sum(r.get('commission', 0) for r in rows), 2),
     )
 
 
@@ -174,7 +192,7 @@ def payroll_dashboard(request):
         _get_inhouse_payroll_row(emp, selected_year, selected_month, month_start, month_end, total_holidays)
         for emp in admin_employees
     ]
-    total_admin, admin_incentives_total, admin_reductions_total = _build_section_totals(admin_data)
+    total_admin, admin_incentives_total, admin_reductions_total, _ = _build_section_totals(admin_data)
 
     # --- Sales section: in-house Sales employees ---
     sales_inhouse_employees = Employee.objects.filter(
@@ -184,7 +202,7 @@ def payroll_dashboard(request):
         _get_inhouse_payroll_row(emp, selected_year, selected_month, month_start, month_end, total_holidays)
         for emp in sales_inhouse_employees
     ]
-    total_sales_inhouse, _, _ = _build_section_totals(sales_inhouse_data)
+    total_sales_inhouse, _, _, _ = _build_section_totals(sales_inhouse_data)
 
     # --- Sales section: remote employees ---
     remote_employees = RemoteEmployee.objects.filter(is_active=True).order_by('name')
@@ -192,11 +210,11 @@ def payroll_dashboard(request):
         _get_remote_payroll_row(emp, selected_year, selected_month, total_holidays)
         for emp in remote_employees
     ]
-    total_remote, _, _ = _build_section_totals(remote_data)
+    total_remote, _, _, _ = _build_section_totals(remote_data)
 
     # Combined Sales totals
     all_sales_rows = sales_inhouse_data + remote_data
-    total_sales, sales_incentives_total, sales_reductions_total = _build_section_totals(all_sales_rows)
+    total_sales, sales_incentives_total, sales_reductions_total, total_sales_commission = _build_section_totals(all_sales_rows)
 
     grand_total = round(total_admin + total_sales, 2)
 
@@ -218,6 +236,7 @@ def payroll_dashboard(request):
         'remote_data': remote_data,
         'total_remote': total_remote,
         'total_sales': total_sales,
+        'total_sales_commission': total_sales_commission,
         'sales_incentives_total': sales_incentives_total,
         'sales_reductions_total': sales_reductions_total,
         # Grand total
@@ -225,6 +244,218 @@ def payroll_dashboard(request):
     }
 
     return render(request, 'payroll/dashboard.html', context)
+
+
+# ============================================
+# Bank Management
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def manage_banks(request):
+    """Bank management page — list/add/edit/deactivate banks."""
+    banks = Bank.objects.all().order_by('name')
+    return render(request, 'payroll/banks.html', {'banks': banks})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["GET", "POST"])
+def banks_api(request):
+    """GET: list active banks. POST: add a new bank."""
+    if request.method == 'GET':
+        banks = Bank.objects.filter(is_active=True).order_by('name')
+        data = [{'id': b.id, 'name': b.name, 'per_account_charge': float(b.per_account_charge)} for b in banks]
+        return JsonResponse({'success': True, 'banks': data})
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    name = data.get('name', '').strip()
+    per_account_charge = data.get('per_account_charge')
+
+    if not name or per_account_charge is None:
+        return JsonResponse({'success': False, 'error': 'Name and per_account_charge are required'}, status=400)
+
+    if Bank.objects.filter(name__iexact=name).exists():
+        return JsonResponse({'success': False, 'error': 'A bank with this name already exists'}, status=400)
+
+    try:
+        bank = Bank.objects.create(name=name, per_account_charge=Decimal(str(per_account_charge)))
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'success': False, 'error': f'Invalid data: {e}'}, status=400)
+
+    logger.info("Bank added: %s (AED %s/account) by %s", bank.name, bank.per_account_charge, request.user.username)
+    return JsonResponse({'success': True, 'bank': {
+        'id': bank.id, 'name': bank.name,
+        'per_account_charge': float(bank.per_account_charge),
+        'is_active': bank.is_active,
+    }})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def bank_detail_api(request, bank_id):
+    """Update or toggle a bank."""
+    try:
+        bank = Bank.objects.get(id=bank_id)
+    except Bank.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Bank not found'}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    action = data.get('action')
+
+    if action == 'update':
+        name = data.get('name', '').strip()
+        per_account_charge = data.get('per_account_charge')
+        if not name or per_account_charge is None:
+            return JsonResponse({'success': False, 'error': 'Name and charge are required'}, status=400)
+        # Check uniqueness excluding self
+        if Bank.objects.filter(name__iexact=name).exclude(id=bank_id).exists():
+            return JsonResponse({'success': False, 'error': 'Another bank with this name already exists'}, status=400)
+        try:
+            bank.name = name
+            bank.per_account_charge = Decimal(str(per_account_charge))
+            bank.save()
+        except (ValueError, TypeError) as e:
+            return JsonResponse({'success': False, 'error': f'Invalid data: {e}'}, status=400)
+        logger.info("Bank updated: %s by %s", bank.name, request.user.username)
+        return JsonResponse({'success': True, 'bank': {
+            'id': bank.id, 'name': bank.name,
+            'per_account_charge': float(bank.per_account_charge),
+            'is_active': bank.is_active,
+        }})
+
+    elif action == 'toggle':
+        bank.is_active = not bank.is_active
+        bank.save()
+        logger.info("Bank %s: %s by %s", 'activated' if bank.is_active else 'deactivated', bank.name, request.user.username)
+        return JsonResponse({'success': True, 'is_active': bank.is_active})
+
+    return JsonResponse({'success': False, 'error': 'Unknown action'}, status=400)
+
+
+# ============================================
+# API: Bank Submissions
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def get_submissions(request, emp_type, employee_id):
+    """Get bank submissions for an employee for a specific month."""
+    try:
+        year = int(request.GET.get('year', datetime.datetime.now().year))
+        month = int(request.GET.get('month', datetime.datetime.now().month))
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'error': 'Invalid year/month'})
+
+    if emp_type == 'inhouse':
+        try:
+            employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+        submissions_qs = BankSubmission.objects.filter(
+            employee=employee, year=year, month=month
+        ).select_related('bank')
+    else:
+        try:
+            employee = RemoteEmployee.objects.get(id=employee_id)
+        except RemoteEmployee.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+        submissions_qs = BankSubmission.objects.filter(
+            remote_employee=employee, year=year, month=month
+        ).select_related('bank')
+
+    submission_map = {s.bank_id: s.submission_count for s in submissions_qs}
+    banks = Bank.objects.filter(is_active=True).order_by('name')
+
+    data = []
+    total_commission = 0.0
+    for bank in banks:
+        count = submission_map.get(bank.id, 0)
+        commission = round(count * float(bank.per_account_charge), 2)
+        total_commission += commission
+        data.append({
+            'bank_id': bank.id,
+            'bank_name': bank.name,
+            'per_account_charge': float(bank.per_account_charge),
+            'submission_count': count,
+            'commission': commission,
+        })
+
+    return JsonResponse({
+        'success': True,
+        'employee_name': employee.name,
+        'banks': data,
+        'total_commission': round(total_commission, 2),
+    })
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def save_submissions(request):
+    """Save bank submission counts for an employee for a month."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    emp_type = data.get('emp_type')
+    employee_id = data.get('employee_id')
+    year = data.get('year')
+    month = data.get('month')
+    submissions = data.get('submissions', {})  # {bank_id: count}
+
+    if not all([emp_type, employee_id, year, month]):
+        return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
+
+    if emp_type == 'inhouse':
+        try:
+            employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+        fk_kwargs = {'employee': employee}
+    else:
+        try:
+            employee = RemoteEmployee.objects.get(id=employee_id)
+        except RemoteEmployee.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+        fk_kwargs = {'remote_employee': employee}
+
+    try:
+        year = int(year)
+        month = int(month)
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'error': 'Invalid year/month'}, status=400)
+
+    total_commission = 0.0
+    for bank_id_str, count_val in submissions.items():
+        try:
+            bank_id = int(bank_id_str)
+            count = int(count_val)
+            bank = Bank.objects.get(id=bank_id, is_active=True)
+        except (ValueError, TypeError, Bank.DoesNotExist):
+            continue
+
+        if count <= 0:
+            BankSubmission.objects.filter(bank=bank, year=year, month=month, **fk_kwargs).delete()
+        else:
+            obj, _ = BankSubmission.objects.update_or_create(
+                bank=bank, year=year, month=month, **fk_kwargs,
+                defaults={'submission_count': count},
+            )
+            total_commission += float(obj.submission_count * bank.per_account_charge)
+
+    logger.info("Bank submissions saved for %s by %s", employee.name, request.user.username)
+    return JsonResponse({'success': True, 'total_commission': round(total_commission, 2)})
 
 
 # ============================================

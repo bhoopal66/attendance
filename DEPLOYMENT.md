@@ -324,4 +324,3 @@ sudo systemctl restart attendance
 | Database Name | attendance_db |
 | Database User | attendance_user |
 | Service Name | attendance |
-/cle

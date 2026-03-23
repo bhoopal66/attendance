@@ -19,8 +19,9 @@ from ..models import (
 from .utils import (
     SATURDAY_WORK_DURATION_SECONDS,
     build_calendar_grid, count_holidays_in_range, get_approved_leave_days,
-    get_common_report_context, get_employee_shift_for_date,
-    get_holiday_data, get_saturday_shift, get_selected_month_year,
+    get_active_special_periods_for_month, get_common_report_context,
+    get_employee_shift_for_date, get_holiday_data, get_saturday_shift,
+    get_selected_month_year,
 )
 
 logger = logging.getLogger('attendance')
@@ -28,7 +29,8 @@ logger = logging.getLogger('attendance')
 
 def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_month,
                               holiday_dates, current_day, emp_shift_start, emp_shift_end,
-                              sat_shift_start, sat_shift_end, approved_leave_days):
+                              sat_shift_start, sat_shift_end, approved_leave_days,
+                              special_periods=None):
     """Compute calendar data and summary for an in-house employee."""
     records_dict = {r.date.day: r for r in employee.filtered_records}
 
@@ -50,6 +52,37 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
         is_saturday = weekday == 5
         is_holiday_date = date_obj in holiday_dates
         is_paid_leave = day in approved_leave_days
+
+        # Determine if a special shift period covers this day
+        active_period = None
+        if special_periods:
+            active_period = next(
+                (p for p in special_periods if p.start_date <= date_obj <= p.end_date),
+                None
+            )
+
+        # Resolve effective shift for this day
+        if is_saturday:
+            if active_period and active_period.sat_shift_start:
+                day_shift_start = active_period.sat_shift_start
+                day_shift_end = active_period.sat_shift_end
+            else:
+                day_shift_start = sat_shift_start
+                day_shift_end = sat_shift_end
+        elif not is_sunday:
+            if active_period:
+                day_shift_start = active_period.shift_start
+                day_shift_end = active_period.shift_end
+            else:
+                day_shift_start = emp_shift_start
+                day_shift_end = emp_shift_end
+        else:
+            day_shift_start = day_shift_end = None
+
+        day_shift_duration = (
+            (day_shift_end.hour * 60 + day_shift_end.minute) -
+            (day_shift_start.hour * 60 + day_shift_start.minute)
+        ) * 60 if day_shift_start and day_shift_end else 0
 
         record = records_dict.get(day)
 
@@ -76,30 +109,17 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
 
             arrived_after_noon = record.first_in and record.first_in.hour >= 12 and not is_saturday
 
-            if is_saturday:
-                hours_ok = total_secs >= SATURDAY_WORK_DURATION_SECONDS
-                time_in_ok = record.first_in and (
-                    record.first_in.hour < sat_shift_start.hour or
-                    (record.first_in.hour == sat_shift_start.hour and
-                     record.first_in.minute <= sat_shift_start.minute)
-                )
-                time_out_ok = record.last_out and (
-                    record.last_out.hour > sat_shift_end.hour or
-                    (record.last_out.hour == sat_shift_end.hour and
-                     record.last_out.minute >= sat_shift_end.minute)
-                )
-            else:
-                hours_ok = total_secs >= shift_duration_weekday
-                time_in_ok = record.first_in and (
-                    record.first_in.hour < emp_shift_start.hour or
-                    (record.first_in.hour == emp_shift_start.hour and
-                     record.first_in.minute <= emp_shift_start.minute)
-                )
-                time_out_ok = record.last_out and (
-                    record.last_out.hour > emp_shift_end.hour or
-                    (record.last_out.hour == emp_shift_end.hour and
-                     record.last_out.minute >= emp_shift_end.minute)
-                )
+            hours_ok = total_secs >= day_shift_duration
+            time_in_ok = record.first_in and day_shift_start and (
+                record.first_in.hour < day_shift_start.hour or
+                (record.first_in.hour == day_shift_start.hour and
+                 record.first_in.minute <= day_shift_start.minute)
+            )
+            time_out_ok = record.last_out and day_shift_end and (
+                record.last_out.hour > day_shift_end.hour or
+                (record.last_out.hour == day_shift_end.hour and
+                 record.last_out.minute >= day_shift_end.minute)
+            )
 
             if not is_sunday and record.first_in and not time_in_ok and not arrived_after_noon:
                 late_count += 1
@@ -191,6 +211,7 @@ def attendance_report(request):
     current_day = today.day if selected_year == today.year and selected_month == today.month else 32
 
     sat_shift_start, sat_shift_end = get_saturday_shift()
+    special_periods = get_active_special_periods_for_month(month_start, month_end)
 
     for employee in employees:
         emp_shift_start, emp_shift_end = get_employee_shift_for_date(employee, month_start)
@@ -199,7 +220,8 @@ def attendance_report(request):
         employee.calendar_data, stats = _compute_inhouse_calendar(
             employee, days_in_month, selected_year, selected_month,
             holiday_dates, current_day, emp_shift_start, emp_shift_end,
-            sat_shift_start, sat_shift_end, approved_leave_days
+            sat_shift_start, sat_shift_end, approved_leave_days,
+            special_periods=special_periods
         )
 
         actual_working = stats['actual_working_days']

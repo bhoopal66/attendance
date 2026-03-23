@@ -69,6 +69,18 @@ def get_saturday_shift():
     return SATURDAY_SHIFT_START, SATURDAY_SHIFT_END
 
 
+def get_active_special_periods_for_month(month_start, month_end):
+    """
+    Return all SpecialShiftPeriod records that overlap with the given month.
+    Cached as a list so callers can do in-memory lookups per day.
+    """
+    from attendance.models import SpecialShiftPeriod
+    return list(SpecialShiftPeriod.objects.filter(
+        start_date__lte=month_end,
+        end_date__gte=month_start,
+    ).order_by('start_date'))
+
+
 def get_employee_shift_for_date(employee, target_date):
     """
     Get employee's shift timings for a specific date using 3-tier lookup strategy.
