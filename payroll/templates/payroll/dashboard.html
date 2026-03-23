@@ -289,9 +289,9 @@
     }
 
     .modal-head {
-        padding: 18px 24px;
-        background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
-        color: white;
+        padding: 16px 24px;
+        background: white;
+        border-bottom: 1px solid #e2e8f0;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -303,20 +303,37 @@
 
     .modal-head h3 {
         margin: 0;
-        font-size: 1.1rem;
-        font-weight: 600;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0f172a;
+        letter-spacing: -0.02em;
+    }
+
+    .modal-head-sub {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin: 2px 0 0;
+        font-weight: 400;
     }
 
     .modal-close {
-        background: none;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        background: #f1f5f9;
         border: none;
-        color: white;
-        font-size: 1.5rem;
+        border-radius: 6px;
+        color: #64748b;
+        font-size: 1.1rem;
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         line-height: 1;
-        opacity: 0.8;
+        transition: all 0.15s;
+        flex-shrink: 0;
     }
-    .modal-close:hover { opacity: 1; background: none; }
+    .modal-close:hover { background: #fee2e2; color: #dc2626; }
 
     /* Tabs */
     .modal-tabs {
