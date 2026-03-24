@@ -108,6 +108,18 @@ class BankSubmission(models.Model):
             models.Index(fields=['employee', 'year', 'month']),
             models.Index(fields=['remote_employee', 'year', 'month']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'bank', 'year', 'month'],
+                condition=models.Q(employee__isnull=False),
+                name='unique_inhouse_bank_month',
+            ),
+            models.UniqueConstraint(
+                fields=['remote_employee', 'bank', 'year', 'month'],
+                condition=models.Q(remote_employee__isnull=False),
+                name='unique_remote_bank_month',
+            ),
+        ]
 
     @property
     def commission(self):

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PayrollAdjustment
+from .models import PayrollAdjustment, Bank, BankSubmission
 
 
 @admin.register(PayrollAdjustment)
@@ -16,3 +16,26 @@ class PayrollAdjustmentAdmin(admin.ModelAdmin):
     def get_employee_type(self, obj):
         return 'In-house' if obj.employee else 'Remote'
     get_employee_type.short_description = 'Type'
+
+
+@admin.register(Bank)
+class BankAdmin(admin.ModelAdmin):
+    list_display = ('name', 'per_account_charge', 'is_active', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
+
+
+@admin.register(BankSubmission)
+class BankSubmissionAdmin(admin.ModelAdmin):
+    list_display = ('get_employee_name', 'bank', 'year', 'month', 'submission_count', 'get_commission')
+    list_filter = ('bank', 'year', 'month')
+    search_fields = ('employee__name', 'remote_employee__name', 'bank__name')
+    ordering = ('-year', '-month')
+
+    def get_employee_name(self, obj):
+        return obj.employee.name if obj.employee else obj.remote_employee.name
+    get_employee_name.short_description = 'Employee'
+
+    def get_commission(self, obj):
+        return f"AED {obj.commission:.2f}"
+    get_commission.short_description = 'Commission'

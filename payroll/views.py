@@ -32,13 +32,34 @@ logger = logging.getLogger('payroll')
 # ============================================
 
 def _count_holidays(year, month, days_in_month):
-    """Return total non-working days (Sundays + custom holidays) for a month."""
-    sundays = sum(
-        1 for day in range(1, days_in_month + 1)
+    """Return total non-working days (Sundays + custom holidays) for a month.
+    Uses a set to avoid double-counting Sundays that are also custom holidays.
+    """
+    non_working = set(
+        day for day in range(1, days_in_month + 1)
         if datetime.date(year, month, day).weekday() == 6
     )
-    custom = Holiday.objects.filter(date__year=year, date__month=month).count()
-    return sundays + custom
+    for holiday in Holiday.objects.filter(date__year=year, date__month=month):
+        non_working.add(holiday.date.day)
+    return len(non_working)
+
+
+def _leave_days_in_month(leave, month_start, month_end):
+    """Return the effective paid leave days that fall within the given month.
+    Pro-rates approved_days based on how much of the leave span falls in the month.
+    """
+    effective = leave.get_effective_days()
+    if not effective:
+        return 0
+    # If entirely within the month, no pro-rating needed
+    if leave.start_date >= month_start and leave.end_date <= month_end:
+        return effective
+    # Clip to month boundaries and pro-rate
+    overlap_start = max(leave.start_date, month_start)
+    overlap_end = min(leave.end_date, month_end)
+    full_span = (leave.end_date - leave.start_date).days + 1
+    overlap_span = (overlap_end - overlap_start).days + 1
+    return round(effective * overlap_span / full_span)
 
 
 def _get_commission(year, month, employee=None, remote_employee=None):
@@ -77,7 +98,7 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         start_date__lte=month_end,
         end_date__gte=month_start,
     )
-    paid_leave_days = sum(leave.get_effective_days() for leave in approved_leaves)
+    paid_leave_days = sum(_leave_days_in_month(leave, month_start, month_end) for leave in approved_leaves)
 
     daily_rate = salary / 30 if salary > 0 else 0.0
     total_working_days = effective_work_days + total_holidays + paid_leave_days
