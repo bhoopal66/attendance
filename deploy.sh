@@ -23,10 +23,10 @@ step "Pulling latest code from origin/main..."
 git pull origin main && success "Code updated"
 
 step "Running database migrations..."
-DJANGO_SETTINGS_MODULE=attendance_project.settings.production python3 manage.py migrate --verbosity=2 && success "Migrations complete"
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python3 manage.py migrate --verbosity=1 && success "Migrations complete"
 
 step "Collecting static files..."
-DJANGO_SETTINGS_MODULE=attendance_project.settings.production python3 manage.py collectstatic --noinput --verbosity=2 && success "Static files collected"
+DJANGO_SETTINGS_MODULE=attendance_project.settings.production python3 manage.py collectstatic --noinput --verbosity=0 && success "Static files collected"
 
 step "Restarting attendance service..."
 sudo systemctl restart attendance && success "Service restarted"
