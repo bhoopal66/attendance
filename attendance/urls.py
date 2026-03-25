@@ -33,6 +33,8 @@ urlpatterns = [
     path('employees/update/', views.update_employee, name='update_employee'),
     path('employees/bulk-update/', views.bulk_update_employees, name='bulk_update_employees'),
     path('employees/merge/', views.merge_employees, name='merge_employees'),
+    path('employees/link/', views.link_employees, name='link_employees'),
+    path('employees/unlink/', views.unlink_employees, name='unlink_employees'),
     # Leave Management (Admin)
     path('leave-requests/', views.leave_management, name='leave_management'),
     path('leave/<int:leave_id>/approve/', views.approve_leave_request, name='approve_leave'),

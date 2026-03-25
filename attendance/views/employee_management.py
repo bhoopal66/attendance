@@ -46,6 +46,14 @@ def _serialize_employee(emp, emp_type):
     }
     data['salary'] = float(emp.salary) if emp.salary else None
     data['designation'] = emp.designation if emp_type == 'remote' else None
+    if emp_type == 'inhouse':
+        remote = getattr(emp, 'remote_employee', None)
+        data['linked_remote_id'] = remote.id if remote else None
+        data['linked_remote_name'] = remote.name if remote else None
+    else:
+        linked = emp.linked_employee
+        data['linked_inhouse_id'] = linked.id if linked else None
+        data['linked_inhouse_name'] = linked.name if linked else None
     return data
 
 
@@ -53,8 +61,8 @@ def _serialize_employee(emp, emp_type):
 @user_passes_test(superuser_required, login_url='/report/')
 def employee_management(request):
     """Display all employees (in-house and remote) in a unified management page."""
-    inhouse_employees = Employee.objects.all().order_by('name')
-    remote_employees = RemoteEmployee.objects.all().order_by('name')
+    inhouse_employees = Employee.objects.select_related('remote_employee').all().order_by('name')
+    remote_employees = RemoteEmployee.objects.select_related('linked_employee').all().order_by('name')
 
     all_employees = []
     for emp in inhouse_employees:
@@ -298,3 +306,92 @@ def merge_employees(request):
         drop_name, drop_id, keep.name, keep_id, emp_type, request.user.username
     )
     return JsonResponse({'success': True, 'message': f'Merged {drop_name} into {keep.name} successfully'})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def link_employees(request):
+    """
+    Link an in-house employee and a remote employee as the same person.
+    Both records are preserved; this just marks them as representing the same individual.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    inhouse_id = data.get('inhouse_id')
+    remote_id = data.get('remote_id')
+
+    if not inhouse_id or not remote_id:
+        return JsonResponse({'success': False, 'error': 'Missing inhouse_id or remote_id'}, status=400)
+
+    try:
+        inhouse = Employee.objects.get(id=inhouse_id)
+    except Employee.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'In-house employee not found'}, status=404)
+
+    try:
+        remote = RemoteEmployee.objects.get(id=remote_id)
+    except RemoteEmployee.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Remote employee not found'}, status=404)
+
+    existing_remote = getattr(inhouse, 'remote_employee', None)
+    if existing_remote is not None:
+        return JsonResponse(
+            {'success': False, 'error': f'{inhouse.name} is already linked to {existing_remote.name}'},
+            status=400
+        )
+
+    if remote.linked_employee is not None:
+        return JsonResponse(
+            {'success': False, 'error': f'{remote.name} is already linked to {remote.linked_employee.name}'},
+            status=400
+        )
+
+    remote.linked_employee = inhouse
+    remote.save(update_fields=['linked_employee'])
+
+    logger.info(
+        "Linked in-house '%s' (id=%s) with remote '%s' (id=%s) by %s",
+        inhouse.name, inhouse.id, remote.name, remote.id, request.user.username
+    )
+    return JsonResponse({'success': True, 'message': f'Linked {inhouse.name} (In-House) with {remote.name} (Remote)'})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def unlink_employees(request):
+    """Remove the link between an in-house and remote employee."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    remote_id = data.get('remote_id')
+    if not remote_id:
+        return JsonResponse({'success': False, 'error': 'Missing remote_id'}, status=400)
+
+    try:
+        remote = RemoteEmployee.objects.get(id=remote_id)
+    except RemoteEmployee.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Remote employee not found'}, status=404)
+
+    if remote.linked_employee is None:
+        return JsonResponse({'success': False, 'error': 'Employee is not linked'}, status=400)
+
+    inhouse_name = remote.linked_employee.name
+    remote.linked_employee = None
+    remote.save(update_fields=['linked_employee'])
+
+    logger.info(
+        "Unlinked remote '%s' (id=%s) from in-house '%s' by %s",
+        remote.name, remote.id, inhouse_name, request.user.username
+    )
+    return JsonResponse({'success': True, 'message': f'Unlinked {remote.name} from {inhouse_name}'})

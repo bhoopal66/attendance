@@ -226,6 +226,15 @@ class RemoteEmployee(BaseEmployee):
     salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     designation = models.CharField(max_length=100, null=True, blank=True)
 
+    linked_employee = models.OneToOneField(
+        'Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='remote_employee',
+        help_text="In-house employee record for the same person (if they appear in both systems)"
+    )
+
     class Meta:
         unique_together = ('extension_id', 'name')
         verbose_name = 'Remote Employee'
