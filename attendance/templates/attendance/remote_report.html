@@ -70,34 +70,54 @@
 .emp-chevron { color: var(--text-secondary); transition: transform .2s; }
 
 /* Expanded content */
-.emp-content { padding: 1rem; background: #f8fafc; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 1rem; }
+.emp-content { padding: 1rem; background: #e8edf4; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 1rem; }
 
-/* Calendar */
-.calendar-wrap { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
-.cal-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 0.5rem 0.5rem 0.25rem; background: #f8fafc; border-bottom: 1px solid var(--border-color); }
-.cal-wday { text-align: center; font-size: 0.67rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; padding: 0.2rem; }
-.cal-wday.sunday { color: #dc2626; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 0.5rem; }
-.calendar-day { min-height: 58px; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.3rem 0.35rem; display: flex; flex-direction: column; position: relative; background: var(--surface-color); overflow: hidden; justify-content: space-between; }
-.calendar-day.empty { background: transparent; border-color: transparent; }
-.calendar-day.future { opacity: 0.45; }
-.day-number { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
+/* ===== Calendar — Complete Redesign ===== */
+.calendar-wrap { border-radius: 14px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07); }
+
+/* Weekday header — dark indigo */
+.cal-header { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0.65rem 0.6rem 0.55rem; background: #1e1b4b; gap: 4px; }
+.cal-wday { text-align: center; font-size: 0.68rem; font-weight: 700; color: rgba(199,210,254,0.85); text-transform: uppercase; letter-spacing: .08em; padding: 0.2rem; }
+.cal-wday.sunday { color: #fca5a5; }
+
+/* Grid background acts as gap colour */
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 0.6rem; background: #94a3b8; }
+
+/* Base cell */
+.calendar-day {
+    min-height: 80px;
+    background: #ffffff;
+    border: none;
+    border-left: 5px solid #cbd5e1;
+    border-radius: 0 8px 8px 0;
+    padding: 0.48rem 0.42rem 0.42rem 0.52rem;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    justify-content: space-between;
+    transition: transform .13s ease, box-shadow .13s ease;
+}
+.calendar-day.empty { background: transparent; border: none; box-shadow: none; }
+.calendar-day.future { opacity: 0.38; }
+
+.day-number { font-size: 0.92rem; font-weight: 800; color: #1e293b; line-height: 1; margin-bottom: 0.22rem; }
 .calendar-day.sunday .day-number { color: #dc2626; }
 
-/* Remote status colors */
-.calendar-day.status-present  { background: #f0fdf4; border-color: #86efac; }
-.calendar-day.status-half_day { background: #fefce8; border-color: #fde047; }
-.calendar-day.status-absent   { background: #fef2f2; border-color: #fca5a5; }
+/* ── Remote status colours: vivid 200-level backgrounds + bold left border ── */
+.calendar-day.status-present  { background: #bbf7d0; border-left-color: #15803d; }
+.calendar-day.status-half_day { background: #fef08a; border-left-color: #a16207; }
+.calendar-day.status-absent   { background: #fecaca; border-left-color: #b91c1c; }
 .calendar-day.status-holiday,
-.calendar-day.holiday          { background: #faf5ff; border-color: #c4b5fd; }
+.calendar-day.holiday          { background: #ddd6fe; border-left-color: #6d28d9; }
 
-.talk-duration { font-size: 0.67rem; font-weight: 700; color: #1d4ed8; line-height: 1.2; }
-.call-count { display: flex; align-items: center; gap: 2px; font-size: 0.63rem; color: #475569; }
-.day-label { font-size: 0.62rem; font-weight: 700; padding: 0.12rem 0.25rem; border-radius: 3px; margin-top: auto; text-align: center; line-height: 1.2; }
-.day-label.present { background: #dcfce7; color: #166534; }
-.day-label.half    { background: #fefce8; color: #ca8a04; }
-.day-label.absent  { background: #fee2e2; color: #dc2626; }
-.day-label.holiday { background: #ede9fe; color: #7c3aed; }
+.talk-duration { font-size: 0.7rem; font-weight: 800; color: #1e3a8a; line-height: 1.2; }
+.call-count { display: flex; align-items: center; gap: 2px; font-size: 0.63rem; color: #1e293b; }
+.day-label { font-size: 0.6rem; font-weight: 800; padding: 0.18rem 0.42rem; border-radius: 4px; text-align: center; line-height: 1.3; margin-top: auto; text-transform: uppercase; letter-spacing: .05em; align-self: flex-start; }
+.day-label.present { background: #15803d; color: #fff; }
+.day-label.half    { background: #a16207; color: #fff; }
+.day-label.absent  { background: #b91c1c; color: #fff; }
+.day-label.holiday { background: #6d28d9; color: #fff; }
 
 /* Monthly Summary */
 .summary-wrap { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
