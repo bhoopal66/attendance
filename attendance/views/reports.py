@@ -5,22 +5,20 @@ Handles both in-house and remote employee attendance reports.
 
 import datetime
 import logging
-from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
 from django.shortcuts import render
 
 from ..models import (
-    AttendanceRecord, EarlyLeaveRequest, Employee, LeaveRequest,
-    MonthlySummary, RemoteCallRecord, RemoteEmployee,
-    RemoteMonthlySummary,
+    AttendanceRecord, EarlyLeaveRequest, Employee, RemoteCallRecord, RemoteEmployee,
 )
 from .utils import (
     SATURDAY_WORK_DURATION_SECONDS,
-    build_calendar_grid, count_holidays_in_range, get_approved_leave_days,
+    build_calendar_grid, count_holidays_in_range,
+    get_bulk_approved_leave_days, get_bulk_employee_shifts,
     get_active_special_periods_for_month, get_common_report_context,
-    get_employee_shift_for_date, get_holiday_data, get_saturday_shift,
+    get_holiday_data, get_saturday_shift,
     get_selected_month_year,
 )
 
@@ -213,9 +211,13 @@ def attendance_report(request):
     sat_shift_start, sat_shift_end = get_saturday_shift()
     special_periods = get_active_special_periods_for_month(month_start, month_end)
 
+    employees = list(employees)
+    bulk_shifts = get_bulk_employee_shifts(employees, month_start)
+    bulk_leave_days = get_bulk_approved_leave_days(employees, month_start, month_end)
+
     for employee in employees:
-        emp_shift_start, emp_shift_end = get_employee_shift_for_date(employee, month_start)
-        approved_leave_days = get_approved_leave_days(employee, month_start, month_end)
+        emp_shift_start, emp_shift_end = bulk_shifts[employee.id]
+        approved_leave_days = bulk_leave_days[employee.id]
 
         employee.calendar_data, stats = _compute_inhouse_calendar(
             employee, days_in_month, selected_year, selected_month,
@@ -243,19 +245,6 @@ def attendance_report(request):
             'late_half_days': late_half_days,
             'total_deductions': total_deductions,
         }
-
-        # Update monthly summary (async-safe: idempotent upsert)
-        MonthlySummary.objects.update_or_create(
-            employee=employee,
-            year=selected_year,
-            month=selected_month,
-            defaults={
-                'working_days': actual_working,
-                'leave_days': leave_days,
-                'late_days': stats['late_count'],
-                'half_days': half_days,
-            }
-        )
 
     pending_requests = EarlyLeaveRequest.objects.filter(
         status='pending'
@@ -357,6 +346,10 @@ def remote_attendance_report(request):
                     elif record.attendance_status == 'absent':
                         absent_count += 1
 
+            elif day <= current_day:
+                # No record for this working day — count as absent
+                absent_count += 1
+
             employee.calendar_data[day] = {
                 'record': record,
                 'status': status,
@@ -367,28 +360,12 @@ def remote_attendance_report(request):
                 'answered_calls': answered_calls,
             }
 
-        days_with_records = len([r for r in employee.filtered_records if r.date.weekday() != 6])
-        total_absent = max(0, expected_working_days - days_with_records - present_count - half_day_count)
-        absent_count += total_absent
-
         employee.summary = {
             'present_days': present_count,
             'half_days': half_day_count,
             'absent_days': absent_count,
             'total_talk_hours': round(total_talk_seconds / 3600, 1),
         }
-
-        RemoteMonthlySummary.objects.update_or_create(
-            employee=employee,
-            year=selected_year,
-            month=selected_month,
-            defaults={
-                'present_days': present_count,
-                'half_days': half_day_count,
-                'absent_days': absent_count,
-                'total_talk_time': timedelta(seconds=total_talk_seconds),
-            }
-        )
 
     context = get_common_report_context(
         selected_month, selected_year, cal_data, holidays_qs,

@@ -12,6 +12,8 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.management import call_command
+from django.db import transaction
 from django.shortcuts import redirect, render
 
 from ..models import (
@@ -291,30 +293,33 @@ def upload_file(request):
         processed_count = 0
         new_employees = []
 
-        for (person_id, name), group in grouped:
-            employee, created = _lookup_or_create_employee(person_id, name)
-            if created:
-                new_employees.append(name)
+        with transaction.atomic():
+            for (person_id, name), group in grouped:
+                employee, created = _lookup_or_create_employee(person_id, name)
+                if created:
+                    new_employees.append(name)
 
-            first_in = group["First-In"].min()
-            last_out = group["Last-Out"].max()
+                first_in = group["First-In"].min()
+                last_out = group["Last-Out"].max()
 
-            fi_time = first_in.time() if not pd.isna(first_in) else None
-            lo_time = last_out.time() if not pd.isna(last_out) else None
+                fi_time = first_in.time() if not pd.isna(first_in) else None
+                lo_time = last_out.time() if not pd.isna(last_out) else None
 
-            fi_time, lo_time = _merge_with_approved_times(employee, date_val, fi_time, lo_time)
-            duration = _calculate_work_duration(fi_time, lo_time)
+                fi_time, lo_time = _merge_with_approved_times(employee, date_val, fi_time, lo_time)
+                duration = _calculate_work_duration(fi_time, lo_time)
 
-            AttendanceRecord.objects.update_or_create(
-                employee=employee,
-                date=date_val,
-                defaults={
-                    'first_in': fi_time,
-                    'last_out': lo_time,
-                    'work_duration': duration
-                }
-            )
-            processed_count += 1
+                AttendanceRecord.objects.update_or_create(
+                    employee=employee,
+                    date=date_val,
+                    defaults={
+                        'first_in': fi_time,
+                        'last_out': lo_time,
+                        'work_duration': duration
+                    }
+                )
+                processed_count += 1
+
+        call_command('recalculate_summaries', date_val.year, date_val.month, verbosity=0)
 
         logger.info(
             "Attendance upload completed: %d employees for %s by %s",
@@ -371,46 +376,50 @@ def upload_remote_call_stats(request):
 
         processed_count = 0
         new_employees = []
-        for _, row in df.iterrows():
-            extension_col = row.get('Extension', '')
 
-            if str(extension_col).strip().lower() == 'total':
-                continue
+        with transaction.atomic():
+            for _, row in df.iterrows():
+                extension_col = row.get('Extension', '')
 
-            if '-' not in str(extension_col):
-                continue
+                if str(extension_col).strip().lower() == 'total':
+                    continue
 
-            parts = str(extension_col).split('-', 1)
-            extension_id = parts[0].strip()
-            name = parts[1].strip() if len(parts) > 1 else 'Unknown'
+                if '-' not in str(extension_col):
+                    continue
 
-            employee, created = _lookup_or_create_remote_employee(extension_id, name)
-            if created:
-                new_employees.append(name)
+                parts = str(extension_col).split('-', 1)
+                extension_id = parts[0].strip()
+                name = parts[1].strip() if len(parts) > 1 else 'Unknown'
 
-            answered = int(row.get('Answered', 0) or 0)
-            no_answered = int(row.get('No Answered', 0) or 0)
-            busy = int(row.get('Busy', 0) or 0)
-            failed = int(row.get('Failed', 0) or 0)
-            voicemail = int(row.get('Voicemail', 0) or 0)
+                employee, created = _lookup_or_create_remote_employee(extension_id, name)
+                if created:
+                    new_employees.append(name)
 
-            ring_duration = parse_duration(row.get('Total Ring Duration', ''))
-            talk_duration = parse_duration(row.get('Total Talk Duration', ''))
+                answered = int(row.get('Answered', 0) or 0)
+                no_answered = int(row.get('No Answered', 0) or 0)
+                busy = int(row.get('Busy', 0) or 0)
+                failed = int(row.get('Failed', 0) or 0)
+                voicemail = int(row.get('Voicemail', 0) or 0)
 
-            RemoteCallRecord.objects.update_or_create(
-                employee=employee,
-                date=selected_date,
-                defaults={
-                    'answered_calls': answered,
-                    'no_answered': no_answered,
-                    'busy': busy,
-                    'failed': failed,
-                    'voicemail': voicemail,
-                    'total_ring_duration': ring_duration,
-                    'total_talk_duration': talk_duration,
-                }
-            )
-            processed_count += 1
+                ring_duration = parse_duration(row.get('Total Ring Duration', ''))
+                talk_duration = parse_duration(row.get('Total Talk Duration', ''))
+
+                RemoteCallRecord.objects.update_or_create(
+                    employee=employee,
+                    date=selected_date,
+                    defaults={
+                        'answered_calls': answered,
+                        'no_answered': no_answered,
+                        'busy': busy,
+                        'failed': failed,
+                        'voicemail': voicemail,
+                        'total_ring_duration': ring_duration,
+                        'total_talk_duration': talk_duration,
+                    }
+                )
+                processed_count += 1
+
+        call_command('recalculate_summaries', selected_date.year, selected_date.month, remote=True, verbosity=0)
 
         logger.info(
             "Remote upload completed: %d employees for %s by %s",

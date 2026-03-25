@@ -233,3 +233,74 @@ def get_common_report_context(month, year, cal_data, holidays_qs, show_inactive,
         'holiday_names': {h.date.day: h.name for h in holidays_qs},
         'current_day': current_day,
     }
+
+
+def get_bulk_employee_shifts(employees, target_date):
+    """
+    Fetch shift timings for a list of in-house employees in a single DB query.
+
+    Uses the same 3-tier priority as get_employee_shift_for_date:
+    1. Most recent ShiftHistory with effective_from <= target_date
+    2. Employee direct fields (shift_start / shift_end)
+    3. System default (10:00–19:00)
+
+    Returns {employee_id: (shift_start, shift_end)}.
+    """
+    from attendance.models import ShiftHistory
+
+    employee_ids = [e.id for e in employees]
+    result = {}
+
+    # Single query: all applicable shift-history rows, newest-first per employee
+    histories = (
+        ShiftHistory.objects
+        .filter(employee_id__in=employee_ids, effective_from__lte=target_date)
+        .order_by('employee_id', '-effective_from')
+        .values('employee_id', 'shift_start', 'shift_end')
+    )
+
+    seen = set()
+    for h in histories:
+        emp_id = h['employee_id']
+        if emp_id not in seen:
+            result[emp_id] = (h['shift_start'], h['shift_end'])
+            seen.add(emp_id)
+
+    # Fall back to employee fields or system default for employees with no history
+    for emp in employees:
+        if emp.id not in result:
+            if emp.shift_start and emp.shift_end:
+                result[emp.id] = (emp.shift_start, emp.shift_end)
+            else:
+                result[emp.id] = (time(10, 0), time(19, 0))
+
+    return result
+
+
+def get_bulk_approved_leave_days(employees, month_start, month_end):
+    """
+    Fetch approved leave day-sets for a list of in-house employees in a single DB query.
+
+    Returns {employee_id: set_of_day_ints (1–31)}.
+    """
+    from attendance.models import LeaveRequest
+
+    employee_ids = [e.id for e in employees]
+    result = {e.id: set() for e in employees}
+
+    leaves = LeaveRequest.objects.filter(
+        employee_id__in=employee_ids,
+        status='approved',
+        start_date__lte=month_end,
+        end_date__gte=month_start,
+    ).values('employee_id', 'start_date', 'end_date')
+
+    for leave in leaves:
+        start = max(leave['start_date'], month_start)
+        end = min(leave['end_date'], month_end)
+        curr = start
+        while curr <= end:
+            result[leave['employee_id']].add(curr.day)
+            curr += datetime.timedelta(days=1)
+
+    return result

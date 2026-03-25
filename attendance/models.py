@@ -541,8 +541,7 @@ class LeaveRequest(models.Model):
             })
 
     def save(self, *args, **kwargs):
-        # Auto-calculate requested_days if not explicitly set
-        if self.start_date and self.end_date and not self.requested_days:
+        if self.start_date and self.end_date:
             delta = (self.end_date - self.start_date).days + 1
             self.requested_days = max(1, delta)
         super().save(*args, **kwargs)
