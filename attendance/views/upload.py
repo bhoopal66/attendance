@@ -333,7 +333,7 @@ def upload_file(request):
                 f'If these are existing employees with a new machine ID, use the '
                 f'Employee Directory to merge the duplicate records.'
             )
-        return redirect('report')
+        return redirect('upload')
 
     except ValueError as e:
         logger.warning("Upload validation error: %s", e)
@@ -428,7 +428,7 @@ def upload_remote_call_stats(request):
                 f'If these are existing employees with a new extension, use the '
                 f'Employee Directory to merge the duplicate records.'
             )
-        return redirect('remote_report')
+        return redirect('upload')
 
     except ValueError as e:
         logger.warning("Remote upload validation error: %s", e)
