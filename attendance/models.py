@@ -345,6 +345,51 @@ class RemoteMonthlySummary(models.Model):
         return f"{self.employee.name} - {self.year}/{self.month}"
 
 
+class EmployeeIDAlias(models.Model):
+    """
+    Tracks historical person_id values for in-house employees.
+
+    When an employee's person_id changes in the fingerprint machine,
+    the old ID is archived here so future uploads can still resolve
+    the correct employee record even after the ID changes.
+
+    Lookups against this table are scoped to active employees only —
+    if an employee is deactivated, their old IDs are considered released
+    and can be assigned to new employees without conflict.
+    """
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='id_aliases')
+    person_id = models.CharField(max_length=50, db_index=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('employee', 'person_id')
+        verbose_name = 'Employee ID Alias'
+        verbose_name_plural = 'Employee ID Aliases'
+
+    def __str__(self):
+        return f"{self.employee.name}: old ID {self.person_id}"
+
+
+class RemoteEmployeeIDAlias(models.Model):
+    """
+    Tracks historical extension_id values for remote employees.
+
+    Same purpose as EmployeeIDAlias but for remote employees whose
+    phone system extension changes.
+    """
+    employee = models.ForeignKey(RemoteEmployee, on_delete=models.CASCADE, related_name='id_aliases')
+    extension_id = models.CharField(max_length=50, db_index=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('employee', 'extension_id')
+        verbose_name = 'Remote Employee ID Alias'
+        verbose_name_plural = 'Remote Employee ID Aliases'
+
+    def __str__(self):
+        return f"{self.employee.name}: old ext {self.extension_id}"
+
+
 class EarlyLeaveRequest(models.Model):
     """Request for early leave (field visits, customer meetings, etc.)."""
     STATUS_CHOICES = [

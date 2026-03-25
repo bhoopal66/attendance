@@ -11,7 +11,11 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.hashers import make_password
 
-from ..models import Employee, RemoteEmployee
+from ..models import (
+    AttendanceRecord, EarlyLeaveRequest, Employee, EmployeeIDAlias,
+    LeaveRequest, MonthlySummary, RemoteCallRecord, RemoteEmployee,
+    RemoteEmployeeIDAlias, RemoteMonthlySummary, ShiftHistory,
+)
 from .utils import superuser_required
 
 logger = logging.getLogger('attendance')
@@ -178,3 +182,119 @@ def bulk_update_employees(request):
         'success': True,
         'message': f'Updated {updated_count} employees'
     })
+
+
+def _merge_inhouse_employees(keep, drop):
+    """
+    Transfer all records from drop → keep, then delete drop.
+    On date conflicts the keep record takes priority (drop's record is discarded).
+    """
+    # Attendance records — skip dates already present on keep
+    existing_dates = set(
+        AttendanceRecord.objects.filter(employee=keep).values_list('date', flat=True)
+    )
+    AttendanceRecord.objects.filter(employee=drop).exclude(date__in=existing_dates).update(employee=keep)
+
+    # Monthly summaries — skip months already present on keep
+    existing_months = set(
+        MonthlySummary.objects.filter(employee=keep).values_list('year', 'month')
+    )
+    for s in MonthlySummary.objects.filter(employee=drop):
+        if (s.year, s.month) not in existing_months:
+            s.employee = keep
+            s.save(update_fields=['employee'])
+
+    # Requests and shift history
+    EarlyLeaveRequest.objects.filter(employee=drop).update(employee=keep)
+    LeaveRequest.objects.filter(employee=drop).update(employee=keep)
+    ShiftHistory.objects.filter(employee=drop).update(employee=keep)
+
+    # Transfer existing aliases from drop to keep
+    for alias in EmployeeIDAlias.objects.filter(employee=drop):
+        EmployeeIDAlias.objects.get_or_create(employee=keep, person_id=alias.person_id)
+
+    # Archive drop's current person_id so future uploads still resolve correctly
+    EmployeeIDAlias.objects.get_or_create(employee=keep, person_id=drop.person_id)
+
+    drop.delete()
+
+
+def _merge_remote_employees(keep, drop):
+    """
+    Transfer all records from drop → keep, then delete drop.
+    On date conflicts the keep record takes priority.
+    """
+    existing_dates = set(
+        RemoteCallRecord.objects.filter(employee=keep).values_list('date', flat=True)
+    )
+    RemoteCallRecord.objects.filter(employee=drop).exclude(date__in=existing_dates).update(employee=keep)
+
+    existing_months = set(
+        RemoteMonthlySummary.objects.filter(employee=keep).values_list('year', 'month')
+    )
+    for s in RemoteMonthlySummary.objects.filter(employee=drop):
+        if (s.year, s.month) not in existing_months:
+            s.employee = keep
+            s.save(update_fields=['employee'])
+
+    EarlyLeaveRequest.objects.filter(remote_employee=drop).update(remote_employee=keep)
+
+    for alias in RemoteEmployeeIDAlias.objects.filter(employee=drop):
+        RemoteEmployeeIDAlias.objects.get_or_create(employee=keep, extension_id=alias.extension_id)
+
+    RemoteEmployeeIDAlias.objects.get_or_create(employee=keep, extension_id=drop.extension_id)
+
+    drop.delete()
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def merge_employees(request):
+    """
+    Merge two employee records of the same type.
+    All data from the dropped record is transferred to the kept record,
+    then the dropped record is deleted.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    keep_id = data.get('keep_id')
+    drop_id = data.get('drop_id')
+    emp_type = data.get('type')
+
+    if not all([keep_id, drop_id, emp_type]):
+        return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
+
+    if keep_id == drop_id:
+        return JsonResponse({'success': False, 'error': 'Cannot merge an employee with themselves'}, status=400)
+
+    if emp_type not in ('inhouse', 'remote'):
+        return JsonResponse({'success': False, 'error': 'Invalid employee type'}, status=400)
+
+    try:
+        if emp_type == 'inhouse':
+            keep = Employee.objects.get(id=keep_id)
+            drop = Employee.objects.get(id=drop_id)
+            drop_name = drop.name
+            _merge_inhouse_employees(keep, drop)
+        else:
+            keep = RemoteEmployee.objects.get(id=keep_id)
+            drop = RemoteEmployee.objects.get(id=drop_id)
+            drop_name = drop.name
+            _merge_remote_employees(keep, drop)
+    except (Employee.DoesNotExist, RemoteEmployee.DoesNotExist):
+        return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+    except Exception:
+        logger.exception("Error merging employees keep=%s drop=%s type=%s", keep_id, drop_id, emp_type)
+        return JsonResponse({'success': False, 'error': 'Merge failed due to an unexpected error'}, status=500)
+
+    logger.info(
+        "Merged employee '%s' (id=%s) into '%s' (id=%s) [%s] by %s",
+        drop_name, drop_id, keep.name, keep_id, emp_type, request.user.username
+    )
+    return JsonResponse({'success': True, 'message': f'Merged {drop_name} into {keep.name} successfully'})

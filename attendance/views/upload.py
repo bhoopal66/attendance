@@ -15,8 +15,8 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import redirect, render
 
 from ..models import (
-    AttendanceRecord, EarlyLeaveRequest, Employee,
-    RemoteCallRecord, RemoteEmployee,
+    AttendanceRecord, EarlyLeaveRequest, Employee, EmployeeIDAlias,
+    RemoteCallRecord, RemoteEmployee, RemoteEmployeeIDAlias,
 )
 from .utils import parse_duration, superuser_required
 
@@ -96,39 +96,106 @@ def _validate_file_extension(filename, allowed_extensions):
 
 def _lookup_or_create_employee(person_id, name):
     """
-    Look up employee using 3-tier strategy to prevent duplicate creation:
-    1. Exact match: person_id + name
-    2. Match by name only (if unique)
-    3. Create new if no match
+    Look up an in-house employee using a 4-tier strategy. Returns (employee, was_created).
+
+    Tier 1 — Exact match (person_id + name): fastest path, no changes needed.
+    Tier 2 — Active employee with the same name (unique): ID changed in the machine,
+              archive the old ID and update to the new one.
+    Tier 3 — Active employee via alias history: name also changed, but we recognise
+              the old ID. Only active employees are checked — inactive employees'
+              IDs are considered released and may be re-assigned to new people.
+    Tier 4 — Create new: genuinely new person.
     """
-    # Tier 1: Exact match on both fields
+    # Tier 1: Exact match
     employee = Employee.objects.filter(person_id=person_id, name=name).first()
     if employee:
-        return employee
+        return employee, False
 
-    # Tier 2: Match by name
-    name_matches = Employee.objects.filter(name=name)
-    count = name_matches.count()
+    # Tier 2: Active employee with same name
+    active_by_name = Employee.objects.filter(name=name, is_active=True)
+    count = active_by_name.count()
 
     if count == 1:
-        employee = name_matches.first()
+        employee = active_by_name.first()
         if employee.person_id != person_id:
+            old_id = employee.person_id
+            EmployeeIDAlias.objects.get_or_create(employee=employee, person_id=old_id)
             employee.person_id = person_id
             employee.save(update_fields=['person_id', 'updated_at'])
-            logger.info("Updated person_id for employee %s: %s", name, person_id)
-        return employee
-    elif count == 0:
-        # Tier 3: Create new
-        employee = Employee.objects.create(person_id=person_id, name=name)
-        logger.info("Created new employee: %s (person_id=%s)", name, person_id)
-        return employee
-    else:
-        # Multiple name matches - try to find by person_id among them
-        employee = name_matches.filter(person_id=person_id).first()
+            logger.info("Updated person_id for %s: %s → %s (old ID archived)", name, old_id, person_id)
+        return employee, False
+    elif count > 1:
+        # Multiple active employees share this name — try exact person_id among them
+        employee = active_by_name.filter(person_id=person_id).first()
         if employee:
-            return employee
-        # Fallback: use the most recently updated
-        return name_matches.order_by('-updated_at').first()
+            return employee, False
+        return active_by_name.order_by('-updated_at').first(), False
+
+    # Tier 3: Check alias history (active employees only — inactive IDs are released)
+    alias = EmployeeIDAlias.objects.filter(
+        person_id=person_id, employee__is_active=True
+    ).select_related('employee').first()
+    if alias:
+        employee = alias.employee
+        old_id = employee.person_id
+        EmployeeIDAlias.objects.get_or_create(employee=employee, person_id=old_id)
+        employee.person_id = person_id
+        employee.save(update_fields=['person_id', 'updated_at'])
+        logger.info("Matched %s via alias person_id %s → updated to %s", employee.name, person_id, person_id)
+        return employee, False
+
+    # Tier 4: Create new
+    employee = Employee.objects.create(person_id=person_id, name=name)
+    logger.info("Created new employee: %s (person_id=%s)", name, person_id)
+    return employee, True
+
+
+def _lookup_or_create_remote_employee(extension_id, name):
+    """
+    Look up a remote employee using the same 4-tier strategy as in-house.
+    Returns (employee, was_created).
+    """
+    # Tier 1: Exact match
+    employee = RemoteEmployee.objects.filter(extension_id=extension_id, name=name).first()
+    if employee:
+        return employee, False
+
+    # Tier 2: Active employee with same name
+    active_by_name = RemoteEmployee.objects.filter(name=name, is_active=True)
+    count = active_by_name.count()
+
+    if count == 1:
+        employee = active_by_name.first()
+        if employee.extension_id != extension_id:
+            old_id = employee.extension_id
+            RemoteEmployeeIDAlias.objects.get_or_create(employee=employee, extension_id=old_id)
+            employee.extension_id = extension_id
+            employee.save(update_fields=['extension_id', 'updated_at'])
+            logger.info("Updated extension_id for %s: %s → %s (old ID archived)", name, old_id, extension_id)
+        return employee, False
+    elif count > 1:
+        employee = active_by_name.filter(extension_id=extension_id).first()
+        if employee:
+            return employee, False
+        return active_by_name.order_by('-updated_at').first(), False
+
+    # Tier 3: Check alias history (active employees only)
+    alias = RemoteEmployeeIDAlias.objects.filter(
+        extension_id=extension_id, employee__is_active=True
+    ).select_related('employee').first()
+    if alias:
+        employee = alias.employee
+        old_id = employee.extension_id
+        RemoteEmployeeIDAlias.objects.get_or_create(employee=employee, extension_id=old_id)
+        employee.extension_id = extension_id
+        employee.save(update_fields=['extension_id', 'updated_at'])
+        logger.info("Matched %s via alias extension_id %s → updated to %s", employee.name, extension_id, extension_id)
+        return employee, False
+
+    # Tier 4: Create new
+    employee = RemoteEmployee.objects.create(extension_id=extension_id, name=name)
+    logger.info("Created new remote employee: %s (ext=%s)", name, extension_id)
+    return employee, True
 
 
 def _merge_with_approved_times(employee, date_val, fi_time, lo_time):
@@ -222,9 +289,12 @@ def upload_file(request):
 
         grouped = df.groupby(["Person ID", "Name"])
         processed_count = 0
+        new_employees = []
 
         for (person_id, name), group in grouped:
-            employee = _lookup_or_create_employee(person_id, name)
+            employee, created = _lookup_or_create_employee(person_id, name)
+            if created:
+                new_employees.append(name)
 
             first_in = group["First-In"].min()
             last_out = group["Last-Out"].max()
@@ -255,6 +325,14 @@ def upload_file(request):
             f'File uploaded and processed successfully! '
             f'{processed_count} employees updated for {selected_date_str}.'
         )
+        if new_employees:
+            names = ', '.join(new_employees)
+            messages.warning(
+                request,
+                f'{len(new_employees)} new employee record(s) were auto-created: {names}. '
+                f'If these are existing employees with a new machine ID, use the '
+                f'Employee Directory to merge the duplicate records.'
+            )
         return redirect('report')
 
     except ValueError as e:
@@ -292,6 +370,7 @@ def upload_remote_call_stats(request):
         selected_date = pd.to_datetime(selected_date_str).date()
 
         processed_count = 0
+        new_employees = []
         for _, row in df.iterrows():
             extension_col = row.get('Extension', '')
 
@@ -305,12 +384,9 @@ def upload_remote_call_stats(request):
             extension_id = parts[0].strip()
             name = parts[1].strip() if len(parts) > 1 else 'Unknown'
 
-            employee, created = RemoteEmployee.objects.get_or_create(
-                extension_id=extension_id,
-                name=name
-            )
+            employee, created = _lookup_or_create_remote_employee(extension_id, name)
             if created:
-                logger.info("Created new remote employee: %s (ext=%s)", name, extension_id)
+                new_employees.append(name)
 
             answered = int(row.get('Answered', 0) or 0)
             no_answered = int(row.get('No Answered', 0) or 0)
@@ -344,6 +420,14 @@ def upload_remote_call_stats(request):
             request,
             f'Remote call statistics uploaded! Processed {processed_count} employees.'
         )
+        if new_employees:
+            names = ', '.join(new_employees)
+            messages.warning(
+                request,
+                f'{len(new_employees)} new remote employee record(s) were auto-created: {names}. '
+                f'If these are existing employees with a new extension, use the '
+                f'Employee Directory to merge the duplicate records.'
+            )
         return redirect('remote_report')
 
     except ValueError as e:

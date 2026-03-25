@@ -43,7 +43,8 @@ from .api import (
 from .employee_management import (
     employee_management,
     update_employee,
-    bulk_update_employees
+    bulk_update_employees,
+    merge_employees,
 )
 from .leave_management import (
     leave_management,
@@ -93,6 +94,7 @@ __all__ = [
     'employee_management',
     'update_employee',
     'bulk_update_employees',
+    'merge_employees',
     # Leave Management
     'leave_management',
     'approve_leave_request',
