@@ -45,7 +45,7 @@
 .bulk-input { padding: 0.4rem 0.6rem; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 0.8rem; width: 140px; }
 .btn-bulk-apply { padding: 0.4rem 0.9rem; background: var(--primary-color); color: white; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 .btn-bulk-cancel { padding: 0.4rem 0.9rem; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
-.btn-bulk-merge  { padding: 0.4rem 0.9rem; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: none; }
+.btn-bulk-merge  { padding: 0.4rem 0.9rem; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 .btn-bulk-merge:hover { background: #ffedd5; }
 
 /* Merge modal specifics */
@@ -236,7 +236,7 @@
             <select             id="bulkDeptValue"    class="bulk-select"  style="display:none"><option value="">-- Select --</option><option value="Sales">Sales</option><option value="Admin">Admin</option></select>
             <select             id="bulkStatusValue"  class="bulk-select"  style="display:none"><option value="true">Active</option><option value="false">Inactive</option></select>
             <button class="btn-bulk-apply" onclick="applyBulkUpdate()">Apply</button>
-            <button class="btn-bulk-merge" id="mergeBtn" onclick="openMergeModal()">Merge Duplicates</button>
+            <button class="btn-bulk-merge" id="mergeBtn" onclick="openMergeModal()" style="display:none">Merge Duplicates</button>
             <button class="btn-bulk-cancel" onclick="clearSelection()">Cancel</button>
         </div>
     </div>
@@ -532,7 +532,7 @@ function updateSelection() {
     const mergeBtn = document.getElementById('mergeBtn');
     if (count === 2) {
         const types = checked.map(cb => cb.closest('tr').dataset.type);
-        mergeBtn.style.display = (types[0] === types[1]) ? '' : 'none';
+        mergeBtn.style.display = (types[0] === types[1]) ? 'inline-flex' : 'none';
     } else {
         mergeBtn.style.display = 'none';
     }
