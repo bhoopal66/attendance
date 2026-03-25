@@ -2,305 +2,333 @@
 {% load attendance_extras %}
 {% load static %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'attendance/css/remote_report.css' %}?v=13">
-{% endblock %}
-
 {% block page_title %}Remote Reports{% endblock %}
 
+{% block extra_css %}
+<style>
+.rpt-container { max-width: 1100px; margin: 0 auto; padding: 0 1rem 2rem; }
+
+/* Page Header */
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem; }
+.page-header-left { display: flex; align-items: center; gap: 0.75rem; }
+.page-header-icon { width: 40px; height: 40px; background: var(--primary-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+.page-header p  { font-size: 0.82rem; color: var(--text-secondary); margin: 0.1rem 0 0; }
+
+/* Tabs */
+.rpt-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border-color); margin-bottom: 1.25rem; }
+.rpt-tab { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.65rem 1.1rem; font-size: 0.855rem; font-weight: 600; color: var(--text-secondary); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s; }
+.rpt-tab:hover { color: var(--primary-color); }
+.rpt-tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+
+/* Toolbar */
+.rpt-toolbar { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 1rem; }
+.rpt-filter-row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); }
+.search-wrap { position: relative; flex: 1; min-width: 180px; }
+.search-wrap svg { position: absolute; left: 0.65rem; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+.search-wrap input { width: 100%; padding: 0.45rem 0.7rem 0.45rem 2.1rem; border: 1px solid var(--border-color); border-radius: 7px; font-size: 0.83rem; background: var(--surface-color); color: var(--text-primary); box-sizing: border-box; }
+.search-wrap input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(79,70,229,.1); }
+.rpt-select { padding: 0.45rem 0.7rem; border: 1px solid var(--border-color); border-radius: 7px; font-size: 0.83rem; background: var(--surface-color); color: var(--text-primary); cursor: pointer; }
+.rpt-select:focus { outline: none; border-color: var(--primary-color); }
+.inactive-label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.inactive-label input { accent-color: var(--primary-color); cursor: pointer; }
+.rpt-legend-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.legend-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.77rem; color: var(--text-secondary); }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+.legend-dot.green  { background: #16a34a; }
+.legend-dot.yellow { background: #ca8a04; }
+.legend-dot.red    { background: #dc2626; }
+.legend-dot.purple { background: #7c3aed; }
+.btn-download { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.9rem; background: var(--primary-color); color: white; border: none; border-radius: 7px; font-size: 0.83rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.btn-download:hover { opacity: .88; }
+.download-dropdown { position: relative; }
+.download-menu { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); min-width: 210px; z-index: 200; overflow: hidden; }
+.download-menu.show { display: block; }
+.download-menu a { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; color: var(--text-primary); text-decoration: none; font-size: 0.83rem; transition: background .12s; }
+.download-menu a:hover { background: #f5f3ff; color: var(--primary-color); }
+
+/* Employee list */
+.employees-list { display: flex; flex-direction: column; gap: 0.65rem; }
+.employee-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; }
+.employee-card[open] { border-color: #a5b4fc; }
+.employee-card[open] .emp-chevron { transform: rotate(180deg); }
+.employee-summary { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; cursor: pointer; list-style: none; user-select: none; }
+.employee-summary::-webkit-details-marker { display: none; }
+.employee-summary:hover { background: #f8fafc; }
+.emp-info { display: flex; align-items: center; gap: 0.75rem; }
+.emp-avatar { width: 32px; height: 32px; background: #dbeafe; color: #1d4ed8; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.82rem; flex-shrink: 0; }
+.emp-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
+.emp-id   { font-size: 0.75rem; color: var(--text-secondary); }
+.badge-inactive { background: #fee2e2; color: #dc2626; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; margin-left: 0.3rem; }
+.emp-stats { display: flex; align-items: center; gap: 0.4rem; }
+.spill { display: flex; align-items: center; gap: 0.25rem; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.77rem; font-weight: 600; }
+.spill.present { background: #dcfce7; color: #166534; }
+.spill.half    { background: #fefce8; color: #ca8a04; }
+.spill.absent  { background: #fee2e2; color: #dc2626; }
+.spill.talk    { background: #dbeafe; color: #1d4ed8; }
+.emp-chevron { color: var(--text-secondary); transition: transform .2s; }
+
+/* Expanded content */
+.emp-content { padding: 1rem; background: #f8fafc; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 1rem; }
+
+/* Calendar */
+.calendar-wrap { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+.cal-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 0.5rem 0.5rem 0.25rem; background: #f8fafc; border-bottom: 1px solid var(--border-color); }
+.cal-wday { text-align: center; font-size: 0.67rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; padding: 0.2rem; }
+.cal-wday.sunday { color: #dc2626; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 0.5rem; }
+.calendar-day { min-height: 58px; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.3rem 0.35rem; display: flex; flex-direction: column; position: relative; background: var(--surface-color); overflow: hidden; justify-content: space-between; }
+.calendar-day.empty { background: transparent; border-color: transparent; }
+.calendar-day.future { opacity: 0.45; }
+.day-number { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
+.calendar-day.sunday .day-number { color: #dc2626; }
+
+/* Remote status colors */
+.calendar-day.status-present  { background: #f0fdf4; border-color: #86efac; }
+.calendar-day.status-half_day { background: #fefce8; border-color: #fde047; }
+.calendar-day.status-absent   { background: #fef2f2; border-color: #fca5a5; }
+.calendar-day.status-holiday,
+.calendar-day.holiday          { background: #faf5ff; border-color: #c4b5fd; }
+
+.talk-duration { font-size: 0.67rem; font-weight: 700; color: #1d4ed8; line-height: 1.2; }
+.call-count { display: flex; align-items: center; gap: 2px; font-size: 0.63rem; color: #475569; }
+.day-label { font-size: 0.62rem; font-weight: 700; padding: 0.12rem 0.25rem; border-radius: 3px; margin-top: auto; text-align: center; line-height: 1.2; }
+.day-label.present { background: #dcfce7; color: #166534; }
+.day-label.half    { background: #fefce8; color: #ca8a04; }
+.day-label.absent  { background: #fee2e2; color: #dc2626; }
+.day-label.holiday { background: #ede9fe; color: #7c3aed; }
+
+/* Monthly Summary */
+.summary-wrap { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+.summary-head { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.9rem; background: #f8fafc; border-bottom: 1px solid var(--border-color); }
+.summary-head span { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); }
+.btn-dl-emp { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.7rem; background: white; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.77rem; color: var(--text-secondary); cursor: pointer; }
+.btn-dl-emp:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.summary-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+.summary-stat { display: flex; flex-direction: column; align-items: center; padding: 0.75rem 0.5rem; text-align: center; border-right: 1px solid var(--border-color); }
+.summary-stat:last-child { border-right: none; }
+.stat-val { font-size: 1.45rem; font-weight: 700; line-height: 1; margin-bottom: 0.3rem; }
+.stat-lbl { font-size: 0.7rem; color: var(--text-secondary); font-weight: 500; }
+.summary-stat.s-green  .stat-val { color: #16a34a; }
+.summary-stat.s-yellow .stat-val { color: #ca8a04; }
+.summary-stat.s-danger .stat-val { color: #dc2626; }
+.summary-stat.s-blue   .stat-val { color: #1d4ed8; }
+
+/* Empty State */
+.empty-state { display: flex; flex-direction: column; align-items: center; padding: 3rem 2rem; text-align: center; color: var(--text-secondary); background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 10px; }
+.empty-state svg { opacity: .3; margin-bottom: 1rem; }
+.empty-state h3 { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.3rem; }
+.empty-state p { font-size: 0.85rem; margin: 0 0 1.25rem; }
+.btn-primary { padding: 0.55rem 1.1rem; background: var(--primary-color); color: #fff; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="report-page">
+<div class="rpt-container">
+
     <!-- Page Header -->
     <div class="page-header">
-        <div class="header-content">
-            <div class="header-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2">
-                    <path
-                        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
-                    </path>
+        <div class="page-header-left">
+            <div class="page-header-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                 </svg>
             </div>
-            <div class="header-text">
+            <div>
                 <h1>Remote Team Reports</h1>
                 <p>Call statistics and attendance tracking for remote employees</p>
             </div>
         </div>
     </div>
 
-    <!-- Tab Navigation -->
-    <div class="report-tabs-container">
-        <div class="report-tabs">
-            <a href="{% url 'report' %}?month={{ selected_month }}&year={{ selected_year }}" class="tab">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-                In-House Team
-            </a>
-            <a href="{% url 'remote_report' %}?month={{ selected_month }}&year={{ selected_year }}" class="tab active">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2">
-                    <path
-                        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
-                    </path>
-                </svg>
-                Remote Team
-            </a>
-        </div>
+    <!-- Tabs -->
+    <div class="rpt-tabs">
+        <a href="{% url 'report' %}?month={{ selected_month }}&year={{ selected_year }}" class="rpt-tab">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            In-House Team
+        </a>
+        <a href="{% url 'remote_report' %}?month={{ selected_month }}&year={{ selected_year }}" class="rpt-tab active">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            Remote Team
+        </a>
     </div>
 
-    <!-- Main Content Card -->
-    <div class="report-content-card">
-        <!-- Filters Section -->
-        <div class="filters-section">
-            <form method="get" class="filter-bar">
-                <div class="filter-group search-group">
-                    <label>Search</label>
-                    <div class="search-input-wrapper">
-                        <input type="text" name="search" placeholder="Search employee name..."
-                            value="{{ search_query }}" class="search-input">
-                        <button type="submit" class="search-btn purple">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                            </svg>
-                        </button>
-                    </div>
+    <!-- Toolbar -->
+    <div class="rpt-toolbar">
+        <div class="rpt-filter-row">
+            <form method="get" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;width:100%">
+                <div class="search-wrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" name="search" placeholder="Search employee name…" value="{{ search_query }}">
                 </div>
-                <div class="filter-group">
-                    <label>Month</label>
-                    <select name="month" onchange="this.form.submit()">
-                        {% for m_num, m_name in months %}
-                        <option value="{{ m_num }}" {% if m_num == selected_month %}selected{% endif %}>{{ m_name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Year</label>
-                    <select name="year" onchange="this.form.submit()">
-                        {% for y in years %}
-                        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="filter-group checkbox-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="show_inactive" value="1" {% if show_inactive %}checked{% endif %}
-                            onchange="this.form.submit()">
-                        <span class="checkbox-text">Show inactive</span>
-                    </label>
-                </div>
+                <select name="month" class="rpt-select" onchange="this.form.submit()">
+                    {% for m_num, m_name in months %}
+                    <option value="{{ m_num }}" {% if m_num == selected_month %}selected{% endif %}>{{ m_name }}</option>
+                    {% endfor %}
+                </select>
+                <select name="year" class="rpt-select" onchange="this.form.submit()">
+                    {% for y in years %}
+                    <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <label class="inactive-label">
+                    <input type="checkbox" name="show_inactive" value="1" {% if show_inactive %}checked{% endif %} onchange="this.form.submit()">
+                    Show inactive
+                </label>
+                <noscript><button type="submit" style="padding:.45rem .9rem;background:var(--primary-color);color:white;border:none;border-radius:7px;font-size:.83rem;cursor:pointer">Filter</button></noscript>
             </form>
         </div>
-
-        <!-- Legend and Actions -->
-        <div class="legend-actions-bar">
+        <div class="rpt-legend-row">
             <div class="legend">
-                <span class="legend-item"><span class="legend-dot green"></span> Present (Full)</span>
+                <span class="legend-item"><span class="legend-dot green"></span> Present</span>
                 <span class="legend-item"><span class="legend-dot yellow"></span> Half Day</span>
                 <span class="legend-item"><span class="legend-dot red"></span> Absent</span>
                 <span class="legend-item"><span class="legend-dot purple"></span> Holiday</span>
             </div>
             <div class="download-dropdown">
-                <button class="btn-download purple" onclick="toggleDownloadMenu()">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
+                <button class="btn-download" onclick="toggleDownloadMenu()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Download XLSX
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div class="download-menu" id="downloadMenu">
                     <a href="javascript:void(0)" onclick="downloadRemoteReport()">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                         All Employees (Summary)
                     </a>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Employees List -->
-        <div class="employees-list">
-            {% for employee in employees %}
-            <details class="employee-card">
-                <summary class="employee-summary">
-                    <div class="employee-info">
-                        <div class="employee-avatar purple">{{ employee.name|slice:":1"|upper }}</div>
-                        <div class="employee-details">
-                            <strong class="employee-name">{{ employee.name }}</strong>
-                            <span class="employee-id">Ext: {{ employee.extension_id }}</span>
+    <!-- Employee List -->
+    <div class="employees-list">
+        {% for employee in employees %}
+        <details class="employee-card">
+            <summary class="employee-summary">
+                <div class="emp-info">
+                    <div class="emp-avatar">{{ employee.name|slice:":1"|upper }}</div>
+                    <div>
+                        <div class="emp-name">
+                            {{ employee.name }}
+                            {% if not employee.is_active %}<span class="badge-inactive">Inactive</span>{% endif %}
                         </div>
-                        {% if not employee.is_active %}
-                        <span class="status-badge inactive">Inactive</span>
-                        {% endif %}
+                        <div class="emp-id">Ext: {{ employee.extension_id }}</div>
                     </div>
-                    <div class="employee-stats">
-                        <span class="stat-pill present" title="Present Days">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
-                            {{ employee.summary.present_days }}
-                        </span>
-                        <span class="stat-pill half" title="Half Days">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="5"></circle>
-                                <line x1="12" y1="1" x2="12" y2="3"></line>
-                                <line x1="12" y1="21" x2="12" y2="23"></line>
-                            </svg>
-                            {{ employee.summary.half_days }}
-                        </span>
-                        <span class="stat-pill absent" title="Absent Days">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="15" y1="9" x2="9" y2="15"></line>
-                                <line x1="9" y1="9" x2="15" y2="15"></line>
-                            </svg>
-                            {{ employee.summary.absent_days }}
-                        </span>
-                        <span class="stat-pill talk" title="Total Talk Time">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2">
-                                <path
-                                    d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72">
-                                </path>
-                            </svg>
-                            {{ employee.summary.total_talk_hours }}h
-                        </span>
-                        <span class="expand-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </span>
-                    </div>
-                </summary>
+                </div>
+                <div class="emp-stats">
+                    <span class="spill present" title="Present Days">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        {{ employee.summary.present_days }}
+                    </span>
+                    <span class="spill half" title="Half Days">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
+                        {{ employee.summary.half_days }}
+                    </span>
+                    <span class="spill absent" title="Absent Days">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        {{ employee.summary.absent_days }}
+                    </span>
+                    <span class="spill talk" title="Total Talk Time">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72"/></svg>
+                        {{ employee.summary.total_talk_hours }}h
+                    </span>
+                    <svg class="emp-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+            </summary>
 
-                <div class="employee-details-content">
-                    <!-- Calendar View -->
-                    <div class="calendar-section">
-                        <div class="calendar-header">
-                            {% for day in weekdays %}
-                            <div class="weekday {% if day == 'Sun' %}sunday{% endif %}">{{ day }}</div>
-                            {% endfor %}
-                        </div>
-                        <div class="calendar-grid">
-                            {% for day in calendar_days %}
-                            {% if day %}
+            <div class="emp-content">
+                <!-- Calendar -->
+                <div class="calendar-wrap">
+                    <div class="cal-header">
+                        {% for day in weekdays %}
+                        <div class="cal-wday {% if day == 'Sun' %}sunday{% endif %}">{{ day }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="cal-grid">
+                        {% for day in calendar_days %}
+                        {% if day %}
                             {% with day_info=employee.calendar_data|get_item:day %}
                             {% if day_info %}
-                            <div
-                                class="calendar-day status-{{ day_info.status }} {% if day_info.is_sunday %}sunday{% endif %} {% if day_info.is_holiday %}holiday{% endif %} {% if day > current_day %}future{% endif %}">
+                            <div class="calendar-day status-{{ day_info.status }} {% if day_info.is_sunday %}sunday{% endif %} {% if day_info.is_holiday %}holiday{% endif %} {% if day > current_day %}future{% endif %}">
                                 <span class="day-number">{{ day }}</span>
                                 {% if day_info.is_sunday or day_info.is_holiday %}
-                                <div class="day-label holiday">Holiday</div>
+                                    <div class="day-label holiday">Holiday</div>
                                 {% elif day > current_day and day_info.status == 'absent' %}
-                                <!-- Future day empty -->
+                                    {# future empty day #}
                                 {% else %}
-                                <div class="talk-duration">{{ day_info.talk_minutes }} min</div>
-                                <div class="call-count">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"></path>
-                                    </svg>
-                                    {{ day_info.answered_calls }}
-                                </div>
-                                <div
-                                    class="day-label {% if day_info.status == 'present' %}present{% elif day_info.status == 'half_day' %}half{% else %}absent{% endif %}">
-                                    {% if day_info.status == 'present' %}Present{% elif day_info.status == 'half_day'
-                                    %}Half{% else %}Absent{% endif %}
-                                </div>
+                                    <div class="talk-duration">{{ day_info.talk_minutes }} min</div>
+                                    <div class="call-count">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/></svg>
+                                        {{ day_info.answered_calls }}
+                                    </div>
+                                    <div class="day-label {% if day_info.status == 'present' %}present{% elif day_info.status == 'half_day' %}half{% else %}absent{% endif %}">
+                                        {% if day_info.status == 'present' %}Present{% elif day_info.status == 'half_day' %}Half{% else %}Absent{% endif %}
+                                    </div>
                                 {% endif %}
                             </div>
                             {% endif %}
                             {% endwith %}
-                            {% else %}
+                        {% else %}
                             <div class="calendar-day empty"></div>
-                            {% endif %}
-                            {% endfor %}
-                        </div>
+                        {% endif %}
+                        {% endfor %}
                     </div>
+                </div>
 
-                    <!-- Monthly Summary -->
-                    <div class="monthly-summary-section">
-                        <div class="summary-header">
-                            <h4>Monthly Summary</h4>
-                            <button onclick="downloadRemoteEmployeeReport({{ employee.id }}, '{{ employee.name }}')"
-                                class="btn-download-employee">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="7 10 12 15 17 10"></polyline>
-                                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                                </svg>
-                                Download Report
-                            </button>
+                <!-- Monthly Summary -->
+                <div class="summary-wrap">
+                    <div class="summary-head">
+                        <span>Monthly Summary</span>
+                        <button onclick="downloadRemoteEmployeeReport({{ employee.id }}, '{{ employee.name }}')" class="btn-dl-emp">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download
+                        </button>
+                    </div>
+                    <div class="summary-stats">
+                        <div class="summary-stat s-green">
+                            <div class="stat-val">{{ employee.summary.present_days }}</div>
+                            <div class="stat-lbl">Present Days</div>
                         </div>
-                        <div class="summary-stats">
-                            <div class="summary-stat success">
-                                <span class="stat-value">{{ employee.summary.present_days }}</span>
-                                <span class="stat-label">Present Days</span>
-                            </div>
-                            <div class="summary-stat warning">
-                                <span class="stat-value">{{ employee.summary.half_days }}</span>
-                                <span class="stat-label">Half Days</span>
-                            </div>
-                            <div class="summary-stat danger">
-                                <span class="stat-value">{{ employee.summary.absent_days }}</span>
-                                <span class="stat-label">Absent Days</span>
-                            </div>
-                            <div class="summary-stat purple">
-                                <span class="stat-value">{{ employee.summary.total_talk_hours }}</span>
-                                <span class="stat-label">Total Hours</span>
-                            </div>
+                        <div class="summary-stat s-yellow">
+                            <div class="stat-val">{{ employee.summary.half_days }}</div>
+                            <div class="stat-lbl">Half Days</div>
+                        </div>
+                        <div class="summary-stat s-danger">
+                            <div class="stat-val">{{ employee.summary.absent_days }}</div>
+                            <div class="stat-lbl">Absent Days</div>
+                        </div>
+                        <div class="summary-stat s-blue">
+                            <div class="stat-val">{{ employee.summary.total_talk_hours }}</div>
+                            <div class="stat-lbl">Total Hours</div>
                         </div>
                     </div>
                 </div>
-            </details>
-            {% empty %}
-            <div class="empty-state">
-                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="1">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6"></path>
-                    <line x1="23" y1="1" x2="1" y2="23"></line>
-                </svg>
-                <h3>No Remote Employees Found</h3>
-                <p>Please upload remote call statistics to see reports.</p>
-                <a href="{% url 'upload' %}" class="btn-primary purple">Upload Data</a>
             </div>
-            {% endfor %}
+        </details>
+        {% empty %}
+        <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6"/><line x1="23" y1="1" x2="1" y2="23"/></svg>
+            <h3>No Remote Employees Found</h3>
+            <p>Upload remote call statistics to see reports.</p>
+            <a href="{% url 'upload' %}" class="btn-primary">Upload Data</a>
         </div>
+        {% endfor %}
     </div>
-</div>
+
+</div><!-- /rpt-container -->
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    window.remoteReportConfig = {
-        selectedYear: {{ selected_year }},
-    selectedMonth: { { selected_month } },
-    showInactive: {% if show_inactive %} true{% else %} false{% endif %},
-    downloadReportUrl: "{% url 'download_remote_report' %}",
-        downloadEmployeeReportUrl: "{% url 'download_remote_employee_report' employee_id=0 %}"
-    };
+window.remoteReportConfig = {
+    selectedYear:  {{ selected_year }},
+    selectedMonth: {{ selected_month }},
+    showInactive:  {% if show_inactive %}true{% else %}false{% endif %},
+    downloadReportUrl:         "{% url 'download_remote_report' %}",
+    downloadEmployeeReportUrl: "{% url 'download_remote_employee_report' employee_id=0 %}"
+};
 </script>
 <script src="{% static 'attendance/js/remote_report.js' %}?v=2"></script>
 {% endblock %}
