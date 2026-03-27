@@ -106,8 +106,8 @@ def employee_management(request):
         'locations': locations,
         'teams': teams,
         'total_count': len(all_employees),
-        'inhouse_count': inhouse_employees.count(),
-        'remote_count': remote_employees.count(),
+        'inhouse_count': len(inhouse_employees),
+        'remote_count': len(remote_employees),
     }
 
     return render(request, 'attendance/employee_management.html', context)
