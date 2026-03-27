@@ -300,10 +300,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                         </div>
                     </td>
                     <td>
-                        <div class="id-stack">
-                            <span class="text-mono">{{ emp.identifier }}</span>
-                            <span class="id-sub">Ext: {{ emp.linked_remote_identifier }}</span>
-                        </div>
+                        <span class="text-mono">{{ emp.id }}</span>
                     </td>
                     <td>
                         <div class="emp-name-cell">
@@ -340,8 +337,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                         </div>
                     </td>
                     <td>
-                        <span class="text-mono">{{ emp.identifier }}</span>
-                        {% if emp.tcr_id %}<br><span style="font-size:0.72rem;color:#6d28d9;font-weight:600">{{ emp.tcr_id }}</span>{% endif %}
+                        <span class="text-mono">{{ emp.id }}</span>
                     </td>
                     <td>
                         <div class="emp-name-cell">
