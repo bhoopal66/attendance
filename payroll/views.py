@@ -180,6 +180,51 @@ def _get_remote_payroll_row(emp, year, month, total_holidays):
     }
 
 
+def _get_inhouse_sales_stub_row(emp):
+    """Return a zeroed-out payroll row for an in-house sales employee.
+    Salary calculation for sales staff is not yet implemented.
+    """
+    return {
+        'employee': emp,
+        'employee_type': 'inhouse',
+        'salary': float(emp.salary) if emp.salary else 0.0,
+        'full_days': 0,
+        'half_days': 0,
+        'effective_work_days': 0.0,
+        'holidays': 0,
+        'paid_leave_days': 0,
+        'total_working_days': 0.0,
+        'daily_rate': 0.0,
+        'base_payroll': 0.0,
+        'incentives': 0.0,
+        'reductions': 0.0,
+        'commission': 0.0,
+        'net_payroll': 0.0,
+    }
+
+
+def _get_remote_sales_stub_row(emp):
+    """Return a zeroed-out payroll row for a remote (sales) employee.
+    Salary calculation for sales staff is not yet implemented.
+    """
+    return {
+        'employee': emp,
+        'employee_type': 'remote',
+        'salary': float(emp.salary) if emp.salary else 0.0,
+        'present_days': 0,
+        'half_days': 0,
+        'effective_work_days': 0.0,
+        'holidays': 0,
+        'total_working_days': 0.0,
+        'daily_rate': 0.0,
+        'base_payroll': 0.0,
+        'incentives': 0.0,
+        'reductions': 0.0,
+        'commission': 0.0,
+        'net_payroll': 0.0,
+    }
+
+
 def _build_section_totals(rows):
     """Sum net, incentives, reductions, commission across a list of payroll rows."""
     return (
@@ -215,22 +260,16 @@ def payroll_dashboard(request):
     ]
     total_admin, admin_incentives_total, admin_reductions_total, _ = _build_section_totals(admin_data)
 
-    # --- Sales section: in-house Sales employees ---
+    # --- Sales section: in-house Sales employees (stub — calculation not yet implemented) ---
     sales_inhouse_employees = Employee.objects.filter(
         department='Sales', is_active=True
     ).order_by('name')
-    sales_inhouse_data = [
-        _get_inhouse_payroll_row(emp, selected_year, selected_month, month_start, month_end, total_holidays)
-        for emp in sales_inhouse_employees
-    ]
+    sales_inhouse_data = [_get_inhouse_sales_stub_row(emp) for emp in sales_inhouse_employees]
     total_sales_inhouse, _, _, _ = _build_section_totals(sales_inhouse_data)
 
-    # --- Sales section: remote employees ---
+    # --- Sales section: remote employees (stub — calculation not yet implemented) ---
     remote_employees = RemoteEmployee.objects.filter(is_active=True).order_by('name')
-    remote_data = [
-        _get_remote_payroll_row(emp, selected_year, selected_month, total_holidays)
-        for emp in remote_employees
-    ]
+    remote_data = [_get_remote_sales_stub_row(emp) for emp in remote_employees]
     total_remote, _, _, _ = _build_section_totals(remote_data)
 
     # Combined Sales totals
