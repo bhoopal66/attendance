@@ -95,7 +95,17 @@ def employee_management(request):
     for emp in remote_employees:
         all_employees.append(_serialize_employee(emp, 'remote', inhouse_by_tcr=inhouse_by_tcr))
 
-    all_employees.sort(key=lambda x: x['name'].lower())
+    def _dept_sort_key(emp):
+        dept = (emp.get('department') or '').lower()
+        if dept == 'admin':
+            order = 0
+        elif dept == 'sales':
+            order = 1
+        else:
+            order = 2
+        return (order, emp['name'].lower())
+
+    all_employees.sort(key=_dept_sort_key)
 
     departments = sorted(set(e['department'] for e in all_employees if e['department']))
     locations = sorted(set(e['location'] for e in all_employees if e['location']))

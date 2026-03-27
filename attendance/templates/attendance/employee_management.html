@@ -228,7 +228,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
         </select>
         <select class="filter-select" id="statusFilter">
             <option value="">All Status</option>
-            <option value="active">Active</option>
+            <option value="active" selected>Active</option>
             <option value="inactive">Inactive</option>
         </select>
         <select class="filter-select" id="departmentFilter">
@@ -679,6 +679,7 @@ document.getElementById('searchInput').addEventListener('input', applyFilters);
 document.getElementById('typeFilter').addEventListener('change', applyFilters);
 document.getElementById('statusFilter').addEventListener('change', applyFilters);
 document.getElementById('departmentFilter').addEventListener('change', applyFilters);
+applyFilters();
 
 // ── Selection & Bulk ───────────────────────────────────────────────
 function toggleSelectAll() {
