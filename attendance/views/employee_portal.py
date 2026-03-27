@@ -28,17 +28,38 @@ def _authenticate_employee(email, password):
     """
     Try to authenticate an employee by email and password.
     Checks both in-house and remote employees.
+
+    For linked employees (same email exists in both tables with a matching password),
+    the Employee record's location field decides which portal to use:
+      - location == 'remote' (case-insensitive) → remote portal
+      - anything else                            → in-house portal
+
     Returns: (employee_object, employee_type_string) or (None, None)
     """
-    # Check in-house employees
+    inhouse_match = None
+    remote_match = None
+
     for emp in Employee.objects.filter(email__iexact=email, is_active=True):
         if emp.portal_password and check_password(password, emp.portal_password):
-            return emp, 'inhouse'
+            inhouse_match = emp
+            break
 
-    # Check remote employees
     for emp in RemoteEmployee.objects.filter(email__iexact=email, is_active=True):
         if emp.portal_password and check_password(password, emp.portal_password):
-            return emp, 'remote'
+            remote_match = emp
+            break
+
+    # Linked employee: both records match — use location on the in-house record to decide
+    if inhouse_match and remote_match:
+        location = (inhouse_match.location or '').strip().lower()
+        if location == 'remote':
+            return remote_match, 'remote'
+        return inhouse_match, 'inhouse'
+
+    if inhouse_match:
+        return inhouse_match, 'inhouse'
+    if remote_match:
+        return remote_match, 'remote'
 
     return None, None
 
