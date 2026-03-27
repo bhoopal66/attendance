@@ -86,10 +86,14 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         half_days = summary.half_days or 0
         full_days = summary.working_days - half_days
         effective_work_days = full_days + (half_days * 0.5)
+        absent_days = summary.leave_days or 0
+        late_days = summary.late_days or 0
     else:
         full_days = 0
         half_days = 0
         effective_work_days = 0.0
+        absent_days = 0
+        late_days = 0
 
     salary = float(emp.salary) if emp.salary else 0.0
 
@@ -102,8 +106,12 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     paid_leave_days = sum(_leave_days_in_month(leave, month_start, month_end) for leave in approved_leaves)
 
     daily_rate = salary / 30 if salary > 0 else 0.0
-    total_working_days = effective_work_days + total_holidays + paid_leave_days
-    base_payroll = daily_rate * total_working_days
+    # Every 3 late days = 1 half-day deduction
+    late_half_days = late_days // 3
+    # Deduct absent days, half-day shortfalls, and late penalties from full salary
+    total_deduction_days = absent_days + (half_days * 0.5) + (late_half_days * 0.5)
+    deduction = daily_rate * total_deduction_days
+    base_payroll = salary - deduction
 
     adjustments = PayrollAdjustment.objects.filter(employee=emp, year=year, month=month)
     incentives = float(
@@ -122,10 +130,13 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'full_days': full_days,
         'half_days': half_days,
         'effective_work_days': round(effective_work_days, 1),
-        'holidays': total_holidays,
+        'absent_days': absent_days,
+        'late_days': late_days,
+        'late_half_days': late_half_days,
         'paid_leave_days': paid_leave_days,
-        'total_working_days': round(total_working_days, 1),
+        'total_deduction_days': round(total_deduction_days, 1),
         'daily_rate': round(daily_rate, 2),
+        'deduction': round(deduction, 2),
         'base_payroll': round(base_payroll, 2),
         'incentives': round(incentives, 2),
         'reductions': round(reductions, 2),
@@ -143,15 +154,19 @@ def _get_remote_payroll_row(emp, year, month, total_holidays):
     if summary:
         present_days = summary.present_days or 0
         half_days = summary.half_days or 0
+        absent_days = summary.absent_days or 0
     else:
         present_days = 0
         half_days = 0
+        absent_days = 0
 
     salary = float(emp.salary) if emp.salary else 0.0
     effective_work_days = present_days + (half_days * 0.5)
     daily_rate = salary / 30 if salary > 0 else 0.0
-    total_working_days = effective_work_days + total_holidays
-    base_payroll = daily_rate * total_working_days
+    # Deduct absent days and half-day shortfalls from full salary
+    total_deduction_days = absent_days + (half_days * 0.5)
+    deduction = daily_rate * total_deduction_days
+    base_payroll = salary - deduction
 
     adjustments = PayrollAdjustment.objects.filter(remote_employee=emp, year=year, month=month)
     incentives = float(
@@ -170,9 +185,10 @@ def _get_remote_payroll_row(emp, year, month, total_holidays):
         'present_days': present_days,
         'half_days': half_days,
         'effective_work_days': round(effective_work_days, 1),
-        'holidays': total_holidays,
-        'total_working_days': round(total_working_days, 1),
+        'absent_days': absent_days,
+        'total_deduction_days': round(total_deduction_days, 1),
         'daily_rate': round(daily_rate, 2),
+        'deduction': round(deduction, 2),
         'base_payroll': round(base_payroll, 2),
         'incentives': round(incentives, 2),
         'reductions': round(reductions, 2),
@@ -192,10 +208,13 @@ def _get_inhouse_sales_stub_row(emp):
         'full_days': 0,
         'half_days': 0,
         'effective_work_days': 0.0,
-        'holidays': 0,
+        'absent_days': 0,
+        'late_days': 0,
+        'late_half_days': 0,
         'paid_leave_days': 0,
-        'total_working_days': 0.0,
+        'total_deduction_days': 0.0,
         'daily_rate': 0.0,
+        'deduction': 0.0,
         'base_payroll': 0.0,
         'incentives': 0.0,
         'reductions': 0.0,
@@ -215,9 +234,10 @@ def _get_remote_sales_stub_row(emp):
         'present_days': 0,
         'half_days': 0,
         'effective_work_days': 0.0,
-        'holidays': 0,
-        'total_working_days': 0.0,
+        'absent_days': 0,
+        'total_deduction_days': 0.0,
         'daily_rate': 0.0,
+        'deduction': 0.0,
         'base_payroll': 0.0,
         'incentives': 0.0,
         'reductions': 0.0,

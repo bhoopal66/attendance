@@ -653,7 +653,7 @@
                     <th>Employee</th>
                     <th class="text-right">Salary</th>
                     <th class="text-right">Days Worked</th>
-                    <th class="text-right">Payable Days</th>
+                    <th class="text-right">Absent Days</th>
                     <th class="text-right">Base Pay</th>
                     <th class="text-right">Incentives</th>
                     <th class="text-right">Reductions</th>
@@ -673,8 +673,8 @@
                         <div class="days-breakdown">{{ item.full_days }}full + {{ item.half_days }}×½</div>
                     </td>
                     <td class="text-right">
-                        {{ item.total_working_days }}
-                        <div class="days-breakdown">+{{ item.holidays }} holiday{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
+                        {{ item.total_deduction_days }}
+                        <div class="days-breakdown">-{{ item.absent_days }} absent{% if item.half_days %} -{{ item.half_days }}×½{% endif %}{% if item.late_half_days %} -{{ item.late_days }}late→{{ item.late_half_days }}×½{% endif %}{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
                     </td>
                     <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
                     <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
@@ -723,7 +723,7 @@
                     <th>Employee</th>
                     <th class="text-right">Salary</th>
                     <th class="text-right">Days Worked</th>
-                    <th class="text-right">Payable Days</th>
+                    <th class="text-right">Absent Days</th>
                     <th class="text-right">Base Pay</th>
                     <th class="text-right">Commission</th>
                     <th class="text-right">Incentives</th>
@@ -744,8 +744,8 @@
                         <div class="days-breakdown">{{ item.full_days }}full + {{ item.half_days }}×½</div>
                     </td>
                     <td class="text-right">
-                        {{ item.total_working_days }}
-                        <div class="days-breakdown">+{{ item.holidays }} holiday{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
+                        {{ item.total_deduction_days }}
+                        <div class="days-breakdown">-{{ item.absent_days }} absent{% if item.half_days %} -{{ item.half_days }}×½{% endif %}{% if item.late_half_days %} -{{ item.late_days }}late→{{ item.late_half_days }}×½{% endif %}{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
                     </td>
                     <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
                     <td class="text-right mono {% if item.commission > 0 %}text-amber{% else %}text-muted{% endif %}">
@@ -782,7 +782,7 @@
                     <th>Employee</th>
                     <th class="text-right">Salary</th>
                     <th class="text-right">Present Days</th>
-                    <th class="text-right">Payable Days</th>
+                    <th class="text-right">Absent Days</th>
                     <th class="text-right">Base Pay</th>
                     <th class="text-right">Commission</th>
                     <th class="text-right">Incentives</th>
@@ -803,8 +803,8 @@
                         <div class="days-breakdown">{{ item.present_days }}full + {{ item.half_days }}×½</div>
                     </td>
                     <td class="text-right">
-                        {{ item.total_working_days }}
-                        <div class="days-breakdown">+{{ item.holidays }} holiday</div>
+                        {{ item.total_deduction_days }}
+                        <div class="days-breakdown">-{{ item.absent_days }} absent{% if item.half_days %} -{{ item.half_days }}×½{% endif %}</div>
                     </td>
                     <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
                     <td class="text-right mono {% if item.commission > 0 %}text-amber{% else %}text-muted{% endif %}">
