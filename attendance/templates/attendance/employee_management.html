@@ -295,8 +295,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <td><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
                     <td>
                         <div class="type-cell">
-                            <span class="type-badge inhouse">In-House</span>
-                            <span class="type-badge remote">Remote</span>
+                            {% if emp.location %}<span class="tag">{{ emp.location }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
                             <span class="tcr-badge">{{ emp.tcr_id }}</span>
                         </div>
                     </td>
