@@ -18,6 +18,7 @@ from attendance.models import (
 )
 from attendance.views.utils import (
     SATURDAY_WORK_DURATION_SECONDS,
+    get_active_special_periods_for_month,
     get_approved_leave_days, get_employee_shift_for_date, get_saturday_shift,
 )
 
@@ -74,6 +75,7 @@ class Command(BaseCommand):
             employees = employees.filter(id=employee_id)
 
         sat_start, sat_end = get_saturday_shift()
+        special_periods = get_active_special_periods_for_month(month_start, month_end)
 
         shift_duration_sat = SATURDAY_WORK_DURATION_SECONDS
         updated = 0
@@ -85,11 +87,7 @@ class Command(BaseCommand):
         )
 
         for emp in employees:
-            shift_start, shift_end = get_employee_shift_for_date(emp, month_start)
-            shift_duration_weekday = (
-                (shift_end.hour * 60 + shift_end.minute) -
-                (shift_start.hour * 60 + shift_start.minute)
-            ) * 60
+            emp_shift_start, emp_shift_end = get_employee_shift_for_date(emp, month_start)
 
             records = AttendanceRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month
@@ -124,28 +122,36 @@ class Command(BaseCommand):
 
                 arrived_after_noon = record.first_in and record.first_in.hour >= 12 and not is_saturday
 
+                # Resolve effective shift for this specific day (respects SpecialShiftPeriod)
+                active_period = next(
+                    (p for p in special_periods if p.start_date <= record.date <= p.end_date),
+                    None
+                )
                 if is_saturday:
-                    time_in_ok = record.first_in and (
-                        record.first_in.hour < sat_start.hour or
-                        (record.first_in.hour == sat_start.hour and
-                         record.first_in.minute <= sat_start.minute)
-                    )
-                    time_out_ok = record.last_out and (
-                        record.last_out.hour > sat_end.hour or
-                        (record.last_out.hour == sat_end.hour and
-                         record.last_out.minute >= sat_end.minute)
-                    )
+                    if active_period and active_period.sat_shift_start:
+                        day_shift_start = active_period.sat_shift_start
+                        day_shift_end = active_period.sat_shift_end
+                    else:
+                        day_shift_start = sat_start
+                        day_shift_end = sat_end
                 else:
-                    time_in_ok = record.first_in and (
-                        record.first_in.hour < shift_start.hour or
-                        (record.first_in.hour == shift_start.hour and
-                         record.first_in.minute <= shift_start.minute)
-                    )
-                    time_out_ok = record.last_out and (
-                        record.last_out.hour > shift_end.hour or
-                        (record.last_out.hour == shift_end.hour and
-                         record.last_out.minute >= shift_end.minute)
-                    )
+                    if active_period:
+                        day_shift_start = active_period.shift_start
+                        day_shift_end = active_period.shift_end
+                    else:
+                        day_shift_start = emp_shift_start
+                        day_shift_end = emp_shift_end
+
+                time_in_ok = record.first_in and (
+                    record.first_in.hour < day_shift_start.hour or
+                    (record.first_in.hour == day_shift_start.hour and
+                     record.first_in.minute <= day_shift_start.minute)
+                )
+                time_out_ok = record.last_out and (
+                    record.last_out.hour > day_shift_end.hour or
+                    (record.last_out.hour == day_shift_end.hour and
+                     record.last_out.minute >= day_shift_end.minute)
+                )
 
                 if record.first_in and not time_in_ok and not arrived_after_noon:
                     late_days += 1
