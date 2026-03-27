@@ -108,6 +108,8 @@
 .btn-edit:hover { background: #dbeafe; }
 .btn-edit.remote-edit { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
 .btn-edit.remote-edit:hover { background: #e0f2fe; }
+.btn-delete { padding: 0.3rem 0.55rem; background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; border-radius: 6px; font-size: 0.78rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.btn-delete:hover { background: #ffe4e6; }
 tr.linked-row { background: #faf5ff; }
 tr.linked-row:hover { background: #f3e8ff !important; }
 .tcr-badge { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.68rem; color:#6d28d9; background:#ede9fe; border:1px solid #c4b5fd; border-radius:10px; padding:0.1rem 0.45rem; white-space:nowrap; font-weight:600; }
@@ -322,6 +324,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                         <div class="actions-cell">
                             <button class="btn-edit" onclick="openEditModal({{ emp.id }}, 'inhouse')">In-House</button>
                             <button class="btn-edit remote-edit" onclick="openEditModal({{ emp.linked_remote_id }}, 'remote')">Remote</button>
+                            <button class="btn-delete" onclick="openDeleteModal({{ emp.id }}, 'inhouse', '{{ emp.name|escapejs }}')">&#x1F5D1;</button>
                         </div>
                     </td>
                 </tr>
@@ -359,6 +362,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <td class="col-actions">
                         <div class="actions-cell">
                             <button class="btn-edit" onclick="openEditModal({{ emp.id }}, '{{ emp.type }}')">Edit</button>
+                            <button class="btn-delete" onclick="openDeleteModal({{ emp.id }}, '{{ emp.type }}', '{{ emp.name|escapejs }}')">&#x1F5D1;</button>
                         </div>
                     </td>
                 </tr>
@@ -382,6 +386,33 @@ tr.linked-row:hover { background: #f3e8ff !important; }
     </div>
 
 </div><!-- /emp-container -->
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-box" style="max-width:420px">
+        <div class="modal-head">
+            <h3>Delete Employee</h3>
+            <button class="modal-close" onclick="closeDeleteModal()">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.875rem;color:var(--text-secondary);margin:0 0 0.75rem">
+                Are you sure you want to permanently delete <strong id="deleteEmpName">—</strong>?
+            </p>
+            <div class="merge-warning" style="margin-bottom:1rem">
+                This will permanently delete the employee and all their attendance records, leave requests, and summaries. This action cannot be undone.
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label style="font-size:0.79rem;font-weight:600;color:var(--text-secondary)">Superadmin Password</label>
+                <input type="password" id="deletePassword" placeholder="Enter your password to confirm"
+                    style="border:1px solid #fca5a5;border-radius:7px;padding:0.48rem 0.7rem;font-size:0.85rem;color:var(--text-primary);background:var(--surface-color);width:100%;box-sizing:border-box;margin-top:0.3rem">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+            <button class="btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()">Delete Permanently</button>
+        </div>
+    </div>
+</div>
 
 <!-- Merge Modal -->
 <div class="modal-overlay" id="mergeModal">
@@ -962,6 +993,64 @@ async function confirmUnlink() {
 
 document.getElementById('linkModal').addEventListener('click', function(e) {
     if (e.target === this) closeLinkModal();
+});
+
+// ── Delete ──────────────────────────────────────────────────────────
+let deleteTarget = null;
+
+function openDeleteModal(id, type, name) {
+    deleteTarget = { id, type };
+    document.getElementById('deleteEmpName').textContent = name;
+    document.getElementById('deletePassword').value = '';
+    document.getElementById('confirmDeleteBtn').disabled = false;
+    document.getElementById('confirmDeleteBtn').textContent = 'Delete Permanently';
+    document.getElementById('deleteModal').classList.add('show');
+    setTimeout(() => document.getElementById('deletePassword').focus(), 100);
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('show');
+    document.getElementById('deletePassword').value = '';
+    deleteTarget = null;
+}
+
+async function confirmDelete() {
+    if (!deleteTarget) return;
+    const password = document.getElementById('deletePassword').value;
+    if (!password) {
+        document.getElementById('deletePassword').focus();
+        showToast('Please enter your password', 'error');
+        return;
+    }
+    document.getElementById('confirmDeleteBtn').disabled = true;
+    document.getElementById('confirmDeleteBtn').textContent = 'Deleting…';
+    try {
+        const res = await fetch('/employees/delete/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+            body: JSON.stringify({ ...deleteTarget, password }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            closeDeleteModal();
+            setTimeout(() => location.reload(), 900);
+        } else {
+            showToast(data.error || 'Delete failed', 'error');
+            document.getElementById('confirmDeleteBtn').disabled = false;
+            document.getElementById('confirmDeleteBtn').textContent = 'Delete Permanently';
+            document.getElementById('deletePassword').value = '';
+            document.getElementById('deletePassword').focus();
+        }
+    } catch {
+        showToast('Error deleting employee', 'error');
+        document.getElementById('confirmDeleteBtn').disabled = false;
+        document.getElementById('confirmDeleteBtn').textContent = 'Delete Permanently';
+    }
+}
+
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
 });
 </script>
 {% endblock %}

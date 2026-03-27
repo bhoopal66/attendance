@@ -340,6 +340,42 @@ def merge_employees(request):
 
 @login_required
 @user_passes_test(superuser_required, login_url='/report/')
+def delete_employee(request):
+    """Permanently delete an employee and all their associated data."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    employee_id = data.get('id')
+    employee_type = data.get('type')
+
+    if not employee_id or not employee_type:
+        return JsonResponse({'success': False, 'error': 'Missing id or type'}, status=400)
+
+    emp = _get_employee_by_type(employee_id, employee_type)
+    if not emp:
+        return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+
+    password = data.get('password', '')
+    if not password or not request.user.check_password(password):
+        return JsonResponse({'success': False, 'error': 'Incorrect password'}, status=403)
+
+    emp_name = emp.name
+    emp.delete()
+
+    logger.info(
+        "Employee deleted: '%s' (id=%s, type=%s) by %s",
+        emp_name, employee_id, employee_type, request.user.username
+    )
+    return JsonResponse({'success': True, 'message': f'{emp_name} has been permanently deleted'})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
 def link_employees(request):
     """
     Link an in-house employee and a remote employee as the same person by

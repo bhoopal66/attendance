@@ -45,6 +45,7 @@ from .employee_management import (
     update_employee,
     bulk_update_employees,
     merge_employees,
+    delete_employee,
     link_employees,
     unlink_employees,
 )
@@ -97,6 +98,7 @@ __all__ = [
     'update_employee',
     'bulk_update_employees',
     'merge_employees',
+    'delete_employee',
     'link_employees',
     'unlink_employees',
     # Leave Management
