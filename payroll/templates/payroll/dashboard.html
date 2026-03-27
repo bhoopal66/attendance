@@ -79,6 +79,23 @@
     }
     .btn-banks:hover { background: #dcfce7; }
 
+    .btn-recalculate {
+        padding: 10px 16px;
+        background: #fff7ed;
+        color: #9a3412;
+        border: 1px solid #fed7aa;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    .btn-recalculate:hover { background: #ffedd5; }
+    .btn-recalculate:disabled { opacity: 0.6; cursor: not-allowed; }
+
     /* Grand Total Banner */
     .grand-total-banner {
         background: linear-gradient(135deg, #1e1b4b 0%, #4F46E5 100%);
@@ -576,6 +593,9 @@
             Payroll — {{ month_name }} {{ selected_year }}
         </h1>
         <div class="header-right">
+            <button class="btn-recalculate" id="recalcBtn" onclick="recalculateSummaries()">
+                🔄 Recalculate
+            </button>
             <a href="{% url 'manage_banks' %}" class="btn-banks">
                 🏦 Manage Banks
             </a>
@@ -1164,5 +1184,34 @@
     document.getElementById('adjModal').addEventListener('click', function (e) {
         if (e.target === this) closeModal();
     });
+
+    async function recalculateSummaries() {
+        const btn = document.getElementById('recalcBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Recalculating...';
+        try {
+            const res = await fetch('/payroll/api/recalculate/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrf(),
+                },
+                body: JSON.stringify({ year: {{ selected_year }}, month: {{ selected_month }} }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                btn.textContent = '✅ Done';
+                setTimeout(() => location.reload(), 800);
+            } else {
+                alert('Error: ' + data.error);
+                btn.disabled = false;
+                btn.textContent = '🔄 Recalculate';
+            }
+        } catch (e) {
+            alert('Request failed. Please try again.');
+            btn.disabled = false;
+            btn.textContent = '🔄 Recalculate';
+        }
+    }
 </script>
 {% endblock %}

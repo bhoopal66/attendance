@@ -8,6 +8,7 @@ import calendar
 import logging
 from decimal import Decimal
 
+from django.core.management import call_command
 from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -702,6 +703,30 @@ def add_remote_adjustment(request):
             'reason': adjustment.reason,
         },
     })
+
+
+# ============================================
+# API: Recalculate Summaries
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def recalculate_summaries(request):
+    """Trigger recalculation of monthly summaries for the selected month/year."""
+    try:
+        data = json.loads(request.body)
+        year = int(data.get('year'))
+        month = int(data.get('month'))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid year/month'}, status=400)
+
+    if not (1 <= month <= 12) or not (2000 <= year <= 2099):
+        return JsonResponse({'success': False, 'error': 'Invalid year/month'}, status=400)
+
+    call_command('recalculate_summaries', year, month, verbosity=0)
+    logger.info("Payroll summaries recalculated for %s/%s by %s", year, month, request.user.username)
+    return JsonResponse({'success': True})
 
 
 # ============================================
