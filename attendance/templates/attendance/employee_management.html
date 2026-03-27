@@ -557,15 +557,15 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                             <option value="">-- Select --</option>
                             <option value="Sales">Sales</option>
                             <option value="Admin">Admin</option>
-                            <option value="Engineering">Engineering</option>
-                            <option value="Support">Support</option>
-                            <option value="HR">HR</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>Location</label>
-                        <input type="text" id="editLocation" list="locationList" placeholder="Office location">
-                        <datalist id="locationList">{% for loc in locations %}<option value="{{ loc }}">{% endfor %}</datalist>
+                        <select id="editLocation">
+                            <option value="">-- Select --</option>
+                            <option value="Inhouse">Inhouse</option>
+                            <option value="Remote">Remote</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Team</label>
