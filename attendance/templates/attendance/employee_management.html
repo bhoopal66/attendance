@@ -102,6 +102,13 @@
 
 .btn-edit { padding: 0.3rem 0.75rem; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 0.78rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .btn-edit:hover { background: #dbeafe; }
+.btn-edit.remote-edit { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+.btn-edit.remote-edit:hover { background: #e0f2fe; }
+tr.linked-row { background: #faf5ff; }
+tr.linked-row:hover { background: #f3e8ff !important; }
+.tcr-badge { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.68rem; color:#6d28d9; background:#ede9fe; border:1px solid #c4b5fd; border-radius:10px; padding:0.1rem 0.45rem; white-space:nowrap; font-weight:600; }
+.id-stack { display:flex; flex-direction:column; gap:0.15rem; }
+.id-sub { font-size:0.72rem; color:var(--text-secondary); font-family:'SF Mono',monospace; }
 
 /* Table footer */
 .table-footer { padding: 10px 14px; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); background: #f8fafc; }
@@ -267,25 +274,70 @@
             </thead>
             <tbody id="employeeTableBody">
                 {% for emp in employees %}
-                <tr data-id="{{ emp.id }}" data-type="{{ emp.type }}"
+                {% if emp.type == 'remote' and emp.linked_inhouse_id %}{% comment %}Hidden — shown as part of in-house combined row{% endcomment %}
+                {% elif emp.type == 'inhouse' and emp.linked_remote_id %}
+                {# Combined row for linked in-house + remote pair #}
+                <tr class="linked-row"
+                    data-id="{{ emp.id }}" data-type="{{ emp.type }}"
                     data-name="{{ emp.name|lower }}" data-email="{{ emp.email|lower }}"
                     data-identifier="{{ emp.identifier|lower }}" data-department="{{ emp.department|lower }}"
                     data-location="{{ emp.location|lower }}" data-team="{{ emp.team|lower }}"
                     data-status="{% if emp.is_active %}active{% else %}inactive{% endif %}"
-                    {% if emp.type == 'inhouse' and emp.linked_remote_id %}data-linked="true"{% endif %}
-                    {% if emp.type == 'remote' and emp.linked_inhouse_id %}data-linked="true"{% endif %}>
+                    data-linked="true"
+                    data-linked-remote-id="{{ emp.linked_remote_id }}">
+                    <td><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
+                    <td>
+                        <div class="type-cell">
+                            <span class="type-badge inhouse">In-House</span>
+                            <span class="type-badge remote">Remote</span>
+                            <span class="tcr-badge">{{ emp.tcr_id }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="id-stack">
+                            <span class="text-mono">{{ emp.identifier }}</span>
+                            <span class="id-sub">Ext: {{ emp.linked_remote_identifier }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="emp-name-cell">
+                            <div class="avatar">{{ emp.name|slice:":1"|upper }}</div>
+                            <span class="emp-name">{{ emp.name }}</span>
+                        </div>
+                    </td>
+                    <td><span class="text-muted">{{ emp.email|default:"—" }}</span></td>
+                    <td><span class="text-muted">{{ emp.phone|default:"—" }}</span></td>
+                    <td>
+                        {% if emp.department %}<span class="tag">{{ emp.department }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge {% if emp.is_active %}active{% else %}inactive{% endif %}">
+                            <span class="status-dot {% if emp.is_active %}active{% else %}inactive{% endif %}"></span>
+                            {{ emp.is_active|yesno:"Active,Inactive" }}
+                        </span>
+                    </td>
+                    <td style="text-align:right;display:flex;gap:0.35rem;justify-content:flex-end">
+                        <button class="btn-edit" onclick="openEditModal({{ emp.id }}, 'inhouse')">Edit In-House</button>
+                        <button class="btn-edit remote-edit" onclick="openEditModal({{ emp.linked_remote_id }}, 'remote')">Edit Remote</button>
+                    </td>
+                </tr>
+                {% else %}
+                {# Normal single row #}
+                <tr data-id="{{ emp.id }}" data-type="{{ emp.type }}"
+                    data-name="{{ emp.name|lower }}" data-email="{{ emp.email|lower }}"
+                    data-identifier="{{ emp.identifier|lower }}" data-department="{{ emp.department|lower }}"
+                    data-location="{{ emp.location|lower }}" data-team="{{ emp.team|lower }}"
+                    data-status="{% if emp.is_active %}active{% else %}inactive{% endif %}">
                     <td><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
                     <td>
                         <div class="type-cell">
                             <span class="type-badge {{ emp.type }}">{{ emp.type|title }}</span>
-                            {% if emp.type == 'inhouse' and emp.linked_remote_id %}
-                            <span class="linked-badge" title="Linked with remote: {{ emp.linked_remote_name }}">🔗 {{ emp.linked_remote_name }}</span>
-                            {% elif emp.type == 'remote' and emp.linked_inhouse_id %}
-                            <span class="linked-badge" title="Linked with in-house: {{ emp.linked_inhouse_name }}">🔗 {{ emp.linked_inhouse_name }}</span>
-                            {% endif %}
                         </div>
                     </td>
-                    <td><span class="text-mono">{{ emp.identifier }}</span></td>
+                    <td>
+                        <span class="text-mono">{{ emp.identifier }}</span>
+                        {% if emp.tcr_id %}<br><span style="font-size:0.72rem;color:#6d28d9;font-weight:600">{{ emp.tcr_id }}</span>{% endif %}
+                    </td>
                     <td>
                         <div class="emp-name-cell">
                             <div class="avatar {% if emp.type == 'remote' %}remote{% endif %}">{{ emp.name|slice:":1"|upper }}</div>
@@ -307,6 +359,7 @@
                         <button class="btn-edit" onclick="openEditModal({{ emp.id }}, '{{ emp.type }}')">Edit</button>
                     </td>
                 </tr>
+                {% endif %}
                 {% empty %}
                 <tr><td colspan="9">
                     <div class="empty-state">
@@ -399,7 +452,13 @@
                     <div class="merge-card-id" id="linkRemoteId">—</div>
                 </div>
             </div>
-            <div class="merge-warning" style="margin-top:0.5rem">
+            <div style="margin-top:1rem">
+                <label style="font-size:0.82rem;font-weight:600;color:var(--text-primary)">TCR Employee ID *</label>
+                <input type="text" id="linkTcrId" placeholder="e.g. TCR1000224"
+                    style="width:100%;margin-top:0.3rem;padding:0.5rem 0.75rem;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem;text-transform:uppercase">
+                <small style="font-size:0.75rem;color:var(--text-secondary)">This ID will be assigned to both records, linking them as the same person.</small>
+            </div>
+            <div class="merge-warning" style="margin-top:0.75rem">
                 You can remove this link at any time by selecting both employees and clicking Unlink.
             </div>
         </div>
@@ -423,14 +482,19 @@
 
             <div class="form-section">
                 <div class="form-section-title">Basic Information</div>
-                <div class="form-row cols-2">
+                <div class="form-row cols-3">
                     <div class="form-group">
                         <label>Employee Type</label>
                         <input type="text" id="editTypeDisplay" readonly>
                     </div>
                     <div class="form-group">
-                        <label>Employee ID</label>
+                        <label>System ID</label>
                         <input type="text" id="editIdentifier" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>TCR Employee ID</label>
+                        <input type="text" id="editTcrId" placeholder="e.g. TCR1000224" style="text-transform:uppercase">
+                        <small class="form-help">Shared ID that links in-house &amp; remote records for the same person</small>
                     </div>
                 </div>
                 <div class="form-group">
@@ -588,18 +652,19 @@ function updateSelection() {
     linkBtn.style.display   = 'none';
     unlinkBtn.style.display = 'none';
 
-    if (count === 2) {
+    if (count === 1) {
+        const row = checked[0].closest('tr');
+        if (row.dataset.linkedRemoteId) {
+            unlinkBtn.style.display = 'inline-flex';
+        }
+    } else if (count === 2) {
         const rows = checked.map(cb => cb.closest('tr'));
-        const types = rows.map(r => r.dataset.type);
-        if (types[0] === types[1]) {
-            mergeBtn.style.display = 'inline-flex';
-        } else {
-            const emps = rows.map(r => employeesData.find(e => e.id === parseInt(r.dataset.id) && e.type === r.dataset.type));
-            const inhouseEmp = emps.find(e => e.type === 'inhouse');
-            const remoteEmp  = emps.find(e => e.type === 'remote');
-            if (remoteEmp.linked_inhouse_id === inhouseEmp.id) {
-                unlinkBtn.style.display = 'inline-flex';
-            } else if (!inhouseEmp.linked_remote_id && !remoteEmp.linked_inhouse_id) {
+        const anyLinked = rows.some(r => r.dataset.linkedRemoteId);
+        if (!anyLinked) {
+            const types = rows.map(r => r.dataset.type);
+            if (types[0] === types[1]) {
+                mergeBtn.style.display = 'inline-flex';
+            } else {
                 linkBtn.style.display = 'inline-flex';
             }
         }
@@ -660,6 +725,7 @@ function openEditModal(id, type) {
     document.getElementById('editType').value         = emp.type;
     document.getElementById('editTypeDisplay').value  = emp.type;
     document.getElementById('editIdentifier').value   = emp.identifier;
+    document.getElementById('editTcrId').value        = emp.tcr_id || '';
     document.getElementById('editName').value         = emp.name;
     document.getElementById('editEmail').value        = emp.email || '';
     document.getElementById('editPhone').value        = emp.phone || '';
@@ -688,8 +754,10 @@ async function saveEmployee() {
     const type = document.getElementById('editType').value;
     const salaryVal = document.getElementById('editSalary').value.trim();
 
+    const tcrVal = document.getElementById('editTcrId').value.trim().toUpperCase();
     const data = {
         id, type,
+        tcr_id:        tcrVal || null,
         name:          document.getElementById('editName').value,
         email:         document.getElementById('editEmail').value,
         phone:         document.getElementById('editPhone').value,
@@ -828,6 +896,9 @@ function openLinkModal() {
     document.getElementById('linkInhouseId').textContent   = `ID: ${linkPair.inhouse.identifier}`;
     document.getElementById('linkRemoteName').textContent  = linkPair.remote.name;
     document.getElementById('linkRemoteId').textContent    = `Ext: ${linkPair.remote.identifier}`;
+    // Pre-fill TCR ID if either employee already has one
+    const existingTcrId = linkPair.inhouse.tcr_id || linkPair.remote.tcr_id || '';
+    document.getElementById('linkTcrId').value = existingTcrId;
     document.getElementById('confirmLinkBtn').disabled = false;
     document.getElementById('confirmLinkBtn').textContent = '🔗 Link Employees';
     document.getElementById('linkModal').classList.add('show');
@@ -838,13 +909,15 @@ function closeLinkModal() {
 }
 
 async function confirmLink() {
+    const tcr_id = document.getElementById('linkTcrId').value.trim().toUpperCase();
+    if (!tcr_id) { showToast('Please enter a TCR Employee ID', 'error'); return; }
     document.getElementById('confirmLinkBtn').disabled = true;
     document.getElementById('confirmLinkBtn').textContent = 'Linking…';
     try {
         const res = await fetch('/employees/link/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-            body: JSON.stringify({ inhouse_id: linkPair.inhouse.id, remote_id: linkPair.remote.id }),
+            body: JSON.stringify({ inhouse_id: linkPair.inhouse.id, remote_id: linkPair.remote.id, tcr_id }),
         });
         const data = await res.json();
         if (data.success) {
@@ -865,17 +938,15 @@ async function confirmLink() {
 
 async function confirmUnlink() {
     const checked = [...document.querySelectorAll('.row-checkbox:checked')];
-    const emps = checked.map(cb => {
-        const row = cb.closest('tr');
-        return employeesData.find(e => e.id === parseInt(row.dataset.id) && e.type === row.dataset.type);
-    });
-    const remoteEmp = emps.find(e => e.type === 'remote');
-    if (!remoteEmp) return;
+    if (checked.length !== 1) return;
+    const row = checked[0].closest('tr');
+    const remoteId = row.dataset.linkedRemoteId;
+    if (!remoteId) return;
     try {
         const res = await fetch('/employees/unlink/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-            body: JSON.stringify({ remote_id: remoteEmp.id }),
+            body: JSON.stringify({ remote_id: parseInt(remoteId) }),
         });
         const data = await res.json();
         if (data.success) { showToast(data.message, 'success'); setTimeout(() => location.reload(), 900); }

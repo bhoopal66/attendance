@@ -1,8 +1,14 @@
 import logging
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 
 logger = logging.getLogger('attendance')
+
+tcr_id_validator = RegexValidator(
+    regex=r'^TCR\d+$',
+    message='TCR ID must be in the format TCR followed by digits (e.g. TCR1000224).'
+)
 
 
 class BaseEmployee(models.Model):
@@ -11,6 +17,16 @@ class BaseEmployee(models.Model):
         ('Sales', 'Sales'),
         ('Admin', 'Admin'),
     ]
+
+    tcr_id = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        validators=[tcr_id_validator],
+        help_text="Unique company employee ID (e.g. TCR1000224). Same ID links in-house and remote records for the same person."
+    )
 
     name = models.CharField(max_length=100)
     email = models.EmailField(null=True, blank=True, db_index=True)
@@ -225,15 +241,6 @@ class RemoteEmployee(BaseEmployee):
 
     salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     designation = models.CharField(max_length=100, null=True, blank=True)
-
-    linked_employee = models.OneToOneField(
-        'Employee',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='remote_employee',
-        help_text="In-house employee record for the same person (if they appear in both systems)"
-    )
 
     class Meta:
         unique_together = ('extension_id', 'name')

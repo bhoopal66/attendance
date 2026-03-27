@@ -6,6 +6,7 @@ Custom interface for managing all employees without Django admin.
 import json
 import logging
 
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -24,16 +25,21 @@ logger = logging.getLogger('attendance')
 ALLOWED_UPDATE_FIELDS = {
     'name', 'email', 'phone', 'department', 'location', 'team',
     'is_active', 'salary', 'designation', 'joining_date', 'leaving_date',
+    'tcr_id',
 }
 ALLOWED_BULK_FIELDS = {'department', 'location', 'team', 'is_active'}
 
 
-def _serialize_employee(emp, emp_type):
-    """Serialize an employee (in-house or remote) to a dict."""
+def _serialize_employee(emp, emp_type, remote_by_tcr=None, inhouse_by_tcr=None):
+    """Serialize an employee (in-house or remote) to a dict.
+
+    Pass pre-fetched tcr_id→employee dicts to avoid N+1 queries.
+    """
     data = {
         'id': emp.id,
         'type': emp_type,
         'identifier': emp.person_id if emp_type == 'inhouse' else emp.extension_id,
+        'tcr_id': emp.tcr_id or '',
         'name': emp.name,
         'email': emp.email or '',
         'phone': emp.phone or '',
@@ -46,14 +52,28 @@ def _serialize_employee(emp, emp_type):
     }
     data['salary'] = float(emp.salary) if emp.salary else None
     data['designation'] = emp.designation if emp_type == 'remote' else None
-    if emp_type == 'inhouse':
-        remote = getattr(emp, 'remote_employee', None)
-        data['linked_remote_id'] = remote.id if remote else None
-        data['linked_remote_name'] = remote.name if remote else None
+    if emp.tcr_id:
+        if emp_type == 'inhouse':
+            remote = (remote_by_tcr or {}).get(emp.tcr_id)
+            if remote is None and remote_by_tcr is None:
+                remote = RemoteEmployee.objects.filter(tcr_id=emp.tcr_id).first()
+            data['linked_remote_id'] = remote.id if remote else None
+            data['linked_remote_name'] = remote.name if remote else None
+            data['linked_remote_identifier'] = remote.extension_id if remote else None
+        else:
+            inhouse = (inhouse_by_tcr or {}).get(emp.tcr_id)
+            if inhouse is None and inhouse_by_tcr is None:
+                inhouse = Employee.objects.filter(tcr_id=emp.tcr_id).first()
+            data['linked_inhouse_id'] = inhouse.id if inhouse else None
+            data['linked_inhouse_name'] = inhouse.name if inhouse else None
     else:
-        linked = emp.linked_employee
-        data['linked_inhouse_id'] = linked.id if linked else None
-        data['linked_inhouse_name'] = linked.name if linked else None
+        if emp_type == 'inhouse':
+            data['linked_remote_id'] = None
+            data['linked_remote_name'] = None
+            data['linked_remote_identifier'] = None
+        else:
+            data['linked_inhouse_id'] = None
+            data['linked_inhouse_name'] = None
     return data
 
 
@@ -61,14 +81,18 @@ def _serialize_employee(emp, emp_type):
 @user_passes_test(superuser_required, login_url='/report/')
 def employee_management(request):
     """Display all employees (in-house and remote) in a unified management page."""
-    inhouse_employees = Employee.objects.select_related('remote_employee').all().order_by('name')
-    remote_employees = RemoteEmployee.objects.select_related('linked_employee').all().order_by('name')
+    inhouse_employees = list(Employee.objects.all().order_by('name'))
+    remote_employees = list(RemoteEmployee.objects.all().order_by('name'))
+
+    # Build tcr_id lookup maps to avoid per-employee queries
+    remote_by_tcr = {e.tcr_id: e for e in remote_employees if e.tcr_id}
+    inhouse_by_tcr = {e.tcr_id: e for e in inhouse_employees if e.tcr_id}
 
     all_employees = []
     for emp in inhouse_employees:
-        all_employees.append(_serialize_employee(emp, 'inhouse'))
+        all_employees.append(_serialize_employee(emp, 'inhouse', remote_by_tcr=remote_by_tcr))
     for emp in remote_employees:
-        all_employees.append(_serialize_employee(emp, 'remote'))
+        all_employees.append(_serialize_employee(emp, 'remote', inhouse_by_tcr=inhouse_by_tcr))
 
     all_employees.sort(key=lambda x: x['name'].lower())
 
@@ -130,7 +154,7 @@ def update_employee(request):
         if field == 'designation' and not hasattr(emp, 'designation'):
             continue
         value = data[field]
-        if field in ('email', 'phone', 'department', 'location', 'team', 'designation', 'joining_date', 'leaving_date'):
+        if field in ('email', 'phone', 'department', 'location', 'team', 'designation', 'joining_date', 'leaving_date', 'tcr_id'):
             value = value or None
         setattr(emp, field, value)
 
@@ -139,9 +163,15 @@ def update_employee(request):
         emp.portal_password = make_password(data['portal_password'])
 
     try:
+        emp.full_clean(exclude=['person_id', 'extension_id'])
         emp.save()
         logger.info("Employee updated: %s (id=%s) by %s", emp.name, emp.id, request.user.username)
         return JsonResponse({'success': True, 'message': 'Employee updated successfully'})
+    except ValidationError as e:
+        flat = '; '.join(
+            f"{f}: {', '.join(msgs)}" for f, msgs in e.message_dict.items()
+        ) if hasattr(e, 'message_dict') else str(e)
+        return JsonResponse({'success': False, 'error': flat}, status=400)
     except Exception:
         logger.exception("Error updating employee id=%s", employee_id)
         return JsonResponse({'success': False, 'error': 'Failed to update employee.'}, status=500)
@@ -312,8 +342,8 @@ def merge_employees(request):
 @user_passes_test(superuser_required, login_url='/report/')
 def link_employees(request):
     """
-    Link an in-house employee and a remote employee as the same person.
-    Both records are preserved; this just marks them as representing the same individual.
+    Link an in-house employee and a remote employee as the same person by
+    assigning the same TCR ID to both records.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
@@ -325,9 +355,13 @@ def link_employees(request):
 
     inhouse_id = data.get('inhouse_id')
     remote_id = data.get('remote_id')
+    tcr_id = (data.get('tcr_id') or '').strip() or None
 
     if not inhouse_id or not remote_id:
         return JsonResponse({'success': False, 'error': 'Missing inhouse_id or remote_id'}, status=400)
+
+    if not tcr_id:
+        return JsonResponse({'success': False, 'error': 'TCR ID is required to link employees'}, status=400)
 
     try:
         inhouse = Employee.objects.get(id=inhouse_id)
@@ -339,33 +373,51 @@ def link_employees(request):
     except RemoteEmployee.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Remote employee not found'}, status=404)
 
-    existing_remote = getattr(inhouse, 'remote_employee', None)
-    if existing_remote is not None:
-        return JsonResponse(
-            {'success': False, 'error': f'{inhouse.name} is already linked to {existing_remote.name}'},
-            status=400
-        )
+    # Check if either employee is already linked to someone else via a different tcr_id
+    if inhouse.tcr_id and inhouse.tcr_id != tcr_id:
+        other = RemoteEmployee.objects.filter(tcr_id=inhouse.tcr_id).first()
+        if other:
+            return JsonResponse(
+                {'success': False, 'error': f'{inhouse.name} is already linked to {other.name}'},
+                status=400
+            )
 
-    if remote.linked_employee is not None:
-        return JsonResponse(
-            {'success': False, 'error': f'{remote.name} is already linked to {remote.linked_employee.name}'},
-            status=400
-        )
+    if remote.tcr_id and remote.tcr_id != tcr_id:
+        other = Employee.objects.filter(tcr_id=remote.tcr_id).first()
+        if other:
+            return JsonResponse(
+                {'success': False, 'error': f'{remote.name} is already linked to {other.name}'},
+                status=400
+            )
 
-    remote.linked_employee = inhouse
-    remote.save(update_fields=['linked_employee'])
+    # Check tcr_id not used by a completely different employee
+    for model, exclude_id, label in [
+        (Employee, inhouse.id, 'in-house'),
+        (RemoteEmployee, remote.id, 'remote'),
+    ]:
+        conflict = model.objects.filter(tcr_id=tcr_id).exclude(id=exclude_id).first()
+        if conflict:
+            return JsonResponse(
+                {'success': False, 'error': f'TCR ID {tcr_id} is already assigned to {conflict.name}'},
+                status=400
+            )
+
+    inhouse.tcr_id = tcr_id
+    inhouse.save(update_fields=['tcr_id'])
+    remote.tcr_id = tcr_id
+    remote.save(update_fields=['tcr_id'])
 
     logger.info(
-        "Linked in-house '%s' (id=%s) with remote '%s' (id=%s) by %s",
-        inhouse.name, inhouse.id, remote.name, remote.id, request.user.username
+        "Linked in-house '%s' (id=%s) with remote '%s' (id=%s) via TCR ID %s by %s",
+        inhouse.name, inhouse.id, remote.name, remote.id, tcr_id, request.user.username
     )
-    return JsonResponse({'success': True, 'message': f'Linked {inhouse.name} (In-House) with {remote.name} (Remote)'})
+    return JsonResponse({'success': True, 'message': f'Linked {inhouse.name} (In-House) with {remote.name} (Remote) as {tcr_id}'})
 
 
 @login_required
 @user_passes_test(superuser_required, login_url='/report/')
 def unlink_employees(request):
-    """Remove the link between an in-house and remote employee."""
+    """Remove the TCR ID link between an in-house and remote employee."""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
 
@@ -383,15 +435,21 @@ def unlink_employees(request):
     except RemoteEmployee.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Remote employee not found'}, status=404)
 
-    if remote.linked_employee is None:
+    if not remote.tcr_id:
         return JsonResponse({'success': False, 'error': 'Employee is not linked'}, status=400)
 
-    inhouse_name = remote.linked_employee.name
-    remote.linked_employee = None
-    remote.save(update_fields=['linked_employee'])
+    tcr_id = remote.tcr_id
+    inhouse = Employee.objects.filter(tcr_id=tcr_id).first()
+    inhouse_name = inhouse.name if inhouse else tcr_id
+
+    remote.tcr_id = None
+    remote.save(update_fields=['tcr_id'])
+    if inhouse:
+        inhouse.tcr_id = None
+        inhouse.save(update_fields=['tcr_id'])
 
     logger.info(
-        "Unlinked remote '%s' (id=%s) from in-house '%s' by %s",
-        remote.name, remote.id, inhouse_name, request.user.username
+        "Unlinked remote '%s' (id=%s) from in-house '%s' (TCR ID %s) by %s",
+        remote.name, remote.id, inhouse_name, tcr_id, request.user.username
     )
     return JsonResponse({'success': True, 'message': f'Unlinked {remote.name} from {inhouse_name}'})
