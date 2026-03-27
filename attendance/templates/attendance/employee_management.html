@@ -69,13 +69,19 @@
 
 /* Table Card */
 .table-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-.emp-table { width: 100%; border-collapse: collapse; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.emp-table { width: 100%; border-collapse: collapse; min-width: 780px; }
 .emp-table th { padding: 10px 14px; text-align: left; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); background: #f8fafc; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
 .emp-table th.text-center { text-align: center; }
 .emp-table td { padding: 12px 14px; border-bottom: 1px solid var(--border-color); font-size: 0.845rem; color: var(--text-primary); }
 .emp-table tbody tr:last-child td { border-bottom: none; }
 .emp-table tbody tr:hover td { background: #f8fafc; }
 .emp-table tbody tr.selected td { background: #f5f3ff; }
+.emp-table th.col-actions { position: sticky; right: 0; background: #f8fafc; box-shadow: -3px 0 6px rgba(0,0,0,.06); z-index: 2; min-width: 190px; text-align: right; }
+.emp-table td.col-actions { position: sticky; right: 0; background: var(--surface-color); box-shadow: -3px 0 6px rgba(0,0,0,.06); z-index: 1; text-align: right; }
+.emp-table tbody tr:hover td.col-actions { background: #f8fafc; }
+.emp-table tbody tr.selected td.col-actions { background: #f5f3ff; }
+.actions-cell { display: flex; gap: 0.4rem; justify-content: flex-end; align-items: center; }
 
 /* Table content */
 .emp-name-cell { display: flex; align-items: center; gap: 0.6rem; }
@@ -122,7 +128,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
 /* Modal */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; backdrop-filter: blur(3px); }
 .modal-overlay.show { display: flex; }
-.modal-box { background: var(--surface-color); border-radius: 14px; width: 100%; max-width: 540px; box-shadow: 0 20px 50px rgba(0,0,0,.25); max-height: 90vh; display: flex; flex-direction: column; }
+.modal-box { background: var(--surface-color); border-radius: 14px; width: 100%; max-width: 640px; box-shadow: 0 20px 50px rgba(0,0,0,.25); max-height: 90vh; display: flex; flex-direction: column; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.2rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
 .modal-head h3 { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0; }
 .modal-close { width: 28px; height: 28px; background: #f1f5f9; border: none; border-radius: 6px; color: #64748b; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -258,6 +264,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
 
     <!-- Table Card -->
     <div class="table-card">
+        <div class="table-scroll">
         <table class="emp-table">
             <thead>
                 <tr>
@@ -269,7 +276,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <th>Phone</th>
                     <th>Department</th>
                     <th>Status</th>
-                    <th style="text-align:right">Actions</th>
+                    <th class="col-actions">Actions</th>
                 </tr>
             </thead>
             <tbody id="employeeTableBody">
@@ -316,9 +323,11 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                             {{ emp.is_active|yesno:"Active,Inactive" }}
                         </span>
                     </td>
-                    <td style="text-align:right;display:flex;gap:0.35rem;justify-content:flex-end">
-                        <button class="btn-edit" onclick="openEditModal({{ emp.id }}, 'inhouse')">Edit In-House</button>
-                        <button class="btn-edit remote-edit" onclick="openEditModal({{ emp.linked_remote_id }}, 'remote')">Edit Remote</button>
+                    <td class="col-actions">
+                        <div class="actions-cell">
+                            <button class="btn-edit" onclick="openEditModal({{ emp.id }}, 'inhouse')">In-House</button>
+                            <button class="btn-edit remote-edit" onclick="openEditModal({{ emp.linked_remote_id }}, 'remote')">Remote</button>
+                        </div>
                     </td>
                 </tr>
                 {% else %}
@@ -355,8 +364,10 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                             {{ emp.is_active|yesno:"Active,Inactive" }}
                         </span>
                     </td>
-                    <td style="text-align:right">
-                        <button class="btn-edit" onclick="openEditModal({{ emp.id }}, '{{ emp.type }}')">Edit</button>
+                    <td class="col-actions">
+                        <div class="actions-cell">
+                            <button class="btn-edit" onclick="openEditModal({{ emp.id }}, '{{ emp.type }}')">Edit</button>
+                        </div>
                     </td>
                 </tr>
                 {% endif %}
@@ -371,6 +382,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                 {% endfor %}
             </tbody>
         </table>
+        </div><!-- /table-scroll -->
         <div class="table-footer">
             <span>Showing <strong>{{ employees|length }}</strong> of <strong>{{ total_count }}</strong> employees</span>
             <span id="filterResultText"></span>
@@ -542,25 +554,27 @@ tr.linked-row:hover { background: #f3e8ff !important; }
 
             <div class="form-section">
                 <div class="form-section-title">Employment Details</div>
-                <div class="form-row cols-3">
+                <div class="form-row cols-2">
                     <div class="form-group">
                         <label>Monthly Salary (AED)</label>
                         <input type="number" id="editSalary" step="0.01" min="0" placeholder="5000.00">
-                    </div>
-                    <div class="form-group" id="designationField" style="display:none">
-                        <label>Designation</label>
-                        <input type="text" id="editDesignation" placeholder="e.g. Sales Executive">
                     </div>
                     <div class="form-group">
                         <label>Joining Date</label>
                         <input type="date" id="editJoiningDate">
                     </div>
+                </div>
+                <div class="form-row cols-2">
                     <div class="form-group">
                         <label>Status</label>
                         <select id="editIsActive">
                             <option value="true">Active</option>
                             <option value="false">Inactive</option>
                         </select>
+                    </div>
+                    <div class="form-group" id="designationField" style="display:none">
+                        <label>Designation</label>
+                        <input type="text" id="editDesignation" placeholder="e.g. Sales Executive">
                     </div>
                 </div>
                 <div class="form-group">
@@ -613,7 +627,7 @@ function applyFilters() {
     let visible = 0;
     rows.forEach(row => {
         const match =
-            (!search     || row.dataset.name.includes(search) || row.dataset.email.includes(search) || row.dataset.identifier.includes(search)) &&
+            (!search     || row.dataset.name.includes(search) || row.dataset.email.includes(search) || row.dataset.identifier.includes(search) || row.dataset.department.includes(search)) &&
             (!typeFilter   || row.dataset.type   === typeFilter) &&
             (!statusFilter || row.dataset.status === statusFilter) &&
             (!deptFilter   || row.dataset.department === deptFilter);
