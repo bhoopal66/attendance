@@ -51,7 +51,7 @@ def _serialize_employee(emp, emp_type, remote_by_tcr=None, inhouse_by_tcr=None):
         'leaving_date': emp.leaving_date.strftime('%Y-%m-%d') if emp.leaving_date else '',
     }
     data['salary'] = float(emp.salary) if emp.salary else None
-    data['designation'] = emp.designation if emp_type == 'remote' else None
+    data['designation'] = emp.designation
     if emp.tcr_id:
         if emp_type == 'inhouse':
             remote = (remote_by_tcr or {}).get(emp.tcr_id)
@@ -141,6 +141,46 @@ def update_employee(request):
 
     if not employee_id or not employee_type:
         return JsonResponse({'success': False, 'error': 'Missing id or type'}, status=400)
+
+    # Handle linked employees — sync shared fields to both in-house and remote records
+    if employee_type == 'linked':
+        linked_remote_id = data.get('linked_remote_id')
+        if not linked_remote_id:
+            return JsonResponse({'success': False, 'error': 'Missing linked_remote_id'}, status=400)
+        try:
+            inhouse = Employee.objects.get(id=employee_id)
+            remote = RemoteEmployee.objects.get(id=linked_remote_id)
+        except (Employee.DoesNotExist, RemoteEmployee.DoesNotExist):
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+
+        for emp in [inhouse, remote]:
+            for field in ALLOWED_UPDATE_FIELDS:
+                if field not in data:
+                    continue
+                value = data[field]
+                if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
+                             'joining_date', 'leaving_date', 'tcr_id'):
+                    value = value or None
+                setattr(emp, field, value)
+            if data.get('portal_password'):
+                emp.portal_password = make_password(data['portal_password'])
+
+        try:
+            inhouse.full_clean(exclude=['person_id'])
+            remote.full_clean(exclude=['extension_id'])
+            inhouse.save()
+            remote.save()
+            logger.info("Linked employees updated: %s (inhouse=%s, remote=%s) by %s",
+                        inhouse.name, inhouse.id, remote.id, request.user.username)
+            return JsonResponse({'success': True, 'message': 'Employee updated successfully'})
+        except ValidationError as e:
+            flat = '; '.join(
+                f"{f}: {', '.join(msgs)}" for f, msgs in e.message_dict.items()
+            ) if hasattr(e, 'message_dict') else str(e)
+            return JsonResponse({'success': False, 'error': flat}, status=400)
+        except Exception:
+            logger.exception("Error updating linked employees inhouse=%s remote=%s", employee_id, linked_remote_id)
+            return JsonResponse({'success': False, 'error': 'Failed to update employee.'}, status=500)
 
     emp = _get_employee_by_type(employee_id, employee_type)
     if not emp:

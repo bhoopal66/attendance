@@ -322,8 +322,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     </td>
                     <td class="col-actions">
                         <div class="actions-cell">
-                            <button class="btn-edit" onclick="openEditModal({{ emp.id }}, 'inhouse')">In-House</button>
-                            <button class="btn-edit remote-edit" onclick="openEditModal({{ emp.linked_remote_id }}, 'remote')">Remote</button>
+                            <button class="btn-edit" onclick="openEditModal({{ emp.id }}, 'inhouse', {{ emp.linked_remote_id }})">Edit</button>
                             <button class="btn-delete" onclick="openDeleteModal({{ emp.id }}, 'inhouse', '{{ emp.name|escapejs }}')">&#x1F5D1;</button>
                         </div>
                     </td>
@@ -514,6 +513,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
         <div class="modal-body">
             <input type="hidden" id="editId">
             <input type="hidden" id="editType">
+            <input type="hidden" id="editLinkedRemoteId">
 
             <div class="form-section">
                 <div class="form-section-title">Basic Information</div>
@@ -523,7 +523,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                         <input type="text" id="editTypeDisplay" readonly>
                     </div>
                     <div class="form-group">
-                        <label>System ID</label>
+                        <label id="editIdentifierLabel">System ID</label>
                         <input type="text" id="editIdentifier" readonly>
                     </div>
                     <div class="form-group">
@@ -531,6 +531,11 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                         <input type="text" id="editTcrId" placeholder="e.g. TCR1000224" style="text-transform:uppercase">
                         <small class="form-help">Shared ID that links in-house &amp; remote records for the same person</small>
                     </div>
+                </div>
+                <div class="form-group" id="linkedExtField" style="display:none">
+                    <label>Extension ID (Remote)</label>
+                    <input type="text" id="editLinkedIdentifier" readonly>
+                    <small class="form-help">Phone system extension for the linked remote record</small>
                 </div>
                 <div class="form-group">
                     <label>Full Name *</label>
@@ -754,13 +759,17 @@ async function applyBulkUpdate() {
 }
 
 // ── Edit Modal ─────────────────────────────────────────────────────
-function openEditModal(id, type) {
+function openEditModal(id, type, linkedRemoteId) {
+    linkedRemoteId = linkedRemoteId || null;
+    const isLinked = !!linkedRemoteId;
     const emp = employeesData.find(e => e.id === id && e.type === type);
     if (!emp) return;
 
     document.getElementById('editId').value           = emp.id;
-    document.getElementById('editType').value         = emp.type;
-    document.getElementById('editTypeDisplay').value  = emp.type;
+    document.getElementById('editType').value         = isLinked ? 'linked' : emp.type;
+    document.getElementById('editLinkedRemoteId').value = linkedRemoteId || '';
+    document.getElementById('editTypeDisplay').value  = isLinked ? 'In-House + Remote (Linked)' : (emp.type === 'inhouse' ? 'In-House' : 'Remote');
+    document.getElementById('editIdentifierLabel').textContent = isLinked ? 'Fingerprint ID (In-House)' : 'System ID';
     document.getElementById('editIdentifier').value   = emp.identifier;
     document.getElementById('editTcrId').value        = emp.tcr_id || '';
     document.getElementById('editName').value         = emp.name;
@@ -775,8 +784,18 @@ function openEditModal(id, type) {
     document.getElementById('editLeavingDate').value  = emp.leaving_date || '';
     document.getElementById('editPassword').value     = '';
 
-    const isRemote = emp.type === 'remote';
-    document.getElementById('designationField').style.display = isRemote ? '' : 'none';
+    // Extension ID row — only for linked employees
+    const linkedExtField = document.getElementById('linkedExtField');
+    if (isLinked) {
+        const remoteEmp = employeesData.find(e => e.id === linkedRemoteId && e.type === 'remote');
+        document.getElementById('editLinkedIdentifier').value = remoteEmp ? remoteEmp.identifier : '';
+        linkedExtField.style.display = '';
+    } else {
+        linkedExtField.style.display = 'none';
+    }
+
+    // Show designation for remote employees or linked pairs
+    document.getElementById('designationField').style.display = (emp.type === 'remote' || isLinked) ? '' : 'none';
     document.getElementById('editDesignation').value = emp.designation || '';
 
     document.getElementById('editModal').classList.add('show');
@@ -789,11 +808,13 @@ function closeEditModal() {
 async function saveEmployee() {
     const id   = document.getElementById('editId').value;
     const type = document.getElementById('editType').value;
+    const linkedRemoteId = document.getElementById('editLinkedRemoteId').value;
     const salaryVal = document.getElementById('editSalary').value.trim();
 
     const tcrVal = document.getElementById('editTcrId').value.trim().toUpperCase();
     const data = {
-        id, type,
+        id: parseInt(id), type,
+        ...(type === 'linked' ? { linked_remote_id: parseInt(linkedRemoteId) } : {}),
         tcr_id:        tcrVal || null,
         name:          document.getElementById('editName').value,
         email:         document.getElementById('editEmail').value,
