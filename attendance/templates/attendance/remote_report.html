@@ -275,8 +275,8 @@
                                 <span class="day-number">{{ day }}</span>
                                 {% if day_info.is_sunday or day_info.is_holiday %}
                                     <div class="day-label holiday">Holiday</div>
-                                {% elif day > current_day and day_info.status == 'absent' %}
-                                    {# future empty day #}
+                                {% elif not day_info.status %}
+                                    {# today or future — no data yet #}
                                 {% else %}
                                     <div class="talk-duration">{{ day_info.talk_minutes }} min</div>
                                     <div class="call-count">

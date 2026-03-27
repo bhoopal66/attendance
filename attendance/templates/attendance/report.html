@@ -128,6 +128,8 @@
 
 .calendar-day.status-incomplete { background: #fed7aa; border-left-color: #c2410c; }
 
+.calendar-day.status-on_duty   { background: #ccfbf1; border-left-color: #0f766e; }
+
 .calendar-day.status-holiday,
 .calendar-day.holiday        { background: #ddd6fe; border-left-color: #6d28d9; }
 
@@ -146,6 +148,7 @@
 .day-label.paid-leave  { background: #1d4ed8; color: #fff; }
 .day-label.holiday     { background: #6d28d9; color: #fff; }
 .day-label.incomplete  { background: #c2410c; color: #fff; }
+.day-label.on-duty     { background: #0f766e; color: #fff; }
 
 .edit-icon { position: absolute; top: 5px; right: 5px; opacity: 0; color: #0f172a; transition: opacity .12s; }
 
@@ -314,8 +317,16 @@
                             <div class="calendar-day status-{{ day_info.status }} {% if day_info.is_sunday %}sunday{% endif %} {% if day_info.is_holiday %}holiday{% endif %} {% if day > current_day %}future{% endif %} {% if user.is_superuser %}editable{% endif %}"
                                 {% if user.is_superuser %}onclick="openEditModal({{ employee.id }}, '{{ employee.name }}', {{ day }}, '{{ day_info.record.first_in|time:'H:i'|default:'' }}', '{{ day_info.record.last_out|time:'H:i'|default:'' }}')"{% endif %}>
                                 <span class="day-number">{{ day }}</span>
-                                {% if day_info.status == 'absent' %}
-                                    {% if day <= current_day %}<div class="day-label leave">Leave</div>{% endif %}
+                                {% if not day_info.status %}
+                                    {# today or future — no data yet, show blank #}
+                                {% elif day_info.status == 'on_duty' %}
+                                    <div class="time-info">
+                                        <span>In: {{ day_info.on_duty_request.approved_first_in|time:"H:i" }}</span>
+                                        <span>Out: {% if day_info.on_duty_request.approved_last_out %}{{ day_info.on_duty_request.approved_last_out|time:"H:i" }}{% else %}--:--{% endif %}</span>
+                                    </div>
+                                    <div class="day-label on-duty">On Duty</div>
+                                {% elif day_info.status == 'absent' %}
+                                    <div class="day-label leave">Leave</div>
                                 {% elif day_info.status == 'paid_leave' %}
                                     <div class="day-label paid-leave">Paid Leave</div>
                                 {% elif day_info.status == 'holiday' %}

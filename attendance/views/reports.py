@@ -28,7 +28,7 @@ logger = logging.getLogger('attendance')
 def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_month,
                               holiday_dates, current_day, emp_shift_start, emp_shift_end,
                               sat_shift_start, sat_shift_end, approved_leave_days,
-                              special_periods=None):
+                              special_periods=None, today_on_duty_request=None):
     """Compute calendar data and summary for an in-house employee."""
     records_dict = {r.date.day: r for r in employee.filtered_records}
 
@@ -84,7 +84,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
 
         record = records_dict.get(day)
 
-        status = 'absent'
+        status = ''
         is_half_day = False
         is_late = False
         is_incomplete = False
@@ -141,8 +141,10 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
             else:
                 status = 'yellow'
         else:
-            if day <= current_day:
+            if day < current_day:
                 status = 'absent'
+            elif day == current_day and today_on_duty_request:
+                status = 'on_duty'
 
         calendar_data[day] = {
             'record': record,
@@ -154,6 +156,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
             'is_holiday': is_holiday_date,
             'is_paid_leave': is_paid_leave,
             'is_incomplete': is_incomplete if record else False,
+            'on_duty_request': today_on_duty_request if status == 'on_duty' else None,
         }
 
     return calendar_data, {
@@ -196,8 +199,10 @@ def attendance_report(request):
     holiday_dates, holiday_names, holidays_qs = get_holiday_data(month_start, month_end)
 
     today = datetime.date.today()
-    if selected_year == today.year and selected_month == today.month:
-        calculation_end_day = today.day
+    is_current_month = selected_year == today.year and selected_month == today.month
+    if is_current_month:
+        # Exclude today: biometric data is only uploaded the following day
+        calculation_end_day = today.day - 1
     elif (selected_year < today.year) or (selected_year == today.year and selected_month < today.month):
         calculation_end_day = days_in_month
     else:
@@ -206,7 +211,7 @@ def attendance_report(request):
     sundays_until_now, holidays_until_now, total_holidays_until_now, expected_working_days = \
         count_holidays_in_range(selected_year, selected_month, calculation_end_day, holiday_dates)
 
-    current_day = today.day if selected_year == today.year and selected_month == today.month else 32
+    current_day = today.day if is_current_month else 32
 
     sat_shift_start, sat_shift_end = get_saturday_shift()
     special_periods = get_active_special_periods_for_month(month_start, month_end)
@@ -214,6 +219,17 @@ def attendance_report(request):
     employees = list(employees)
     bulk_shifts = get_bulk_employee_shifts(employees, month_start)
     bulk_leave_days = get_bulk_approved_leave_days(employees, month_start, month_end)
+
+    # Fetch today's approved on-duty requests (for preview when no biometric data yet)
+    today_on_duty_map = {}
+    if is_current_month:
+        on_duty_qs = EarlyLeaveRequest.objects.filter(
+            employee_id__in=[e.id for e in employees],
+            request_date=today,
+            status='approved',
+            approved_first_in__isnull=False,
+        )
+        today_on_duty_map = {r.employee_id: r for r in on_duty_qs}
 
     for employee in employees:
         emp_shift_start, emp_shift_end = bulk_shifts[employee.id]
@@ -223,7 +239,8 @@ def attendance_report(request):
             employee, days_in_month, selected_year, selected_month,
             holiday_dates, current_day, emp_shift_start, emp_shift_end,
             sat_shift_start, sat_shift_end, approved_leave_days,
-            special_periods=special_periods
+            special_periods=special_periods,
+            today_on_duty_request=today_on_duty_map.get(employee.id),
         )
 
         actual_working = stats['actual_working_days']
@@ -294,8 +311,10 @@ def remote_attendance_report(request):
     holiday_dates, holiday_names, holidays_qs = get_holiday_data(month_start, month_end)
 
     today = datetime.date.today()
-    if selected_year == today.year and selected_month == today.month:
-        calculation_end_day = today.day
+    is_current_month = selected_year == today.year and selected_month == today.month
+    if is_current_month:
+        # Exclude today: call data is only uploaded the following day
+        calculation_end_day = today.day - 1
     elif (selected_year < today.year) or (selected_year == today.year and selected_month < today.month):
         calculation_end_day = days_in_month
     else:
@@ -304,7 +323,7 @@ def remote_attendance_report(request):
     sundays_until_now, holidays_until_now, total_holidays_until_now, expected_working_days = \
         count_holidays_in_range(selected_year, selected_month, calculation_end_day, holiday_dates)
 
-    current_day = today.day if selected_year == today.year and selected_month == today.month else 32
+    current_day = today.day if is_current_month else 32
 
     for employee in employees:
         employee.calendar_data = {}
@@ -324,7 +343,7 @@ def remote_attendance_report(request):
 
             record = records_dict.get(day)
 
-            status = 'absent'
+            status = ''
             talk_minutes = 0
             answered_calls = 0
 
@@ -346,8 +365,9 @@ def remote_attendance_report(request):
                     elif record.attendance_status == 'absent':
                         absent_count += 1
 
-            elif day <= current_day:
-                # No record for this working day — count as absent
+            elif day < current_day:
+                # No record for this past working day — count as absent
+                status = 'absent'
                 absent_count += 1
 
             employee.calendar_data[day] = {
