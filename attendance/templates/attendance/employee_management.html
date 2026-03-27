@@ -295,12 +295,12 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <td><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
                     <td>
                         <div class="type-cell">
-                            {% if emp.location %}<span class="tag">{{ emp.location }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
-                            <span class="tcr-badge">{{ emp.tcr_id }}</span>
+                            <span class="type-badge inhouse">In-House</span>
+                            <span class="linked-badge">Linked</span>
                         </div>
                     </td>
                     <td>
-                        <span class="text-mono">{{ emp.id }}</span>
+                        {% if emp.tcr_id %}<span class="text-mono">{{ emp.tcr_id }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
                     <td>
                         <div class="emp-name-cell">
@@ -337,7 +337,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                         </div>
                     </td>
                     <td>
-                        <span class="text-mono">{{ emp.id }}</span>
+                        {% if emp.tcr_id %}<span class="text-mono">{{ emp.tcr_id }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
                     <td>
                         <div class="emp-name-cell">
