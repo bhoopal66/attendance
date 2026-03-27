@@ -295,7 +295,13 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <td><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
                     <td>
                         <div class="type-cell">
+                            {% if emp.location == 'Remote' %}
+                            <span class="type-badge remote">Remote</span>
+                            {% elif emp.location == 'Inhouse' %}
+                            <span class="type-badge inhouse">Inhouse</span>
+                            {% else %}
                             <span class="type-badge inhouse">In-House</span>
+                            {% endif %}
                             <span class="linked-badge">Linked</span>
                         </div>
                     </td>
@@ -333,7 +339,13 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <td><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
                     <td>
                         <div class="type-cell">
+                            {% if emp.location == 'Remote' %}
+                            <span class="type-badge remote">Remote</span>
+                            {% elif emp.location == 'Inhouse' %}
+                            <span class="type-badge inhouse">Inhouse</span>
+                            {% else %}
                             <span class="type-badge {{ emp.type }}">{{ emp.type|title }}</span>
+                            {% endif %}
                         </div>
                     </td>
                     <td>

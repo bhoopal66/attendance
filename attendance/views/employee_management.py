@@ -77,6 +77,7 @@ def _serialize_employee(emp, emp_type, remote_by_tcr=None, inhouse_by_tcr=None):
     return data
 
 
+
 @login_required
 @user_passes_test(superuser_required, login_url='/report/')
 def employee_management(request):
