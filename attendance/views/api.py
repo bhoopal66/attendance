@@ -140,7 +140,7 @@ def recalculate_monthly_summary(employee, year, month):
         employee=employee,
         date__year=year,
         date__month=month
-    )
+    ).order_by('date')
 
     month_start = datetime.date(year, month, 1)
     shift_start, shift_end = get_employee_shift_for_date(employee, month_start)
@@ -149,6 +149,7 @@ def recalculate_monthly_summary(employee, year, month):
     working_days = records.count()
     late_days = 0
     early_departure_days = 0
+    grace_uses = 0  # tracks how many times the 10-min grace has been used this month
 
     for record in records:
         if record.date.weekday() == 5:
@@ -156,7 +157,22 @@ def recalculate_monthly_summary(employee, year, month):
         else:
             day_shift_start, day_shift_end = shift_start, shift_end
 
-        if record.first_in and record.first_in > day_shift_start:
+        # 10-minute grace period: allowed max 3 times per month
+        grace_cutoff = (
+            datetime.datetime.combine(datetime.date.min, day_shift_start)
+            + datetime.timedelta(minutes=10)
+        ).time()
+        in_grace_window = (
+            record.first_in and
+            record.first_in > day_shift_start and
+            record.first_in <= grace_cutoff
+        )
+        if in_grace_window:
+            grace_uses += 1
+            is_late = grace_uses > 3
+        else:
+            is_late = bool(record.first_in and record.first_in > day_shift_start)
+        if is_late:
             late_days += 1
         if record.last_out and record.last_out < day_shift_end:
             early_departure_days += 1

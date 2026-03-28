@@ -91,13 +91,14 @@ class Command(BaseCommand):
 
             records = AttendanceRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month
-            )
+            ).order_by('date')
             approved_leave_days = get_approved_leave_days(emp, month_start, month_end)
 
             working_days = 0
             late_days = 0
             half_days = 0
             paid_leave_count = 0
+            grace_uses = 0  # tracks how many times the 10-min grace has been used this month
 
             for record in records:
                 weekday = record.date.weekday()
@@ -142,11 +143,21 @@ class Command(BaseCommand):
                         day_shift_start = emp_shift_start
                         day_shift_end = emp_shift_end
 
-                time_in_ok = record.first_in and (
-                    record.first_in.hour < day_shift_start.hour or
-                    (record.first_in.hour == day_shift_start.hour and
-                     record.first_in.minute <= day_shift_start.minute)
+                # 10-minute grace period: allowed max 3 times per month
+                grace_cutoff = (
+                    datetime.datetime.combine(datetime.date.min, day_shift_start)
+                    + datetime.timedelta(minutes=10)
+                ).time()
+                in_grace_window = (
+                    record.first_in and
+                    record.first_in > day_shift_start and
+                    record.first_in <= grace_cutoff
                 )
+                if in_grace_window:
+                    grace_uses += 1
+                    time_in_ok = grace_uses <= 3
+                else:
+                    time_in_ok = bool(record.first_in and record.first_in <= day_shift_start)
                 time_out_ok = record.last_out and (
                     record.last_out.hour > day_shift_end.hour or
                     (record.last_out.hour == day_shift_end.hour and
