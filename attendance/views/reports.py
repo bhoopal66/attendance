@@ -37,6 +37,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
     half_day_count = 0
     actual_working_days_count = 0
     paid_leave_count = 0
+    grace_uses = 0
 
     shift_duration_weekday = (
         (emp_shift_end.hour * 60 + emp_shift_end.minute) -
@@ -88,6 +89,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
         is_half_day = False
         is_late = False
         is_incomplete = False
+        is_grace = False
 
         if is_paid_leave:
             status = 'paid_leave'
@@ -108,11 +110,24 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
             arrived_after_noon = record.first_in and record.first_in.hour >= 12 and not is_saturday
 
             hours_ok = total_secs >= day_shift_duration
-            time_in_ok = record.first_in and day_shift_start and (
-                record.first_in.hour < day_shift_start.hour or
-                (record.first_in.hour == day_shift_start.hour and
-                 record.first_in.minute <= day_shift_start.minute)
+            grace_cutoff = (
+                datetime.datetime.combine(datetime.date.min, day_shift_start)
+                + datetime.timedelta(minutes=10)
+            ).time() if day_shift_start else None
+            in_grace_window = bool(
+                record.first_in and day_shift_start and grace_cutoff and
+                record.first_in > day_shift_start and
+                record.first_in <= grace_cutoff
             )
+            if in_grace_window:
+                grace_uses += 1
+                if grace_uses <= 3:
+                    is_grace = True
+                    time_in_ok = True
+                else:
+                    time_in_ok = False
+            else:
+                time_in_ok = bool(record.first_in and day_shift_start and record.first_in <= day_shift_start)
             time_out_ok = record.last_out and day_shift_end and (
                 record.last_out.hour > day_shift_end.hour or
                 (record.last_out.hour == day_shift_end.hour and
@@ -153,6 +168,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
             'is_saturday': is_saturday,
             'is_half_day': is_half_day,
             'is_late': is_late,
+            'is_grace': is_grace,
             'is_holiday': is_holiday_date,
             'is_paid_leave': is_paid_leave,
             'is_incomplete': is_incomplete if record else False,
