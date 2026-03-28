@@ -105,7 +105,8 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     )
     paid_leave_days = sum(_leave_days_in_month(leave, month_start, month_end) for leave in approved_leaves)
 
-    daily_rate = salary / 30 if salary > 0 else 0.0
+    days_in_month = calendar.monthrange(year, month)[1]
+    daily_rate = salary / days_in_month if salary > 0 else 0.0
     # Every 3 late days = 1 half-day deduction
     late_half_days = late_days // 3
     # Deduct absent days, half-day shortfalls, and late penalties from full salary
@@ -162,7 +163,8 @@ def _get_remote_payroll_row(emp, year, month, total_holidays):
 
     salary = float(emp.salary) if emp.salary else 0.0
     effective_work_days = present_days + (half_days * 0.5)
-    daily_rate = salary / 30 if salary > 0 else 0.0
+    days_in_month = calendar.monthrange(year, month)[1]
+    daily_rate = salary / days_in_month if salary > 0 else 0.0
     # Deduct absent days and half-day shortfalls from full salary
     total_deduction_days = absent_days + (half_days * 0.5)
     deduction = daily_rate * total_deduction_days
