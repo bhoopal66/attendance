@@ -148,11 +148,12 @@ def recalculate_monthly_summary(employee, year, month):
 
     working_days = records.count()
     late_days = 0
-    early_departure_days = 0
+    arrived_after_noon_days = 0
     grace_uses = 0  # tracks how many times the 10-min grace has been used this month
 
     for record in records:
-        if record.date.weekday() == 5:
+        is_saturday = record.date.weekday() == 5
+        if is_saturday:
             day_shift_start, day_shift_end = sat_shift_start, sat_shift_end
         else:
             day_shift_start, day_shift_end = shift_start, shift_end
@@ -174,8 +175,9 @@ def recalculate_monthly_summary(employee, year, month):
             is_late = bool(record.first_in and record.first_in > day_shift_start)
         if is_late:
             late_days += 1
-        if record.last_out and record.last_out < day_shift_end:
-            early_departure_days += 1
+
+        if record.first_in and record.first_in.hour >= 12 and not is_saturday:
+            arrived_after_noon_days += 1
 
     _, days_in_month = calendar.monthrange(year, month)
     total_workdays = sum(
@@ -193,7 +195,7 @@ def recalculate_monthly_summary(employee, year, month):
             'working_days': working_days,
             'leave_days': leave_days,
             'late_days': late_days,
-            'half_days': early_departure_days
+            'half_days': arrived_after_noon_days
         }
     )
 

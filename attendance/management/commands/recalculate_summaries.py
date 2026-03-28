@@ -167,7 +167,7 @@ class Command(BaseCommand):
                 if record.first_in and not time_in_ok and not arrived_after_noon:
                     late_days += 1
 
-                if arrived_after_noon or not time_out_ok:
+                if arrived_after_noon:
                     half_days += 1
 
             # Count paid leave days not already counted from records

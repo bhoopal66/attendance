@@ -139,7 +139,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
                 is_late = True
 
             if not is_sunday and total_secs > 0:
-                if arrived_after_noon or not time_out_ok:
+                if arrived_after_noon:
                     is_half_day = True
 
             if is_half_day:
