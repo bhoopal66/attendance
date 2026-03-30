@@ -20,4 +20,6 @@ urlpatterns = [
     path('api/adjustments/delete/<int:adjustment_id>/', views.delete_adjustment, name='delete_adjustment'),
     # Recalculate summaries
     path('api/recalculate/', views.recalculate_summaries, name='recalculate_summaries'),
+    # Upload submission XLSX
+    path('api/upload-submissions/', views.upload_submissions, name='upload_submissions'),
 ]

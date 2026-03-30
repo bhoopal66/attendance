@@ -2,10 +2,12 @@
 Payroll calculation views.
 """
 
+import io
 import json
 import datetime
 import calendar
 import logging
+from collections import defaultdict
 from decimal import Decimal
 
 from django.core.management import call_command
@@ -17,7 +19,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 
 from attendance.models import (
     Employee, RemoteEmployee, Holiday,
-    LeaveRequest, MonthlySummary, RemoteMonthlySummary,
+    LeaveRequest, MonthlySummary,
 )
 from attendance.views.utils import (
     MONTH_CHOICES, MONTH_NAMES, YEAR_RANGE,
@@ -146,105 +148,30 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     }
 
 
-def _get_remote_payroll_row(emp, year, month, total_holidays):
-    """Build a payroll data row for one remote employee."""
-    summary = RemoteMonthlySummary.objects.filter(
-        employee=emp, year=year, month=month
-    ).first()
-
-    if summary:
-        present_days = summary.present_days or 0
-        half_days = summary.half_days or 0
-        absent_days = summary.absent_days or 0
+def _get_sales_payroll_row(emp, year, month, emp_type):
+    """Build a payroll data row for a sales employee (commission-only, no attendance deductions)."""
+    if emp_type == 'inhouse':
+        commission = _get_commission(year, month, employee=emp)
+        adjustments = PayrollAdjustment.objects.filter(employee=emp, year=year, month=month)
     else:
-        present_days = 0
-        half_days = 0
-        absent_days = 0
+        commission = _get_commission(year, month, remote_employee=emp)
+        adjustments = PayrollAdjustment.objects.filter(remote_employee=emp, year=year, month=month)
 
-    salary = float(emp.salary) if emp.salary else 0.0
-    effective_work_days = present_days + (half_days * 0.5)
-    days_in_month = calendar.monthrange(year, month)[1]
-    daily_rate = salary / days_in_month if salary > 0 else 0.0
-    # Deduct absent days and half-day shortfalls from full salary
-    total_deduction_days = absent_days + (half_days * 0.5)
-    deduction = daily_rate * total_deduction_days
-    base_payroll = salary - deduction
-
-    adjustments = PayrollAdjustment.objects.filter(remote_employee=emp, year=year, month=month)
     incentives = float(
         adjustments.filter(adjustment_type='incentive').aggregate(total=Sum('amount'))['total'] or 0
     )
     reductions = float(
         adjustments.filter(adjustment_type='reduction').aggregate(total=Sum('amount'))['total'] or 0
     )
-    commission = _get_commission(year, month, remote_employee=emp)
-    net_payroll = base_payroll + incentives + commission - reductions
+    net_payroll = commission + incentives - reductions
 
     return {
         'employee': emp,
-        'employee_type': 'remote',
-        'salary': salary,
-        'present_days': present_days,
-        'half_days': half_days,
-        'effective_work_days': round(effective_work_days, 1),
-        'absent_days': absent_days,
-        'total_deduction_days': round(total_deduction_days, 1),
-        'daily_rate': round(daily_rate, 2),
-        'deduction': round(deduction, 2),
-        'base_payroll': round(base_payroll, 2),
+        'employee_type': emp_type,
+        'commission': round(commission, 2),
         'incentives': round(incentives, 2),
         'reductions': round(reductions, 2),
-        'commission': round(commission, 2),
         'net_payroll': round(net_payroll, 2),
-    }
-
-
-def _get_inhouse_sales_stub_row(emp):
-    """Return a zeroed-out payroll row for an in-house sales employee.
-    Salary calculation for sales staff is not yet implemented.
-    """
-    return {
-        'employee': emp,
-        'employee_type': 'inhouse',
-        'salary': float(emp.salary) if emp.salary else 0.0,
-        'full_days': 0,
-        'half_days': 0,
-        'effective_work_days': 0.0,
-        'absent_days': 0,
-        'late_days': 0,
-        'late_half_days': 0,
-        'paid_leave_days': 0,
-        'total_deduction_days': 0.0,
-        'daily_rate': 0.0,
-        'deduction': 0.0,
-        'base_payroll': 0.0,
-        'incentives': 0.0,
-        'reductions': 0.0,
-        'commission': 0.0,
-        'net_payroll': 0.0,
-    }
-
-
-def _get_remote_sales_stub_row(emp):
-    """Return a zeroed-out payroll row for a remote (sales) employee.
-    Salary calculation for sales staff is not yet implemented.
-    """
-    return {
-        'employee': emp,
-        'employee_type': 'remote',
-        'salary': float(emp.salary) if emp.salary else 0.0,
-        'present_days': 0,
-        'half_days': 0,
-        'effective_work_days': 0.0,
-        'absent_days': 0,
-        'total_deduction_days': 0.0,
-        'daily_rate': 0.0,
-        'deduction': 0.0,
-        'base_payroll': 0.0,
-        'incentives': 0.0,
-        'reductions': 0.0,
-        'commission': 0.0,
-        'net_payroll': 0.0,
     }
 
 
@@ -283,16 +210,22 @@ def payroll_dashboard(request):
     ]
     total_admin, admin_incentives_total, admin_reductions_total, _ = _build_section_totals(admin_data)
 
-    # --- Sales section: in-house Sales employees (stub — calculation not yet implemented) ---
+    # --- Sales section: in-house Sales employees (commission-only) ---
     sales_inhouse_employees = Employee.objects.filter(
         department='Sales', is_active=True
     ).order_by('name')
-    sales_inhouse_data = [_get_inhouse_sales_stub_row(emp) for emp in sales_inhouse_employees]
+    sales_inhouse_data = [
+        _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse')
+        for emp in sales_inhouse_employees
+    ]
     total_sales_inhouse, _, _, _ = _build_section_totals(sales_inhouse_data)
 
-    # --- Sales section: remote employees (stub — calculation not yet implemented) ---
+    # --- Sales section: remote employees (commission-only) ---
     remote_employees = RemoteEmployee.objects.filter(is_active=True).order_by('name')
-    remote_data = [_get_remote_sales_stub_row(emp) for emp in remote_employees]
+    remote_data = [
+        _get_sales_payroll_row(emp, selected_year, selected_month, 'remote')
+        for emp in remote_employees
+    ]
     total_remote, _, _, _ = _build_section_totals(remote_data)
 
     # Combined Sales totals
@@ -754,6 +687,123 @@ def recalculate_summaries(request):
 # ============================================
 # API: Delete Adjustment (both types)
 # ============================================
+
+# ============================================
+# Upload: Bank Submissions XLSX
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def upload_submissions(request):
+    """
+    Parse a bank submission XLSX file and upsert BankSubmission records.
+
+    Expected columns (any order, header detection by keyword):
+      - Bank Name   → bank to credit
+      - Agent       → employee TCR ID (e.g. TCR1000224)
+
+    Each row = one submission. Rows are counted per (agent, bank) pair.
+    Employees are looked up by tcr_id across both Employee and RemoteEmployee.
+    """
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
+
+    try:
+        year = int(request.POST.get('year'))
+        month = int(request.POST.get('month'))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid year/month'}, status=400)
+
+    if not (1 <= month <= 12) or not (2000 <= year <= 2099):
+        return JsonResponse({'success': False, 'error': 'Invalid year/month range'}, status=400)
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(uploaded_file.read()), read_only=True, data_only=True)
+        ws = wb.active
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Could not read file: {e}'}, status=400)
+
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return JsonResponse({'success': False, 'error': 'File is empty'}, status=400)
+
+    # Detect columns from header row
+    header = [str(c).strip().lower() if c else '' for c in rows[0]]
+    bank_col = agent_col = None
+    for i, h in enumerate(header):
+        if 'bank' in h:
+            bank_col = i
+        if 'agent' in h:
+            agent_col = i
+
+    if bank_col is None or agent_col is None:
+        return JsonResponse(
+            {'success': False, 'error': 'Could not find "Bank Name" or "Agent" columns in header'},
+            status=400
+        )
+
+    # Count submissions per (tcr_id, bank_name)
+    counts = defaultdict(lambda: defaultdict(int))
+    for row in rows[1:]:
+        if not any(row):
+            continue
+        bank_name = str(row[bank_col]).strip() if row[bank_col] else ''
+        agent = str(row[agent_col]).strip() if row[agent_col] else ''
+        if bank_name and agent:
+            counts[agent][bank_name] += 1
+
+    if not counts:
+        return JsonResponse({'success': False, 'error': 'No data rows found in file'}, status=400)
+
+    # Preload active banks for fast lookup (case-insensitive)
+    bank_map = {b.name.lower(): b for b in Bank.objects.filter(is_active=True)}
+
+    matched = 0
+    unmatched_agents = set()
+    unmatched_banks = set()
+
+    for tcr_id, bank_counts in counts.items():
+        # Look up employee by tcr_id — prefer in-house, fall back to remote
+        employee = Employee.objects.filter(tcr_id=tcr_id, is_active=True).first()
+        remote_employee = None
+        if not employee:
+            remote_employee = RemoteEmployee.objects.filter(tcr_id=tcr_id, is_active=True).first()
+
+        if not employee and not remote_employee:
+            unmatched_agents.add(tcr_id)
+            continue
+
+        fk_kwargs = {'employee': employee} if employee else {'remote_employee': remote_employee}
+
+        for bank_name, count in bank_counts.items():
+            bank = bank_map.get(bank_name.lower())
+            if not bank:
+                unmatched_banks.add(bank_name)
+                continue
+
+            BankSubmission.objects.update_or_create(
+                bank=bank, year=year, month=month, **fk_kwargs,
+                defaults={'submission_count': count},
+            )
+            matched += 1
+
+    logger.info(
+        "Submission upload for %d/%d: %d saved, %d unmatched agents, %d unmatched banks by %s",
+        year, month, matched, len(unmatched_agents), len(unmatched_banks), request.user.username,
+    )
+
+    return JsonResponse({
+        'success': True,
+        'stats': {
+            'matched': matched,
+            'unmatched_agents': sorted(unmatched_agents),
+            'unmatched_banks': sorted(unmatched_banks),
+        },
+    })
+
 
 @login_required
 @user_passes_test(superuser_required, login_url='/report/')

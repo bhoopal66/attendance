@@ -96,6 +96,22 @@
     .btn-recalculate:hover { background: #ffedd5; }
     .btn-recalculate:disabled { opacity: 0.6; cursor: not-allowed; }
 
+    .btn-upload {
+        padding: 10px 16px;
+        background: #f0f9ff;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    .btn-upload:hover { background: #e0f2fe; }
+
     /* Grand Total Banner */
     .grand-total-banner {
         background: linear-gradient(135deg, #1e1b4b 0%, #4F46E5 100%);
@@ -596,6 +612,9 @@
             <button class="btn-recalculate" id="recalcBtn" onclick="recalculateSummaries()">
                 🔄 Recalculate
             </button>
+            <button class="btn-upload" onclick="openUploadModal()">
+                📤 Upload Submissions
+            </button>
             <a href="{% url 'manage_banks' %}" class="btn-banks">
                 🏦 Manage Banks
             </a>
@@ -721,10 +740,6 @@
             <thead>
                 <tr>
                     <th>Employee</th>
-                    <th class="text-right">Salary</th>
-                    <th class="text-right">Days Worked</th>
-                    <th class="text-right">Absent Days</th>
-                    <th class="text-right">Base Pay</th>
                     <th class="text-right">Commission</th>
                     <th class="text-right">Incentives</th>
                     <th class="text-right">Reductions</th>
@@ -738,18 +753,8 @@
                         <div class="employee-name">{{ item.employee.name }}</div>
                         {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                     </td>
-                    <td class="text-right mono">{{ item.salary|floatformat:0 }}</td>
-                    <td class="text-right">
-                        {{ item.effective_work_days }}
-                        <div class="days-breakdown">{{ item.full_days }}full + {{ item.half_days }}×½</div>
-                    </td>
-                    <td class="text-right">
-                        {{ item.total_deduction_days }}
-                        <div class="days-breakdown">-{{ item.absent_days }} absent{% if item.half_days %} -{{ item.half_days }}×½{% endif %}{% if item.late_half_days %} -{{ item.late_days }}late→{{ item.late_half_days }}×½{% endif %}{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
-                    </td>
-                    <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
                     <td class="text-right mono {% if item.commission > 0 %}text-amber{% else %}text-muted{% endif %}">
-                        {% if item.commission > 0 %}+{{ item.commission|floatformat:2 }}{% else %}—{% endif %}
+                        {% if item.commission > 0 %}{{ item.commission|floatformat:2 }}{% else %}—{% endif %}
                     </td>
                     <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
                         {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
@@ -763,8 +768,7 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="5" class="text-right">Sub-total (In-House)</td>
-                    <td class="text-right"></td>
+                    <td colspan="2" class="text-right">Sub-total (In-House)</td>
                     <td class="text-right"></td>
                     <td class="text-right"></td>
                     <td class="text-right mono text-blue">AED {{ total_sales_inhouse|floatformat:2 }}</td>
@@ -775,15 +779,11 @@
 
         <!-- Sales: Remote employees -->
         {% if remote_data %}
-        <div class="sub-section-header">Remote Sales Employees (Call-Based)</div>
+        <div class="sub-section-header">Remote Sales Employees</div>
         <table class="payroll-table">
             <thead>
                 <tr>
                     <th>Employee</th>
-                    <th class="text-right">Salary</th>
-                    <th class="text-right">Present Days</th>
-                    <th class="text-right">Absent Days</th>
-                    <th class="text-right">Base Pay</th>
                     <th class="text-right">Commission</th>
                     <th class="text-right">Incentives</th>
                     <th class="text-right">Reductions</th>
@@ -797,18 +797,8 @@
                         <div class="employee-name">{{ item.employee.name }}</div>
                         {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                     </td>
-                    <td class="text-right mono">{{ item.salary|floatformat:0 }}</td>
-                    <td class="text-right">
-                        {{ item.effective_work_days }}
-                        <div class="days-breakdown">{{ item.present_days }}full + {{ item.half_days }}×½</div>
-                    </td>
-                    <td class="text-right">
-                        {{ item.total_deduction_days }}
-                        <div class="days-breakdown">-{{ item.absent_days }} absent{% if item.half_days %} -{{ item.half_days }}×½{% endif %}</div>
-                    </td>
-                    <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
                     <td class="text-right mono {% if item.commission > 0 %}text-amber{% else %}text-muted{% endif %}">
-                        {% if item.commission > 0 %}+{{ item.commission|floatformat:2 }}{% else %}—{% endif %}
+                        {% if item.commission > 0 %}{{ item.commission|floatformat:2 }}{% else %}—{% endif %}
                     </td>
                     <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
                         {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
@@ -822,8 +812,7 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="5" class="text-right">Sub-total (Remote)</td>
-                    <td class="text-right"></td>
+                    <td colspan="2" class="text-right">Sub-total (Remote)</td>
                     <td class="text-right"></td>
                     <td class="text-right"></td>
                     <td class="text-right mono text-blue">AED {{ total_remote|floatformat:2 }}</td>
@@ -847,6 +836,34 @@
         {% endif %}
     </div>
 
+</div>
+
+<!-- ============ UPLOAD SUBMISSIONS MODAL ============ -->
+<div class="modal-overlay" id="uploadModal">
+    <div class="modal-box" style="max-width:460px;">
+        <div class="modal-head">
+            <div>
+                <h3>Upload Bank Submissions</h3>
+                <div class="modal-head-sub">{{ month_name }} {{ selected_year }}</div>
+            </div>
+            <button class="modal-close" onclick="closeUploadModal()">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.85rem;color:#64748b;margin:0 0 16px;">
+                Upload the monthly submissions XLSX file. Each row must have a <strong>Bank Name</strong> and <strong>Agent</strong> (TCR number) column.
+                Existing submission counts for this month will be overwritten.
+            </p>
+            <div class="form-group" style="margin-bottom:14px;">
+                <label>XLSX File</label>
+                <input type="file" id="uploadFile" accept=".xlsx,.xls" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;box-sizing:border-box;">
+            </div>
+            <div id="uploadResult" style="display:none;padding:12px;border-radius:8px;font-size:0.85rem;margin-bottom:12px;"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeUploadModal()">Cancel</button>
+                <button class="btn-save" id="uploadBtn" onclick="submitUpload()">Upload & Save</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ============ EMPLOYEE MODAL (two tabs) ============ -->
@@ -1184,6 +1201,82 @@
     document.getElementById('adjModal').addEventListener('click', function (e) {
         if (e.target === this) closeModal();
     });
+    document.getElementById('uploadModal').addEventListener('click', function (e) {
+        if (e.target === this) closeUploadModal();
+    });
+
+    // ---- Upload Submissions ----
+
+    function openUploadModal() {
+        document.getElementById('uploadFile').value = '';
+        document.getElementById('uploadResult').style.display = 'none';
+        document.getElementById('uploadBtn').disabled = false;
+        document.getElementById('uploadBtn').textContent = 'Upload & Save';
+        document.getElementById('uploadModal').classList.add('show');
+    }
+
+    function closeUploadModal() {
+        document.getElementById('uploadModal').classList.remove('show');
+    }
+
+    async function submitUpload() {
+        const fileInput = document.getElementById('uploadFile');
+        if (!fileInput.files.length) {
+            alert('Please select an XLSX file first.');
+            return;
+        }
+
+        const btn = document.getElementById('uploadBtn');
+        btn.disabled = true;
+        btn.textContent = 'Uploading...';
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('year', document.getElementById('hiddenYear').value);
+        formData.append('month', document.getElementById('hiddenMonth').value);
+
+        const resultEl = document.getElementById('uploadResult');
+        try {
+            const res = await fetch('/payroll/api/upload-submissions/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrf() },
+                body: formData,
+            });
+            const data = await res.json();
+
+            resultEl.style.display = 'block';
+            if (data.success) {
+                const s = data.stats;
+                let html = `<span style="color:#166534;font-weight:600;">&#10003; ${s.matched} submission record(s) saved.</span>`;
+                if (s.unmatched_agents.length) {
+                    html += `<br><span style="color:#92400e;font-weight:600;">Unmatched TCR IDs (${s.unmatched_agents.length}):</span> ${s.unmatched_agents.map(escapeHtml).join(', ')}`;
+                }
+                if (s.unmatched_banks.length) {
+                    html += `<br><span style="color:#92400e;font-weight:600;">Unmatched Banks (${s.unmatched_banks.length}):</span> ${s.unmatched_banks.map(escapeHtml).join(', ')}`;
+                }
+                resultEl.style.background = '#f0fdf4';
+                resultEl.style.border = '1px solid #bbf7d0';
+                resultEl.innerHTML = html;
+                btn.textContent = 'Done';
+                if (s.matched > 0) {
+                    setTimeout(() => location.reload(), 1200);
+                }
+            } else {
+                resultEl.style.background = '#fef2f2';
+                resultEl.style.border = '1px solid #fecaca';
+                resultEl.innerHTML = `<span style="color:#991b1b;font-weight:600;">Error: ${escapeHtml(data.error || 'Unknown error')}</span>`;
+                btn.disabled = false;
+                btn.textContent = 'Upload & Save';
+            }
+        } catch (e) {
+            resultEl.style.display = 'block';
+            resultEl.style.background = '#fef2f2';
+            resultEl.style.border = '1px solid #fecaca';
+            resultEl.innerHTML = '<span style="color:#991b1b;font-weight:600;">Request failed. Please try again.</span>';
+            btn.disabled = false;
+            btn.textContent = 'Upload & Save';
+        }
+    }
 
     async function recalculateSummaries() {
         const btn = document.getElementById('recalcBtn');
