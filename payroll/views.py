@@ -148,14 +148,18 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     }
 
 
-def _get_sales_payroll_row(emp, year, month, emp_type):
+def _get_sales_payroll_row(emp, year, month, emp_type, banks):
     """Build a payroll data row for a sales employee (commission-only, no attendance deductions)."""
     if emp_type == 'inhouse':
-        commission = _get_commission(year, month, employee=emp)
+        submissions_qs = BankSubmission.objects.filter(employee=emp, year=year, month=month)
         adjustments = PayrollAdjustment.objects.filter(employee=emp, year=year, month=month)
     else:
-        commission = _get_commission(year, month, remote_employee=emp)
+        submissions_qs = BankSubmission.objects.filter(remote_employee=emp, year=year, month=month)
         adjustments = PayrollAdjustment.objects.filter(remote_employee=emp, year=year, month=month)
+
+    bank_counts = {s.bank_id: s.submission_count for s in submissions_qs}
+    bank_counts_list = [bank_counts.get(b.id, 0) for b in banks]
+    commission = sum(bank_counts.get(b.id, 0) * float(b.per_account_charge) for b in banks)
 
     incentives = float(
         adjustments.filter(adjustment_type='incentive').aggregate(total=Sum('amount'))['total'] or 0
@@ -168,6 +172,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type):
     return {
         'employee': emp,
         'employee_type': emp_type,
+        'bank_counts_list': bank_counts_list,
         'commission': round(commission, 2),
         'incentives': round(incentives, 2),
         'reductions': round(reductions, 2),
@@ -200,6 +205,13 @@ def payroll_dashboard(request):
 
     total_holidays = _count_holidays(selected_year, selected_month, days_in_month)
 
+    # Fetch active banks for sales spreadsheet
+    banks = list(Bank.objects.filter(is_active=True).order_by('name'))
+    banks_json = json.dumps([
+        {'id': b.id, 'name': b.name, 'rate': float(b.per_account_charge)}
+        for b in banks
+    ])
+
     # --- Admin section (in-house Admin dept) ---
     admin_employees = Employee.objects.filter(
         department='Admin', is_active=True
@@ -215,7 +227,7 @@ def payroll_dashboard(request):
         department='Sales', is_active=True
     ).order_by('name')
     sales_inhouse_data = [
-        _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse')
+        _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks)
         for emp in sales_inhouse_employees
     ]
     total_sales_inhouse, _, _, _ = _build_section_totals(sales_inhouse_data)
@@ -223,10 +235,13 @@ def payroll_dashboard(request):
     # --- Sales section: remote employees (commission-only) ---
     remote_employees = RemoteEmployee.objects.filter(is_active=True).order_by('name')
     remote_data = [
-        _get_sales_payroll_row(emp, selected_year, selected_month, 'remote')
+        _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks)
         for emp in remote_employees
     ]
     total_remote, _, _, _ = _build_section_totals(remote_data)
+
+    # Combined sales data for spreadsheet view
+    all_sales_data = sales_inhouse_data + remote_data
 
     # Combined Sales totals
     all_sales_rows = sales_inhouse_data + remote_data
@@ -246,10 +261,11 @@ def payroll_dashboard(request):
         'total_admin': total_admin,
         'admin_incentives_total': admin_incentives_total,
         'admin_reductions_total': admin_reductions_total,
-        # Sales
-        'sales_inhouse_data': sales_inhouse_data,
+        # Sales (spreadsheet)
+        'banks': banks,
+        'banks_json': banks_json,
+        'all_sales_data': all_sales_data,
         'total_sales_inhouse': total_sales_inhouse,
-        'remote_data': remote_data,
         'total_remote': total_remote,
         'total_sales': total_sales,
         'total_sales_commission': total_sales_commission,
@@ -697,14 +713,17 @@ def recalculate_summaries(request):
 @require_http_methods(["POST"])
 def upload_submissions(request):
     """
-    Parse a bank submission XLSX file and upsert BankSubmission records.
+    Parse a Target vs Achieved XLSX file and upsert BankSubmission records.
 
     Expected columns (any order, header detection by keyword):
-      - Bank Name   → bank to credit
-      - Agent       → employee TCR ID (e.g. TCR1000224)
+      - Id      → employee TCR ID (optional; used when present)
+      - Agent   → employee name (fallback lookup when Id is absent/empty)
+      - {BankName} Ach → achieved submission count for each bank
 
-    Each row = one submission. Rows are counted per (agent, bank) pair.
-    Employees are looked up by tcr_id across both Employee and RemoteEmployee.
+    Each row = one employee. The achieved count for each bank is read directly
+    from the "{Bank} Ach" column (Total Ach is ignored).
+    Employees are looked up by tcr_id (via Id column) or name (via Agent column)
+    across both Employee and RemoteEmployee.
     """
     uploaded_file = request.FILES.get('file')
     if not uploaded_file:
@@ -731,32 +750,32 @@ def upload_submissions(request):
         return JsonResponse({'success': False, 'error': 'File is empty'}, status=400)
 
     # Detect columns from header row
-    header = [str(c).strip().lower() if c else '' for c in rows[0]]
-    bank_col = agent_col = None
-    for i, h in enumerate(header):
-        if 'bank' in h:
-            bank_col = i
-        if 'agent' in h:
-            agent_col = i
+    raw_headers = [str(c).strip() if c else '' for c in rows[0]]
+    headers_lower = [h.lower() for h in raw_headers]
 
-    if bank_col is None or agent_col is None:
+    agent_col = id_col = None
+    # {bank_name_lower: col_index} for "{Bank} Ach" columns (excluding "total ach")
+    bank_ach_cols = {}
+
+    for i, h in enumerate(headers_lower):
+        if h == 'id':
+            id_col = i
+        elif h == 'agent':
+            agent_col = i
+        elif h.endswith(' ach') and not h.startswith('total'):
+            bank_name = raw_headers[i][:-4].strip()  # strip " Ach" suffix
+            bank_ach_cols[bank_name.lower()] = (i, bank_name)
+
+    if agent_col is None:
         return JsonResponse(
-            {'success': False, 'error': 'Could not find "Bank Name" or "Agent" columns in header'},
+            {'success': False, 'error': 'Could not find "Agent" column in header'},
             status=400
         )
-
-    # Count submissions per (tcr_id, bank_name)
-    counts = defaultdict(lambda: defaultdict(int))
-    for row in rows[1:]:
-        if not any(row):
-            continue
-        bank_name = str(row[bank_col]).strip() if row[bank_col] else ''
-        agent = str(row[agent_col]).strip() if row[agent_col] else ''
-        if bank_name and agent:
-            counts[agent][bank_name] += 1
-
-    if not counts:
-        return JsonResponse({'success': False, 'error': 'No data rows found in file'}, status=400)
+    if not bank_ach_cols:
+        return JsonResponse(
+            {'success': False, 'error': 'Could not find any "{Bank} Ach" columns in header'},
+            status=400
+        )
 
     # Preload active banks for fast lookup (case-insensitive)
     bank_map = {b.name.lower(): b for b in Bank.objects.filter(is_active=True)}
@@ -765,29 +784,51 @@ def upload_submissions(request):
     unmatched_agents = set()
     unmatched_banks = set()
 
-    for tcr_id, bank_counts in counts.items():
-        # Look up employee by tcr_id — prefer in-house, fall back to remote
-        employee = Employee.objects.filter(tcr_id=tcr_id, is_active=True).first()
-        remote_employee = None
-        if not employee:
-            remote_employee = RemoteEmployee.objects.filter(tcr_id=tcr_id, is_active=True).first()
+    for row in rows[1:]:
+        if not any(row):
+            continue
+
+        agent_name = str(row[agent_col]).strip() if row[agent_col] else ''
+        tcr_id = str(row[id_col]).strip() if (id_col is not None and row[id_col]) else ''
+
+        if not agent_name and not tcr_id:
+            continue
+
+        # Employee lookup: prefer tcr_id, fall back to name
+        employee = remote_employee = None
+        if tcr_id:
+            employee = Employee.objects.filter(tcr_id=tcr_id, is_active=True).first()
+            if not employee:
+                remote_employee = RemoteEmployee.objects.filter(tcr_id=tcr_id, is_active=True).first()
+        if not employee and not remote_employee and agent_name:
+            employee = Employee.objects.filter(name__iexact=agent_name, is_active=True).first()
+            if not employee:
+                remote_employee = RemoteEmployee.objects.filter(name__iexact=agent_name, is_active=True).first()
 
         if not employee and not remote_employee:
-            unmatched_agents.add(tcr_id)
+            unmatched_agents.add(tcr_id or agent_name)
             continue
 
         fk_kwargs = {'employee': employee} if employee else {'remote_employee': remote_employee}
 
-        for bank_name, count in bank_counts.items():
-            bank = bank_map.get(bank_name.lower())
+        for bank_lower, (col_idx, bank_display_name) in bank_ach_cols.items():
+            try:
+                count = int(row[col_idx]) if row[col_idx] is not None else 0
+            except (ValueError, TypeError):
+                count = 0
+
+            bank = bank_map.get(bank_lower)
             if not bank:
-                unmatched_banks.add(bank_name)
+                unmatched_banks.add(bank_display_name)
                 continue
 
-            BankSubmission.objects.update_or_create(
-                bank=bank, year=year, month=month, **fk_kwargs,
-                defaults={'submission_count': count},
-            )
+            if count <= 0:
+                BankSubmission.objects.filter(bank=bank, year=year, month=month, **fk_kwargs).delete()
+            else:
+                BankSubmission.objects.update_or_create(
+                    bank=bank, year=year, month=month, **fk_kwargs,
+                    defaults={'submission_count': count},
+                )
             matched += 1
 
     logger.info(
