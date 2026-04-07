@@ -1036,7 +1036,7 @@
                 <thead>
                     <tr>
                         <th class="sheet-th-name">Agent</th>
-                        <th class="sheet-th-dept">Department</th>
+                        <th class="sheet-th-dept">Type</th>
                         {% for bank in banks %}
                         <th class="sheet-th-bank">
                             {{ bank.name }}
@@ -1058,7 +1058,7 @@
                             {% if item.employee_type == 'remote' %}
                             <span class="dept-badge remote">Remote</span>
                             {% else %}
-                            <span class="dept-badge inhouse">{{ item.employee.department }}</span>
+                            <span class="dept-badge inhouse">In-House</span>
                             {% endif %}
                         </td>
                         {% for count in item.bank_counts_list %}
