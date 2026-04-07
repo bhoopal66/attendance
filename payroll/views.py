@@ -21,6 +21,7 @@ from attendance.models import (
     Employee, RemoteEmployee, Holiday,
     LeaveRequest, MonthlySummary,
 )
+from collections import defaultdict as _defaultdict
 from attendance.views.utils import (
     MONTH_CHOICES, MONTH_NAMES, YEAR_RANGE,
     get_selected_month_year, superuser_required,
@@ -98,6 +99,9 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         late_days = 0
 
     salary = float(emp.salary) if emp.salary else 0.0
+    basic_salary = round(salary * 0.40, 2)
+    housing_allowance = round(salary * 0.40, 2)
+    transport_allowance = round(salary * 0.20, 2)
 
     approved_leaves = LeaveRequest.objects.filter(
         employee=emp,
@@ -129,7 +133,11 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     return {
         'employee': emp,
         'employee_type': 'inhouse',
+        'currency': emp.currency,
         'salary': salary,
+        'basic_salary': basic_salary,
+        'housing_allowance': housing_allowance,
+        'transport_allowance': transport_allowance,
         'full_days': full_days,
         'half_days': half_days,
         'effective_work_days': round(effective_work_days, 1),
@@ -172,6 +180,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks):
     return {
         'employee': emp,
         'employee_type': emp_type,
+        'currency': emp.currency,
         'bank_counts_list': bank_counts_list,
         'commission': round(commission, 2),
         'incentives': round(incentives, 2),
@@ -249,6 +258,44 @@ def payroll_dashboard(request):
 
     grand_total = round(total_admin + total_sales, 2)
 
+    # --- Section 3: Advances & Deductions ---
+    all_adjs_qs = PayrollAdjustment.objects.filter(
+        year=selected_year, month=selected_month
+    ).select_related('employee', 'remote_employee')
+
+    _adj_map = {}
+    for adj in all_adjs_qs:
+        emp = adj.employee or adj.remote_employee
+        emp_type = 'inhouse' if adj.employee else 'remote'
+        key = (emp_type, emp.id)
+        if key not in _adj_map:
+            _adj_map[key] = {
+                'employee': emp,
+                'employee_type': emp_type,
+                'incentives': 0.0,
+                'reductions': 0.0,
+            }
+        if adj.adjustment_type == 'incentive':
+            _adj_map[key]['incentives'] += float(adj.amount)
+        else:
+            _adj_map[key]['reductions'] += float(adj.amount)
+
+    adj_data = []
+    for row in _adj_map.values():
+        row['incentives'] = round(row['incentives'], 2)
+        row['reductions'] = round(row['reductions'], 2)
+        row['net'] = round(row['incentives'] - row['reductions'], 2)
+        adj_data.append(row)
+
+    total_adj_incentives = round(sum(r['incentives'] for r in adj_data), 2)
+    total_adj_reductions = round(sum(r['reductions'] for r in adj_data), 2)
+    total_adj_net = round(total_adj_incentives - total_adj_reductions, 2)
+
+    # Grand total split by currency
+    all_rows = admin_data + all_sales_data
+    grand_total_aed = round(sum(r['net_payroll'] for r in all_rows if r.get('currency', 'AED') == 'AED'), 2)
+    grand_total_inr = round(sum(r['net_payroll'] for r in all_rows if r.get('currency', 'AED') == 'INR'), 2)
+
     context = {
         'selected_month': selected_month,
         'selected_year': selected_year,
@@ -271,8 +318,15 @@ def payroll_dashboard(request):
         'total_sales_commission': total_sales_commission,
         'sales_incentives_total': sales_incentives_total,
         'sales_reductions_total': sales_reductions_total,
+        # Advances & Deductions
+        'adj_data': adj_data,
+        'total_adj_incentives': total_adj_incentives,
+        'total_adj_reductions': total_adj_reductions,
+        'total_adj_net': total_adj_net,
         # Grand total
         'grand_total': grand_total,
+        'grand_total_aed': grand_total_aed,
+        'grand_total_inr': grand_total_inr,
     }
 
     return render(request, 'payroll/dashboard.html', context)
@@ -843,6 +897,77 @@ def upload_submissions(request):
             'unmatched_agents': sorted(unmatched_agents),
             'unmatched_banks': sorted(unmatched_banks),
         },
+    })
+
+
+# ============================================
+# Payroll Employee Database
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def payroll_employees(request):
+    """Payroll employee database — salary, currency, designation for all employees."""
+    inhouse_employees = Employee.objects.filter(is_active=True).order_by('department', 'name')
+    remote_employees = RemoteEmployee.objects.filter(is_active=True).order_by('name')
+    return render(request, 'payroll/employees.html', {
+        'inhouse_employees': inhouse_employees,
+        'remote_employees': remote_employees,
+    })
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def payroll_employee_update(request, emp_type, employee_id):
+    """Update payroll-relevant fields (salary, currency, designation, department) for an employee."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    if emp_type == 'inhouse':
+        try:
+            emp = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+    elif emp_type == 'remote':
+        try:
+            emp = RemoteEmployee.objects.get(id=employee_id)
+        except RemoteEmployee.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+    else:
+        return JsonResponse({'success': False, 'error': 'Invalid employee type'}, status=400)
+
+    if 'salary' in data:
+        val = data['salary']
+        try:
+            emp.salary = Decimal(str(val)) if val not in (None, '', 0) else None
+        except (ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'Invalid salary value'}, status=400)
+
+    if 'currency' in data:
+        if data['currency'] not in ('AED', 'INR'):
+            return JsonResponse({'success': False, 'error': 'Currency must be AED or INR'}, status=400)
+        emp.currency = data['currency']
+
+    if 'designation' in data:
+        emp.designation = str(data['designation']).strip() or None
+
+    if 'department' in data:
+        dept = str(data['department']).strip()
+        if dept not in ('Sales', 'Admin', ''):
+            return JsonResponse({'success': False, 'error': 'Invalid department'}, status=400)
+        emp.department = dept or None
+
+    emp.save()
+    logger.info("Payroll employee updated: %s (%s) by %s", emp.name, emp_type, request.user.username)
+    return JsonResponse({
+        'success': True,
+        'salary': float(emp.salary) if emp.salary else None,
+        'currency': emp.currency,
+        'designation': emp.designation or '',
+        'department': emp.department or '',
     })
 
 

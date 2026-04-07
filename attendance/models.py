@@ -58,6 +58,17 @@ class BaseEmployee(models.Model):
         help_text="Hashed password for employee portal login"
     )
 
+    CURRENCY_CHOICES = [
+        ('AED', 'AED'),
+        ('INR', 'INR'),
+    ]
+    currency = models.CharField(
+        max_length=3,
+        choices=CURRENCY_CHOICES,
+        default='AED',
+        help_text="Currency for salary payment"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

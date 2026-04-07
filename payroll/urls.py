@@ -22,4 +22,7 @@ urlpatterns = [
     path('api/recalculate/', views.recalculate_summaries, name='recalculate_summaries'),
     # Upload submission XLSX
     path('api/upload-submissions/', views.upload_submissions, name='upload_submissions'),
+    # Payroll employee database
+    path('employees/', views.payroll_employees, name='payroll_employees'),
+    path('api/employee/<str:emp_type>/<int:employee_id>/update/', views.payroll_employee_update, name='payroll_employee_update'),
 ]

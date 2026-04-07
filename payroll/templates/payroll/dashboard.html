@@ -182,6 +182,56 @@
         background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
     }
 
+    .section-header.advances {
+        background: linear-gradient(135deg, #92400e 0%, #d97706 100%);
+    }
+
+    .section-num {
+        font-size: 0.7rem;
+        opacity: 0.7;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        display: block;
+        margin-bottom: 2px;
+    }
+
+    /* Attendance Sheet (Section 1) column sizing */
+    .attendance-sheet { font-size: 0.82rem; }
+
+    .col-sticky {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: inherit;
+    }
+    .attendance-sheet tbody tr:hover .col-sticky { background: #eff6ff; }
+    .attendance-sheet tfoot .col-sticky { background: #f1f5f9; }
+    .attendance-sheet thead .col-sticky { background: #f8fafc; z-index: 3; }
+
+    .col-name  { min-width: 180px; }
+    .col-loc   { min-width: 100px; white-space: nowrap; }
+    .col-salary-comp { min-width: 90px; white-space: nowrap; }
+    .col-gross {
+        min-width: 110px;
+        white-space: nowrap;
+        background: #f0f9ff;
+        border-left: 2px solid #bae6fd;
+        border-right: 2px solid #bae6fd;
+        color: #0369a1;
+    }
+    .attendance-sheet tfoot .col-gross { background: #e0f2fe; }
+    .attendance-sheet thead .col-gross { background: #e0f2fe; }
+    .col-mid   { min-width: 100px; white-space: nowrap; }
+    .col-net   {
+        min-width: 130px;
+        white-space: nowrap;
+        background: #eff6ff;
+        border-left: 2px solid #3b82f6;
+    }
+    .attendance-sheet tfoot .col-net { background: #dbeafe; border-top: 2px solid #3b82f6; }
+    .attendance-sheet thead .col-net { background: #dbeafe; border-bottom: 2px solid #3b82f6; color: #1d4ed8; }
+
     .section-title {
         font-size: 1.1rem;
         font-weight: 600;
@@ -660,6 +710,47 @@
         width: 52px;
     }
 
+    .sheet-th-dept {
+        text-align: center;
+        padding: 10px 8px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        background: #f8fafc;
+        border-bottom: 2px solid #e2e8f0;
+        border-left: 1px solid #e2e8f0;
+        min-width: 90px;
+        white-space: nowrap;
+    }
+
+    .sheet-td-dept {
+        padding: 5px 8px;
+        border-bottom: 1px solid #f1f5f9;
+        border-left: 1px solid #f1f5f9;
+        text-align: center;
+    }
+
+    .dept-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .dept-badge.remote {
+        background: #ede9fe;
+        color: #5b21b6;
+    }
+
+    .dept-badge.inhouse {
+        background: #dcfce7;
+        color: #166534;
+    }
+
     .bank-rate-label {
         font-size: 0.65rem;
         color: #94a3b8;
@@ -807,21 +898,32 @@
     <div class="grand-total-banner">
         <div>
             <div class="grand-total-label">Total Payroll — {{ month_name }} {{ selected_year }}</div>
-            <div class="grand-total-amount">AED {{ grand_total|floatformat:2 }}</div>
+            {% if grand_total_inr > 0 %}
+            <div class="grand-total-amount" style="font-size:1.5rem;">AED {{ grand_total_aed|floatformat:2 }}</div>
+            <div style="font-size:1rem;font-weight:600;font-family:'SF Mono','Monaco',monospace;opacity:0.85;margin-top:4px;">INR {{ grand_total_inr|floatformat:2 }}</div>
+            {% else %}
+            <div class="grand-total-amount">AED {{ grand_total_aed|floatformat:2 }}</div>
+            {% endif %}
         </div>
         <div class="grand-total-breakdown">
             <div class="breakdown-item">
-                <div class="label">Admin</div>
+                <div class="label">Attendance-Based</div>
                 <div class="value">AED {{ total_admin|floatformat:2 }}</div>
             </div>
             <div class="breakdown-item">
-                <div class="label">Sales</div>
+                <div class="label">Performance-Based</div>
                 <div class="value">AED {{ total_sales|floatformat:2 }}</div>
             </div>
             {% if total_sales_commission > 0 %}
             <div class="breakdown-item">
                 <div class="label">Bank Commission</div>
                 <div class="value">AED {{ total_sales_commission|floatformat:2 }}</div>
+            </div>
+            {% endif %}
+            {% if total_adj_net != 0 %}
+            <div class="breakdown-item">
+                <div class="label">Net Advances/Deductions</div>
+                <div class="value">{{ total_adj_net|floatformat:2 }}</div>
             </div>
             {% endif %}
             <div class="breakdown-item">
@@ -831,82 +933,98 @@
         </div>
     </div>
 
-    <!-- ============ ADMIN SECTION ============ -->
+    <!-- ============ SECTION 1: ATTENDANCE-BASED PAYROLL ============ -->
     <div class="payroll-section">
         <div class="section-header">
             <span class="section-title">
                 <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
-                Admin Department
+                <span>
+                    <span class="section-num">Section 1</span>
+                    Attendance-Based Payroll
+                </span>
             </span>
             <span class="section-total">AED {{ total_admin|floatformat:2 }}</span>
         </div>
 
         {% if admin_data %}
-        <table class="payroll-table">
+        <div class="sheet-wrapper">
+        <table class="payroll-table attendance-sheet">
             <thead>
                 <tr>
-                    <th>Employee</th>
-                    <th class="text-right">Salary</th>
-                    <th class="text-right">Days Worked</th>
-                    <th class="text-right">Absent Days</th>
-                    <th class="text-right">Base Pay</th>
-                    <th class="text-right">Incentives</th>
-                    <th class="text-right">Reductions</th>
-                    <th class="text-right">Net Pay</th>
+                    <th class="col-sticky col-name">Employee</th>
+                    <th class="col-loc">Location</th>
+                    <th class="text-right col-salary-comp">Basic<div class="bank-rate-label">40%</div></th>
+                    <th class="text-right col-salary-comp">Housing<div class="bank-rate-label">40%</div></th>
+                    <th class="text-right col-salary-comp">Transport<div class="bank-rate-label">20%</div></th>
+                    <th class="text-right col-gross">Gross Salary</th>
+                    <th class="text-right col-mid">Days Leave</th>
+                    <th class="text-right col-mid">Deduction</th>
+                    <th class="text-right col-net">Net Pay</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in admin_data %}
                 <tr onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', 'inhouse')">
-                    <td>
+                    <td class="col-sticky col-name">
                         <div class="employee-name">{{ item.employee.name }}</div>
                         {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                     </td>
-                    <td class="text-right mono">{{ item.salary|floatformat:0 }}</td>
-                    <td class="text-right">
-                        {{ item.effective_work_days }}
-                        <div class="days-breakdown">{{ item.full_days }}full + {{ item.half_days }}×½</div>
+                    <td class="col-loc text-muted" style="font-size:0.8rem;">{{ item.employee.location|default:"—" }}</td>
+                    <td class="text-right mono col-salary-comp">{{ item.basic_salary|floatformat:0 }}</td>
+                    <td class="text-right mono col-salary-comp">{{ item.housing_allowance|floatformat:0 }}</td>
+                    <td class="text-right mono col-salary-comp">{{ item.transport_allowance|floatformat:0 }}</td>
+                    <td class="text-right mono col-gross" style="font-weight:600;">{{ item.salary|floatformat:0 }}</td>
+                    <td class="text-right col-mid">
+                        {% if item.paid_leave_days > 0 %}
+                            <span style="color:#3b82f6;font-weight:600;">{{ item.paid_leave_days }}</span>
+                            <div class="days-breakdown">paid leave</div>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
                     </td>
-                    <td class="text-right">
-                        {{ item.total_deduction_days }}
-                        <div class="days-breakdown">-{{ item.absent_days }} absent{% if item.half_days %} -{{ item.half_days }}×½{% endif %}{% if item.late_half_days %} -{{ item.late_days }}late→{{ item.late_half_days }}×½{% endif %}{% if item.paid_leave_days %} +{{ item.paid_leave_days }} leave{% endif %}</div>
+                    <td class="text-right mono col-mid {% if item.deduction > 0 %}text-red{% else %}text-muted{% endif %}">
+                        {% if item.deduction > 0 %}-{{ item.deduction|floatformat:2 }}
+                        <div class="days-breakdown">{{ item.total_deduction_days }}d{% if item.late_days %} · {{ item.late_days }}late{% endif %}</div>
+                        {% else %}—{% endif %}
                     </td>
-                    <td class="text-right mono text-muted">{{ item.base_payroll|floatformat:2 }}</td>
-                    <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
-                        {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
-                    </td>
-                    <td class="text-right mono {% if item.reductions > 0 %}text-red{% else %}text-muted{% endif %}">
-                        {% if item.reductions > 0 %}-{{ item.reductions|floatformat:2 }}{% else %}—{% endif %}
-                    </td>
-                    <td class="text-right mono text-blue">AED {{ item.net_payroll|floatformat:2 }}</td>
+                    <td class="text-right mono col-net text-blue">{{ item.currency }} {{ item.net_payroll|floatformat:2 }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="5" class="text-right">Totals</td>
-                    <td class="text-right mono text-green">+{{ admin_incentives_total|floatformat:2 }}</td>
-                    <td class="text-right mono text-red">-{{ admin_reductions_total|floatformat:2 }}</td>
-                    <td class="text-right mono text-blue">AED {{ total_admin|floatformat:2 }}</td>
+                    <td class="col-sticky col-name" style="font-weight:700;font-size:0.8rem;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Total</td>
+                    <td class="col-loc"></td>
+                    <td class="text-right mono col-salary-comp text-muted" style="font-weight:600;">—</td>
+                    <td class="text-right mono col-salary-comp text-muted" style="font-weight:600;">—</td>
+                    <td class="text-right mono col-salary-comp text-muted" style="font-weight:600;">—</td>
+                    <td class="text-right mono col-gross" style="font-weight:700;"></td>
+                    <td class="col-mid"></td>
+                    <td class="col-mid"></td>
+                    <td class="text-right mono col-net text-blue">AED {{ total_admin|floatformat:2 }}</td>
                 </tr>
             </tfoot>
         </table>
+        </div>
         <div class="click-hint">Click any row to add incentives or reductions for that employee</div>
         {% else %}
         <div class="empty-state">No active Admin employees found. Assign "Admin" department and salary to employees.</div>
         {% endif %}
     </div>
 
-    <!-- ============ SALES SECTION ============ -->
+    <!-- ============ SECTION 2: PERFORMANCE-BASED PAYROLL ============ -->
     <div class="payroll-section">
         <div class="section-header sales">
             <span class="section-title">
                 <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                Sales Department
+                <span>
+                    <span class="section-num">Section 2</span>
+                    Performance-Based Payroll
+                </span>
             </span>
             <span class="section-total">AED {{ total_sales|floatformat:2 }}</span>
         </div>
@@ -918,6 +1036,7 @@
                 <thead>
                     <tr>
                         <th class="sheet-th-name">Agent</th>
+                        <th class="sheet-th-dept">Department</th>
                         {% for bank in banks %}
                         <th class="sheet-th-bank">
                             {{ bank.name }}
@@ -935,6 +1054,13 @@
                             <div class="employee-name">{{ item.employee.name }}</div>
                             {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                         </td>
+                        <td class="sheet-td-dept">
+                            {% if item.employee_type == 'remote' %}
+                            <span class="dept-badge remote">Remote</span>
+                            {% else %}
+                            <span class="dept-badge inhouse">{{ item.employee.department }}</span>
+                            {% endif %}
+                        </td>
                         {% for count in item.bank_counts_list %}
                         <td class="sheet-td-bank">
                             <input type="number" class="bank-count-input"
@@ -943,8 +1069,8 @@
                                    oninput="recalcRow(this.closest('tr'))">
                         </td>
                         {% endfor %}
-                        <td class="sheet-td-total" id="total-{{ item.employee_type }}-{{ item.employee.id }}">
-                            AED {{ item.commission|floatformat:2 }}
+                        <td class="sheet-td-total" id="total-{{ item.employee_type }}-{{ item.employee.id }}" data-currency="{{ item.currency }}">
+                            {{ item.currency }} {{ item.commission|floatformat:2 }}
                         </td>
                         <td class="sheet-td-adj">
                             <button class="btn-adj-sm" onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', '{{ item.employee_type }}')">Adj</button>
@@ -955,6 +1081,7 @@
                 <tfoot>
                     <tr>
                         <td class="sheet-td-name" style="font-weight:700;font-size:0.8rem;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Total</td>
+                        <td class="sheet-td-dept"></td>
                         {% for bank in banks %}
                         <td class="sheet-td-bank text-right mono" id="col-total-{{ bank.id }}" style="font-weight:600;color:#475569;">—</td>
                         {% endfor %}
@@ -974,6 +1101,79 @@
         {% endif %}
         {% else %}
         <div class="empty-state">No active Sales employees found. Assign "Sales" department to in-house employees or add remote employees.</div>
+        {% endif %}
+    </div>
+
+
+    <!-- ============ SECTION 3: ADVANCES & DEDUCTIONS ============ -->
+    <div class="payroll-section">
+        <div class="section-header advances">
+            <span class="section-title">
+                <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+                </svg>
+                <span>
+                    <span class="section-num">Section 3</span>
+                    Advances &amp; Deductions
+                </span>
+            </span>
+            <span class="section-total">
+                {% if total_adj_incentives > 0 %}<span style="color:#a7f3d0;font-size:1rem;">+{{ total_adj_incentives|floatformat:2 }}</span> {% endif %}
+                {% if total_adj_reductions > 0 %}<span style="color:#fca5a5;font-size:1rem;">-{{ total_adj_reductions|floatformat:2 }}</span>{% endif %}
+            </span>
+        </div>
+
+        {% if adj_data %}
+        <table class="payroll-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Type</th>
+                    <th class="text-right">Incentives (+)</th>
+                    <th class="text-right">Reductions (-)</th>
+                    <th class="text-right">Net Adjustment</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in adj_data %}
+                <tr onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', '{{ item.employee_type }}')">
+                    <td>
+                        <div class="employee-name">{{ item.employee.name }}</div>
+                        {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
+                    </td>
+                    <td>
+                        {% if item.employee_type == 'remote' %}
+                        <span class="dept-badge remote" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;background:#ede9fe;color:#5b21b6;">Remote</span>
+                        {% else %}
+                        <span class="dept-badge inhouse" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;background:#dcfce7;color:#166534;">{{ item.employee.department|default:"In-House" }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
+                        {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-right mono {% if item.reductions > 0 %}text-red{% else %}text-muted{% endif %}">
+                        {% if item.reductions > 0 %}-{{ item.reductions|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-right mono {% if item.net >= 0 %}text-green{% else %}text-red{% endif %}">
+                        {% if item.net >= 0 %}+{{ item.net|floatformat:2 }}{% else %}{{ item.net|floatformat:2 }}{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2" class="text-right">Totals</td>
+                    <td class="text-right mono text-green">+{{ total_adj_incentives|floatformat:2 }}</td>
+                    <td class="text-right mono text-red">-{{ total_adj_reductions|floatformat:2 }}</td>
+                    <td class="text-right mono {% if total_adj_net >= 0 %}text-green{% else %}text-red{% endif %}">
+                        {% if total_adj_net >= 0 %}+{{ total_adj_net|floatformat:2 }}{% else %}{{ total_adj_net|floatformat:2 }}{% endif %}
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        <div class="click-hint">Click any row to view or add adjustments for that employee</div>
+        {% else %}
+        <div class="empty-state">No advances or deductions recorded for {{ month_name }} {{ selected_year }}. Click any employee in the sections above to add adjustments.</div>
         {% endif %}
     </div>
 
@@ -1088,7 +1288,10 @@
             total += (parseInt(inp.value) || 0) * banksConfig[i].rate;
         });
         const el = document.getElementById(`total-${row.dataset.empType}-${row.dataset.empId}`);
-        if (el) el.textContent = `AED ${total.toFixed(2)}`;
+        if (el) {
+            const currency = el.dataset.currency || 'AED';
+            el.textContent = `${currency} ${total.toFixed(2)}`;
+        }
         recalcColTotals();
     }
 
