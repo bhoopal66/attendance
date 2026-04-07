@@ -14,7 +14,7 @@ from ..models import (
     AttendanceRecord, EarlyLeaveRequest, Employee, RemoteCallRecord, RemoteEmployee,
 )
 from .utils import (
-    SATURDAY_WORK_DURATION_SECONDS,
+    MONTH_NAMES, SATURDAY_WORK_DURATION_SECONDS,
     build_calendar_grid, count_holidays_in_range,
     get_bulk_approved_leave_days, get_bulk_employee_shifts,
     get_active_special_periods_for_month, get_common_report_context,
@@ -279,6 +279,14 @@ def attendance_report(request):
             'total_deductions': total_deductions,
         }
 
+    # Team-level summary for KPI cards
+    team_summary = {
+        'total_employees': len(employees),
+        'total_deductions': sum(e.summary['total_deductions'] for e in employees),
+        'total_leave_days': sum(e.summary['leave_days'] for e in employees),
+        'total_late_days': sum(e.summary['late_days'] for e in employees),
+    } if employees else {}
+
     pending_requests = EarlyLeaveRequest.objects.filter(
         status='pending'
     ).select_related('employee', 'remote_employee')
@@ -291,6 +299,8 @@ def attendance_report(request):
         'employees': employees,
         'pending_requests': pending_requests,
         'pending_count': pending_requests.count(),
+        'team_summary': team_summary,
+        'month_name': MONTH_NAMES[selected_month],
     })
     return render(request, 'attendance/report.html', context)
 

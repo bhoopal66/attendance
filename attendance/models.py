@@ -69,6 +69,17 @@ class BaseEmployee(models.Model):
         help_text="Currency for salary payment"
     )
 
+    PAYROLL_TYPE_CHOICES = [
+        ('attendance', 'Attendance Based'),
+        ('performance', 'Performance Based'),
+    ]
+    payroll_type = models.CharField(
+        max_length=20,
+        choices=PAYROLL_TYPE_CHOICES,
+        default='attendance',
+        help_text="Attendance-based applies late/leave deductions; Performance-based has no such deductions"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -115,9 +115,15 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     daily_rate = salary / days_in_month if salary > 0 else 0.0
     # Every 3 late days = 1 half-day deduction
     late_half_days = late_days // 3
-    # Deduct absent days, half-day shortfalls, and late penalties from full salary
-    total_deduction_days = absent_days + (half_days * 0.5) + (late_half_days * 0.5)
-    deduction = daily_rate * total_deduction_days
+
+    # Performance-based payroll: no late/leave deductions
+    if getattr(emp, 'payroll_type', 'attendance') == 'performance':
+        total_deduction_days = 0
+        deduction = 0.0
+    else:
+        # Deduct absent days, half-day shortfalls, and late penalties from full salary
+        total_deduction_days = absent_days + (half_days * 0.5) + (late_half_days * 0.5)
+        deduction = daily_rate * total_deduction_days
     base_payroll = salary - deduction
 
     adjustments = PayrollAdjustment.objects.filter(employee=emp, year=year, month=month)
@@ -313,9 +319,9 @@ def payroll_dashboard(request):
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
             cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
-        # Auto-compute leave/late from attendance
+        # Auto-compute leave/late from attendance (skip for performance-based payroll)
         summary = inhouse_summaries.get(emp.id)
-        if summary and emp.salary:
+        if summary and emp.salary and emp.payroll_type != 'performance':
             daily = float(emp.salary) / days_in_month
             cat['leave_deduction'] = round(daily * (summary.leave_days or 0), 2)
             cat['late_deduction'] = round(daily * ((summary.late_days or 0) // 3) * 0.5, 2)
@@ -1034,6 +1040,12 @@ def payroll_employee_update(request, emp_type, employee_id):
             return JsonResponse({'success': False, 'error': 'Invalid department'}, status=400)
         emp.department = dept or None
 
+    if 'payroll_type' in data:
+        pt = str(data['payroll_type']).strip()
+        if pt not in ('attendance', 'performance'):
+            return JsonResponse({'success': False, 'error': 'Invalid payroll type'}, status=400)
+        emp.payroll_type = pt
+
     emp.save()
     logger.info("Payroll employee updated: %s (%s) by %s", emp.name, emp_type, request.user.username)
     return JsonResponse({
@@ -1042,6 +1054,7 @@ def payroll_employee_update(request, emp_type, employee_id):
         'currency': emp.currency,
         'designation': emp.designation or '',
         'department': emp.department or '',
+        'payroll_type': emp.payroll_type,
     })
 
 
@@ -1163,7 +1176,7 @@ def autofill_deduction(request):
     _, days_in_month = calendar.monthrange(year, month)
     summary = MonthlySummary.objects.filter(employee=employee, year=year, month=month).first()
 
-    if not summary or not employee.salary:
+    if not summary or not employee.salary or employee.payroll_type == 'performance':
         return JsonResponse({'success': True, 'leave_amount': 0.0, 'late_amount': 0.0})
 
     salary = float(employee.salary)
