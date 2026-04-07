@@ -265,72 +265,83 @@ def payroll_dashboard(request):
 
     grand_total = round(total_admin + total_sales, 2)
 
-    # --- Section 3: Deductions & Additions ---
+    # --- Section 3: Employee Deduction Spreadsheet ---
     _month_names = {
         1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
         7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
     }
+    _DED_COLS = ['advance', 'visa_cost', 'clawback', 'leave_deduction', 'late_deduction', 'closed_account', 'other_deduction']
+    _ADD_COLS = ['last_month_balance', 'paid_leave', 'gratuity']
+    _ALL_CATS = _DED_COLS + _ADD_COLS
+    target_idx = selected_year * 12 + (selected_month - 1)
 
-    all_entries_qs = DeductionEntry.objects.select_related(
-        'employee', 'remote_employee'
-    ).order_by('-created_at')
-
-    current_month_installments = []
-    for entry in all_entries_qs:
-        if entry.is_active_in(selected_year, selected_month):
-            emp = entry.employee or entry.remote_employee
-            emp_type = 'inhouse' if entry.employee else 'remote'
-            end_y, end_m = entry.end_month_year()
-            current_month_installments.append({
-                'id': entry.id,
-                'employee': emp,
-                'employee_type': emp_type,
-                'category': entry.category,
-                'category_display': entry.get_category_display(),
-                'entry_type': entry.entry_type,
-                'installment_amount': float(entry.installment_amount),
-                'split_months': entry.split_months,
-                'start_year': entry.start_year,
-                'start_month': entry.start_month,
-                'end_year': end_y,
-                'end_month': end_m,
-                'note': entry.note,
-            })
-
-    deductions_this_month_total = round(sum(
-        i['installment_amount'] for i in current_month_installments if i['entry_type'] == 'deduction'
-    ), 2)
-    additions_this_month_total = round(sum(
-        i['installment_amount'] for i in current_month_installments if i['entry_type'] == 'addition'
-    ), 2)
-    net_this_month = round(additions_this_month_total - deductions_this_month_total, 2)
-
+    # Load all DeductionEntry records; build active-this-month map and all-entries list
+    active_by_emp = _defaultdict(list)
     all_deductions_list = []
-    for entry in all_entries_qs:
+    for entry in DeductionEntry.objects.select_related('employee', 'remote_employee').order_by('-created_at'):
         emp = entry.employee or entry.remote_employee
         emp_type = 'inhouse' if entry.employee else 'remote'
+        start_idx = entry.start_year * 12 + (entry.start_month - 1)
+        if start_idx <= target_idx < start_idx + entry.split_months:
+            active_by_emp[(emp_type, emp.id)].append(entry)
         end_y, end_m = entry.end_month_year()
         all_deductions_list.append({
             'id': entry.id,
             'employee': emp,
             'employee_type': emp_type,
-            'category': entry.category,
             'category_display': entry.get_category_display(),
             'entry_type': entry.entry_type,
             'total_amount': float(entry.total_amount),
             'split_months': entry.split_months,
             'installment_amount': float(entry.installment_amount),
-            'start_year': entry.start_year,
-            'start_month': entry.start_month,
             'start_month_name': _month_names[entry.start_month],
-            'end_year': end_y,
-            'end_month': end_m,
+            'start_year': entry.start_year,
             'end_month_name': _month_names[end_m],
+            'end_year': end_y,
             'note': entry.note,
             'created_at': entry.created_at.strftime('%d %b %Y'),
         })
 
-    # All employees JSON for the Add modal dropdown
+    # Pre-load monthly summaries for auto leave/late deductions (avoid N+1)
+    inhouse_summaries = {
+        s.employee_id: s
+        for s in MonthlySummary.objects.filter(year=selected_year, month=selected_month)
+    }
+
+    section3_rows = []
+    for emp in Employee.objects.filter(is_active=True).order_by('department', 'name'):
+        cat = {c: 0.0 for c in _ALL_CATS}
+        for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
+            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        # Auto-compute leave/late from attendance
+        summary = inhouse_summaries.get(emp.id)
+        if summary and emp.salary:
+            daily = float(emp.salary) / days_in_month
+            cat['leave_deduction'] = round(daily * (summary.leave_days or 0), 2)
+            cat['late_deduction'] = round(daily * ((summary.late_days or 0) // 3) * 0.5, 2)
+        total_ded = round(sum(cat[c] for c in _DED_COLS), 2)
+        total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
+        row = {'employee': emp, 'employee_type': 'inhouse', 'is_inhouse': True}
+        row.update(cat)
+        row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2)})
+        section3_rows.append(row)
+
+    for emp in RemoteEmployee.objects.filter(is_active=True).order_by('name'):
+        cat = {c: 0.0 for c in _ALL_CATS}
+        for ded_entry in active_by_emp.get(('remote', emp.id), []):
+            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        total_ded = round(sum(cat[c] for c in _DED_COLS), 2)
+        total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
+        row = {'employee': emp, 'employee_type': 'remote', 'is_inhouse': False}
+        row.update(cat)
+        row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2)})
+        section3_rows.append(row)
+
+    s3_total_ded = round(sum(r['total_deductions'] for r in section3_rows), 2)
+    s3_total_add = round(sum(r['total_additions'] for r in section3_rows), 2)
+    s3_net = round(s3_total_add - s3_total_ded, 2)
+
+    # All employees for Add modal dropdown
     all_employees_json = json.dumps([
         {'id': emp.id, 'name': emp.name, 'type': 'inhouse', 'dept': emp.department or ''}
         for emp in Employee.objects.filter(is_active=True).order_by('name')
@@ -367,13 +378,12 @@ def payroll_dashboard(request):
         'sales_incentives_total': sales_incentives_total,
         'sales_reductions_total': sales_reductions_total,
         # Deductions & Additions (Section 3)
-        'current_month_installments': current_month_installments,
+        'section3_rows': section3_rows,
         'all_deductions_list': all_deductions_list,
-        'deductions_this_month_total': deductions_this_month_total,
-        'additions_this_month_total': additions_this_month_total,
-        'net_this_month': net_this_month,
+        's3_total_ded': s3_total_ded,
+        's3_total_add': s3_total_add,
+        's3_net': s3_net,
         'all_employees_json': all_employees_json,
-        'deduction_categories_json': json.dumps(DEDUCTION_CATEGORY_CHOICES),
         # Grand total
         'grand_total': grand_total,
         'grand_total_aed': grand_total_aed,

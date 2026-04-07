@@ -863,6 +863,78 @@
     }
     .btn-save-all:hover { background: #4338ca; }
     .btn-save-all:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* Deduction Spreadsheet (Section 3) */
+    .ded-sheet { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+
+    .ded-sheet thead th {
+        padding: 8px 8px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+        text-align: right;
+    }
+
+    .ded-th-group-ded { background: #fef2f2; color: #b91c1c; text-align: center !important; border-bottom: 2px solid #fca5a5; }
+    .ded-th-group-add { background: #f0fdf4; color: #15803d; text-align: center !important; border-bottom: 2px solid #86efac; }
+    .ded-th-group-total { background: #eff6ff; color: #1d4ed8; text-align: center !important; border-bottom: 2px solid #93c5fd; }
+    .ded-th-ded { background: #fef2f2; color: #64748b; border-bottom: 2px solid #fca5a5; }
+    .ded-th-add { background: #f0fdf4; color: #64748b; border-bottom: 2px solid #86efac; }
+    .ded-th-total { background: #eff6ff; color: #1d4ed8; border-bottom: 2px solid #93c5fd; }
+
+    .ded-sheet tbody td {
+        padding: 8px 8px;
+        border-bottom: 1px solid #f1f5f9;
+        text-align: right;
+        font-family: 'SF Mono', 'Monaco', monospace;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .ded-td-name {
+        text-align: left !important;
+        font-family: inherit;
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fff;
+        min-width: 170px;
+        border-right: 1px solid #e2e8f0;
+    }
+    .ded-sheet thead .ded-td-name { background: #f8fafc; z-index: 3; text-align: left !important; }
+    .ded-sheet tbody tr:hover .ded-td-name { background: #eff6ff; }
+    .ded-sheet tfoot .ded-td-name { background: #f1f5f9; }
+
+    .ded-td-auto { background: #f0f9ff; }
+    .ded-sheet tbody tr:hover .ded-td-auto { background: #dbeafe; }
+
+    .ded-td-total-ded { background: #fef2f2; color: #dc2626; font-weight: 700; border-left: 2px solid #fca5a5; }
+    .ded-td-total-add { background: #f0fdf4; color: #059669; font-weight: 700; }
+    .ded-td-net { background: #eff6ff; font-weight: 700; border-left: 2px solid #93c5fd; }
+
+    .ded-sheet tbody tr:hover td { background: #eff6ff; }
+    .ded-sheet tbody tr:hover .ded-td-total-ded { background: #fee2e2; }
+    .ded-sheet tbody tr:hover .ded-td-total-add { background: #dcfce7; }
+    .ded-sheet tbody tr:hover .ded-td-net { background: #dbeafe; }
+
+    .ded-sheet tfoot td {
+        padding: 10px 8px;
+        font-weight: 700;
+        background: #f1f5f9;
+        border-top: 2px solid #e2e8f0;
+        font-size: 0.82rem;
+        text-align: right;
+        font-family: 'SF Mono', 'Monaco', monospace;
+    }
+    .ded-sheet tfoot .ded-td-total-ded { background: #fee2e2; }
+    .ded-sheet tfoot .ded-td-total-add { background: #dcfce7; }
+    .ded-sheet tfoot .ded-td-net { background: #dbeafe; }
+
+    .ded-zero { color: #cbd5e1; }
+    .ded-val-red { color: #dc2626; }
+    .ded-val-green { color: #059669; }
 </style>
 {% endblock %}
 
@@ -920,10 +992,10 @@
                 <div class="value">AED {{ total_sales_commission|floatformat:2 }}</div>
             </div>
             {% endif %}
-            {% if net_this_month != 0 %}
+            {% if s3_net != 0 %}
             <div class="breakdown-item">
                 <div class="label">Net Deductions/Additions</div>
-                <div class="value">{% if net_this_month >= 0 %}+{% endif %}{{ net_this_month|floatformat:2 }}</div>
+                <div class="value">{% if s3_net >= 0 %}+{% endif %}{{ s3_net|floatformat:2 }}</div>
             </div>
             {% endif %}
             <div class="breakdown-item">
@@ -1113,8 +1185,8 @@
             </span>
             <span style="display:flex;align-items:center;gap:16px;">
                 <span class="section-total" style="font-size:1rem;">
-                    {% if additions_this_month_total > 0 %}<span style="color:#a7f3d0;">+{{ additions_this_month_total|floatformat:2 }}</span> {% endif %}
-                    {% if deductions_this_month_total > 0 %}<span style="color:#fca5a5;">-{{ deductions_this_month_total|floatformat:2 }}</span>{% endif %}
+                    {% if s3_total_add > 0 %}<span style="color:#a7f3d0;">+{{ s3_total_add|floatformat:2 }}</span> {% endif %}
+                    {% if s3_total_ded > 0 %}<span style="color:#fca5a5;">-{{ s3_total_ded|floatformat:2 }}</span>{% endif %}
                 </span>
                 <button class="btn-upload" onclick="openDeductionModal()" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.3);">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
@@ -1123,90 +1195,85 @@
             </span>
         </div>
 
-        <!-- Sub-section A: This Month's Installments -->
-        <div class="sub-section-header" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>Active This Month — {{ month_name }} {{ selected_year }}</span>
-            {% if current_month_installments %}
-            <span style="font-size:0.8rem;color:#475569;">
-                {% if additions_this_month_total > 0 %}<span style="color:#10b981;">+{{ additions_this_month_total|floatformat:2 }} additions</span>{% endif %}
-                {% if additions_this_month_total > 0 and deductions_this_month_total > 0 %} &nbsp;·&nbsp; {% endif %}
-                {% if deductions_this_month_total > 0 %}<span style="color:#ef4444;">-{{ deductions_this_month_total|floatformat:2 }} deductions</span>{% endif %}
-            </span>
-            {% endif %}
-        </div>
-
-        {% if current_month_installments %}
+        <!-- Deduction Spreadsheet -->
         <div style="overflow-x:auto;">
-        <table class="payroll-table">
+        <table class="ded-sheet">
             <thead>
+                <!-- Group header row -->
                 <tr>
-                    <th>Employee</th>
-                    <th>Category</th>
-                    <th>Type</th>
-                    <th class="text-right">Amount This Month</th>
-                    <th>Split</th>
-                    <th>Note</th>
-                    <th></th>
+                    <th rowspan="2" class="ded-td-name" style="border-bottom:2px solid #e2e8f0;">Employee</th>
+                    <th colspan="7" class="ded-th-group-ded">Deductions (-)</th>
+                    <th colspan="3" class="ded-th-group-add">Additions (+)</th>
+                    <th colspan="3" class="ded-th-group-total">Totals</th>
+                    <th rowspan="2" style="background:#f8fafc;border-bottom:2px solid #e2e8f0;width:40px;"></th>
+                </tr>
+                <!-- Individual column headers -->
+                <tr>
+                    <th class="ded-th-ded">Advance</th>
+                    <th class="ded-th-ded">Visa Cost</th>
+                    <th class="ded-th-ded">Clawback</th>
+                    <th class="ded-th-ded" title="Auto-computed from attendance data">Leave Ded.</th>
+                    <th class="ded-th-ded" title="Auto-computed from attendance data">Late Ded.</th>
+                    <th class="ded-th-ded">Closed Acct.</th>
+                    <th class="ded-th-ded">Other</th>
+                    <th class="ded-th-add">Last Mo. Bal.</th>
+                    <th class="ded-th-add">Paid Leave</th>
+                    <th class="ded-th-add">Gratuity</th>
+                    <th class="ded-th-total">Total (-)</th>
+                    <th class="ded-th-total">Total (+)</th>
+                    <th class="ded-th-total">Net</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in current_month_installments %}
+                {% for row in section3_rows %}
                 <tr>
-                    <td>
-                        <div class="employee-name">{{ item.employee.name }}</div>
-                        {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
+                    <td class="ded-td-name">
+                        <div class="employee-name">{{ row.employee.name }}</div>
+                        <div class="employee-designation">{% if row.employee_type == 'remote' %}Remote{% else %}{{ row.employee.department|default:"In-House" }}{% endif %}</div>
                     </td>
-                    <td style="white-space:nowrap;">
-                        <span class="adj-badge {% if item.entry_type == 'deduction' %}reduction{% else %}incentive{% endif %}">{{ item.category_display }}</span>
-                    </td>
-                    <td>
-                        {% if item.entry_type == 'deduction' %}
-                        <span style="font-size:0.75rem;font-weight:600;color:#dc2626;">Deduction</span>
-                        {% else %}
-                        <span style="font-size:0.75rem;font-weight:600;color:#059669;">Addition</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-right mono" style="white-space:nowrap;">
-                        {% if item.entry_type == 'deduction' %}
-                        <span class="text-red">-{{ item.installment_amount|floatformat:2 }}</span>
-                        {% else %}
-                        <span class="text-green">+{{ item.installment_amount|floatformat:2 }}</span>
-                        {% endif %}
-                    </td>
-                    <td style="white-space:nowrap;font-size:0.8rem;color:#64748b;">
-                        {% if item.split_months > 1 %}
-                        {{ item.start_month_name }} {{ item.start_year }} → {{ item.end_month_name }} {{ item.end_year }}
-                        <div style="font-size:0.7rem;color:#94a3b8;">{{ item.split_months }} months</div>
-                        {% else %}
-                        <span style="color:#94a3b8;">—</span>
-                        {% endif %}
-                    </td>
-                    <td style="font-size:0.8rem;color:#64748b;max-width:180px;">{{ item.note|default:"—" }}</td>
-                    <td>
-                        <button class="adj-delete-btn" onclick="deleteDeduction({{ item.id }}, this)">Delete</button>
+                    <!-- Deduction columns -->
+                    <td class="{% if row.advance == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.advance|floatformat:2 }}</td>
+                    <td class="{% if row.visa_cost == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.visa_cost|floatformat:2 }}</td>
+                    <td class="{% if row.clawback == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.clawback|floatformat:2 }}</td>
+                    <td class="{% if row.is_inhouse %}ded-td-auto {% endif %}{% if row.leave_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.leave_deduction|floatformat:2 }}</td>
+                    <td class="{% if row.is_inhouse %}ded-td-auto {% endif %}{% if row.late_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.late_deduction|floatformat:2 }}</td>
+                    <td class="{% if row.closed_account == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.closed_account|floatformat:2 }}</td>
+                    <td class="{% if row.other_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.other_deduction|floatformat:2 }}</td>
+                    <!-- Addition columns -->
+                    <td class="{% if row.last_month_balance == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.last_month_balance|floatformat:2 }}</td>
+                    <td class="{% if row.paid_leave == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.paid_leave|floatformat:2 }}</td>
+                    <td class="{% if row.gratuity == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.gratuity|floatformat:2 }}</td>
+                    <!-- Totals -->
+                    <td class="ded-td-total-ded">{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2 }}{% else %}<span class="ded-zero">0.00</span>{% endif %}</td>
+                    <td class="ded-td-total-add">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2 }}{% else %}<span class="ded-zero">0.00</span>{% endif %}</td>
+                    <td class="ded-td-net" style="{% if row.net < 0 %}color:#dc2626;{% elif row.net > 0 %}color:#059669;{% else %}color:#cbd5e1;{% endif %}">{% if row.net > 0 %}+{% endif %}{{ row.net|floatformat:2 }}</td>
+                    <!-- Add button -->
+                    <td style="text-align:center;background:transparent;">
+                        <button class="btn-adj-sm" onclick="openDeductionModal({{ row.employee.id }}, '{{ row.employee_type }}')">+</button>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="3" class="text-right" style="font-size:0.8rem;">This Month Net</td>
-                    <td class="text-right mono {% if net_this_month >= 0 %}text-green{% else %}text-red{% endif %}">
-                        {% if net_this_month >= 0 %}+{% endif %}{{ net_this_month|floatformat:2 }}
-                    </td>
+                    <td class="ded-td-name" style="font-weight:700;">Totals</td>
+                    <td colspan="7"></td>
                     <td colspan="3"></td>
+                    <td class="ded-td-total-ded">{% if s3_total_ded > 0 %}-{{ s3_total_ded|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                    <td class="ded-td-total-add">{% if s3_total_add > 0 %}+{{ s3_total_add|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                    <td class="ded-td-net" style="{% if s3_net < 0 %}color:#dc2626;{% elif s3_net > 0 %}color:#059669;{% else %}color:#cbd5e1;{% endif %}">{% if s3_net > 0 %}+{% endif %}{{ s3_net|floatformat:2 }}</td>
+                    <td></td>
                 </tr>
             </tfoot>
         </table>
         </div>
-        {% else %}
-        <div class="empty-state" style="padding:24px;">No deductions or additions active for {{ month_name }} {{ selected_year }}.</div>
-        {% endif %}
+        <div style="padding:6px 14px;background:#fffbeb;border-top:1px solid #fde68a;font-size:0.72rem;color:#92400e;">
+            <span style="font-weight:600;">Leave Ded.</span> and <span style="font-weight:600;">Late Ded.</span> (blue cells) are auto-computed from attendance. Other columns are from manual entries.
+        </div>
 
-        <!-- Sub-section B: All Created Entries -->
-        <div class="sub-section-header" style="margin-top:0;border-top:2px solid #e2e8f0;">All Created Entries</div>
-
+        <!-- All Created Entries (history) -->
         {% if all_deductions_list %}
+        <div class="sub-section-header" style="border-top:2px solid #e2e8f0;">All Created Entries</div>
         <div style="overflow-x:auto;">
         <table class="payroll-table">
             <thead>
@@ -1224,45 +1291,32 @@
             </thead>
             <tbody>
                 {% for item in all_deductions_list %}
-                <tr id="ded-row-{{ item.id }}">
+                <tr>
                     <td>
                         <div class="employee-name">{{ item.employee.name }}</div>
-                        {% if item.employee_type == 'remote' %}
-                        <div class="employee-designation">Remote</div>
-                        {% elif item.employee.department %}
-                        <div class="employee-designation">{{ item.employee.department }}</div>
-                        {% endif %}
+                        <div class="employee-designation">{% if item.employee_type == 'remote' %}Remote{% elif item.employee.department %}{{ item.employee.department }}{% endif %}</div>
                     </td>
                     <td style="white-space:nowrap;">
                         <span class="adj-badge {% if item.entry_type == 'deduction' %}reduction{% else %}incentive{% endif %}">{{ item.category_display }}</span>
                     </td>
                     <td class="text-right mono" style="white-space:nowrap;">
-                        {% if item.entry_type == 'deduction' %}
-                        <span class="text-red">{{ item.total_amount|floatformat:2 }}</span>
-                        {% else %}
-                        <span class="text-green">{{ item.total_amount|floatformat:2 }}</span>
-                        {% endif %}
+                        {% if item.entry_type == 'deduction' %}<span class="text-red">{{ item.total_amount|floatformat:2 }}</span>{% else %}<span class="text-green">{{ item.total_amount|floatformat:2 }}</span>{% endif %}
                     </td>
                     <td style="text-align:center;font-size:0.85rem;">{{ item.split_months }}</td>
                     <td class="text-right mono" style="font-size:0.82rem;color:#64748b;white-space:nowrap;">
                         {% if item.split_months > 1 %}{{ item.installment_amount|floatformat:2 }}/mo{% else %}—{% endif %}
                     </td>
                     <td style="white-space:nowrap;font-size:0.8rem;color:#475569;">
-                        {{ item.start_month_name }} {{ item.start_year }}
-                        {% if item.split_months > 1 %} → {{ item.end_month_name }} {{ item.end_year }}{% endif %}
+                        {{ item.start_month_name }} {{ item.start_year }}{% if item.split_months > 1 %} → {{ item.end_month_name }} {{ item.end_year }}{% endif %}
                     </td>
                     <td style="font-size:0.8rem;color:#64748b;max-width:160px;">{{ item.note|default:"—" }}</td>
                     <td style="font-size:0.75rem;color:#94a3b8;white-space:nowrap;">{{ item.created_at }}</td>
-                    <td>
-                        <button class="adj-delete-btn" onclick="deleteDeduction({{ item.id }}, this)">Delete</button>
-                    </td>
+                    <td><button class="adj-delete-btn" onclick="deleteDeduction({{ item.id }}, this)">Delete</button></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
         </div>
-        {% else %}
-        <div class="empty-state" style="padding:24px;">No deduction entries created yet. Use "Add Entry" to create one.</div>
         {% endif %}
     </div>
 
@@ -1891,7 +1945,7 @@
 
     const allEmployees = {{ all_employees_json|safe }};
 
-    function openDeductionModal() {
+    function openDeductionModal(preEmpId, preEmpType) {
         // Populate employee dropdown
         const sel = document.getElementById('dedEmployee');
         sel.innerHTML = '<option value="">— Select employee —</option>';
@@ -1914,6 +1968,18 @@
         document.getElementById('dedAutofillInfo').style.display = 'none';
         document.getElementById('dedAutofillWrap').style.display = 'none';
         updateSplitPreview();
+
+        // Pre-select employee if called from a row's + button
+        if (preEmpId && preEmpType) {
+            for (const opt of sel.options) {
+                if (opt.value == preEmpId && opt.dataset.type === preEmpType) {
+                    sel.value = opt.value;
+                    break;
+                }
+            }
+            onDedCategoryChange();
+        }
+
         document.getElementById('deductionModal').classList.add('show');
     }
 
