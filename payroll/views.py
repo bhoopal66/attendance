@@ -26,7 +26,7 @@ from attendance.views.utils import (
     MONTH_CHOICES, MONTH_NAMES, YEAR_RANGE,
     get_selected_month_year, superuser_required,
 )
-from .models import PayrollAdjustment, Bank, BankSubmission
+from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DEDUCTION_CATEGORY_CHOICES
 
 logger = logging.getLogger('payroll')
 
@@ -265,38 +265,79 @@ def payroll_dashboard(request):
 
     grand_total = round(total_admin + total_sales, 2)
 
-    # --- Section 3: Advances & Deductions ---
-    all_adjs_qs = PayrollAdjustment.objects.filter(
-        year=selected_year, month=selected_month
-    ).select_related('employee', 'remote_employee')
+    # --- Section 3: Deductions & Additions ---
+    _month_names = {
+        1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+        7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
+    }
 
-    _adj_map = {}
-    for adj in all_adjs_qs:
-        emp = adj.employee or adj.remote_employee
-        emp_type = 'inhouse' if adj.employee else 'remote'
-        key = (emp_type, emp.id)
-        if key not in _adj_map:
-            _adj_map[key] = {
+    all_entries_qs = DeductionEntry.objects.select_related(
+        'employee', 'remote_employee'
+    ).order_by('-created_at')
+
+    current_month_installments = []
+    for entry in all_entries_qs:
+        if entry.is_active_in(selected_year, selected_month):
+            emp = entry.employee or entry.remote_employee
+            emp_type = 'inhouse' if entry.employee else 'remote'
+            end_y, end_m = entry.end_month_year()
+            current_month_installments.append({
+                'id': entry.id,
                 'employee': emp,
                 'employee_type': emp_type,
-                'incentives': 0.0,
-                'reductions': 0.0,
-            }
-        if adj.adjustment_type == 'incentive':
-            _adj_map[key]['incentives'] += float(adj.amount)
-        else:
-            _adj_map[key]['reductions'] += float(adj.amount)
+                'category': entry.category,
+                'category_display': entry.get_category_display(),
+                'entry_type': entry.entry_type,
+                'installment_amount': float(entry.installment_amount),
+                'split_months': entry.split_months,
+                'start_year': entry.start_year,
+                'start_month': entry.start_month,
+                'end_year': end_y,
+                'end_month': end_m,
+                'note': entry.note,
+            })
 
-    adj_data = []
-    for row in _adj_map.values():
-        row['incentives'] = round(row['incentives'], 2)
-        row['reductions'] = round(row['reductions'], 2)
-        row['net'] = round(row['incentives'] - row['reductions'], 2)
-        adj_data.append(row)
+    deductions_this_month_total = round(sum(
+        i['installment_amount'] for i in current_month_installments if i['entry_type'] == 'deduction'
+    ), 2)
+    additions_this_month_total = round(sum(
+        i['installment_amount'] for i in current_month_installments if i['entry_type'] == 'addition'
+    ), 2)
+    net_this_month = round(additions_this_month_total - deductions_this_month_total, 2)
 
-    total_adj_incentives = round(sum(r['incentives'] for r in adj_data), 2)
-    total_adj_reductions = round(sum(r['reductions'] for r in adj_data), 2)
-    total_adj_net = round(total_adj_incentives - total_adj_reductions, 2)
+    all_deductions_list = []
+    for entry in all_entries_qs:
+        emp = entry.employee or entry.remote_employee
+        emp_type = 'inhouse' if entry.employee else 'remote'
+        end_y, end_m = entry.end_month_year()
+        all_deductions_list.append({
+            'id': entry.id,
+            'employee': emp,
+            'employee_type': emp_type,
+            'category': entry.category,
+            'category_display': entry.get_category_display(),
+            'entry_type': entry.entry_type,
+            'total_amount': float(entry.total_amount),
+            'split_months': entry.split_months,
+            'installment_amount': float(entry.installment_amount),
+            'start_year': entry.start_year,
+            'start_month': entry.start_month,
+            'start_month_name': _month_names[entry.start_month],
+            'end_year': end_y,
+            'end_month': end_m,
+            'end_month_name': _month_names[end_m],
+            'note': entry.note,
+            'created_at': entry.created_at.strftime('%d %b %Y'),
+        })
+
+    # All employees JSON for the Add modal dropdown
+    all_employees_json = json.dumps([
+        {'id': emp.id, 'name': emp.name, 'type': 'inhouse', 'dept': emp.department or ''}
+        for emp in Employee.objects.filter(is_active=True).order_by('name')
+    ] + [
+        {'id': emp.id, 'name': emp.name, 'type': 'remote', 'dept': 'Remote'}
+        for emp in RemoteEmployee.objects.filter(is_active=True).order_by('name')
+    ])
 
     # Grand total split by currency
     all_rows = admin_data + all_sales_data
@@ -325,11 +366,14 @@ def payroll_dashboard(request):
         'total_sales_commission': total_sales_commission,
         'sales_incentives_total': sales_incentives_total,
         'sales_reductions_total': sales_reductions_total,
-        # Advances & Deductions
-        'adj_data': adj_data,
-        'total_adj_incentives': total_adj_incentives,
-        'total_adj_reductions': total_adj_reductions,
-        'total_adj_net': total_adj_net,
+        # Deductions & Additions (Section 3)
+        'current_month_installments': current_month_installments,
+        'all_deductions_list': all_deductions_list,
+        'deductions_this_month_total': deductions_this_month_total,
+        'additions_this_month_total': additions_this_month_total,
+        'net_this_month': net_this_month,
+        'all_employees_json': all_employees_json,
+        'deduction_categories_json': json.dumps(DEDUCTION_CATEGORY_CHOICES),
         # Grand total
         'grand_total': grand_total,
         'grand_total_aed': grand_total_aed,
@@ -1007,3 +1051,123 @@ def delete_adjustment(request, adjustment_id):
     )
     adjustment.delete()
     return JsonResponse({'success': True, 'message': 'Adjustment deleted'})
+
+
+# ============================================
+# API: Deductions & Additions
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def add_deduction(request):
+    """Create a new DeductionEntry (deduction or addition) for an employee."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    emp_type = data.get('emp_type')
+    employee_id = data.get('employee_id')
+    category = data.get('category')
+    total_amount = data.get('total_amount')
+    split_months = data.get('split_months', 1)
+    start_year = data.get('start_year')
+    start_month = data.get('start_month')
+    note = data.get('note', '')
+
+    if not all([emp_type, employee_id, category, total_amount, start_year, start_month]):
+        return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
+
+    valid_categories = {c[0] for c in DEDUCTION_CATEGORY_CHOICES}
+    if category not in valid_categories:
+        return JsonResponse({'success': False, 'error': 'Invalid category'}, status=400)
+
+    if emp_type == 'inhouse':
+        try:
+            employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+        fk_kwargs = {'employee': employee}
+    elif emp_type == 'remote':
+        try:
+            employee = RemoteEmployee.objects.get(id=employee_id)
+        except RemoteEmployee.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+        fk_kwargs = {'remote_employee': employee}
+    else:
+        return JsonResponse({'success': False, 'error': 'Invalid employee type'}, status=400)
+
+    try:
+        entry = DeductionEntry.objects.create(
+            **fk_kwargs,
+            category=category,
+            total_amount=Decimal(str(total_amount)),
+            split_months=max(1, int(split_months)),
+            start_year=int(start_year),
+            start_month=int(start_month),
+            note=note,
+        )
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'success': False, 'error': f'Invalid data: {e}'}, status=400)
+
+    logger.info(
+        "DeductionEntry added: %s %s %s by %s",
+        employee.name, category, total_amount, request.user.username,
+    )
+    return JsonResponse({'success': True})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def delete_deduction_entry(request, deduction_id):
+    """Delete a DeductionEntry."""
+    try:
+        entry = DeductionEntry.objects.get(id=deduction_id)
+    except DeductionEntry.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Deduction not found'}, status=404)
+
+    logger.info("DeductionEntry deleted: id=%s by %s", deduction_id, request.user.username)
+    entry.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["GET"])
+def autofill_deduction(request):
+    """Return auto-computed leave/late deduction amounts for an in-house employee."""
+    try:
+        employee_id = int(request.GET.get('employee_id'))
+        year = int(request.GET.get('year'))
+        month = int(request.GET.get('month'))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid parameters'}, status=400)
+
+    try:
+        employee = Employee.objects.get(id=employee_id)
+    except Employee.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+
+    _, days_in_month = calendar.monthrange(year, month)
+    summary = MonthlySummary.objects.filter(employee=employee, year=year, month=month).first()
+
+    if not summary or not employee.salary:
+        return JsonResponse({'success': True, 'leave_amount': 0.0, 'late_amount': 0.0})
+
+    salary = float(employee.salary)
+    daily_rate = salary / days_in_month
+    absent_days = summary.leave_days or 0
+    late_days = summary.late_days or 0
+    late_half_days = late_days // 3
+
+    return JsonResponse({
+        'success': True,
+        'leave_amount': round(daily_rate * absent_days, 2),
+        'late_amount': round(daily_rate * late_half_days * 0.5, 2),
+        'daily_rate': round(daily_rate, 2),
+        'absent_days': absent_days,
+        'late_days': late_days,
+        'late_half_days': late_half_days,
+    })

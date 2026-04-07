@@ -1,10 +1,33 @@
 """
-Payroll models for salary adjustments and DSA bank submissions.
+Payroll models for salary adjustments, DSA bank submissions, and deduction tracking.
 """
+
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import models
 from attendance.models import Employee
+
+
+DEDUCTION_CATEGORY_CHOICES = [
+    # Deductions
+    ('advance', 'Advance'),
+    ('visa_cost', 'Visa Cost'),
+    ('clawback', 'Clawback'),
+    ('leave_deduction', 'Leave Deduction'),
+    ('late_deduction', 'Late Deduction'),
+    ('closed_account', 'Closed Account Deduction'),
+    ('other_deduction', 'Other Deduction'),
+    # Additions
+    ('last_month_balance', 'Last Month Balance'),
+    ('paid_leave', 'Paid Leave'),
+    ('gratuity', 'Gratuity'),
+]
+
+_DEDUCTION_CATS = {
+    'advance', 'visa_cost', 'clawback', 'leave_deduction',
+    'late_deduction', 'closed_account', 'other_deduction',
+}
 
 
 class PayrollAdjustment(models.Model):
@@ -135,3 +158,80 @@ class BankSubmission(models.Model):
             raise ValidationError("A submission must be linked to either an in-house or remote employee, not both.")
         if not self.employee and not self.remote_employee:
             raise ValidationError("A submission must be linked to an employee.")
+
+
+class DeductionEntry(models.Model):
+    """
+    Tracks deductions and additions per employee, with optional split over multiple months.
+    Categories:
+      Deductions — advance, visa_cost, clawback, leave_deduction, late_deduction,
+                   closed_account, other_deduction
+      Additions  — last_month_balance, paid_leave, gratuity
+    If split_months > 1, the total_amount is divided equally across that many consecutive
+    months starting from start_year/start_month.
+    """
+    employee = models.ForeignKey(
+        'attendance.Employee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='deduction_entries',
+    )
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='deduction_entries',
+    )
+    category = models.CharField(max_length=30, choices=DEDUCTION_CATEGORY_CHOICES)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    split_months = models.PositiveIntegerField(default=1, help_text="Spread deduction over N months")
+    start_year = models.IntegerField()
+    start_month = models.IntegerField(help_text="1-12")
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['employee', 'start_year', 'start_month']),
+            models.Index(fields=['remote_employee', 'start_year', 'start_month']),
+        ]
+
+    @property
+    def entry_type(self):
+        return 'deduction' if self.category in _DEDUCTION_CATS else 'addition'
+
+    @property
+    def installment_amount(self):
+        """Per-month amount (total ÷ split_months, rounded to 2dp)."""
+        if self.split_months <= 1:
+            return self.total_amount
+        from decimal import ROUND_HALF_UP
+        return (self.total_amount / Decimal(self.split_months)).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+
+    def end_month_year(self):
+        """Returns (year, month) of the last installment month."""
+        end_idx = self.start_year * 12 + (self.start_month - 1) + self.split_months - 1
+        y, m = divmod(end_idx, 12)
+        return y, m + 1
+
+    def is_active_in(self, year, month):
+        """True if this entry contributes an installment in the given month."""
+        start_idx = self.start_year * 12 + (self.start_month - 1)
+        target_idx = year * 12 + (month - 1)
+        return start_idx <= target_idx < start_idx + self.split_months
+
+    def clean(self):
+        super().clean()
+        if self.employee and self.remote_employee:
+            raise ValidationError("A deduction must be linked to either an in-house or remote employee, not both.")
+        if not self.employee and not self.remote_employee:
+            raise ValidationError("A deduction must be linked to an employee.")
+        if self.split_months < 1:
+            raise ValidationError("Split months must be at least 1.")
+
+    def __str__(self):
+        emp = self.employee or self.remote_employee
+        return f"{emp.name} — {self.get_category_display()} {self.start_year}/{self.start_month}: {self.total_amount}"

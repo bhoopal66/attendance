@@ -920,10 +920,10 @@
                 <div class="value">AED {{ total_sales_commission|floatformat:2 }}</div>
             </div>
             {% endif %}
-            {% if total_adj_net != 0 %}
+            {% if net_this_month != 0 %}
             <div class="breakdown-item">
-                <div class="label">Net Advances/Deductions</div>
-                <div class="value">{{ total_adj_net|floatformat:2 }}</div>
+                <div class="label">Net Deductions/Additions</div>
+                <div class="value">{% if net_this_month >= 0 %}+{% endif %}{{ net_this_month|floatformat:2 }}</div>
             </div>
             {% endif %}
             <div class="breakdown-item">
@@ -1099,7 +1099,7 @@
     </div>
 
 
-    <!-- ============ SECTION 3: ADVANCES & DEDUCTIONS ============ -->
+    <!-- ============ SECTION 3: DEDUCTIONS & ADDITIONS ============ -->
     <div class="payroll-section">
         <div class="section-header advances">
             <span class="section-title">
@@ -1108,66 +1108,161 @@
                 </svg>
                 <span>
                     <span class="section-num">Section 3</span>
-                    Advances &amp; Deductions
+                    Deductions &amp; Additions
                 </span>
             </span>
-            <span class="section-total">
-                {% if total_adj_incentives > 0 %}<span style="color:#a7f3d0;font-size:1rem;">+{{ total_adj_incentives|floatformat:2 }}</span> {% endif %}
-                {% if total_adj_reductions > 0 %}<span style="color:#fca5a5;font-size:1rem;">-{{ total_adj_reductions|floatformat:2 }}</span>{% endif %}
+            <span style="display:flex;align-items:center;gap:16px;">
+                <span class="section-total" style="font-size:1rem;">
+                    {% if additions_this_month_total > 0 %}<span style="color:#a7f3d0;">+{{ additions_this_month_total|floatformat:2 }}</span> {% endif %}
+                    {% if deductions_this_month_total > 0 %}<span style="color:#fca5a5;">-{{ deductions_this_month_total|floatformat:2 }}</span>{% endif %}
+                </span>
+                <button class="btn-upload" onclick="openDeductionModal()" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.3);">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                    Add Entry
+                </button>
             </span>
         </div>
 
-        {% if adj_data %}
+        <!-- Sub-section A: This Month's Installments -->
+        <div class="sub-section-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Active This Month — {{ month_name }} {{ selected_year }}</span>
+            {% if current_month_installments %}
+            <span style="font-size:0.8rem;color:#475569;">
+                {% if additions_this_month_total > 0 %}<span style="color:#10b981;">+{{ additions_this_month_total|floatformat:2 }} additions</span>{% endif %}
+                {% if additions_this_month_total > 0 and deductions_this_month_total > 0 %} &nbsp;·&nbsp; {% endif %}
+                {% if deductions_this_month_total > 0 %}<span style="color:#ef4444;">-{{ deductions_this_month_total|floatformat:2 }} deductions</span>{% endif %}
+            </span>
+            {% endif %}
+        </div>
+
+        {% if current_month_installments %}
+        <div style="overflow-x:auto;">
         <table class="payroll-table">
             <thead>
                 <tr>
                     <th>Employee</th>
+                    <th>Category</th>
                     <th>Type</th>
-                    <th class="text-right">Incentives (+)</th>
-                    <th class="text-right">Reductions (-)</th>
-                    <th class="text-right">Net Adjustment</th>
+                    <th class="text-right">Amount This Month</th>
+                    <th>Split</th>
+                    <th>Note</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in adj_data %}
-                <tr onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', '{{ item.employee_type }}')">
+                {% for item in current_month_installments %}
+                <tr>
                     <td>
                         <div class="employee-name">{{ item.employee.name }}</div>
                         {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                     </td>
+                    <td style="white-space:nowrap;">
+                        <span class="adj-badge {% if item.entry_type == 'deduction' %}reduction{% else %}incentive{% endif %}">{{ item.category_display }}</span>
+                    </td>
                     <td>
-                        {% if item.employee_type == 'remote' %}
-                        <span class="dept-badge remote" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;background:#ede9fe;color:#5b21b6;">Remote</span>
+                        {% if item.entry_type == 'deduction' %}
+                        <span style="font-size:0.75rem;font-weight:600;color:#dc2626;">Deduction</span>
                         {% else %}
-                        <span class="dept-badge inhouse" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;background:#dcfce7;color:#166534;">{{ item.employee.department|default:"In-House" }}</span>
+                        <span style="font-size:0.75rem;font-weight:600;color:#059669;">Addition</span>
                         {% endif %}
                     </td>
-                    <td class="text-right mono {% if item.incentives > 0 %}text-green{% else %}text-muted{% endif %}">
-                        {% if item.incentives > 0 %}+{{ item.incentives|floatformat:2 }}{% else %}—{% endif %}
+                    <td class="text-right mono" style="white-space:nowrap;">
+                        {% if item.entry_type == 'deduction' %}
+                        <span class="text-red">-{{ item.installment_amount|floatformat:2 }}</span>
+                        {% else %}
+                        <span class="text-green">+{{ item.installment_amount|floatformat:2 }}</span>
+                        {% endif %}
                     </td>
-                    <td class="text-right mono {% if item.reductions > 0 %}text-red{% else %}text-muted{% endif %}">
-                        {% if item.reductions > 0 %}-{{ item.reductions|floatformat:2 }}{% else %}—{% endif %}
+                    <td style="white-space:nowrap;font-size:0.8rem;color:#64748b;">
+                        {% if item.split_months > 1 %}
+                        {{ item.start_month_name }} {{ item.start_year }} → {{ item.end_month_name }} {{ item.end_year }}
+                        <div style="font-size:0.7rem;color:#94a3b8;">{{ item.split_months }} months</div>
+                        {% else %}
+                        <span style="color:#94a3b8;">—</span>
+                        {% endif %}
                     </td>
-                    <td class="text-right mono {% if item.net >= 0 %}text-green{% else %}text-red{% endif %}">
-                        {% if item.net >= 0 %}+{{ item.net|floatformat:2 }}{% else %}{{ item.net|floatformat:2 }}{% endif %}
+                    <td style="font-size:0.8rem;color:#64748b;max-width:180px;">{{ item.note|default:"—" }}</td>
+                    <td>
+                        <button class="adj-delete-btn" onclick="deleteDeduction({{ item.id }}, this)">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="2" class="text-right">Totals</td>
-                    <td class="text-right mono text-green">+{{ total_adj_incentives|floatformat:2 }}</td>
-                    <td class="text-right mono text-red">-{{ total_adj_reductions|floatformat:2 }}</td>
-                    <td class="text-right mono {% if total_adj_net >= 0 %}text-green{% else %}text-red{% endif %}">
-                        {% if total_adj_net >= 0 %}+{{ total_adj_net|floatformat:2 }}{% else %}{{ total_adj_net|floatformat:2 }}{% endif %}
+                    <td colspan="3" class="text-right" style="font-size:0.8rem;">This Month Net</td>
+                    <td class="text-right mono {% if net_this_month >= 0 %}text-green{% else %}text-red{% endif %}">
+                        {% if net_this_month >= 0 %}+{% endif %}{{ net_this_month|floatformat:2 }}
                     </td>
+                    <td colspan="3"></td>
                 </tr>
             </tfoot>
         </table>
-        <div class="click-hint">Click any row to view or add adjustments for that employee</div>
+        </div>
         {% else %}
-        <div class="empty-state">No advances or deductions recorded for {{ month_name }} {{ selected_year }}. Click any employee in the sections above to add adjustments.</div>
+        <div class="empty-state" style="padding:24px;">No deductions or additions active for {{ month_name }} {{ selected_year }}.</div>
+        {% endif %}
+
+        <!-- Sub-section B: All Created Entries -->
+        <div class="sub-section-header" style="margin-top:0;border-top:2px solid #e2e8f0;">All Created Entries</div>
+
+        {% if all_deductions_list %}
+        <div style="overflow-x:auto;">
+        <table class="payroll-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Category</th>
+                    <th class="text-right">Total Amount</th>
+                    <th>Split</th>
+                    <th class="text-right">Per Month</th>
+                    <th>Period</th>
+                    <th>Note</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in all_deductions_list %}
+                <tr id="ded-row-{{ item.id }}">
+                    <td>
+                        <div class="employee-name">{{ item.employee.name }}</div>
+                        {% if item.employee_type == 'remote' %}
+                        <div class="employee-designation">Remote</div>
+                        {% elif item.employee.department %}
+                        <div class="employee-designation">{{ item.employee.department }}</div>
+                        {% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <span class="adj-badge {% if item.entry_type == 'deduction' %}reduction{% else %}incentive{% endif %}">{{ item.category_display }}</span>
+                    </td>
+                    <td class="text-right mono" style="white-space:nowrap;">
+                        {% if item.entry_type == 'deduction' %}
+                        <span class="text-red">{{ item.total_amount|floatformat:2 }}</span>
+                        {% else %}
+                        <span class="text-green">{{ item.total_amount|floatformat:2 }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;font-size:0.85rem;">{{ item.split_months }}</td>
+                    <td class="text-right mono" style="font-size:0.82rem;color:#64748b;white-space:nowrap;">
+                        {% if item.split_months > 1 %}{{ item.installment_amount|floatformat:2 }}/mo{% else %}—{% endif %}
+                    </td>
+                    <td style="white-space:nowrap;font-size:0.8rem;color:#475569;">
+                        {{ item.start_month_name }} {{ item.start_year }}
+                        {% if item.split_months > 1 %} → {{ item.end_month_name }} {{ item.end_year }}{% endif %}
+                    </td>
+                    <td style="font-size:0.8rem;color:#64748b;max-width:160px;">{{ item.note|default:"—" }}</td>
+                    <td style="font-size:0.75rem;color:#94a3b8;white-space:nowrap;">{{ item.created_at }}</td>
+                    <td>
+                        <button class="adj-delete-btn" onclick="deleteDeduction({{ item.id }}, this)">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:24px;">No deduction entries created yet. Use "Add Entry" to create one.</div>
         {% endif %}
     </div>
 
@@ -1267,6 +1362,110 @@
 <input type="hidden" id="hiddenEmpType" value="">
 <input type="hidden" id="hiddenYear" value="{{ selected_year }}">
 <input type="hidden" id="hiddenMonth" value="{{ selected_month }}">
+
+<!-- ============ ADD DEDUCTION MODAL ============ -->
+<div class="modal-overlay" id="deductionModal">
+    <div class="modal-box" style="max-width:560px;">
+        <div class="modal-head">
+            <div>
+                <h3>Add Deduction / Addition</h3>
+                <div class="modal-head-sub" id="dedModalSub">{{ month_name }} {{ selected_year }}</div>
+            </div>
+            <button class="modal-close" onclick="closeDeductionModal()">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Employee -->
+            <div class="form-row">
+                <div class="form-group" style="flex:2;">
+                    <label>Employee</label>
+                    <select id="dedEmployee" onchange="onDedEmployeeChange()">
+                        <option value="">— Select employee —</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Category -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="dedCategory" onchange="onDedCategoryChange()">
+                        <optgroup label="Deductions">
+                            <option value="advance">Advance</option>
+                            <option value="visa_cost">Visa Cost</option>
+                            <option value="clawback">Clawback</option>
+                            <option value="leave_deduction">Leave Deduction</option>
+                            <option value="late_deduction">Late Deduction</option>
+                            <option value="closed_account">Closed Account Deduction</option>
+                            <option value="other_deduction">Other Deduction</option>
+                        </optgroup>
+                        <optgroup label="Additions">
+                            <option value="last_month_balance">Last Month Balance</option>
+                            <option value="paid_leave">Paid Leave</option>
+                            <option value="gratuity">Gratuity</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Amount + autofill -->
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group">
+                    <label>Amount (AED)</label>
+                    <input type="number" id="dedAmount" step="0.01" min="0.01" placeholder="0.00" oninput="updateSplitPreview()">
+                </div>
+                <div id="dedAutofillWrap" style="display:none;flex-shrink:0;padding-bottom:1px;">
+                    <button type="button" class="btn-upload" id="dedAutofillBtn" onclick="loadAutofill()" style="height:40px;">
+                        Load from Attendance
+                    </button>
+                </div>
+            </div>
+            <div id="dedAutofillInfo" style="display:none;font-size:0.78rem;color:#64748b;margin:-6px 0 12px;padding:8px 12px;background:#f8fafc;border-radius:6px;"></div>
+
+            <!-- Split months -->
+            <div class="form-row">
+                <div class="form-group" style="flex:1;">
+                    <label>Split over months (default 1)</label>
+                    <input type="number" id="dedSplitMonths" min="1" max="60" value="1" oninput="updateSplitPreview()">
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Per-month amount</label>
+                    <div id="dedSplitPreview" style="padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;font-family:'SF Mono',monospace;background:#f8fafc;color:#475569;">—</div>
+                </div>
+            </div>
+
+            <!-- Start month/year -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Month</label>
+                    <select id="dedStartMonth">
+                        <option value="1">January</option><option value="2">February</option>
+                        <option value="3">March</option><option value="4">April</option>
+                        <option value="5">May</option><option value="6">June</option>
+                        <option value="7">July</option><option value="8">August</option>
+                        <option value="9">September</option><option value="10">October</option>
+                        <option value="11">November</option><option value="12">December</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Start Year</label>
+                    <input type="number" id="dedStartYear" min="2020" max="2099" value="{{ selected_year }}">
+                </div>
+            </div>
+
+            <!-- Note -->
+            <div class="form-group">
+                <label>Note (optional)</label>
+                <textarea id="dedNote" placeholder="Reason or description..." style="min-height:52px;"></textarea>
+            </div>
+
+            <div id="dedError" style="display:none;color:#dc2626;font-size:0.82rem;margin-bottom:8px;"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeDeductionModal()">Cancel</button>
+                <button class="btn-save" id="dedSaveBtn" onclick="saveDeduction()">Add Entry</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -1687,6 +1886,181 @@
             btn.textContent = 'Upload & Save';
         }
     }
+
+    // ---- Deduction Modal ----
+
+    const allEmployees = {{ all_employees_json|safe }};
+
+    function openDeductionModal() {
+        // Populate employee dropdown
+        const sel = document.getElementById('dedEmployee');
+        sel.innerHTML = '<option value="">— Select employee —</option>';
+        allEmployees.forEach(emp => {
+            const opt = document.createElement('option');
+            opt.value = emp.id;
+            opt.dataset.type = emp.type;
+            opt.textContent = `${emp.name}${emp.dept ? ' (' + emp.dept + ')' : ''}`;
+            sel.appendChild(opt);
+        });
+
+        // Default start month/year to selected month
+        document.getElementById('dedStartMonth').value = {{ selected_month }};
+        document.getElementById('dedStartYear').value = {{ selected_year }};
+        document.getElementById('dedSplitMonths').value = 1;
+        document.getElementById('dedAmount').value = '';
+        document.getElementById('dedNote').value = '';
+        document.getElementById('dedCategory').value = 'advance';
+        document.getElementById('dedError').style.display = 'none';
+        document.getElementById('dedAutofillInfo').style.display = 'none';
+        document.getElementById('dedAutofillWrap').style.display = 'none';
+        updateSplitPreview();
+        document.getElementById('deductionModal').classList.add('show');
+    }
+
+    function closeDeductionModal() {
+        document.getElementById('deductionModal').classList.remove('show');
+    }
+
+    function onDedEmployeeChange() {
+        onDedCategoryChange(); // Re-evaluate autofill button visibility
+    }
+
+    function onDedCategoryChange() {
+        const cat = document.getElementById('dedCategory').value;
+        const autofillCats = ['leave_deduction', 'late_deduction'];
+        const empSel = document.getElementById('dedEmployee');
+        const selectedOpt = empSel.options[empSel.selectedIndex];
+        const isInhouse = selectedOpt && selectedOpt.dataset.type === 'inhouse';
+
+        const showAutofill = autofillCats.includes(cat) && isInhouse;
+        document.getElementById('dedAutofillWrap').style.display = showAutofill ? 'flex' : 'none';
+        document.getElementById('dedAutofillInfo').style.display = 'none';
+    }
+
+    function updateSplitPreview() {
+        const amount = parseFloat(document.getElementById('dedAmount').value) || 0;
+        const split = Math.max(1, parseInt(document.getElementById('dedSplitMonths').value) || 1);
+        const perMonth = amount > 0 ? (amount / split).toFixed(2) : '—';
+        document.getElementById('dedSplitPreview').textContent = amount > 0 ? `AED ${perMonth}` : '—';
+    }
+
+    async function loadAutofill() {
+        const empSel = document.getElementById('dedEmployee');
+        const empId = empSel.value;
+        if (!empId) { alert('Select an employee first.'); return; }
+
+        const cat = document.getElementById('dedCategory').value;
+        const year = document.getElementById('hiddenYear').value;
+        const month = document.getElementById('hiddenMonth').value;
+
+        const btn = document.getElementById('dedAutofillBtn');
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+
+        try {
+            const res = await fetch(`/payroll/api/deductions/autofill/?employee_id=${empId}&year=${year}&month=${month}`);
+            const data = await res.json();
+            if (data.success) {
+                const amount = cat === 'leave_deduction' ? data.leave_amount : data.late_amount;
+                document.getElementById('dedAmount').value = amount.toFixed(2);
+                updateSplitPreview();
+
+                let info = '';
+                if (cat === 'leave_deduction') {
+                    info = `Absent days: ${data.absent_days} × AED ${data.daily_rate}/day = AED ${data.leave_amount.toFixed(2)}`;
+                } else {
+                    info = `Late days: ${data.late_days} → ${data.late_half_days} half-day deductions × AED ${(data.daily_rate * 0.5).toFixed(2)} = AED ${data.late_amount.toFixed(2)}`;
+                }
+                const infoEl = document.getElementById('dedAutofillInfo');
+                infoEl.style.display = 'block';
+                infoEl.textContent = info;
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch {
+            alert('Error loading attendance data.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Load from Attendance';
+        }
+    }
+
+    async function saveDeduction() {
+        const empSel = document.getElementById('dedEmployee');
+        const empId = parseInt(empSel.value);
+        const empType = empSel.options[empSel.selectedIndex]?.dataset.type;
+        const category = document.getElementById('dedCategory').value;
+        const totalAmount = parseFloat(document.getElementById('dedAmount').value);
+        const splitMonths = Math.max(1, parseInt(document.getElementById('dedSplitMonths').value) || 1);
+        const startMonth = parseInt(document.getElementById('dedStartMonth').value);
+        const startYear = parseInt(document.getElementById('dedStartYear').value);
+        const note = document.getElementById('dedNote').value.trim();
+
+        const errEl = document.getElementById('dedError');
+        errEl.style.display = 'none';
+
+        if (!empId) { errEl.textContent = 'Please select an employee.'; errEl.style.display = 'block'; return; }
+        if (!totalAmount || totalAmount <= 0) { errEl.textContent = 'Enter a valid amount greater than 0.'; errEl.style.display = 'block'; return; }
+
+        const btn = document.getElementById('dedSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const res = await fetch('/payroll/api/deductions/add/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                body: JSON.stringify({
+                    emp_type: empType,
+                    employee_id: empId,
+                    category, total_amount: totalAmount,
+                    split_months: splitMonths,
+                    start_year: startYear, start_month: startMonth,
+                    note,
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeDeductionModal();
+                location.reload();
+            } else {
+                errEl.textContent = 'Error: ' + data.error;
+                errEl.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Add Entry';
+            }
+        } catch {
+            errEl.textContent = 'Request failed. Please try again.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Add Entry';
+        }
+    }
+
+    async function deleteDeduction(dedId, btnEl) {
+        if (!confirm('Delete this deduction entry? This will remove it from all months.')) return;
+        btnEl.disabled = true;
+        try {
+            const res = await fetch(`/payroll/api/deductions/delete/${dedId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrf() },
+            });
+            const data = await res.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+                btnEl.disabled = false;
+            }
+        } catch {
+            alert('Error deleting entry.');
+            btnEl.disabled = false;
+        }
+    }
+
+    document.getElementById('deductionModal').addEventListener('click', function (e) {
+        if (e.target === this) closeDeductionModal();
+    });
 
     async function recalculateSummaries() {
         const btn = document.getElementById('recalcBtn');

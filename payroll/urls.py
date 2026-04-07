@@ -25,4 +25,8 @@ urlpatterns = [
     # Payroll employee database
     path('employees/', views.payroll_employees, name='payroll_employees'),
     path('api/employee/<str:emp_type>/<int:employee_id>/update/', views.payroll_employee_update, name='payroll_employee_update'),
+    # Deductions & Additions
+    path('api/deductions/add/', views.add_deduction, name='add_deduction'),
+    path('api/deductions/delete/<int:deduction_id>/', views.delete_deduction_entry, name='delete_deduction_entry'),
+    path('api/deductions/autofill/', views.autofill_deduction, name='autofill_deduction'),
 ]
