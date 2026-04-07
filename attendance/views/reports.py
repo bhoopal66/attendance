@@ -114,10 +114,14 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
                 datetime.datetime.combine(datetime.date.min, day_shift_start)
                 + datetime.timedelta(minutes=10)
             ).time() if day_shift_start else None
+            # Compare using hour:minute only (ignore seconds)
+            fi_hm = (record.first_in.hour, record.first_in.minute) if record.first_in else None
+            shift_hm = (day_shift_start.hour, day_shift_start.minute) if day_shift_start else None
+            grace_hm = (grace_cutoff.hour, grace_cutoff.minute) if grace_cutoff else None
             in_grace_window = bool(
-                record.first_in and day_shift_start and grace_cutoff and
-                record.first_in > day_shift_start and
-                record.first_in <= grace_cutoff
+                fi_hm and shift_hm and grace_hm and
+                fi_hm > shift_hm and
+                fi_hm <= grace_hm
             )
             if in_grace_window:
                 grace_uses += 1
@@ -127,7 +131,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
                 else:
                     time_in_ok = False
             else:
-                time_in_ok = bool(record.first_in and day_shift_start and record.first_in <= day_shift_start)
+                time_in_ok = bool(fi_hm and shift_hm and fi_hm <= shift_hm)
             time_out_ok = record.last_out and day_shift_end and (
                 record.last_out.hour > day_shift_end.hour or
                 (record.last_out.hour == day_shift_end.hour and

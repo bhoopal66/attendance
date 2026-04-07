@@ -992,6 +992,8 @@
     .payroll-tab.tab-ded.active .tab-total { color: #dc2626; }
     .payroll-tab.tab-add.active { border-bottom-color: #059669; }
     .payroll-tab.tab-add.active .tab-total { color: #059669; }
+    .payroll-tab.tab-final.active { border-bottom-color: #4338ca; }
+    .payroll-tab.tab-final.active .tab-total { color: #4338ca; }
 
     .payroll-tab-panel { display: none; }
     .payroll-tab-panel.active { display: block; }
@@ -1086,6 +1088,10 @@
             <span class="tab-total">
                 {% if s3_total_add > 0 %}<span style="color:#059669;">+{{ s3_total_add|floatformat:2 }}</span>{% else %}0.00{% endif %}
             </span>
+        </button>
+        <button class="payroll-tab tab-final" onclick="switchPayrollTab(5)" id="payrollTab5">
+            <span class="tab-label">Payroll Summary</span>
+            <span class="tab-total">AED {{ final_total_aed|floatformat:2 }}</span>
         </button>
     </div>
 
@@ -1447,6 +1453,84 @@
     </div>
     </div><!-- /Tab Panel 4 -->
 
+    <!-- Tab Panel 5: Payroll Summary -->
+    <div class="payroll-tab-panel" id="payrollPanel5">
+    <div class="payroll-section">
+        <div class="section-header" style="background:linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);">
+            <span class="section-title">
+                <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <span>
+                    <span class="section-num">Section 5</span>
+                    Payroll Summary — {{ month_name }} {{ selected_year }}
+                </span>
+            </span>
+            <span style="display:flex;align-items:center;gap:16px;">
+                {% if final_total_inr > 0 %}
+                <span class="section-total" style="font-size:0.9rem;">INR {{ final_total_inr|floatformat:2 }}</span>
+                {% endif %}
+                <span class="section-total">AED {{ final_total_aed|floatformat:2 }}</span>
+            </span>
+        </div>
+
+        {% if final_rows %}
+        <div class="sheet-wrapper">
+        <table class="payroll-table">
+            <thead>
+                <tr>
+                    <th class="col-sticky col-name">Employee</th>
+                    <th class="col-loc">Dept</th>
+                    <th class="text-right">Payroll</th>
+                    <th class="text-right">Deductions</th>
+                    <th class="text-right">Additions</th>
+                    <th class="text-right" style="min-width:120px;">Final Salary</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in final_rows %}
+                <tr>
+                    <td class="col-sticky col-name">
+                        <div class="employee-name">{{ row.employee.name }}</div>
+                        {% if row.employee.designation %}<div class="employee-designation">{{ row.employee.designation }}</div>{% endif %}
+                    </td>
+                    <td class="col-loc text-muted" style="font-size:0.8rem;">{{ row.department }}</td>
+                    <td class="text-right mono">
+                        {% if row.payroll_net > 0 %}{{ row.payroll_net|floatformat:2 }}{% else %}<span class="text-muted">0.00</span>{% endif %}
+                    </td>
+                    <td class="text-right mono {% if row.total_deductions > 0 %}text-red{% else %}text-muted{% endif %}">
+                        {% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2 }}{% else %}0.00{% endif %}
+                    </td>
+                    <td class="text-right mono {% if row.total_additions > 0 %}text-green{% else %}text-muted{% endif %}">
+                        {% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2 }}{% else %}0.00{% endif %}
+                    </td>
+                    <td class="text-right mono" style="font-weight:700;font-size:0.95rem;">
+                        <span style="color:{% if row.final_salary > 0 %}#1e40af{% elif row.final_salary < 0 %}#dc2626{% else %}#94a3b8{% endif %};">{{ row.currency }} {{ row.final_salary|floatformat:2 }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td class="col-sticky col-name" style="font-weight:700;font-size:0.8rem;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Total</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="text-right mono" style="font-weight:700;font-size:1rem;">
+                        <span style="color:#1e40af;">AED {{ final_total_aed|floatformat:2 }}</span>
+                        {% if final_total_inr > 0 %}<br><span style="color:#1e40af;font-size:0.85rem;">INR {{ final_total_inr|floatformat:2 }}</span>{% endif %}
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No active employees found.</div>
+        {% endif %}
+    </div>
+    </div><!-- /Tab Panel 5 -->
+
 </div>
 
 <!-- ============ UPLOAD SUBMISSIONS MODAL ============ -->
@@ -1652,7 +1736,7 @@
     // ---- Section Tab Switching ----
 
     function switchPayrollTab(num) {
-        [1, 2, 3, 4].forEach(n => {
+        [1, 2, 3, 4, 5].forEach(n => {
             document.getElementById('payrollTab' + n).classList.toggle('active', n === num);
             document.getElementById('payrollPanel' + n).classList.toggle('active', n === num);
         });

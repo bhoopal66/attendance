@@ -255,15 +255,17 @@ def download_employee_report(request, employee_id):
             total_secs = record.work_duration.total_seconds() if record.work_duration else 0
             arrived_after_noon = record.first_in and record.first_in.hour >= 12 and not is_saturday
 
+            # Compare using hour:minute only (ignore seconds)
+            fi_hm = (record.first_in.hour, record.first_in.minute) if record.first_in else None
             if is_saturday:
-                is_late = record.first_in and record.first_in > sat_shift_start
+                is_late = fi_hm is not None and fi_hm > (sat_shift_start.hour, sat_shift_start.minute)
                 left_early = record.last_out and (
                     record.last_out.hour < sat_shift_end.hour or
                     (record.last_out.hour == sat_shift_end.hour and
                      record.last_out.minute < sat_shift_end.minute)
                 )
             else:
-                is_late = record.first_in and record.first_in > emp_shift_start
+                is_late = fi_hm is not None and fi_hm > (emp_shift_start.hour, emp_shift_start.minute)
                 left_early = record.last_out and (
                     record.last_out.hour < emp_shift_end.hour or
                     (record.last_out.hour == emp_shift_end.hour and

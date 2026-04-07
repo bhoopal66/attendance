@@ -365,6 +365,61 @@ def payroll_dashboard(request):
         for emp in RemoteEmployee.objects.filter(is_active=True).order_by('name')
     ])
 
+    # --- Section 5: Final Summary ---
+    # Build lookup dicts keyed by (emp_type, emp_id) for payroll and deductions
+    payroll_by_emp = {}
+    for row in admin_data:
+        payroll_by_emp[('inhouse', row['employee'].id)] = row
+    for row in all_sales_data:
+        payroll_by_emp[(row['employee_type'], row['employee'].id)] = row
+
+    ded_by_emp = {}
+    for row in section3_rows:
+        ded_by_emp[(row['employee_type'], row['employee'].id)] = row
+
+    final_rows = []
+    for emp in Employee.objects.filter(is_active=True).order_by('department', 'name'):
+        key = ('inhouse', emp.id)
+        p = payroll_by_emp.get(key)
+        d = ded_by_emp.get(key)
+        payroll_net = p['net_payroll'] if p else 0.0
+        total_ded = d['total_deductions'] if d else 0.0
+        total_add = d['total_additions'] if d else 0.0
+        final_salary = round(payroll_net - total_ded + total_add, 2)
+        final_rows.append({
+            'employee': emp,
+            'employee_type': 'inhouse',
+            'department': emp.department or 'In-House',
+            'currency': emp.currency,
+            'payroll_net': payroll_net,
+            'total_deductions': total_ded,
+            'total_additions': total_add,
+            'final_salary': final_salary,
+        })
+
+    for emp in remote_employees:
+        key = ('remote', emp.id)
+        p = payroll_by_emp.get(key)
+        d = ded_by_emp.get(key)
+        payroll_net = p['net_payroll'] if p else 0.0
+        total_ded = d['total_deductions'] if d else 0.0
+        total_add = d['total_additions'] if d else 0.0
+        final_salary = round(payroll_net - total_ded + total_add, 2)
+        final_rows.append({
+            'employee': emp,
+            'employee_type': 'remote',
+            'department': 'Remote',
+            'currency': emp.currency,
+            'payroll_net': payroll_net,
+            'total_deductions': total_ded,
+            'total_additions': total_add,
+            'final_salary': final_salary,
+        })
+
+    final_total_aed = round(sum(r['final_salary'] for r in final_rows if r.get('currency', 'AED') == 'AED'), 2)
+    final_total_inr = round(sum(r['final_salary'] for r in final_rows if r.get('currency', 'AED') == 'INR'), 2)
+    final_total = round(sum(r['final_salary'] for r in final_rows), 2)
+
     # Grand total split by currency
     all_rows = admin_data + all_sales_data
     grand_total_aed = round(sum(r['net_payroll'] for r in all_rows if r.get('currency', 'AED') == 'AED'), 2)
@@ -399,6 +454,11 @@ def payroll_dashboard(request):
         's3_total_add': s3_total_add,
         's3_net': s3_net,
         'all_employees_json': all_employees_json,
+        # Final Summary
+        'final_rows': final_rows,
+        'final_total': final_total,
+        'final_total_aed': final_total_aed,
+        'final_total_inr': final_total_inr,
         # Grand total
         'grand_total': grand_total,
         'grand_total_aed': grand_total_aed,

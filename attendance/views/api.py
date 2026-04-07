@@ -163,16 +163,20 @@ def recalculate_monthly_summary(employee, year, month):
             datetime.datetime.combine(datetime.date.min, day_shift_start)
             + datetime.timedelta(minutes=10)
         ).time()
+        # Compare using hour:minute only (ignore seconds)
+        fi_hm = (record.first_in.hour, record.first_in.minute) if record.first_in else None
+        shift_hm = (day_shift_start.hour, day_shift_start.minute)
+        grace_hm = (grace_cutoff.hour, grace_cutoff.minute)
         in_grace_window = (
-            record.first_in and
-            record.first_in > day_shift_start and
-            record.first_in <= grace_cutoff
+            fi_hm is not None and
+            fi_hm > shift_hm and
+            fi_hm <= grace_hm
         )
         if in_grace_window:
             grace_uses += 1
             is_late = grace_uses > 3
         else:
-            is_late = bool(record.first_in and record.first_in > day_shift_start)
+            is_late = bool(fi_hm is not None and fi_hm > shift_hm)
         if is_late:
             late_days += 1
 
