@@ -255,7 +255,16 @@ def payroll_dashboard(request):
     total_sales_inhouse, _, _, _ = _build_section_totals(sales_inhouse_data)
 
     # --- Sales section: remote employees (commission-only) ---
+    # Exclude remote employees whose tcr_id already appears as an in-house employee
+    # (same person tracked in both tables) to prevent duplicates
+    all_inhouse_tcr_ids = set(
+        Employee.objects.filter(is_active=True)
+        .exclude(tcr_id='')
+        .values_list('tcr_id', flat=True)
+    )
     remote_employees = RemoteEmployee.objects.filter(is_active=True).order_by('name')
+    if all_inhouse_tcr_ids:
+        remote_employees = remote_employees.exclude(tcr_id__in=all_inhouse_tcr_ids)
     remote_data = [
         _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks)
         for emp in remote_employees
