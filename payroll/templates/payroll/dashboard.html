@@ -966,7 +966,7 @@
             </thead>
             <tbody>
                 {% for item in admin_data %}
-                <tr onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', 'inhouse')">
+                <tr>
                     <td class="col-sticky col-name">
                         <div class="employee-name">{{ item.employee.name }}</div>
                         {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
@@ -1008,7 +1008,6 @@
             </tfoot>
         </table>
         </div>
-        <div class="click-hint">Click any row to add incentives or reductions for that employee</div>
         {% else %}
         <div class="empty-state">No active Admin employees found. Assign "Admin" department and salary to employees.</div>
         {% endif %}
@@ -1044,7 +1043,6 @@
                         </th>
                         {% endfor %}
                         <th class="sheet-th-total">Total Salary</th>
-                        <th class="sheet-th-adj"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1072,9 +1070,6 @@
                         <td class="sheet-td-total" id="total-{{ item.employee_type }}-{{ item.employee.id }}" data-currency="{{ item.currency }}">
                             {{ item.currency }} {{ item.commission|floatformat:2 }}
                         </td>
-                        <td class="sheet-td-adj">
-                            <button class="btn-adj-sm" onclick="openModal({{ item.employee.id }}, '{{ item.employee.name|escapejs }}', '{{ item.employee_type }}')">Adj</button>
-                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -1086,7 +1081,6 @@
                         <td class="sheet-td-bank text-right mono" id="col-total-{{ bank.id }}" style="font-weight:600;color:#475569;">—</td>
                         {% endfor %}
                         <td class="sheet-td-total" id="grand-sales-total">AED {{ total_sales_commission|floatformat:2 }}</td>
-                        <td class="sheet-td-adj"></td>
                     </tr>
                 </tfoot>
             </table>
