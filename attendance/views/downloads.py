@@ -272,7 +272,7 @@ def download_employee_report(request, employee_id):
                      record.last_out.minute < emp_shift_end.minute)
                 )
 
-            is_half_day = arrived_after_noon or left_early
+            is_half_day = arrived_after_noon
 
             if total_secs == 0:
                 if date in approved_leave_dates and not is_sunday and not is_holiday:

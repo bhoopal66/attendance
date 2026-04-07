@@ -190,7 +190,7 @@ def _build_inhouse_portal_data(employee, selected_year, selected_month, cal_data
             if total_secs == 0:
                 status = 'absent'
                 summary['leave_days'] += 1
-            elif arrived_after_noon or left_early:
+            elif arrived_after_noon:
                 status = 'yellow'
                 summary['half_days'] += 1
                 if is_late:

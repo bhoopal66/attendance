@@ -155,7 +155,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
                 status = 'absent'
             elif is_half_day:
                 status = 'yellow'
-            elif hours_ok and time_in_ok and time_out_ok:
+            elif time_in_ok:
                 status = 'green'
             else:
                 status = 'yellow'
