@@ -907,9 +907,22 @@ def upload_submissions(request):
 @login_required
 @user_passes_test(superuser_required, login_url='/report/')
 def payroll_employees(request):
-    """Payroll employee database — salary, currency, designation for all employees."""
+    """Payroll employee database — salary, currency, designation for all employees.
+
+    Section assignment is driven by the location field:
+      location = 'inhouse' → in-house section (Employee table only)
+      location = 'remote'  → remote section (RemoteEmployee records whose
+                              location is not 'inhouse')
+    """
     inhouse_employees = Employee.objects.filter(is_active=True).order_by('department', 'name')
-    remote_employees = RemoteEmployee.objects.filter(is_active=True).order_by('name')
+
+    # Only show remote employees whose location is not marked as 'inhouse'
+    remote_employees = (
+        RemoteEmployee.objects.filter(is_active=True)
+        .exclude(location__iexact='inhouse')
+        .order_by('name')
+    )
+
     return render(request, 'payroll/employees.html', {
         'inhouse_employees': inhouse_employees,
         'remote_employees': remote_employees,
