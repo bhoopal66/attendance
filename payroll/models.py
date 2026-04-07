@@ -12,21 +12,19 @@ from attendance.models import Employee
 DEDUCTION_CATEGORY_CHOICES = [
     # Deductions
     ('advance', 'Advance'),
-    ('visa_cost', 'Visa Cost'),
+    ('visa_status_change', 'Visa Status Change'),
     ('clawback', 'Clawback'),
     ('leave_deduction', 'Leave Deduction'),
     ('late_deduction', 'Late Deduction'),
-    ('closed_account', 'Closed Account Deduction'),
     ('other_deduction', 'Other Deduction'),
     # Additions
     ('last_month_balance', 'Last Month Balance'),
     ('paid_leave', 'Paid Leave'),
-    ('gratuity', 'Gratuity'),
 ]
 
 _DEDUCTION_CATS = {
-    'advance', 'visa_cost', 'clawback', 'leave_deduction',
-    'late_deduction', 'closed_account', 'other_deduction',
+    'advance', 'visa_status_change', 'clawback', 'leave_deduction',
+    'late_deduction', 'other_deduction',
 }
 
 

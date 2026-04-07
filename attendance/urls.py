@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path('', views.upload_file, name='upload'),
     path('upload/remote/', views.upload_remote_call_stats, name='upload_remote'),
+    path('upload/remote/monthly/', views.upload_remote_monthly, name='upload_remote_monthly'),
     path('report/', views.attendance_report, name='report'),
     path('report/download/', views.download_report, name='download_report'),
     path('report/download/employee/<int:employee_id>/', views.download_employee_report, name='download_employee_report'),

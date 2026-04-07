@@ -270,8 +270,8 @@ def payroll_dashboard(request):
         1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
         7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
     }
-    _DED_COLS = ['advance', 'visa_cost', 'clawback', 'leave_deduction', 'late_deduction', 'closed_account', 'other_deduction']
-    _ADD_COLS = ['last_month_balance', 'paid_leave', 'gratuity']
+    _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
+    _ADD_COLS = ['last_month_balance', 'paid_leave']
     _ALL_CATS = _DED_COLS + _ADD_COLS
     target_idx = selected_year * 12 + (selected_month - 1)
 

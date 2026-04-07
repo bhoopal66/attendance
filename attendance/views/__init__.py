@@ -14,7 +14,7 @@ organized into logical modules:
 
 # Import all views for backward compatibility with urls.py
 from .utils import superuser_required, parse_duration
-from .upload import upload_file, upload_remote_call_stats
+from .upload import upload_file, upload_remote_call_stats, upload_remote_monthly
 from .reports import attendance_report, remote_attendance_report
 from .downloads import (
     download_report,
@@ -69,6 +69,7 @@ __all__ = [
     # Upload
     'upload_file',
     'upload_remote_call_stats',
+    'upload_remote_monthly',
     # Reports
     'attendance_report',
     'remote_attendance_report',

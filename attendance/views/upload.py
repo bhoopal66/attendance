@@ -447,3 +447,125 @@ def upload_remote_call_stats(request):
         logger.exception("Unexpected error during remote upload")
         messages.error(request, 'An unexpected error occurred while processing the file.')
         return redirect('upload')
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def upload_remote_monthly(request):
+    """Handle CSV upload for monthly remote team call statistics (per-day breakdown)."""
+    if request.method != 'POST' or not request.FILES.get('remote_monthly_file'):
+        return redirect('upload')
+
+    csv_file = request.FILES['remote_monthly_file']
+    selected_month_str = request.POST.get('remote_month')  # "YYYY-MM" format
+
+    if not selected_month_str:
+        messages.error(request, 'Please select a month for monthly remote call statistics.')
+        return redirect('upload')
+
+    try:
+        _validate_file_extension(csv_file.name, ALLOWED_REMOTE_EXTENSIONS)
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect('upload')
+
+    try:
+        selected_year = int(selected_month_str.split('-')[0])
+
+        df = pd.read_csv(csv_file)
+
+        if 'Date' not in df.columns:
+            messages.error(request, 'Invalid file format. Monthly CSV must have a "Date" column.')
+            return redirect('upload')
+
+        processed_count = 0
+        new_employees = []
+        dates_processed = set()
+
+        with transaction.atomic():
+            for _, row in df.iterrows():
+                date_str = str(row.get('Date', '')).strip()
+                extension_col = row.get('Extension', '')
+
+                # Skip total rows (daily totals and grand total)
+                if date_str.lower() == 'total':
+                    continue
+                if str(extension_col).strip().lower() == 'total':
+                    continue
+                if '-' not in str(extension_col):
+                    continue
+
+                # Parse date: "Mar. 1" + year -> date object
+                try:
+                    date_text = date_str.replace('.', '').strip()
+                    record_date = datetime.strptime(f"{date_text} {selected_year}", "%b %d %Y").date()
+                except ValueError:
+                    logger.warning("Could not parse date '%s', skipping row", date_str)
+                    continue
+
+                dates_processed.add(record_date)
+
+                parts = str(extension_col).split('-', 1)
+                extension_id = parts[0].strip()
+                name = parts[1].strip() if len(parts) > 1 else 'Unknown'
+
+                employee, created = _lookup_or_create_remote_employee(extension_id, name)
+                if created:
+                    new_employees.append(name)
+
+                answered = int(row.get('Answered', 0) or 0)
+                no_answered = int(row.get('No Answered', 0) or 0)
+                busy = int(row.get('Busy', 0) or 0)
+                failed = int(row.get('Failed', 0) or 0)
+                voicemail = int(row.get('Voicemail', 0) or 0)
+
+                ring_duration = parse_duration(row.get('Total Ring Duration', ''))
+                talk_duration = parse_duration(row.get('Total Talk Duration', ''))
+
+                RemoteCallRecord.objects.update_or_create(
+                    employee=employee,
+                    date=record_date,
+                    defaults={
+                        'answered_calls': answered,
+                        'no_answered': no_answered,
+                        'busy': busy,
+                        'failed': failed,
+                        'voicemail': voicemail,
+                        'total_ring_duration': ring_duration,
+                        'total_talk_duration': talk_duration,
+                    }
+                )
+                processed_count += 1
+
+        # Recalculate summaries for all months that had data
+        months_processed = {(d.year, d.month) for d in dates_processed}
+        for year, month in months_processed:
+            call_command('recalculate_summaries', year, month, remote=True, verbosity=0)
+
+        logger.info(
+            "Monthly remote upload completed: %d records across %d days for %s by %s",
+            processed_count, len(dates_processed), selected_month_str, request.user.username
+        )
+        messages.success(
+            request,
+            f'Monthly remote call statistics uploaded! '
+            f'Processed {processed_count} records across {len(dates_processed)} days.'
+        )
+        if new_employees:
+            names = ', '.join(new_employees)
+            messages.warning(
+                request,
+                f'{len(new_employees)} new remote employee record(s) were auto-created: {names}. '
+                f'If these are existing employees with a new extension, use the '
+                f'Employee Directory to merge the duplicate records.'
+            )
+        return redirect('upload')
+
+    except ValueError as e:
+        logger.warning("Monthly remote upload validation error: %s", e)
+        messages.error(request, f'Error processing file: {e}')
+        return redirect('upload')
+    except Exception:
+        logger.exception("Unexpected error during monthly remote upload")
+        messages.error(request, 'An unexpected error occurred while processing the file.')
+        return redirect('upload')
