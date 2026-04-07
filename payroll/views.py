@@ -177,9 +177,16 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks):
     )
     net_payroll = commission + incentives - reductions
 
+    # display_type is based on location field (same logic as the Salary Setup page)
+    if emp_type == 'inhouse':
+        display_type = 'inhouse'
+    else:
+        display_type = 'inhouse' if (emp.location and emp.location.lower() == 'inhouse') else 'remote'
+
     return {
         'employee': emp,
         'employee_type': emp_type,
+        'display_type': display_type,
         'currency': emp.currency,
         'bank_counts_list': bank_counts_list,
         'commission': round(commission, 2),

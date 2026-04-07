@@ -1055,7 +1055,7 @@
                             {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                         </td>
                         <td class="sheet-td-dept">
-                            {% if item.employee.location == 'inhouse' or item.employee_type == 'inhouse' %}
+                            {% if item.display_type == 'inhouse' %}
                             <span class="dept-badge inhouse">In-House</span>
                             {% else %}
                             <span class="dept-badge remote">Remote</span>
