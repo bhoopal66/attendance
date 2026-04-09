@@ -1,6 +1,22 @@
 /* Employee Portal JavaScript */
 
 // ====================================
+// Sidebar Toggle
+// ====================================
+
+function toggleSidebar() {
+    const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
+}
+
+// Restore sidebar state on load
+(function () {
+    if (localStorage.getItem('sidebarCollapsed') === '1') {
+        document.body.classList.add('sidebar-collapsed');
+    }
+})();
+
+// ====================================
 // Early Leave Request Form
 // ====================================
 
@@ -240,12 +256,12 @@ let onDutyHasMore = false;
 let leaveHasMore = false;
 const ITEMS_PER_PAGE = 5;
 
-function switchTab(tabName) {
+function switchTab(tabName, event) {
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
     });
-    event.target.classList.add('active');
+    event.currentTarget.classList.add('active');
 
     // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => {

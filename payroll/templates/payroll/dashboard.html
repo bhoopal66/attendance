@@ -1032,11 +1032,11 @@
     <div class="grand-total-banner">
         <div>
             <div class="grand-total-label">Total Payroll — {{ month_name }} {{ selected_year }}</div>
-            {% if grand_total_inr > 0 %}
-            <div class="grand-total-amount" style="font-size:1.5rem;">AED {{ grand_total_aed|floatformat:2 }}</div>
-            <div style="font-size:1rem;font-weight:600;font-family:'SF Mono','Monaco',monospace;opacity:0.85;margin-top:4px;">INR {{ grand_total_inr|floatformat:2 }}</div>
+            {% if final_total_inr > 0 %}
+            <div class="grand-total-amount" style="font-size:1.5rem;">AED {{ final_total_aed|floatformat:2 }}</div>
+            <div style="font-size:1rem;font-weight:600;font-family:'SF Mono','Monaco',monospace;opacity:0.85;margin-top:4px;">INR {{ final_total_inr|floatformat:2 }}</div>
             {% else %}
-            <div class="grand-total-amount">AED {{ grand_total_aed|floatformat:2 }}</div>
+            <div class="grand-total-amount">AED {{ final_total_aed|floatformat:2 }}</div>
             {% endif %}
         </div>
         <div class="grand-total-breakdown">
@@ -1048,12 +1048,7 @@
                 <div class="label">Performance-Based</div>
                 <div class="value">AED {{ total_sales|floatformat:2 }}</div>
             </div>
-            {% if total_sales_commission > 0 %}
-            <div class="breakdown-item">
-                <div class="label">Bank Commission</div>
-                <div class="value">AED {{ total_sales_commission|floatformat:2 }}</div>
-            </div>
-            {% endif %}
+
             {% if s3_net != 0 %}
             <div class="breakdown-item">
                 <div class="label">Net Deductions/Additions</div>
