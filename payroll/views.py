@@ -438,6 +438,8 @@ def payroll_dashboard(request):
     # Combined Sales totals
     all_sales_rows = sales_inhouse_data + remote_data
     total_sales, sales_incentives_total, sales_reductions_total, _ = _build_section_totals(all_sales_rows)
+    total_sales_aed = round(sum(r['net_payroll'] for r in all_sales_rows if r.get('currency', 'AED') == 'AED'), 2)
+    total_sales_inr = round(sum(r['net_payroll'] for r in all_sales_rows if r.get('currency', 'AED') == 'INR'), 2)
     # Tfoot totals split by currency (commission employees use commission, fixed salary use net_payroll)
     def _sales_tfoot(rows, currency):
         return round(
@@ -623,6 +625,8 @@ def payroll_dashboard(request):
         'total_sales_inhouse': total_sales_inhouse,
         'total_remote': total_remote,
         'total_sales': total_sales,
+        'total_sales_aed': total_sales_aed,
+        'total_sales_inr': total_sales_inr,
         'total_sales_commission_aed': total_sales_commission_aed,
         'total_sales_commission_inr': total_sales_commission_inr,
         'sales_incentives_total': sales_incentives_total,

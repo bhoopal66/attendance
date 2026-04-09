@@ -1046,7 +1046,7 @@
             </div>
             <div class="breakdown-item">
                 <div class="label">Performance-Based</div>
-                <div class="value">AED {{ total_sales|floatformat:2 }}</div>
+                <div class="value">AED {{ total_sales_aed|floatformat:2 }}{% if total_sales_inr %} · INR {{ total_sales_inr|floatformat:2 }}{% endif %}</div>
             </div>
 
             {% if s3_net != 0 %}
@@ -1070,7 +1070,7 @@
         </button>
         <button class="payroll-tab tab-sales" onclick="switchPayrollTab(2)" id="payrollTab2">
             <span class="tab-label">Sales Payroll</span>
-            <span class="tab-total">AED {{ total_sales|floatformat:2 }}</span>
+            <span class="tab-total">AED {{ total_sales_aed|floatformat:2 }}{% if total_sales_inr %} · INR {{ total_sales_inr|floatformat:2 }}{% endif %}</span>
         </button>
         <button class="payroll-tab tab-ded" onclick="switchPayrollTab(3)" id="payrollTab3">
             <span class="tab-label">Deductions</span>
@@ -1187,7 +1187,7 @@
                     Performance-Based Payroll
                 </span>
             </span>
-            <span class="section-total">AED {{ total_sales|floatformat:2 }}</span>
+            <span class="section-total">AED {{ total_sales_aed|floatformat:2 }}{% if total_sales_inr %} · INR {{ total_sales_inr|floatformat:2 }}{% endif %}</span>
         </div>
 
         {% if all_sales_data %}
