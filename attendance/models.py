@@ -330,9 +330,7 @@ class RemoteCallRecord(models.Model):
         Fixed salary employees: any call activity (answered calls or talk duration) = Present.
         """
         if self.employee.is_fixed_salary:
-            if self.answered_calls > 0 or self.total_talk_duration:
-                return 'present'
-            return 'absent'
+            return 'present'
 
         if not self.total_talk_duration:
             return 'absent'
