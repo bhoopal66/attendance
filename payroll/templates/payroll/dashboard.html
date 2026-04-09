@@ -1485,6 +1485,7 @@
                     <th class="text-right">Deductions</th>
                     <th class="text-right">Additions</th>
                     <th class="text-right" style="min-width:120px;">Final Salary</th>
+                    <th style="width:80px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -1507,6 +1508,13 @@
                     <td class="text-right mono" style="font-weight:700;font-size:0.95rem;">
                         <span style="color:{% if row.final_salary > 0 %}#1e40af{% elif row.final_salary < 0 %}#dc2626{% else %}#94a3b8{% endif %};">{{ row.currency }} {{ row.final_salary|floatformat:2 }}</span>
                     </td>
+                    <td style="text-align:center;padding:6px 4px;">
+                        <a href="/payroll/payslip/{{ row.employee_type }}/{{ row.employee.id }}/?month={{ selected_month }}&year={{ selected_year }}"
+                           target="_blank"
+                           title="Print Payslip"
+                           style="display:inline-block;padding:3px 9px;font-size:0.72rem;font-weight:600;color:#4F46E5;border:1px solid #4F46E5;border-radius:5px;text-decoration:none;white-space:nowrap;background:#F5F3FF;"
+                           >Payslip</a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -1521,6 +1529,7 @@
                         <span style="color:#1e40af;">AED {{ final_total_aed|floatformat:2 }}</span>
                         {% if final_total_inr > 0 %}<br><span style="color:#1e40af;font-size:0.85rem;">INR {{ final_total_inr|floatformat:2 }}</span>{% endif %}
                     </td>
+                    <td></td>
                 </tr>
             </tfoot>
         </table>

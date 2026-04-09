@@ -12,8 +12,8 @@ from decimal import Decimal
 
 from django.core.management import call_command
 from django.db.models import Sum
-from django.http import JsonResponse
-from django.shortcuts import render
+from django.http import JsonResponse, HttpResponse
+from django.shortcuts import render, get_object_or_404
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required, user_passes_test
 
@@ -1262,4 +1262,146 @@ def autofill_deduction(request):
         'absent_days': absent_days,
         'late_days': late_days,
         'late_half_days': late_half_days,
+    })
+
+
+# ============================================
+# Payslip Download
+# ============================================
+
+def _amount_in_words(amount):
+    """Convert a numeric amount (integer AED) to English words for payslips."""
+    ones = [
+        '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+        'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+        'Seventeen', 'Eighteen', 'Nineteen',
+    ]
+    tens_words = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+    def below_thousand(n):
+        if n == 0:
+            return ''
+        if n < 20:
+            return ones[n]
+        if n < 100:
+            rem = ones[n % 10]
+            return tens_words[n // 10] + (' ' + rem if rem else '')
+        rem = below_thousand(n % 100)
+        return ones[n // 100] + ' Hundred' + (' ' + rem if rem else '')
+
+    n = int(round(abs(amount)))
+    if n == 0:
+        return 'Zero Only'
+
+    parts = []
+    if n >= 1_000_000:
+        parts.append(below_thousand(n // 1_000_000) + ' Million')
+        n %= 1_000_000
+    if n >= 1000:
+        parts.append(below_thousand(n // 1000) + ' Thousand')
+        n %= 1000
+    if n > 0:
+        parts.append(below_thousand(n))
+    return ' '.join(parts) + ' Only'
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def download_payslip(request, emp_type, emp_id):
+    """Render a printable HTML payslip for one employee for the selected month."""
+    selected_month, selected_year = get_selected_month_year(request)
+    days_in_month = calendar.monthrange(selected_year, selected_month)[1]
+    month_start = datetime.date(selected_year, selected_month, 1)
+    month_end = datetime.date(selected_year, selected_month, days_in_month)
+    month_name = MONTH_NAMES[selected_month]
+
+    if emp_type == 'inhouse':
+        emp = get_object_or_404(Employee, id=emp_id)
+    else:
+        emp = get_object_or_404(RemoteEmployee, id=emp_id)
+
+    salary = float(emp.salary) if emp.salary else 0.0
+
+    # --- Payroll figures ---
+    if emp_type == 'inhouse' and emp.department == 'Admin':
+        total_holidays = _count_holidays(selected_year, selected_month, days_in_month)
+        payroll = _get_inhouse_payroll_row(
+            emp, selected_year, selected_month, month_start, month_end, total_holidays
+        )
+        base_payroll = payroll['base_payroll']
+        incentives = payroll['incentives']
+        commission = payroll['commission']
+        reductions = payroll['reductions']
+        total_deduction_days = payroll['total_deduction_days']
+        absent_days_display = round(total_deduction_days, 2)
+        proration = (days_in_month - total_deduction_days) / days_in_month if days_in_month > 0 else 1.0
+        basic_actual = round(salary * 0.40 * proration, 2)
+        allowance_actual = round(salary * 0.60 * proration, 2)
+    else:
+        banks = list(Bank.objects.filter(is_active=True).order_by('name'))
+        payroll = _get_sales_payroll_row(
+            emp, selected_year, selected_month, emp_type, banks
+        )
+        base_payroll = 0.0
+        incentives = payroll['incentives']
+        commission = payroll['commission']
+        reductions = payroll['reductions']
+        absent_days_display = 0
+        basic_actual = 0.0
+        allowance_actual = 0.0
+
+    # --- Active DeductionEntry records for this month ---
+    target_idx = selected_year * 12 + (selected_month - 1)
+    if emp_type == 'inhouse':
+        deduction_entries = list(DeductionEntry.objects.filter(employee=emp))
+    else:
+        deduction_entries = list(DeductionEntry.objects.filter(remote_employee=emp))
+
+    advance_ded = 0.0
+    other_ded = 0.0
+    additions = 0.0
+    for entry in deduction_entries:
+        start_idx = entry.start_year * 12 + (entry.start_month - 1)
+        if start_idx <= target_idx < start_idx + entry.split_months:
+            amt = float(entry.installment_amount)
+            if entry.category == 'advance':
+                advance_ded += amt
+            elif entry.category in ('paid_leave', 'last_month_balance'):
+                additions += amt
+            elif entry.category in ('visa_status_change', 'clawback', 'other_deduction'):
+                other_ded += amt
+
+    advance_ded = round(advance_ded, 2)
+    other_ded = round(other_ded + reductions, 2)   # include PayrollAdjustment reductions here
+    additions = round(additions, 2)
+
+    incentives_commission = round(incentives + commission, 2)
+    total_earnings = round(basic_actual + allowance_actual + incentives_commission + additions, 2)
+    total_deductions = round(advance_ded + other_ded, 2)
+    net_salary = round(total_earnings - total_deductions, 2)
+
+    salary_words = _amount_in_words(net_salary) if net_salary > 0 else 'Zero Only'
+
+    # --- Render HTML payslip ---
+    logger.info("Payslip viewed for %s %s/%s by %s", emp.name, selected_month, selected_year, request.user.username)
+    return render(request, 'payroll/payslip.html', {
+        'emp': emp,
+        'month_name': month_name,
+        'selected_month': selected_month,
+        'selected_year': selected_year,
+        'days_in_month': days_in_month,
+        'absent_days_display': absent_days_display,
+        'salary': salary,
+        'basic_full': round(salary * 0.40, 2),
+        'allowance_full': round(salary * 0.60, 2),
+        'basic_actual': basic_actual,
+        'allowance_actual': allowance_actual,
+        'incentives_commission': incentives_commission,
+        'additions': additions,
+        'advance_ded': advance_ded,
+        'other_ded': other_ded,
+        'total_earnings': total_earnings,
+        'total_deductions': total_deductions,
+        'net_salary': net_salary,
+        'salary_words': salary_words,
     })

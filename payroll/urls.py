@@ -29,4 +29,6 @@ urlpatterns = [
     path('api/deductions/add/', views.add_deduction, name='add_deduction'),
     path('api/deductions/delete/<int:deduction_id>/', views.delete_deduction_entry, name='delete_deduction_entry'),
     path('api/deductions/autofill/', views.autofill_deduction, name='autofill_deduction'),
+    # Payslip download
+    path('payslip/<str:emp_type>/<int:emp_id>/', views.download_payslip, name='download_payslip'),
 ]

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payslip — {{ emp.name }} — {{ month_name }} {{ selected_year }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11pt;
+    color: #1a1a1a;
+    background: #f0f0f0;
+  }
+
+  /* ── Print action bar ── */
+  .action-bar {
+    background: #1e1b4b;
+    padding: 11px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-print {
+    background: #4F46E5;
+    color: #fff;
+    border: none;
+    padding: 8px 22px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+  }
+  .btn-print:hover { background: #4338ca; }
+  .action-bar span {
+    color: #c7d2fe;
+    font-size: 0.82rem;
+  }
+
+  /* ── Payslip card ── */
+  .payslip-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 28px 16px 48px;
+  }
+  .payslip {
+    background: #fff;
+    width: 720px;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.13);
+  }
+
+  /* ── Header ── */
+  .ps-header {
+    background: #4F46E5;
+    color: #fff;
+    text-align: center;
+    padding: 13px 20px 9px;
+  }
+  .ps-header h1 {
+    font-size: 14pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .ps-header p {
+    font-size: 8.5pt;
+    margin-top: 3px;
+    opacity: 0.88;
+  }
+
+  /* ── Title band ── */
+  .ps-title {
+    background: #EEF2FF;
+    text-align: center;
+    padding: 7px 20px;
+    font-size: 11pt;
+    font-weight: 700;
+    color: #3730a3;
+    border-top: 1px solid #c7d2fe;
+    border-bottom: 2px solid #4F46E5;
+  }
+
+  /* ── Employee info grid ── */
+  .ps-info {
+    padding: 10px 20px 8px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .ps-info table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .ps-info td {
+    padding: 3px 6px;
+    font-size: 9.5pt;
+    vertical-align: middle;
+  }
+  .ps-info td.lbl {
+    color: #64748b;
+    width: 18%;
+    white-space: nowrap;
+  }
+  .ps-info td.val {
+    font-weight: 700;
+    color: #1e293b;
+    width: 30%;
+  }
+
+  /* ── Main earnings/deductions table ── */
+  .ps-table-wrap { padding: 0 20px; }
+
+  .ps-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+
+  /* Section header row */
+  .ps-table .sec-head th {
+    background: #4F46E5;
+    color: #fff;
+    font-size: 9.5pt;
+    font-weight: 700;
+    text-align: center;
+    padding: 6px 8px;
+    border: 1px solid #4338ca;
+  }
+  .ps-table .sec-head td.divider {
+    width: 12px;
+    background: #fff;
+    border: none;
+  }
+
+  /* Column sub-header row */
+  .ps-table .col-head th {
+    background: #EEF2FF;
+    color: #3730a3;
+    font-size: 8.5pt;
+    font-weight: 700;
+    padding: 5px 8px;
+    border: 1px solid #c7d2fe;
+  }
+  .ps-table .col-head th.amt { text-align: right; }
+  .ps-table .col-head td.divider {
+    background: #fff;
+    border: none;
+  }
+
+  /* Data rows */
+  .ps-table tbody tr td {
+    padding: 4px 8px;
+    font-size: 9.5pt;
+    border: 1px solid #e2e8f0;
+    vertical-align: middle;
+  }
+  .ps-table tbody tr td.amt {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ps-table tbody tr td.amt.zero { color: #94a3b8; }
+  .ps-table tbody tr td.divider {
+    border: none;
+    background: #fff;
+    padding: 0;
+  }
+
+  /* Total row */
+  .ps-table tr.total-row td {
+    background: #F8FAFC;
+    font-weight: 700;
+    font-size: 9.5pt;
+    border: 1px solid #cbd5e1;
+    border-top: 2px solid #94a3b8;
+  }
+  .ps-table tr.total-row td.amt { color: #1e3a8a; }
+  .ps-table tr.total-row td.ded { color: #dc2626; }
+
+  /* ── Net salary ── */
+  .ps-net-row {
+    margin: 12px 20px 0;
+    display: flex;
+    align-items: stretch;
+    border: 2px solid #4F46E5;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  .ps-net-row .net-label {
+    background: #EEF2FF;
+    color: #3730a3;
+    font-size: 10.5pt;
+    font-weight: 700;
+    padding: 9px 16px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+  }
+  .ps-net-row .net-value {
+    background: #4F46E5;
+    color: #fff;
+    font-size: 13pt;
+    font-weight: 700;
+    padding: 9px 20px;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    min-width: 180px;
+    justify-content: flex-end;
+  }
+
+  .ps-words {
+    margin: 6px 20px 0;
+    font-size: 9pt;
+    color: #475569;
+  }
+  .ps-words .lbl { font-weight: 600; color: #334155; }
+  .ps-words .wrd { font-weight: 700; color: #1e293b; }
+
+  /* ── Payment method ── */
+  .ps-payment {
+    margin: 10px 20px 0;
+    font-size: 9.5pt;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 7px 12px;
+    background: #fafafa;
+  }
+  .ps-payment .plbl { font-weight: 700; color: #1e293b; }
+  .ps-payment .opt {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ps-payment .chk {
+    width: 13px;
+    height: 13px;
+    border: 1.5px solid #94a3b8;
+    display: inline-block;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── Annual Leave / Gratuity ── */
+  .ps-bottom {
+    margin: 12px 20px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .ps-box {
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  .ps-box-title {
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 5px 10px;
+    font-size: 9pt;
+    font-weight: 700;
+    color: #334155;
+  }
+  .ps-box-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 10px;
+    font-size: 9pt;
+    color: #475569;
+    border-bottom: 1px solid #f8fafc;
+  }
+  .ps-box-row .v { font-weight: 600; color: #1e293b; }
+
+  /* ── Footer ── */
+  .ps-footer {
+    margin: 14px 20px 18px;
+    text-align: center;
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: #64748b;
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 10px;
+  }
+
+  /* ── Print styles ── */
+  @media print {
+    @page { size: A4; margin: 10mm 14mm; }
+    body { background: #fff; }
+    .action-bar { display: none !important; }
+    .payslip-wrap { padding: 0; }
+    .payslip { box-shadow: none; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="action-bar">
+  <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+  <span>Use your browser print dialog — choose "Save as PDF" to export.</span>
+</div>
+
+<div class="payslip-wrap">
+<div class="payslip">
+
+  <!-- Header -->
+  <div class="ps-header">
+    <h1>TAAMUL CREDIT REVIEW SERVICES</h1>
+    <p>Office 319, Garhoud Star Building, Al Garhoud, Dubai, UAE</p>
+  </div>
+
+  <!-- Title -->
+  <div class="ps-title">Payslip for the month of {{ month_name }} {{ selected_year }}</div>
+
+  <!-- Employee info (4-column table matching template: label | value | label | value) -->
+  <div class="ps-info">
+    <table>
+      <tr>
+        <td class="lbl">Employee ID</td>
+        <td class="val">{{ emp.tcr_id|default:"—" }}</td>
+        <td class="lbl">Employee Designation</td>
+        <td class="val">{{ emp.designation|default:"—" }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Employee Name</td>
+        <td class="val">{{ emp.name }}</td>
+        <td class="lbl">Total No. of days</td>
+        <td class="val">{{ days_in_month }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Date of Joining</td>
+        <td class="val">{% if emp.joining_date %}{{ emp.joining_date|date:"d-M-Y" }}{% else %}—{% endif %}</td>
+        <td class="lbl">Total No. of days Absent</td>
+        <td class="val">{{ absent_days_display }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Earnings & Deductions table (matching template structure exactly) -->
+  <div class="ps-table-wrap">
+    <table class="ps-table">
+      <!-- Section headers: EARNINGS | DEDUCTIONS -->
+      <thead>
+        <tr class="sec-head">
+          <th colspan="2">EARNINGS</th>
+          <td class="divider" rowspan="8"></td>
+          <th colspan="2">DEDUCTIONS</th>
+        </tr>
+        <tr class="col-head">
+          <th style="width:38%;">Particulars</th>
+          <th class="amt" style="width:15%;">Amount (AED)</th>
+          <th style="width:32%;">Particulars</th>
+          <th class="amt" style="width:15%;">Amount (AED)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Row 12: Basic / Advance deduction -->
+        <tr>
+          <td>Basic</td>
+          <td class="amt {% if basic_actual == 0 %}zero{% endif %}">
+            {% if basic_actual %}{{ basic_actual|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+          <td>Advance deduction</td>
+          <td class="amt {% if advance_ded == 0 %}zero{% endif %}">
+            {% if advance_ded %}{{ advance_ded|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        <!-- Row 13: HRA / Expenses deduction -->
+        <tr>
+          <td>HRA</td>
+          <td class="amt zero">—</td>
+          <td>Expenses deduction</td>
+          <td class="amt {% if other_ded == 0 %}zero{% endif %}">
+            {% if other_ded %}{{ other_ded|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        <!-- Row 14: Other Allowance / (empty) -->
+        <tr>
+          <td>Other Allowance</td>
+          <td class="amt {% if allowance_actual == 0 %}zero{% endif %}">
+            {% if allowance_actual %}{{ allowance_actual|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+          <td></td>
+          <td class="amt zero">—</td>
+        </tr>
+        <!-- Row 15: Incentives / (empty) -->
+        <tr>
+          <td>Incentives</td>
+          <td class="amt {% if incentives_commission == 0 %}zero{% endif %}">
+            {% if incentives_commission %}{{ incentives_commission|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+          <td></td>
+          <td class="amt zero">—</td>
+        </tr>
+        <!-- Row 16: Salary Advance / (empty) -->
+        <tr>
+          <td>Salary Advance</td>
+          <td class="amt zero">—</td>
+          <td></td>
+          <td class="amt zero">—</td>
+        </tr>
+        <!-- Row 17: Leave Salary / (empty) -->
+        <tr>
+          <td>Leave Salary</td>
+          <td class="amt {% if additions == 0 %}zero{% endif %}">
+            {% if additions %}{{ additions|floatformat:2 }}{% else %}0.00{% endif %}
+          </td>
+          <td></td>
+          <td class="amt zero">—</td>
+        </tr>
+        <!-- Row 18: Totals -->
+        <tr class="total-row">
+          <td><strong>Total Earnings</strong></td>
+          <td class="amt"><strong>{{ total_earnings|floatformat:2 }}</strong></td>
+          <td><strong>Total Deduction</strong></td>
+          <td class="amt {% if total_deductions > 0 %}ded{% endif %}">
+            <strong>{% if total_deductions %}{{ total_deductions|floatformat:2 }}{% else %}0.00{% endif %}</strong>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Net Salary (Row 20) -->
+  <div class="ps-net-row">
+    <div class="net-label">Net Salary ({{ emp.currency }})</div>
+    <div class="net-value">{{ emp.currency }} {{ net_salary|floatformat:2 }}</div>
+  </div>
+
+  <!-- Salary in Words (Row 21) -->
+  <div class="ps-words">
+    <span class="lbl">Salary in Words: </span><span class="wrd">{{ salary_words }}</span>
+  </div>
+
+  <!-- Salary paid by (Row 23) -->
+  <div class="ps-payment">
+    <span class="plbl">Salary paid by:</span>
+    <span class="opt"><span class="chk"></span> Cash</span>
+    <span class="opt"><span class="chk"></span> Bank Transfer</span>
+  </div>
+
+  <!-- Annual Leave & Gratuity (Rows 27–32) -->
+  <div class="ps-bottom">
+    <div class="ps-box">
+      <div class="ps-box-title">Annual Leave</div>
+      <div class="ps-box-row"><span>Accumulated</span><span class="v">0</span></div>
+      <div class="ps-box-row"><span>Used</span><span class="v">0</span></div>
+      <div class="ps-box-row"><span>Balance</span><span class="v">0</span></div>
+    </div>
+    <div class="ps-box">
+      <div class="ps-box-title">Gratuity</div>
+      <div class="ps-box-row"><span>Accumulated</span><span class="v">0</span></div>
+    </div>
+  </div>
+
+  <!-- Footer (Row 37) -->
+  <div class="ps-footer">
+    This is a computer generated payslip and does not require signature
+  </div>
+
+</div><!-- /payslip -->
+</div><!-- /payslip-wrap -->
+
+</body>
+</html>
