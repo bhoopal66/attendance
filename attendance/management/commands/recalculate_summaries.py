@@ -116,6 +116,13 @@ class Command(BaseCommand):
                     continue
 
                 total_secs = record.work_duration.total_seconds() if record.work_duration else 0
+
+                # Fixed salary: punch-in alone = present, no late/half-day counting
+                if emp.is_fixed_salary:
+                    if record.first_in:
+                        working_days += 1
+                    continue
+
                 if total_secs == 0:
                     continue
 

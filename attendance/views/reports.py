@@ -104,6 +104,28 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
             has_last_out = record.last_out is not None
             is_incomplete = (has_first_in and not has_last_out) or (has_last_out and not has_first_in)
 
+            # Fixed salary: punch-in alone = present, skip all late/half-day/incomplete logic
+            if employee.is_fixed_salary:
+                if has_first_in:
+                    actual_working_days_count += 1
+                    status = 'green'
+                else:
+                    status = 'absent'
+                calendar_data[day] = {
+                    'record': record,
+                    'status': status,
+                    'is_sunday': is_sunday,
+                    'is_saturday': is_saturday,
+                    'is_half_day': False,
+                    'is_late': False,
+                    'is_grace': False,
+                    'is_holiday': is_holiday_date,
+                    'is_paid_leave': is_paid_leave,
+                    'is_incomplete': False,
+                    'on_duty_request': None,
+                }
+                continue
+
             if total_secs > 0 and not is_sunday:
                 actual_working_days_count += 1
 

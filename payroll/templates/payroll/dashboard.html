@@ -1213,7 +1213,7 @@
                         <td class="sheet-td-name">
                             <div class="employee-name" style="display:flex;align-items:center;gap:6px;">
                                 {{ item.employee.name }}
-                                {% if item.employee_type == 'remote' and item.employee.is_fixed_salary %}
+                                {% if item.employee.is_fixed_salary %}
                                 <span title="Fixed Salary" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#16a34a;flex-shrink:0;"></span>
                                 {% endif %}
                             </div>

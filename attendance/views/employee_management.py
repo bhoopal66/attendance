@@ -169,8 +169,8 @@ def update_employee(request):
             for field in ALLOWED_UPDATE_FIELDS:
                 if field not in data:
                     continue
-                # is_fixed_salary and designation only exist on RemoteEmployee
-                if field in ('designation', 'is_fixed_salary') and not hasattr(emp, field):
+                # designation only exists on RemoteEmployee
+                if field == 'designation' and not hasattr(emp, 'designation'):
                     continue
                 value = data[field]
                 if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
@@ -205,8 +205,8 @@ def update_employee(request):
     for field in ALLOWED_UPDATE_FIELDS:
         if field not in data:
             continue
-        # is_fixed_salary and designation only exist on RemoteEmployee
-        if field in ('designation', 'is_fixed_salary') and not hasattr(emp, field):
+        # designation only exists on RemoteEmployee
+        if field == 'designation' and not hasattr(emp, 'designation'):
             continue
         value = data[field]
         if field in ('email', 'phone', 'department', 'location', 'team', 'designation', 'joining_date', 'leaving_date', 'tcr_id'):

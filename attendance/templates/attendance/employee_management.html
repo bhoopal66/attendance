@@ -813,8 +813,7 @@ function openEditModal(id, type, linkedRemoteId) {
     document.getElementById('designationField').style.display = (emp.type === 'remote' || isLinked) ? '' : 'none';
     document.getElementById('editDesignation').value = emp.designation || '';
 
-    // Show fixed salary toggle only for remote employees (not linked, not inhouse)
-    document.getElementById('fixedSalaryField').style.display = (emp.type === 'remote') ? '' : 'none';
+    document.getElementById('fixedSalaryField').style.display = '';
     document.getElementById('editFixedSalary').checked = emp.is_fixed_salary || false;
 
     document.getElementById('editModal').classList.add('show');
@@ -846,7 +845,7 @@ async function saveEmployee() {
         designation:      document.getElementById('editDesignation').value || null,
         joining_date:     document.getElementById('editJoiningDate').value || null,
         leaving_date:     document.getElementById('editLeavingDate').value || null,
-        is_fixed_salary:  type === 'remote' ? document.getElementById('editFixedSalary').checked : false,
+        is_fixed_salary:  document.getElementById('editFixedSalary').checked,
         portal_password:  document.getElementById('editPassword').value,
     };
 

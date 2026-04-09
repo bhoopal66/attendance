@@ -80,6 +80,11 @@ class BaseEmployee(models.Model):
         help_text="Attendance-based applies late/leave deductions; Performance-based has no such deductions"
     )
 
+    is_fixed_salary = models.BooleanField(
+        default=False,
+        help_text="Fixed salary employees: punch-in alone counts as Present (no punch-out or duration thresholds required)"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -263,11 +268,6 @@ class RemoteEmployee(BaseEmployee):
 
     salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     designation = models.CharField(max_length=100, null=True, blank=True)
-
-    is_fixed_salary = models.BooleanField(
-        default=False,
-        help_text="Fixed salary employees: any call activity on a day counts as Present, regardless of talk duration"
-    )
 
     class Meta:
         unique_together = ('extension_id', 'name')
