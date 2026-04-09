@@ -438,12 +438,15 @@ def payroll_dashboard(request):
     # Combined Sales totals
     all_sales_rows = sales_inhouse_data + remote_data
     total_sales, sales_incentives_total, sales_reductions_total, _ = _build_section_totals(all_sales_rows)
-    # Tfoot total: commission from commission employees + attendance salary from fixed salary employees
-    total_sales_commission = round(
-        sum(r.get('commission', 0) for r in all_sales_rows if not r.get('is_fixed_salary')) +
-        sum(r['net_payroll'] for r in all_sales_rows if r.get('is_fixed_salary')),
-        2
-    )
+    # Tfoot totals split by currency (commission employees use commission, fixed salary use net_payroll)
+    def _sales_tfoot(rows, currency):
+        return round(
+            sum(r.get('commission', 0) for r in rows if not r.get('is_fixed_salary') and r.get('currency', 'AED') == currency) +
+            sum(r['net_payroll'] for r in rows if r.get('is_fixed_salary') and r.get('currency', 'AED') == currency),
+            2
+        )
+    total_sales_commission_aed = _sales_tfoot(all_sales_rows, 'AED')
+    total_sales_commission_inr = _sales_tfoot(all_sales_rows, 'INR')
 
     grand_total = round(total_admin + total_sales, 2)
 
@@ -620,7 +623,8 @@ def payroll_dashboard(request):
         'total_sales_inhouse': total_sales_inhouse,
         'total_remote': total_remote,
         'total_sales': total_sales,
-        'total_sales_commission': total_sales_commission,
+        'total_sales_commission_aed': total_sales_commission_aed,
+        'total_sales_commission_inr': total_sales_commission_inr,
         'sales_incentives_total': sales_incentives_total,
         'sales_reductions_total': sales_reductions_total,
         # Deductions & Additions (Section 3)

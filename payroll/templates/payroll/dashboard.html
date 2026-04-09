@@ -1248,13 +1248,18 @@
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td class="sheet-td-name" style="font-weight:700;font-size:0.8rem;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Total</td>
-                        <td class="sheet-td-dept"></td>
+                        <td class="sheet-td-name" rowspan="{% if total_sales_commission_inr %}2{% else %}1{% endif %}" style="font-weight:700;font-size:0.8rem;color:#475569;text-transform:uppercase;letter-spacing:0.5px;vertical-align:middle;">Total</td>
+                        <td class="sheet-td-dept" rowspan="{% if total_sales_commission_inr %}2{% else %}1{% endif %}"></td>
                         {% for bank in banks %}
-                        <td class="sheet-td-bank text-right mono" id="col-total-{{ bank.id }}" style="font-weight:600;color:#475569;">—</td>
+                        <td class="sheet-td-bank text-right mono" id="col-total-{{ bank.id }}" rowspan="{% if total_sales_commission_inr %}2{% else %}1{% endif %}" style="font-weight:600;color:#475569;vertical-align:middle;">—</td>
                         {% endfor %}
-                        <td class="sheet-td-total" id="grand-sales-total">AED {{ total_sales_commission|floatformat:2 }}</td>
+                        <td class="sheet-td-total" id="grand-sales-total-aed">AED {{ total_sales_commission_aed|floatformat:2 }}</td>
                     </tr>
+                    {% if total_sales_commission_inr %}
+                    <tr>
+                        <td class="sheet-td-total" id="grand-sales-total-inr" style="color:#0369a1;">INR {{ total_sales_commission_inr|floatformat:2 }}</td>
+                    </tr>
+                    {% endif %}
                 </tfoot>
             </table>
         </div>
@@ -1807,14 +1812,22 @@
     }
 
     function recalcColTotals() {
-        let grandTotal = 0;
+        let grandAED = 0, grandINR = 0;
 
-        // Sum fixed salary employees' attendance-based amounts
-        document.querySelectorAll('.sales-sheet tbody tr[data-fixed-salary="true"]').forEach(row => {
-            grandTotal += parseFloat(row.dataset.fixedAmount) || 0;
+        // Sum per-row totals (already correctly calculated per-currency by recalcRow)
+        document.querySelectorAll('.sales-sheet tbody tr').forEach(row => {
+            const empId = row.dataset.empId;
+            const empType = row.dataset.empType;
+            const totalEl = document.getElementById(`total-${empType}-${empId}`);
+            if (!totalEl) return;
+            const currency = totalEl.dataset.currency || 'AED';
+            const parts = totalEl.textContent.trim().split(' ');
+            const value = parseFloat(parts[parts.length - 1]) || 0;
+            if (currency === 'INR') grandINR += value;
+            else grandAED += value;
         });
 
-        // Sum commission from non-fixed-salary employees
+        // Column totals: account counts (currency-agnostic, just counts)
         banksConfig.forEach((bank, i) => {
             let colTotal = 0;
             document.querySelectorAll(`.bank-count-input[data-col="${i}"]`).forEach(inp => {
@@ -1824,11 +1837,13 @@
             });
             const el = document.getElementById(`col-total-${bank.id}`);
             if (el) el.textContent = colTotal;
-            grandTotal += colTotal * bank.rate;
         });
 
-        const grandEl = document.getElementById('grand-sales-total');
-        if (grandEl) grandEl.textContent = `AED ${grandTotal.toFixed(2)}`;
+        const aedEl = document.getElementById('grand-sales-total-aed');
+        if (aedEl) aedEl.textContent = `AED ${grandAED.toFixed(2)}`;
+
+        const inrEl = document.getElementById('grand-sales-total-inr');
+        if (inrEl) inrEl.textContent = `INR ${grandINR.toFixed(2)}`;
     }
 
     async function saveAllSales() {
