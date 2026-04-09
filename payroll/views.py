@@ -99,19 +99,59 @@ def _annual_leave_day_counts(al, month_start, month_end):
     return working_days, non_working_days
 
 
+INR_COMMISSION_THRESHOLD = 4   # first N accounts use the bank's INR rate
+INR_OVERFLOW_RATE = Decimal('3000')  # INR per account beyond the threshold
+
+
+def _calc_inr_tiered_commission(pairs):
+    """Tiered INR commission.
+
+    pairs: list of (count, bank_inr_rate) in processing order (alphabetical by bank).
+    - Accounts 1-INR_COMMISSION_THRESHOLD: bank's INR per-account charge.
+    - Each account beyond threshold: INR_OVERFLOW_RATE flat.
+
+    Returns (total_commission_float, per_pair_commission_list).
+    """
+    total = Decimal('0')
+    used = 0
+    per_pair = []
+    for count, rate in pairs:
+        rate = Decimal(str(rate))
+        if used >= INR_COMMISSION_THRESHOLD:
+            commission = count * INR_OVERFLOW_RATE
+        elif used + count <= INR_COMMISSION_THRESHOLD:
+            commission = count * rate
+            used += count
+        else:
+            within = INR_COMMISSION_THRESHOLD - used
+            overflow = count - within
+            commission = within * rate + overflow * INR_OVERFLOW_RATE
+            used = INR_COMMISSION_THRESHOLD
+        per_pair.append(float(commission))
+        total += commission
+    return float(total), per_pair
+
+
 def _get_commission(year, month, employee=None, remote_employee=None, currency='AED'):
     """Calculate total commission from bank submissions for the period.
-    Uses INR per-account charge when currency is INR and the bank has one set."""
+    INR employees use tiered pricing: first INR_COMMISSION_THRESHOLD accounts at the
+    bank's INR rate, then INR_OVERFLOW_RATE per account."""
     if employee:
-        submissions = BankSubmission.objects.filter(
+        submissions = list(BankSubmission.objects.filter(
             employee=employee, year=year, month=month
-        ).select_related('bank')
+        ).select_related('bank').order_by('bank__name'))
     else:
-        submissions = BankSubmission.objects.filter(
+        submissions = list(BankSubmission.objects.filter(
             remote_employee=remote_employee, year=year, month=month
-        ).select_related('bank')
+        ).select_related('bank').order_by('bank__name'))
+
+    if currency == 'INR':
+        pairs = [(s.submission_count, s.bank.charge_for_currency('INR')) for s in submissions]
+        total, _ = _calc_inr_tiered_commission(pairs)
+        return total
+
     return float(sum(
-        s.submission_count * s.bank.charge_for_currency(currency)
+        s.submission_count * s.bank.per_account_charge
         for s in submissions
     ))
 
@@ -240,10 +280,15 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
     emp_currency = emp.currency if hasattr(emp, 'currency') else 'AED'
     bank_counts = {s.bank_id: s.submission_count for s in submissions_qs}
     bank_counts_list = [bank_counts.get(b.id, 0) for b in banks]
-    commission = sum(
-        bank_counts.get(b.id, 0) * float(b.charge_for_currency(emp_currency))
-        for b in banks
-    )
+
+    if emp_currency == 'INR':
+        pairs = [(bank_counts.get(b.id, 0), b.charge_for_currency('INR')) for b in banks]
+        commission, _ = _calc_inr_tiered_commission(pairs)
+    else:
+        commission = sum(
+            bank_counts.get(b.id, 0) * float(b.per_account_charge)
+            for b in banks
+        )
 
     incentives = float(
         adjustments.filter(adjustment_type='incentive').aggregate(total=Sum('amount'))['total'] or 0
@@ -569,6 +614,8 @@ def payroll_dashboard(request):
         # Sales (spreadsheet)
         'banks': banks,
         'banks_json': banks_json,
+        'INR_COMMISSION_THRESHOLD': INR_COMMISSION_THRESHOLD,
+        'INR_OVERFLOW_RATE': int(INR_OVERFLOW_RATE),
         'all_sales_data': all_sales_data,
         'total_sales_inhouse': total_sales_inhouse,
         'total_remote': total_remote,
@@ -739,24 +786,39 @@ def get_submissions(request, emp_type, employee_id):
         ).select_related('bank')
 
     submission_map = {s.bank_id: s.submission_count for s in submissions_qs}
-    banks = Bank.objects.filter(is_active=True).order_by('name')
+    banks = list(Bank.objects.filter(is_active=True).order_by('name'))
     emp_currency = employee.currency if hasattr(employee, 'currency') else 'AED'
 
-    data = []
-    total_commission = 0.0
-    for bank in banks:
-        count = submission_map.get(bank.id, 0)
-        charge = float(bank.charge_for_currency(emp_currency))
-        commission = round(count * charge, 2)
-        total_commission += commission
-        data.append({
-            'bank_id': bank.id,
-            'bank_name': bank.name,
-            'per_account_charge': charge,
-            'currency': emp_currency,
-            'submission_count': count,
-            'commission': commission,
-        })
+    if emp_currency == 'INR':
+        pairs = [(submission_map.get(b.id, 0), b.charge_for_currency('INR')) for b in banks]
+        total_commission, per_bank_commissions = _calc_inr_tiered_commission(pairs)
+        data = [
+            {
+                'bank_id': b.id,
+                'bank_name': b.name,
+                'per_account_charge': float(b.charge_for_currency('INR')),
+                'currency': 'INR',
+                'submission_count': submission_map.get(b.id, 0),
+                'commission': round(per_bank_commissions[i], 2),
+            }
+            for i, b in enumerate(banks)
+        ]
+    else:
+        data = []
+        total_commission = 0.0
+        for bank in banks:
+            count = submission_map.get(bank.id, 0)
+            charge = float(bank.per_account_charge)
+            commission = round(count * charge, 2)
+            total_commission += commission
+            data.append({
+                'bank_id': bank.id,
+                'bank_name': bank.name,
+                'per_account_charge': charge,
+                'currency': emp_currency,
+                'submission_count': count,
+                'commission': commission,
+            })
 
     return JsonResponse({
         'success': True,
@@ -807,7 +869,6 @@ def save_submissions(request):
     except (ValueError, TypeError):
         return JsonResponse({'success': False, 'error': 'Invalid year/month'}, status=400)
 
-    total_commission = 0.0
     for bank_id_str, count_val in submissions.items():
         try:
             bank_id = int(bank_id_str)
@@ -819,11 +880,15 @@ def save_submissions(request):
         if count <= 0:
             BankSubmission.objects.filter(bank=bank, year=year, month=month, **fk_kwargs).delete()
         else:
-            obj, _ = BankSubmission.objects.update_or_create(
+            BankSubmission.objects.update_or_create(
                 bank=bank, year=year, month=month, **fk_kwargs,
                 defaults={'submission_count': count},
             )
-            total_commission += float(obj.submission_count * bank.charge_for_currency(emp_currency))
+
+    # Re-calculate total commission after saving using the same tiered logic as the dashboard
+    total_commission = _get_commission(year, month, currency=emp_currency, **{
+        'employee' if emp_type == 'inhouse' else 'remote_employee': employee
+    })
 
     logger.info("Bank submissions saved for %s by %s", employee.name, request.user.username)
     return JsonResponse({'success': True, 'total_commission': round(total_commission, 2)})

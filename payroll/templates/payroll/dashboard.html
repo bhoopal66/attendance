@@ -1760,6 +1760,33 @@
     // ---- Sales Spreadsheet ----
 
     const banksConfig = {{ banks_json|safe }};
+    const INR_COMMISSION_THRESHOLD = {{ INR_COMMISSION_THRESHOLD }};
+    const INR_OVERFLOW_RATE = {{ INR_OVERFLOW_RATE }};
+
+    // Tiered INR commission: first INR_COMMISSION_THRESHOLD accounts at bank INR rate,
+    // each additional account at INR_OVERFLOW_RATE flat.
+    // counts: array of submission counts in banksConfig order.
+    // Returns { total, perBank[] }.
+    function calcINRCommission(counts) {
+        let total = 0, used = 0;
+        const perBank = counts.map((count, i) => {
+            const rate = (banksConfig[i].inr_rate != null) ? banksConfig[i].inr_rate : banksConfig[i].rate;
+            let commission;
+            if (used >= INR_COMMISSION_THRESHOLD) {
+                commission = count * INR_OVERFLOW_RATE;
+            } else if (used + count <= INR_COMMISSION_THRESHOLD) {
+                commission = count * rate;
+                used += count;
+            } else {
+                const within = INR_COMMISSION_THRESHOLD - used;
+                commission = within * rate + (count - within) * INR_OVERFLOW_RATE;
+                used = INR_COMMISSION_THRESHOLD;
+            }
+            total += commission;
+            return commission;
+        });
+        return { total, perBank };
+    }
 
     function recalcRow(row) {
         if (row.dataset.fixedSalary === 'true') return; // fixed salary: don't recalculate from bank inputs
@@ -1767,10 +1794,14 @@
         const currency = el?.dataset.currency || 'AED';
         const inputs = row.querySelectorAll('.bank-count-input');
         let total = 0;
-        inputs.forEach((inp, i) => {
-            const rate = (currency === 'INR' && banksConfig[i].inr_rate != null) ? banksConfig[i].inr_rate : banksConfig[i].rate;
-            total += (parseInt(inp.value) || 0) * rate;
-        });
+        if (currency === 'INR') {
+            const counts = Array.from(inputs).map(inp => parseInt(inp.value) || 0);
+            total = calcINRCommission(counts).total;
+        } else {
+            inputs.forEach((inp, i) => {
+                total += (parseInt(inp.value) || 0) * banksConfig[i].rate;
+            });
+        }
         if (el) el.textContent = `${currency} ${total.toFixed(2)}`;
         recalcColTotals();
     }
@@ -2057,17 +2088,31 @@
 
     function recalcLive() {
         const cur = currentEmpCurrency || 'AED';
-        let total = 0;
-        banksData.forEach(b => {
-            const input = document.getElementById(`sub-${b.bank_id}`);
-            const count = parseInt(input ? input.value : 0) || 0;
-            const commission = count * b.per_account_charge;
-            total += commission;
-            const commEl = document.getElementById(`comm-${b.bank_id}`);
-            if (commEl) commEl.textContent = `${cur} ${commission.toFixed(2)}`;
-        });
         const totalEl = document.getElementById('totalCommission');
-        if (totalEl) totalEl.textContent = `${cur} ${total.toFixed(2)}`;
+
+        if (cur === 'INR') {
+            const counts = banksData.map(b => {
+                const input = document.getElementById(`sub-${b.bank_id}`);
+                return parseInt(input ? input.value : 0) || 0;
+            });
+            const { total, perBank } = calcINRCommission(counts);
+            banksData.forEach((b, i) => {
+                const commEl = document.getElementById(`comm-${b.bank_id}`);
+                if (commEl) commEl.textContent = `${cur} ${perBank[i].toFixed(2)}`;
+            });
+            if (totalEl) totalEl.textContent = `${cur} ${total.toFixed(2)}`;
+        } else {
+            let total = 0;
+            banksData.forEach(b => {
+                const input = document.getElementById(`sub-${b.bank_id}`);
+                const count = parseInt(input ? input.value : 0) || 0;
+                const commission = count * b.per_account_charge;
+                total += commission;
+                const commEl = document.getElementById(`comm-${b.bank_id}`);
+                if (commEl) commEl.textContent = `${cur} ${commission.toFixed(2)}`;
+            });
+            if (totalEl) totalEl.textContent = `${cur} ${total.toFixed(2)}`;
+        }
     }
 
     async function saveSubmissions() {
