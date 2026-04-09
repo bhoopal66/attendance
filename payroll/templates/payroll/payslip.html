@@ -356,61 +356,65 @@
         </tr>
       </thead>
       <tbody>
-        <!-- Row 12: Basic / Advance deduction -->
+        <!-- Row 1: Basic / Leave Deduction -->
         <tr>
           <td>Basic</td>
-          <td class="amt {% if basic_actual == 0 %}zero{% endif %}">
-            {% if basic_actual %}{{ basic_actual|floatformat:2 }}{% else %}—{% endif %}
+          <td class="amt {% if not basic_full %}zero{% endif %}">
+            {% if basic_full %}{{ basic_full|floatformat:2 }}{% else %}—{% endif %}
           </td>
-          <td>Advance deduction</td>
-          <td class="amt {% if advance_ded == 0 %}zero{% endif %}">
-            {% if advance_ded %}{{ advance_ded|floatformat:2 }}{% else %}—{% endif %}
+          <td>Leave Deduction</td>
+          <td class="amt {% if not leave_deduction %}zero{% endif %}">
+            {% if leave_deduction %}{{ leave_deduction|floatformat:2 }}{% else %}—{% endif %}
           </td>
         </tr>
-        <!-- Row 13: HRA / Expenses deduction -->
+        <!-- Row 2: HRA / Late Deduction -->
         <tr>
           <td>HRA</td>
           <td class="amt zero">—</td>
-          <td>Expenses deduction</td>
-          <td class="amt {% if other_ded == 0 %}zero{% endif %}">
+          <td>Late Deduction</td>
+          <td class="amt {% if not late_deduction %}zero{% endif %}">
+            {% if late_deduction %}{{ late_deduction|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        <!-- Row 3: Other Allowance / Advance Deduction -->
+        <tr>
+          <td>Other Allowance</td>
+          <td class="amt {% if not allowance_full %}zero{% endif %}">
+            {% if allowance_full %}{{ allowance_full|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+          <td>Advance Deduction</td>
+          <td class="amt {% if not advance_ded %}zero{% endif %}">
+            {% if advance_ded %}{{ advance_ded|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        <!-- Row 4: Incentives / Other Deductions -->
+        <tr>
+          <td>Incentives</td>
+          <td class="amt {% if not incentives_commission %}zero{% endif %}">
+            {% if incentives_commission %}{{ incentives_commission|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+          <td>Other Deductions</td>
+          <td class="amt {% if not other_ded %}zero{% endif %}">
             {% if other_ded %}{{ other_ded|floatformat:2 }}{% else %}—{% endif %}
           </td>
         </tr>
-        <!-- Row 14: Other Allowance / (empty) -->
-        <tr>
-          <td>Other Allowance</td>
-          <td class="amt {% if allowance_actual == 0 %}zero{% endif %}">
-            {% if allowance_actual %}{{ allowance_actual|floatformat:2 }}{% else %}—{% endif %}
-          </td>
-          <td></td>
-          <td class="amt zero">—</td>
-        </tr>
-        <!-- Row 15: Incentives / (empty) -->
-        <tr>
-          <td>Incentives</td>
-          <td class="amt {% if incentives_commission == 0 %}zero{% endif %}">
-            {% if incentives_commission %}{{ incentives_commission|floatformat:2 }}{% else %}—{% endif %}
-          </td>
-          <td></td>
-          <td class="amt zero">—</td>
-        </tr>
-        <!-- Row 16: Salary Advance / (empty) -->
+        <!-- Row 5: Salary Advance / (empty) -->
         <tr>
           <td>Salary Advance</td>
           <td class="amt zero">—</td>
           <td></td>
           <td class="amt zero">—</td>
         </tr>
-        <!-- Row 17: Leave Salary / (empty) -->
+        <!-- Row 6: Leave Salary / (empty) -->
         <tr>
           <td>Leave Salary</td>
-          <td class="amt {% if additions == 0 %}zero{% endif %}">
-            {% if additions %}{{ additions|floatformat:2 }}{% else %}0.00{% endif %}
+          <td class="amt {% if not additions %}zero{% endif %}">
+            {% if additions %}{{ additions|floatformat:2 }}{% else %}—{% endif %}
           </td>
           <td></td>
           <td class="amt zero">—</td>
         </tr>
-        <!-- Row 18: Totals -->
+        <!-- Total row -->
         <tr class="total-row">
           <td><strong>Total Earnings</strong></td>
           <td class="amt"><strong>{{ total_earnings|floatformat:2 }}</strong></td>

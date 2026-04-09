@@ -1396,27 +1396,37 @@ def download_payslip(request, emp_type, emp_id):
         payroll = _get_inhouse_payroll_row(
             emp, selected_year, selected_month, month_start, month_end, total_holidays
         )
-        base_payroll = payroll['base_payroll']
+        daily_rate = payroll['daily_rate']
+        absent_days = payroll['absent_days']
+        half_days = payroll['half_days']
+        late_half_days = payroll['late_half_days']
         incentives = payroll['incentives']
         commission = payroll['commission']
         reductions = payroll['reductions']
+        annual_leave_compensation = payroll['annual_leave_compensation']
+        annual_leave_extra_deduction = payroll['annual_leave_extra_deduction']
         total_deduction_days = payroll['total_deduction_days']
         absent_days_display = round(total_deduction_days, 2)
-        proration = (days_in_month - total_deduction_days) / days_in_month if days_in_month > 0 else 1.0
-        basic_actual = round(salary * 0.40 * proration, 2)
-        allowance_actual = round(salary * 0.60 * proration, 2)
+        # Fixed earnings from DB (no proration)
+        basic_full = round(salary * 0.40, 2)
+        allowance_full = round(salary * 0.60, 2)
+        # Attendance-based deduction components
+        att_leave_ded = round(daily_rate * (absent_days + half_days * 0.5)
+                              - annual_leave_compensation + annual_leave_extra_deduction, 2)
+        att_late_ded = round(daily_rate * (late_half_days * 0.5), 2)
     else:
         banks = list(Bank.objects.filter(is_active=True).order_by('name'))
         payroll = _get_sales_payroll_row(
             emp, selected_year, selected_month, emp_type, banks
         )
-        base_payroll = 0.0
         incentives = payroll['incentives']
         commission = payroll['commission']
         reductions = payroll['reductions']
         absent_days_display = 0
-        basic_actual = 0.0
-        allowance_actual = 0.0
+        basic_full = 0.0
+        allowance_full = 0.0
+        att_leave_ded = 0.0
+        att_late_ded = 0.0
 
     # --- Active DeductionEntry records for this month ---
     target_idx = selected_year * 12 + (selected_month - 1)
@@ -1426,7 +1436,9 @@ def download_payslip(request, emp_type, emp_id):
         deduction_entries = list(DeductionEntry.objects.filter(remote_employee=emp))
 
     advance_ded = 0.0
-    other_ded = 0.0
+    leave_ded_manual = 0.0
+    late_ded_manual = 0.0
+    other_ded_manual = 0.0
     additions = 0.0
     for entry in deduction_entries:
         start_idx = entry.start_year * 12 + (entry.start_month - 1)
@@ -1436,17 +1448,23 @@ def download_payslip(request, emp_type, emp_id):
                 advance_ded += amt
             elif entry.category in ('paid_leave', 'last_month_balance'):
                 additions += amt
-            elif entry.category in ('visa_status_change', 'clawback', 'other_deduction',
-                                    'leave_deduction', 'late_deduction'):
-                other_ded += amt
+            elif entry.category == 'leave_deduction':
+                leave_ded_manual += amt
+            elif entry.category == 'late_deduction':
+                late_ded_manual += amt
+            elif entry.category in ('visa_status_change', 'clawback', 'other_deduction'):
+                other_ded_manual += amt
 
     advance_ded = round(advance_ded, 2)
-    other_ded = round(other_ded + reductions, 2)   # include PayrollAdjustment reductions here
     additions = round(additions, 2)
+    # Combine attendance-based with manual entries; include PA reductions in other
+    leave_deduction = round(att_leave_ded + leave_ded_manual, 2)
+    late_deduction = round(att_late_ded + late_ded_manual, 2)
+    other_ded = round(other_ded_manual + reductions, 2)
 
     incentives_commission = round(incentives + commission, 2)
-    total_earnings = round(basic_actual + allowance_actual + incentives_commission + additions, 2)
-    total_deductions = round(advance_ded + other_ded, 2)
+    total_earnings = round(basic_full + allowance_full + incentives_commission + additions, 2)
+    total_deductions = round(leave_deduction + late_deduction + advance_ded + other_ded, 2)
     net_salary = round(total_earnings - total_deductions, 2)
 
     salary_words = _amount_in_words(net_salary) if net_salary > 0 else 'Zero Only'
@@ -1461,12 +1479,12 @@ def download_payslip(request, emp_type, emp_id):
         'days_in_month': days_in_month,
         'absent_days_display': absent_days_display,
         'salary': salary,
-        'basic_full': round(salary * 0.40, 2),
-        'allowance_full': round(salary * 0.60, 2),
-        'basic_actual': basic_actual,
-        'allowance_actual': allowance_actual,
+        'basic_full': basic_full,
+        'allowance_full': allowance_full,
         'incentives_commission': incentives_commission,
         'additions': additions,
+        'leave_deduction': leave_deduction,
+        'late_deduction': late_deduction,
         'advance_ded': advance_ded,
         'other_ded': other_ded,
         'total_earnings': total_earnings,
