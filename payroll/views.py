@@ -1436,7 +1436,8 @@ def download_payslip(request, emp_type, emp_id):
                 advance_ded += amt
             elif entry.category in ('paid_leave', 'last_month_balance'):
                 additions += amt
-            elif entry.category in ('visa_status_change', 'clawback', 'other_deduction'):
+            elif entry.category in ('visa_status_change', 'clawback', 'other_deduction',
+                                    'leave_deduction', 'late_deduction'):
                 other_ded += amt
 
     advance_ded = round(advance_ded, 2)
