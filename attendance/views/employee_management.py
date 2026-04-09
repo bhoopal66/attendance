@@ -25,7 +25,7 @@ logger = logging.getLogger('attendance')
 ALLOWED_UPDATE_FIELDS = {
     'name', 'email', 'phone', 'department', 'location', 'team',
     'is_active', 'salary', 'designation', 'joining_date', 'leaving_date',
-    'tcr_id',
+    'tcr_id', 'is_fixed_salary',
 }
 ALLOWED_BULK_FIELDS = {'department', 'location', 'team', 'is_active'}
 
@@ -52,6 +52,7 @@ def _serialize_employee(emp, emp_type, remote_by_tcr=None, inhouse_by_tcr=None):
     }
     data['salary'] = float(emp.salary) if emp.salary else None
     data['designation'] = emp.designation
+    data['is_fixed_salary'] = getattr(emp, 'is_fixed_salary', False)
     if emp.tcr_id:
         if emp_type == 'inhouse':
             remote = (remote_by_tcr or {}).get(emp.tcr_id)
@@ -168,6 +169,9 @@ def update_employee(request):
             for field in ALLOWED_UPDATE_FIELDS:
                 if field not in data:
                     continue
+                # is_fixed_salary and designation only exist on RemoteEmployee
+                if field in ('designation', 'is_fixed_salary') and not hasattr(emp, field):
+                    continue
                 value = data[field]
                 if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
                              'joining_date', 'leaving_date', 'tcr_id'):
@@ -201,8 +205,8 @@ def update_employee(request):
     for field in ALLOWED_UPDATE_FIELDS:
         if field not in data:
             continue
-        # designation only exists on RemoteEmployee
-        if field == 'designation' and not hasattr(emp, 'designation'):
+        # is_fixed_salary and designation only exist on RemoteEmployee
+        if field in ('designation', 'is_fixed_salary') and not hasattr(emp, field):
             continue
         value = data[field]
         if field in ('email', 'phone', 'department', 'location', 'team', 'designation', 'joining_date', 'leaving_date', 'tcr_id'):

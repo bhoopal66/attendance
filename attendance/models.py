@@ -264,6 +264,11 @@ class RemoteEmployee(BaseEmployee):
     salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     designation = models.CharField(max_length=100, null=True, blank=True)
 
+    is_fixed_salary = models.BooleanField(
+        default=False,
+        help_text="Fixed salary employees: any call activity on a day counts as Present, regardless of talk duration"
+    )
+
     class Meta:
         unique_together = ('extension_id', 'name')
         verbose_name = 'Remote Employee'
@@ -321,7 +326,14 @@ class RemoteCallRecord(models.Model):
         - Friday: <30min=Absent, 30-59min=Half Day, >=60min=Present
         - Saturday: <=20min=Absent, 21-44min=Half Day, >=45min=Present
         - Sunday: Holiday (no attendance calculation)
+
+        Fixed salary employees: any call activity (answered calls or talk duration) = Present.
         """
+        if self.employee.is_fixed_salary:
+            if self.answered_calls > 0 or self.total_talk_duration:
+                return 'present'
+            return 'absent'
+
         if not self.total_talk_duration:
             return 'absent'
 
