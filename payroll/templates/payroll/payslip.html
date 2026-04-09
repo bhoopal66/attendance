@@ -345,7 +345,7 @@
       <thead>
         <tr class="sec-head">
           <th colspan="2">EARNINGS</th>
-          <td class="divider" rowspan="9"></td>
+          <td class="divider" rowspan="2"></td>
           <th colspan="2">DEDUCTIONS</th>
         </tr>
         <tr class="col-head">
@@ -362,6 +362,7 @@
           <td class="amt {% if not basic_full %}zero{% endif %}">
             {% if basic_full %}{{ basic_full|floatformat:2 }}{% else %}—{% endif %}
           </td>
+          <td class="divider"></td>
           <td>Leave Deduction</td>
           <td class="amt {% if not leave_deduction %}zero{% endif %}">
             {% if leave_deduction %}{{ leave_deduction|floatformat:2 }}{% else %}—{% endif %}
@@ -371,6 +372,7 @@
         <tr>
           <td>HRA</td>
           <td class="amt zero">—</td>
+          <td class="divider"></td>
           <td>Late Deduction</td>
           <td class="amt {% if not late_deduction %}zero{% endif %}">
             {% if late_deduction %}{{ late_deduction|floatformat:2 }}{% else %}—{% endif %}
@@ -382,6 +384,7 @@
           <td class="amt {% if not allowance_full %}zero{% endif %}">
             {% if allowance_full %}{{ allowance_full|floatformat:2 }}{% else %}—{% endif %}
           </td>
+          <td class="divider"></td>
           <td>Advance Deduction</td>
           <td class="amt {% if not advance_ded %}zero{% endif %}">
             {% if advance_ded %}{{ advance_ded|floatformat:2 }}{% else %}—{% endif %}
@@ -393,6 +396,7 @@
           <td class="amt {% if not incentives_commission %}zero{% endif %}">
             {% if incentives_commission %}{{ incentives_commission|floatformat:2 }}{% else %}—{% endif %}
           </td>
+          <td class="divider"></td>
           <td>Other Deductions</td>
           <td class="amt {% if not other_ded %}zero{% endif %}">
             {% if other_ded %}{{ other_ded|floatformat:2 }}{% else %}—{% endif %}
@@ -402,6 +406,7 @@
         <tr>
           <td>Salary Advance</td>
           <td class="amt zero">—</td>
+          <td class="divider"></td>
           <td></td>
           <td class="amt zero">—</td>
         </tr>
@@ -411,6 +416,7 @@
           <td class="amt {% if not additions %}zero{% endif %}">
             {% if additions %}{{ additions|floatformat:2 }}{% else %}—{% endif %}
           </td>
+          <td class="divider"></td>
           <td></td>
           <td class="amt zero">—</td>
         </tr>
@@ -418,6 +424,7 @@
         <tr class="total-row">
           <td><strong>Total Earnings</strong></td>
           <td class="amt"><strong>{{ total_earnings|floatformat:2 }}</strong></td>
+          <td class="divider"></td>
           <td><strong>Total Deduction</strong></td>
           <td class="amt {% if total_deductions > 0 %}ded{% endif %}">
             <strong>{% if total_deductions %}{{ total_deductions|floatformat:2 }}{% else %}0.00{% endif %}</strong>
