@@ -314,16 +314,20 @@
         <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        Set the per-account commission charge for each bank. When entering monthly submissions for a sales agent, the commission is automatically calculated as <strong>submissions × per-account charge</strong>.
+        Set the per-account commission charge for each bank. UAE employees (AED) use the AED rate; Indian employees (INR) use the INR rate when set. Commission = <strong>submissions × per-account charge</strong>.
     </div>
 
-    <div class="banks-card">
+    <!-- AED Section -->
+    <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#64748b;margin-bottom:8px;padding-left:2px;">
+        UAE Employees — AED Commission Rates
+    </div>
+    <div class="banks-card" style="margin-bottom:28px;">
         {% if banks %}
         <table class="banks-table">
             <thead>
                 <tr>
                     <th>Bank Name</th>
-                    <th class="text-right">Per Account Charge</th>
+                    <th class="text-right">Per Account Charge (AED)</th>
                     <th class="text-center">Status</th>
                     <th class="text-right">Actions</th>
                 </tr>
@@ -342,7 +346,7 @@
                     </td>
                     <td>
                         <div class="action-btns">
-                            <button class="btn-edit" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }})">
+                            <button class="btn-edit" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }}, {{ bank.inr_per_account_charge|default:'null' }})">
                                 Edit
                             </button>
                             <button class="btn-toggle" onclick="toggleBank({{ bank.id }}, this)" data-active="{{ bank.is_active|yesno:'true,false' }}">
@@ -363,6 +367,58 @@
         {% endif %}
     </div>
 
+    <!-- INR Section -->
+    <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#0369a1;margin-bottom:8px;padding-left:2px;">
+        Indian Employees — INR Commission Rates
+    </div>
+    <div style="font-size:0.8rem;color:#64748b;margin-bottom:10px;">
+        When an employee's currency is set to INR, their performance salary is calculated using the INR rate. Edit any bank above to set its INR rate.
+    </div>
+    <div class="banks-card" style="border:1px solid #bae6fd;">
+        {% if banks %}
+        <table class="banks-table">
+            <thead>
+                <tr>
+                    <th>Bank Name</th>
+                    <th class="text-right">Per Account Charge (INR)</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bank in banks %}
+                <tr>
+                    <td class="bank-name">{{ bank.name }}</td>
+                    <td class="text-right">
+                        {% if bank.inr_per_account_charge %}
+                            <span class="charge-badge" style="background:#e0f2fe;color:#0369a1;border-color:#7dd3fc;">INR {{ bank.inr_per_account_charge }}</span>
+                        {% else %}
+                            <span style="color:#94a3b8;font-size:0.8rem;font-style:italic;">Not set</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <span class="status-badge {% if bank.is_active %}status-active{% else %}status-inactive{% endif %}">
+                            {% if bank.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-btns">
+                            <button class="btn-edit" style="background:#e0f2fe;color:#0369a1;border-color:#7dd3fc;" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }}, {{ bank.inr_per_account_charge|default:'null' }})">
+                                Set INR Rate
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <p>No banks added yet.</p>
+        </div>
+        {% endif %}
+    </div>
+
 </div>
 
 <!-- Add/Edit Modal -->
@@ -378,10 +434,17 @@
                 <label>Bank Name</label>
                 <input type="text" id="bankName" placeholder="e.g., Emirates NBD, ADCB, FAB..." autocomplete="off">
             </div>
-            <div class="form-group">
-                <label>Per Account Charge (AED)</label>
-                <input type="number" id="bankCharge" step="0.01" min="0.01" placeholder="e.g., 150.00">
-                <div class="form-hint">Commission amount paid for each successfully submitted account.</div>
+            <div style="border-top:1px solid #f1f5f9;padding-top:14px;margin-top:4px;">
+                <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:10px;">Commission Rates</div>
+                <div class="form-group">
+                    <label>Per Account Charge — AED <span style="font-size:0.72rem;color:#94a3b8;font-weight:400;">(UAE employees)</span></label>
+                    <input type="number" id="bankCharge" step="0.01" min="0.01" placeholder="e.g., 150.00">
+                </div>
+                <div class="form-group">
+                    <label>Per Account Charge — INR <span style="font-size:0.72rem;color:#94a3b8;font-weight:400;">(Indian employees, optional)</span></label>
+                    <input type="number" id="bankChargeINR" step="0.01" min="0" placeholder="e.g., 500.00 — leave blank if not applicable">
+                    <div class="form-hint">When set, Indian employees (INR currency) will have their commission calculated using this rate instead of the AED rate.</div>
+                </div>
             </div>
             <div class="modal-actions">
                 <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -416,16 +479,18 @@
         document.getElementById('editBankId').value = '';
         document.getElementById('bankName').value = '';
         document.getElementById('bankCharge').value = '';
+        document.getElementById('bankChargeINR').value = '';
         document.getElementById('bankModal').classList.add('show');
         document.getElementById('bankName').focus();
     }
 
-    function openEditModal(id, name, charge) {
+    function openEditModal(id, name, charge, inrCharge) {
         editingId = id;
         document.getElementById('modalTitle').textContent = 'Edit Bank';
         document.getElementById('editBankId').value = id;
         document.getElementById('bankName').value = name;
         document.getElementById('bankCharge').value = charge;
+        document.getElementById('bankChargeINR').value = (inrCharge !== null && inrCharge !== undefined) ? inrCharge : '';
         document.getElementById('bankModal').classList.add('show');
         document.getElementById('bankName').focus();
     }
@@ -438,18 +503,23 @@
     async function saveBank() {
         const name = document.getElementById('bankName').value.trim();
         const charge = parseFloat(document.getElementById('bankCharge').value);
+        const inrChargeRaw = document.getElementById('bankChargeINR').value.trim();
+        const inrCharge = inrChargeRaw ? parseFloat(inrChargeRaw) : null;
 
         if (!name) { showToast('Please enter a bank name.', 'error'); return; }
-        if (!charge || charge <= 0) { showToast('Enter a valid charge greater than 0.', 'error'); return; }
+        if (!charge || charge <= 0) { showToast('Enter a valid AED charge greater than 0.', 'error'); return; }
+        if (inrCharge !== null && (isNaN(inrCharge) || inrCharge <= 0)) {
+            showToast('INR charge must be greater than 0, or leave blank.', 'error'); return;
+        }
 
         try {
             let url, body;
             if (editingId) {
                 url = `/payroll/api/banks/${editingId}/`;
-                body = { action: 'update', name, per_account_charge: charge };
+                body = { action: 'update', name, per_account_charge: charge, inr_per_account_charge: inrCharge };
             } else {
                 url = '/payroll/api/banks/';
-                body = { name, per_account_charge: charge };
+                body = { name, per_account_charge: charge, inr_per_account_charge: inrCharge };
             }
 
             const res = await fetch(url, {
@@ -512,5 +582,6 @@
     // Enter key submits form
     document.getElementById('bankName').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
     document.getElementById('bankCharge').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
+    document.getElementById('bankChargeINR').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
 </script>
 {% endblock %}

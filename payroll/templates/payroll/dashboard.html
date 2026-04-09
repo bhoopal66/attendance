@@ -1201,7 +1201,7 @@
                         {% for bank in banks %}
                         <th class="sheet-th-bank">
                             {{ bank.name }}
-                            <div class="bank-rate-label">AED {{ bank.per_account_charge|floatformat:0 }}/acc</div>
+                            <div class="bank-rate-label">AED {{ bank.per_account_charge|floatformat:0 }}/acc{% if bank.inr_per_account_charge %} · INR {{ bank.inr_per_account_charge|floatformat:0 }}/acc{% endif %}</div>
                         </th>
                         {% endfor %}
                         <th class="sheet-th-total">Total Salary</th>
@@ -1763,16 +1763,15 @@
 
     function recalcRow(row) {
         if (row.dataset.fixedSalary === 'true') return; // fixed salary: don't recalculate from bank inputs
+        const el = document.getElementById(`total-${row.dataset.empType}-${row.dataset.empId}`);
+        const currency = el?.dataset.currency || 'AED';
         const inputs = row.querySelectorAll('.bank-count-input');
         let total = 0;
         inputs.forEach((inp, i) => {
-            total += (parseInt(inp.value) || 0) * banksConfig[i].rate;
+            const rate = (currency === 'INR' && banksConfig[i].inr_rate != null) ? banksConfig[i].inr_rate : banksConfig[i].rate;
+            total += (parseInt(inp.value) || 0) * rate;
         });
-        const el = document.getElementById(`total-${row.dataset.empType}-${row.dataset.empId}`);
-        if (el) {
-            const currency = el.dataset.currency || 'AED';
-            el.textContent = `${currency} ${total.toFixed(2)}`;
-        }
+        if (el) el.textContent = `${currency} ${total.toFixed(2)}`;
         recalcColTotals();
     }
 
@@ -1983,6 +1982,7 @@
     // ---- Bank Submissions ----
 
     let banksData = [];
+    let currentEmpCurrency = 'AED';
 
     async function loadSubmissions() {
         const year = document.getElementById('hiddenYear').value;
@@ -2001,6 +2001,7 @@
             }
 
             banksData = data.banks;
+            currentEmpCurrency = data.currency || 'AED';
 
             if (banksData.length === 0) {
                 el.innerHTML = `
@@ -2011,24 +2012,25 @@
                 return;
             }
 
-            el.innerHTML = renderSubmissionsTable(banksData, data.total_commission);
+            el.innerHTML = renderSubmissionsTable(banksData, data.total_commission, currentEmpCurrency);
         } catch {
             el.innerHTML = '<div class="no-adj">Error loading submissions</div>';
         }
     }
 
-    function renderSubmissionsTable(banks, totalCommission) {
+    function renderSubmissionsTable(banks, totalCommission, currency) {
+        const cur = currency || 'AED';
         const rows = banks.map(b => `
             <tr>
                 <td style="font-weight:500;">${escapeHtml(b.bank_name)}</td>
-                <td class="text-right mono" style="color:#64748b;">AED ${b.per_account_charge.toFixed(2)}</td>
+                <td class="text-right mono" style="color:#64748b;">${cur} ${b.per_account_charge.toFixed(2)}</td>
                 <td class="text-right">
                     <input type="number" class="sub-input" id="sub-${b.bank_id}"
                         value="${b.submission_count}" min="0" step="1"
                         oninput="recalcLive()">
                 </td>
                 <td class="text-right commission-cell" id="comm-${b.bank_id}">
-                    AED ${b.commission.toFixed(2)}
+                    ${cur} ${b.commission.toFixed(2)}
                 </td>
             </tr>
         `).join('');
@@ -2047,13 +2049,14 @@
                 <tfoot>
                     <tr>
                         <td colspan="3" class="text-right">Total Commission</td>
-                        <td class="text-right total-commission-row" id="totalCommission">AED ${totalCommission.toFixed(2)}</td>
+                        <td class="text-right total-commission-row" id="totalCommission">${cur} ${totalCommission.toFixed(2)}</td>
                     </tr>
                 </tfoot>
             </table>`;
     }
 
     function recalcLive() {
+        const cur = currentEmpCurrency || 'AED';
         let total = 0;
         banksData.forEach(b => {
             const input = document.getElementById(`sub-${b.bank_id}`);
@@ -2061,10 +2064,10 @@
             const commission = count * b.per_account_charge;
             total += commission;
             const commEl = document.getElementById(`comm-${b.bank_id}`);
-            if (commEl) commEl.textContent = `AED ${commission.toFixed(2)}`;
+            if (commEl) commEl.textContent = `${cur} ${commission.toFixed(2)}`;
         });
         const totalEl = document.getElementById('totalCommission');
-        if (totalEl) totalEl.textContent = `AED ${total.toFixed(2)}`;
+        if (totalEl) totalEl.textContent = `${cur} ${total.toFixed(2)}`;
     }
 
     async function saveSubmissions() {

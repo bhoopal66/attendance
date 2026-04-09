@@ -83,12 +83,18 @@ class PayrollAdjustment(models.Model):
 class Bank(models.Model):
     """
     A bank that DSA agents submit accounts to.
-    Each bank has a fixed per-account commission charge.
+    Each bank has a per-account commission charge in AED (for UAE employees)
+    and optionally in INR (for Indian employees).
     """
     name = models.CharField(max_length=100, unique=True)
     per_account_charge = models.DecimalField(
         max_digits=10, decimal_places=2,
         help_text="Commission per account submission (AED)"
+    )
+    inr_per_account_charge = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+        help_text="Commission per account submission (INR) — for Indian employees. Leave blank if not applicable."
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -97,8 +103,15 @@ class Bank(models.Model):
     class Meta:
         ordering = ['name']
 
+    def charge_for_currency(self, currency):
+        """Return the appropriate per-account charge based on employee currency."""
+        if currency == 'INR' and self.inr_per_account_charge:
+            return self.inr_per_account_charge
+        return self.per_account_charge
+
     def __str__(self):
-        return f"{self.name} (AED {self.per_account_charge}/account)"
+        inr_part = f" / INR {self.inr_per_account_charge}/account" if self.inr_per_account_charge else ""
+        return f"{self.name} (AED {self.per_account_charge}/account{inr_part})"
 
 
 class BankSubmission(models.Model):

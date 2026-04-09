@@ -99,8 +99,9 @@ def _annual_leave_day_counts(al, month_start, month_end):
     return working_days, non_working_days
 
 
-def _get_commission(year, month, employee=None, remote_employee=None):
-    """Calculate total commission from bank submissions for the period."""
+def _get_commission(year, month, employee=None, remote_employee=None, currency='AED'):
+    """Calculate total commission from bank submissions for the period.
+    Uses INR per-account charge when currency is INR and the bank has one set."""
     if employee:
         submissions = BankSubmission.objects.filter(
             employee=employee, year=year, month=month
@@ -109,7 +110,10 @@ def _get_commission(year, month, employee=None, remote_employee=None):
         submissions = BankSubmission.objects.filter(
             remote_employee=remote_employee, year=year, month=month
         ).select_related('bank')
-    return float(sum(s.submission_count * s.bank.per_account_charge for s in submissions))
+    return float(sum(
+        s.submission_count * s.bank.charge_for_currency(currency)
+        for s in submissions
+    ))
 
 
 def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_holidays):
@@ -166,7 +170,7 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     reductions = float(
         adjustments.filter(adjustment_type='reduction').aggregate(total=Sum('amount'))['total'] or 0
     )
-    commission = _get_commission(year, month, employee=emp)
+    commission = _get_commission(year, month, employee=emp, currency=emp.currency)
 
     # Annual leave adjustment:
     # - Paid leave at X%: compensate X% of daily_rate × working_leave_days
@@ -233,9 +237,13 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         submissions_qs = BankSubmission.objects.filter(remote_employee=emp, year=year, month=month)
         adjustments = PayrollAdjustment.objects.filter(remote_employee=emp, year=year, month=month)
 
+    emp_currency = emp.currency if hasattr(emp, 'currency') else 'AED'
     bank_counts = {s.bank_id: s.submission_count for s in submissions_qs}
     bank_counts_list = [bank_counts.get(b.id, 0) for b in banks]
-    commission = sum(bank_counts.get(b.id, 0) * float(b.per_account_charge) for b in banks)
+    commission = sum(
+        bank_counts.get(b.id, 0) * float(b.charge_for_currency(emp_currency))
+        for b in banks
+    )
 
     incentives = float(
         adjustments.filter(adjustment_type='incentive').aggregate(total=Sum('amount'))['total'] or 0
@@ -330,7 +338,12 @@ def payroll_dashboard(request):
     # Fetch active banks for sales spreadsheet
     banks = list(Bank.objects.filter(is_active=True).order_by('name'))
     banks_json = json.dumps([
-        {'id': b.id, 'name': b.name, 'rate': float(b.per_account_charge)}
+        {
+            'id': b.id,
+            'name': b.name,
+            'rate': float(b.per_account_charge),
+            'inr_rate': float(b.inr_per_account_charge) if b.inr_per_account_charge else None,
+        }
         for b in banks
     ])
 
@@ -613,6 +626,7 @@ def banks_api(request):
 
     name = data.get('name', '').strip()
     per_account_charge = data.get('per_account_charge')
+    inr_per_account_charge = data.get('inr_per_account_charge')
 
     if not name or per_account_charge is None:
         return JsonResponse({'success': False, 'error': 'Name and per_account_charge are required'}, status=400)
@@ -621,7 +635,12 @@ def banks_api(request):
         return JsonResponse({'success': False, 'error': 'A bank with this name already exists'}, status=400)
 
     try:
-        bank = Bank.objects.create(name=name, per_account_charge=Decimal(str(per_account_charge)))
+        inr_charge = Decimal(str(inr_per_account_charge)) if inr_per_account_charge not in (None, '', 0, '0') else None
+        bank = Bank.objects.create(
+            name=name,
+            per_account_charge=Decimal(str(per_account_charge)),
+            inr_per_account_charge=inr_charge,
+        )
     except (ValueError, TypeError) as e:
         return JsonResponse({'success': False, 'error': f'Invalid data: {e}'}, status=400)
 
@@ -629,6 +648,7 @@ def banks_api(request):
     return JsonResponse({'success': True, 'bank': {
         'id': bank.id, 'name': bank.name,
         'per_account_charge': float(bank.per_account_charge),
+        'inr_per_account_charge': float(bank.inr_per_account_charge) if bank.inr_per_account_charge else None,
         'is_active': bank.is_active,
     }})
 
@@ -653,6 +673,7 @@ def bank_detail_api(request, bank_id):
     if action == 'update':
         name = data.get('name', '').strip()
         per_account_charge = data.get('per_account_charge')
+        inr_per_account_charge = data.get('inr_per_account_charge')
         if not name or per_account_charge is None:
             return JsonResponse({'success': False, 'error': 'Name and charge are required'}, status=400)
         # Check uniqueness excluding self
@@ -661,6 +682,11 @@ def bank_detail_api(request, bank_id):
         try:
             bank.name = name
             bank.per_account_charge = Decimal(str(per_account_charge))
+            bank.inr_per_account_charge = (
+                Decimal(str(inr_per_account_charge))
+                if inr_per_account_charge not in (None, '', 0, '0')
+                else None
+            )
             bank.save()
         except (ValueError, TypeError) as e:
             return JsonResponse({'success': False, 'error': f'Invalid data: {e}'}, status=400)
@@ -668,6 +694,7 @@ def bank_detail_api(request, bank_id):
         return JsonResponse({'success': True, 'bank': {
             'id': bank.id, 'name': bank.name,
             'per_account_charge': float(bank.per_account_charge),
+            'inr_per_account_charge': float(bank.inr_per_account_charge) if bank.inr_per_account_charge else None,
             'is_active': bank.is_active,
         }})
 
@@ -713,17 +740,20 @@ def get_submissions(request, emp_type, employee_id):
 
     submission_map = {s.bank_id: s.submission_count for s in submissions_qs}
     banks = Bank.objects.filter(is_active=True).order_by('name')
+    emp_currency = employee.currency if hasattr(employee, 'currency') else 'AED'
 
     data = []
     total_commission = 0.0
     for bank in banks:
         count = submission_map.get(bank.id, 0)
-        commission = round(count * float(bank.per_account_charge), 2)
+        charge = float(bank.charge_for_currency(emp_currency))
+        commission = round(count * charge, 2)
         total_commission += commission
         data.append({
             'bank_id': bank.id,
             'bank_name': bank.name,
-            'per_account_charge': float(bank.per_account_charge),
+            'per_account_charge': charge,
+            'currency': emp_currency,
             'submission_count': count,
             'commission': commission,
         })
@@ -731,6 +761,7 @@ def get_submissions(request, emp_type, employee_id):
     return JsonResponse({
         'success': True,
         'employee_name': employee.name,
+        'currency': emp_currency,
         'banks': data,
         'total_commission': round(total_commission, 2),
     })
@@ -768,6 +799,8 @@ def save_submissions(request):
             return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
         fk_kwargs = {'remote_employee': employee}
 
+    emp_currency = employee.currency if hasattr(employee, 'currency') else 'AED'
+
     try:
         year = int(year)
         month = int(month)
@@ -790,7 +823,7 @@ def save_submissions(request):
                 bank=bank, year=year, month=month, **fk_kwargs,
                 defaults={'submission_count': count},
             )
-            total_commission += float(obj.submission_count * bank.per_account_charge)
+            total_commission += float(obj.submission_count * bank.charge_for_currency(emp_currency))
 
     logger.info("Bank submissions saved for %s by %s", employee.name, request.user.username)
     return JsonResponse({'success': True, 'total_commission': round(total_commission, 2)})
