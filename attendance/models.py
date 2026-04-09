@@ -594,3 +594,66 @@ class LeaveRequest(models.Model):
         if self.status == 'approved' and self.approved_days is not None:
             return self.approved_days
         return self.requested_days
+
+
+class AnnualLeave(models.Model):
+    """
+    Admin-assigned annual leave for employees.
+    Tracks paid/unpaid annual leave with optional salary percentage for partial pay.
+    Used in payroll to offset absent-day deductions during the leave period.
+    """
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='annual_leaves'
+    )
+    remote_employee = models.ForeignKey(
+        RemoteEmployee, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='annual_leaves'
+    )
+
+    start_date = models.DateField()
+    end_date = models.DateField()
+
+    is_paid = models.BooleanField(
+        default=True,
+        help_text="Whether the employee is paid during this annual leave period"
+    )
+    salary_percentage = models.DecimalField(
+        max_digits=5, decimal_places=2, default=100,
+        help_text="Percentage of normal salary paid during leave (0–100). Only relevant when is_paid=True."
+    )
+
+    reason = models.TextField(blank=True, help_text="Reason for the annual leave")
+    admin_notes = models.TextField(blank=True, help_text="Admin notes")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-start_date']
+        verbose_name = 'Annual Leave'
+        verbose_name_plural = 'Annual Leaves'
+
+    def __str__(self):
+        name = self.employee.name if self.employee else self.remote_employee.name
+        return f"{name} - {self.start_date} to {self.end_date}"
+
+    def clean(self):
+        super().clean()
+        if self.employee and self.remote_employee:
+            raise ValidationError(
+                "Annual leave must be linked to either an in-house or remote employee, not both."
+            )
+        if not self.employee and not self.remote_employee:
+            raise ValidationError("Annual leave must be linked to an employee.")
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError({'end_date': "End date cannot be before start date."})
+
+    def get_employee_name(self):
+        return self.employee.name if self.employee else self.remote_employee.name
+
+    def get_employee_type(self):
+        return 'inhouse' if self.employee else 'remote'
+
+    def get_days_count(self):
+        return (self.end_date - self.start_date).days + 1

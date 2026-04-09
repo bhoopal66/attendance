@@ -54,6 +54,11 @@ from .leave_management import (
     approve_leave as approve_leave_request,
     reject_leave as reject_leave_request
 )
+from .annual_leave import (
+    annual_leave_management,
+    add_annual_leave,
+    delete_annual_leave,
+)
 from .shift_management import (
     special_shift_periods,
     add_special_shift_period,
@@ -106,6 +111,10 @@ __all__ = [
     'leave_management',
     'approve_leave_request',
     'reject_leave_request',
+    # Annual Leave Management
+    'annual_leave_management',
+    'add_annual_leave',
+    'delete_annual_leave',
     # Shift Management
     'special_shift_periods',
     'add_special_shift_period',

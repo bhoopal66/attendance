@@ -1,0 +1,584 @@
+{% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block title %}Annual Leave - Taamul{% endblock %}
+{% block page_title %}Annual Leave{% endblock %}
+
+{% block extra_css %}
+<style>
+    .al-container { max-width: 1200px; margin: 0 auto; padding: 0 4px; }
+
+    .page-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 24px; gap: 16px;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .header-icon {
+        width: 44px; height: 44px; border-radius: 10px;
+        background: linear-gradient(135deg, #4F46E5, #7C3AED);
+        display: flex; align-items: center; justify-content: center; color: #fff;
+        flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+    .header-text p { font-size: 0.82rem; color: var(--text-secondary); margin: 0; }
+
+    .btn-add {
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 16px; border-radius: 8px;
+        background: linear-gradient(135deg, #4F46E5, #7C3AED);
+        color: #fff; border: none; font-size: 0.85rem; font-weight: 600;
+        cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
+    }
+    .btn-add:hover { opacity: 0.88; }
+
+    /* Stats */
+    .stats-row {
+        display: grid; grid-template-columns: repeat(3, 1fr);
+        gap: 12px; margin-bottom: 20px;
+    }
+    .stat-card {
+        background: var(--card-bg); border: 1px solid var(--border-color);
+        border-radius: 10px; padding: 14px 18px;
+        display: flex; align-items: center; gap: 12px;
+    }
+    .stat-icon {
+        width: 36px; height: 36px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .stat-icon.total { background: #EEF2FF; color: #4F46E5; }
+    .stat-icon.paid  { background: #ECFDF5; color: #059669; }
+    .stat-icon.unpaid{ background: #FEF3C7; color: #D97706; }
+    .stat-value { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); }
+    .stat-label { font-size: 0.78rem; color: var(--text-secondary); }
+
+    /* Filters */
+    .filters-bar {
+        background: var(--card-bg); border: 1px solid var(--border-color);
+        border-radius: 10px; padding: 14px 18px;
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+    .filters-bar label { font-size: 0.82rem; color: var(--text-secondary); font-weight: 500; }
+    .filters-bar select {
+        padding: 6px 10px; border: 1px solid var(--border-color);
+        border-radius: 6px; font-size: 0.84rem; background: var(--bg-primary);
+        color: var(--text-primary); cursor: pointer;
+    }
+    .btn-filter {
+        padding: 6px 14px; border-radius: 6px;
+        background: #4F46E5; color: #fff; border: none;
+        font-size: 0.83rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-filter:hover { opacity: 0.85; }
+
+    /* Table */
+    .al-table-wrap {
+        background: var(--card-bg); border: 1px solid var(--border-color);
+        border-radius: 10px; overflow: hidden;
+    }
+    .al-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .al-table thead th {
+        background: var(--table-header-bg, #F9FAFB);
+        padding: 11px 14px; text-align: left;
+        font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
+        text-transform: uppercase; letter-spacing: 0.04em;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .al-table tbody tr { border-bottom: 1px solid var(--border-color); transition: background 0.1s; }
+    .al-table tbody tr:last-child { border-bottom: none; }
+    .al-table tbody tr:hover { background: var(--hover-bg, #F9FAFB); }
+    .al-table td { padding: 12px 14px; color: var(--text-primary); vertical-align: middle; }
+
+    .emp-name { font-weight: 600; color: var(--text-primary); }
+    .emp-type-badge {
+        display: inline-block; padding: 1px 7px; border-radius: 10px;
+        font-size: 0.7rem; font-weight: 600; margin-left: 6px;
+    }
+    .emp-type-badge.inhouse { background: #EEF2FF; color: #4F46E5; }
+    .emp-type-badge.remote  { background: #EDE9FE; color: #7C3AED; }
+
+    .badge-paid   { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; background: #ECFDF5; color: #059669; }
+    .badge-unpaid { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; background: #FEF3C7; color: #D97706; }
+    .pct-pill { display: inline-block; padding: 2px 8px; border-radius: 8px; background: #F3F4F6; color: #374151; font-size: 0.78rem; font-weight: 600; }
+
+    .btn-delete {
+        padding: 5px 10px; border-radius: 6px;
+        background: #FEE2E2; color: #DC2626; border: none;
+        font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: background 0.15s;
+    }
+    .btn-delete:hover { background: #FECACA; }
+
+    .empty-state {
+        text-align: center; padding: 48px 24px; color: var(--text-secondary);
+    }
+    .empty-state svg { margin-bottom: 12px; opacity: 0.35; }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* Modal */
+    .modal-overlay {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.45); z-index: 1000;
+        align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+        background: var(--card-bg); border-radius: 14px;
+        width: 100%; max-width: 520px; margin: 16px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+        max-height: 90vh; overflow-y: auto;
+    }
+    .modal-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 18px 22px 14px; border-bottom: 1px solid var(--border-color);
+    }
+    .modal-header h3 { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+    .modal-close { background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 1.3rem; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+    .modal-close:hover { background: var(--hover-bg); }
+    .modal-body { padding: 20px 22px; }
+    .modal-footer { padding: 14px 22px 20px; display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid var(--border-color); }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; }
+    .form-group input, .form-group select, .form-group textarea {
+        width: 100%; padding: 8px 10px; border: 1px solid var(--border-color);
+        border-radius: 7px; font-size: 0.88rem; background: var(--bg-primary);
+        color: var(--text-primary); box-sizing: border-box;
+    }
+    .form-group textarea { resize: vertical; min-height: 68px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .pay-toggle-group {
+        display: flex; gap: 0; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
+    }
+    .pay-toggle-group input[type=radio] { display: none; }
+    .pay-toggle-group label {
+        flex: 1; text-align: center; padding: 8px 12px;
+        font-size: 0.84rem; font-weight: 600; cursor: pointer;
+        color: var(--text-secondary); background: var(--bg-primary);
+        margin: 0; border: none; transition: background 0.15s, color 0.15s;
+    }
+    .pay-toggle-group input[value=paid]:checked + label { background: #ECFDF5; color: #059669; }
+    .pay-toggle-group input[value=unpaid]:checked + label { background: #FEF3C7; color: #D97706; }
+
+    .pct-row { display: flex; align-items: center; gap: 10px; }
+    .pct-row input[type=range] { flex: 1; }
+    .pct-row input[type=number] { width: 70px; flex-shrink: 0; }
+
+    .btn-cancel-modal {
+        padding: 8px 18px; border-radius: 8px;
+        background: var(--bg-secondary, #F3F4F6); color: var(--text-primary);
+        border: 1px solid var(--border-color); font-size: 0.86rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-submit-modal {
+        padding: 8px 20px; border-radius: 8px;
+        background: linear-gradient(135deg, #4F46E5, #7C3AED); color: #fff;
+        border: none; font-size: 0.86rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-submit-modal:hover { opacity: 0.88; }
+    .btn-submit-modal:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .modal-error {
+        color: #DC2626; background: #FEE2E2; border-radius: 7px;
+        padding: 8px 12px; font-size: 0.83rem; margin-bottom: 14px; display: none;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="al-container">
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-left">
+            <div class="header-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                </svg>
+            </div>
+            <div class="header-text">
+                <h1>Annual Leave</h1>
+                <p>Assign and manage annual leave for employees</p>
+            </div>
+        </div>
+        <button class="btn-add" onclick="openAddModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Annual Leave
+        </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon total">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div>
+                <div class="stat-value">{{ total_count }}</div>
+                <div class="stat-label">Total Leaves</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon paid">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+                <div class="stat-value">{{ paid_count }}</div>
+                <div class="stat-label">Paid Leaves</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon unpaid">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div>
+                <div class="stat-value">{{ unpaid_count }}</div>
+                <div class="stat-label">Unpaid Leaves</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="filters-bar">
+        <label>Year</label>
+        <select name="year">
+            {% for y in year_range %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+
+        <label>Month</label>
+        <select name="month">
+            <option value="0" {% if selected_month == 0 %}selected{% endif %}>All Months</option>
+            {% for num, name in month_choices %}
+            <option value="{{ num }}" {% if num == selected_month %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" class="btn-filter">Filter</button>
+    </form>
+
+    <!-- Table -->
+    <div class="al-table-wrap">
+        {% if annual_leaves %}
+        <table class="al-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Days</th>
+                    <th>Type</th>
+                    <th>Salary %</th>
+                    <th>Reason</th>
+                    <th>Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="leaveTableBody">
+                {% for leave in annual_leaves %}
+                <tr id="row-{{ leave.id }}">
+                    <td>
+                        <span class="emp-name">{{ leave.get_employee_name }}</span>
+                        {% if leave.employee %}
+                        <span class="emp-type-badge inhouse">In-house</span>
+                        {% else %}
+                        <span class="emp-type-badge remote">Remote</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ leave.start_date }}</td>
+                    <td>{{ leave.end_date }}</td>
+                    <td>{{ leave.get_days_count }}</td>
+                    <td>
+                        {% if leave.is_paid %}
+                        <span class="badge-paid">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            Paid
+                        </span>
+                        {% else %}
+                        <span class="badge-unpaid">Unpaid</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if leave.is_paid %}
+                        <span class="pct-pill">{{ leave.salary_percentage|floatformat:0 }}%</span>
+                        {% else %}
+                        <span style="color:var(--text-secondary);font-size:0.8rem;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ leave.reason }}">
+                        {{ leave.reason|default:"—" }}
+                    </td>
+                    <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ leave.admin_notes }}">
+                        {{ leave.admin_notes|default:"—" }}
+                    </td>
+                    <td>
+                        <button class="btn-delete" onclick="deleteLeave({{ leave.id }}, '{{ leave.get_employee_name|escapejs }}')">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <p>No annual leave records found for the selected period.</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Add Annual Leave Modal -->
+<div class="modal-overlay" id="addModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Add Annual Leave</h3>
+            <button class="modal-close" onclick="closeAddModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-error" id="modalError"></div>
+
+            <div class="form-group">
+                <label>Employee</label>
+                <select id="employeeSelect">
+                    <option value="">Select employee...</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input type="date" id="endDate">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Leave Type</label>
+                <div class="pay-toggle-group">
+                    <input type="radio" name="isPaid" id="radioPaid" value="paid" checked onchange="togglePaidFields()">
+                    <label for="radioPaid">Paid</label>
+                    <input type="radio" name="isPaid" id="radioUnpaid" value="unpaid" onchange="togglePaidFields()">
+                    <label for="radioUnpaid">Unpaid</label>
+                </div>
+            </div>
+
+            <div class="form-group" id="pctGroup">
+                <label>Salary Percentage <span style="font-weight:400;color:var(--text-secondary);">(how much % of normal salary)</span></label>
+                <div class="pct-row">
+                    <input type="range" id="pctSlider" min="0" max="100" step="1" value="100" oninput="syncPct('slider')">
+                    <input type="number" id="pctNumber" min="0" max="100" step="1" value="100" oninput="syncPct('number')">
+                    <span style="font-size:0.85rem;color:var(--text-secondary);">%</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Reason <span style="font-weight:400;">(optional)</span></label>
+                <textarea id="leaveReason" placeholder="Reason for annual leave..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Admin Notes <span style="font-weight:400;">(optional)</span></label>
+                <textarea id="adminNotes" placeholder="Internal notes..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel-modal" onclick="closeAddModal()">Cancel</button>
+            <button class="btn-submit-modal" id="submitBtn" onclick="submitLeave()">Add Annual Leave</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div class="modal-overlay" id="confirmDeleteModal">
+    <div class="modal" style="max-width:380px;">
+        <div class="modal-header">
+            <h3>Confirm Delete</h3>
+            <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.9rem;color:var(--text-primary);">Delete annual leave for <strong id="deleteEmpName"></strong>? This will affect payroll calculations.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel-modal" onclick="closeDeleteModal()">Cancel</button>
+            <button class="btn-delete" id="confirmDeleteBtn" onclick="confirmDelete()" style="padding:8px 18px;">Delete</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ALL_EMPLOYEES = {{ all_employees|safe }};
+
+// ---- Populate employee dropdown ----
+function populateEmployees() {
+    const sel = document.getElementById('employeeSelect');
+    sel.innerHTML = '<option value="">Select employee...</option>';
+    ALL_EMPLOYEES.forEach(emp => {
+        const opt = document.createElement('option');
+        opt.value = emp.id;
+        opt.dataset.type = emp.type;
+        const typeLabel = emp.type === 'inhouse' ? 'In-house' : 'Remote';
+        opt.textContent = emp.name + (emp.department ? ` · ${emp.department}` : '') + ` [${typeLabel}]`;
+        sel.appendChild(opt);
+    });
+}
+
+// ---- Modal open/close ----
+function openAddModal() {
+    document.getElementById('addModal').classList.add('open');
+    document.getElementById('modalError').style.display = 'none';
+    document.getElementById('startDate').value = '';
+    document.getElementById('endDate').value = '';
+    document.getElementById('radioPaid').checked = true;
+    document.getElementById('pctSlider').value = 100;
+    document.getElementById('pctNumber').value = 100;
+    document.getElementById('pctGroup').style.display = '';
+    document.getElementById('leaveReason').value = '';
+    document.getElementById('adminNotes').value = '';
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = 'Add Annual Leave';
+    populateEmployees();
+}
+function closeAddModal() {
+    document.getElementById('addModal').classList.remove('open');
+}
+
+// ---- Paid/Unpaid toggle ----
+function togglePaidFields() {
+    const paid = document.getElementById('radioPaid').checked;
+    document.getElementById('pctGroup').style.display = paid ? '' : 'none';
+}
+
+// ---- Salary % sync ----
+function syncPct(source) {
+    const slider = document.getElementById('pctSlider');
+    const number = document.getElementById('pctNumber');
+    if (source === 'slider') {
+        number.value = slider.value;
+    } else {
+        let v = parseFloat(number.value);
+        if (isNaN(v)) v = 100;
+        v = Math.max(0, Math.min(100, v));
+        number.value = v;
+        slider.value = v;
+    }
+}
+
+// ---- Submit ----
+async function submitLeave() {
+    const btn = document.getElementById('submitBtn');
+    const errEl = document.getElementById('modalError');
+    errEl.style.display = 'none';
+
+    const empSelect = document.getElementById('employeeSelect');
+    const empId = empSelect.value;
+    const empType = empSelect.selectedOptions[0]?.dataset.type || 'inhouse';
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    const isPaid = document.getElementById('radioPaid').checked;
+    const pct = document.getElementById('pctNumber').value;
+    const reason = document.getElementById('leaveReason').value;
+    const notes = document.getElementById('adminNotes').value;
+
+    if (!empId) { showError('Please select an employee.'); return; }
+    if (!startDate || !endDate) { showError('Please select both start and end dates.'); return; }
+    if (startDate > endDate) { showError('End date must be after start date.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const body = new FormData();
+    body.append('csrfmiddlewaretoken', getCsrf());
+    body.append('employee_type', empType);
+    body.append('employee_id', empId);
+    body.append('start_date', startDate);
+    body.append('end_date', endDate);
+    body.append('is_paid', isPaid ? 'true' : 'false');
+    body.append('salary_percentage', isPaid ? pct : '0');
+    body.append('reason', reason);
+    body.append('admin_notes', notes);
+
+    try {
+        const resp = await fetch("{% url 'add_annual_leave' %}", { method: 'POST', body });
+        const data = await resp.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            showError(data.error || 'Something went wrong.');
+            btn.disabled = false;
+            btn.textContent = 'Add Annual Leave';
+        }
+    } catch (e) {
+        showError('Network error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Add Annual Leave';
+    }
+}
+
+function showError(msg) {
+    const el = document.getElementById('modalError');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+// ---- Delete ----
+let pendingDeleteId = null;
+
+function deleteLeave(id, name) {
+    pendingDeleteId = id;
+    document.getElementById('deleteEmpName').textContent = name;
+    document.getElementById('confirmDeleteModal').classList.add('open');
+}
+
+function closeDeleteModal() {
+    document.getElementById('confirmDeleteModal').classList.remove('open');
+    pendingDeleteId = null;
+}
+
+async function confirmDelete() {
+    if (!pendingDeleteId) return;
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+
+    const body = new FormData();
+    body.append('csrfmiddlewaretoken', getCsrf());
+
+    try {
+        const resp = await fetch(`/annual-leave/${pendingDeleteId}/delete/`, { method: 'POST', body });
+        const data = await resp.json();
+        if (data.success) {
+            const row = document.getElementById(`row-${pendingDeleteId}`);
+            if (row) row.remove();
+            closeDeleteModal();
+        } else {
+            alert(data.error || 'Failed to delete.');
+            btn.disabled = false;
+            btn.textContent = 'Delete';
+        }
+    } catch (e) {
+        alert('Network error.');
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+    }
+}
+
+function getCsrf() {
+    return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+// Populate employee list on page load (for first open)
+populateEmployees();
+</script>
+{% endblock %}

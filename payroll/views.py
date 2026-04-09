@@ -19,7 +19,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 
 from attendance.models import (
     Employee, RemoteEmployee, Holiday,
-    LeaveRequest, MonthlySummary,
+    LeaveRequest, MonthlySummary, AnnualLeave,
 )
 from collections import defaultdict as _defaultdict
 from attendance.views.utils import (
@@ -64,6 +64,39 @@ def _leave_days_in_month(leave, month_start, month_end):
     full_span = (leave.end_date - leave.start_date).days + 1
     overlap_span = (overlap_end - overlap_start).days + 1
     return round(effective * overlap_span / full_span)
+
+
+def _annual_leave_day_counts(al, month_start, month_end):
+    """Return (working_days, non_working_days) for the annual leave overlap with the month.
+
+    working_days     — Mon-Sat excluding custom holidays (these are already deducted
+                       via absent_days in the monthly summary).
+    non_working_days — Sundays + custom holidays within the leave period.
+                       For paid leave  : ignored (never deducted, never compensated).
+                       For unpaid leave: must be additionally deducted because the
+                       employee should receive no pay for any day in that period.
+    """
+    overlap_start = max(al.start_date, month_start)
+    overlap_end = min(al.end_date, month_end)
+    if overlap_end < overlap_start:
+        return 0, 0
+
+    holiday_dates = set(
+        Holiday.objects.filter(
+            date__gte=overlap_start, date__lte=overlap_end
+        ).values_list('date', flat=True)
+    )
+
+    working_days = 0
+    non_working_days = 0
+    current = overlap_start
+    while current <= overlap_end:
+        if current.weekday() != 6 and current not in holiday_dates:
+            working_days += 1
+        else:
+            non_working_days += 1
+        current += datetime.timedelta(days=1)
+    return working_days, non_working_days
 
 
 def _get_commission(year, month, employee=None, remote_employee=None):
@@ -134,7 +167,32 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         adjustments.filter(adjustment_type='reduction').aggregate(total=Sum('amount'))['total'] or 0
     )
     commission = _get_commission(year, month, employee=emp)
-    net_payroll = base_payroll + incentives + commission - reductions
+
+    # Annual leave adjustment:
+    # - Paid leave at X%: compensate X% of daily_rate × working_leave_days
+    #   (offsets the absent-day deduction already applied via base_payroll)
+    # - Unpaid leave: no compensation for working days (deduction stands),
+    #   but also deduct Sundays + holidays within the leave period because
+    #   those days are normally paid — on unpaid leave they should not be.
+    annual_leaves = AnnualLeave.objects.filter(
+        employee=emp,
+        start_date__lte=month_end,
+        end_date__gte=month_start,
+    )
+    annual_leave_compensation = 0.0
+    annual_leave_extra_deduction = 0.0
+    annual_leave_days = 0
+    for al in annual_leaves:
+        working_days, non_working_days = _annual_leave_day_counts(al, month_start, month_end)
+        annual_leave_days += working_days
+        salary_pct = float(al.salary_percentage) if al.is_paid else 0.0
+        # Working days: compensate salary_pct% of daily rate (offsets absent-day deduction)
+        annual_leave_compensation += daily_rate * working_days * salary_pct / 100.0
+        # Non-working days (Sundays/holidays): normally paid at 100%, during leave
+        # only paid at salary_pct% — deduct the remaining (100 - salary_pct)%
+        annual_leave_extra_deduction += daily_rate * non_working_days * (100.0 - salary_pct) / 100.0
+
+    net_payroll = base_payroll + annual_leave_compensation - annual_leave_extra_deduction + incentives + commission - reductions
 
     return {
         'employee': emp,
@@ -151,6 +209,9 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'late_days': late_days,
         'late_half_days': late_half_days,
         'paid_leave_days': paid_leave_days,
+        'annual_leave_days': annual_leave_days,
+        'annual_leave_compensation': round(annual_leave_compensation, 2),
+        'annual_leave_extra_deduction': round(annual_leave_extra_deduction, 2),
         'total_deduction_days': round(total_deduction_days, 1),
         'daily_rate': round(daily_rate, 2),
         'deduction': round(deduction, 2),
