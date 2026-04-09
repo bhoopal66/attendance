@@ -395,7 +395,14 @@ def payroll_dashboard(request):
             daily = float(emp.salary) / days_in_month
             cat['leave_deduction'] = round(daily * (summary.leave_days or 0), 2)
             cat['late_deduction'] = round(daily * ((summary.late_days or 0) // 3) * 0.5, 2)
-        total_ded = round(sum(cat[c] for c in _DED_COLS), 2)
+        # Admin employees: leave/late are display-only — already deducted in attendance
+        # payroll (net_payroll). Exclude them from total_deductions to avoid double-counting
+        # in the Final Summary.
+        if emp.department == 'Admin':
+            ded_cols_for_total = [c for c in _DED_COLS if c not in ('leave_deduction', 'late_deduction')]
+        else:
+            ded_cols_for_total = _DED_COLS
+        total_ded = round(sum(cat[c] for c in ded_cols_for_total), 2)
         total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
         row = {'employee': emp, 'employee_type': 'inhouse', 'is_inhouse': True}
         row.update(cat)
