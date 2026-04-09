@@ -1209,8 +1209,10 @@
                 </thead>
                 <tbody>
                     {% for item in all_sales_data %}
-                    <tr data-emp-id="{{ item.employee.id }}" data-emp-type="{{ item.employee_type }}">
-                        <td class="sheet-td-name">
+                    <tr data-emp-id="{{ item.employee.id }}" data-emp-type="{{ item.employee_type }}"
+                        {% if item.is_fixed_salary %}data-fixed-salary="true" data-fixed-amount="{{ item.net_payroll }}"{% endif %}
+                        style="{% if item.is_fixed_salary %}background:#f0fdf4;{% endif %}">
+                        <td class="sheet-td-name" {% if item.is_fixed_salary %}style="background:#f0fdf4;"{% endif %}>
                             <div class="employee-name" style="display:flex;align-items:center;gap:6px;">
                                 {{ item.employee.name }}
                                 {% if item.employee.is_fixed_salary %}
@@ -1219,7 +1221,7 @@
                             </div>
                             {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                         </td>
-                        <td class="sheet-td-dept">
+                        <td class="sheet-td-dept" {% if item.is_fixed_salary %}style="background:#f0fdf4;"{% endif %}>
                             {% if item.display_type == 'inhouse' %}
                             <span class="dept-badge inhouse">In-House</span>
                             {% else %}
@@ -1227,15 +1229,19 @@
                             {% endif %}
                         </td>
                         {% for count in item.bank_counts_list %}
-                        <td class="sheet-td-bank">
+                        <td class="sheet-td-bank" {% if item.is_fixed_salary %}style="background:#f0fdf4;opacity:0.6;"{% endif %}>
                             <input type="number" class="bank-count-input"
                                    data-col="{{ forloop.counter0 }}"
                                    value="{{ count }}" min="0" step="1"
-                                   oninput="recalcRow(this.closest('tr'))">
+                                   {% if not item.is_fixed_salary %}oninput="recalcRow(this.closest('tr'))"{% endif %}>
                         </td>
                         {% endfor %}
                         <td class="sheet-td-total" id="total-{{ item.employee_type }}-{{ item.employee.id }}" data-currency="{{ item.currency }}">
+                            {% if item.is_fixed_salary %}
+                            {{ item.currency }} {{ item.net_payroll|floatformat:2 }}
+                            {% else %}
                             {{ item.currency }} {{ item.commission|floatformat:2 }}
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -1756,6 +1762,7 @@
     const banksConfig = {{ banks_json|safe }};
 
     function recalcRow(row) {
+        if (row.dataset.fixedSalary === 'true') return; // fixed salary: don't recalculate from bank inputs
         const inputs = row.querySelectorAll('.bank-count-input');
         let total = 0;
         inputs.forEach((inp, i) => {
@@ -1771,15 +1778,25 @@
 
     function recalcColTotals() {
         let grandTotal = 0;
+
+        // Sum fixed salary employees' attendance-based amounts
+        document.querySelectorAll('.sales-sheet tbody tr[data-fixed-salary="true"]').forEach(row => {
+            grandTotal += parseFloat(row.dataset.fixedAmount) || 0;
+        });
+
+        // Sum commission from non-fixed-salary employees
         banksConfig.forEach((bank, i) => {
             let colTotal = 0;
             document.querySelectorAll(`.bank-count-input[data-col="${i}"]`).forEach(inp => {
-                colTotal += parseInt(inp.value) || 0;
+                if (inp.closest('tr').dataset.fixedSalary !== 'true') {
+                    colTotal += parseInt(inp.value) || 0;
+                }
             });
             const el = document.getElementById(`col-total-${bank.id}`);
             if (el) el.textContent = colTotal;
             grandTotal += colTotal * bank.rate;
         });
+
         const grandEl = document.getElementById('grand-sales-total');
         if (grandEl) grandEl.textContent = `AED ${grandTotal.toFixed(2)}`;
     }

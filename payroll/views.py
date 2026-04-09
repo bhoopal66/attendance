@@ -19,7 +19,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 
 from attendance.models import (
     Employee, RemoteEmployee, Holiday,
-    LeaveRequest, MonthlySummary, AnnualLeave,
+    LeaveRequest, MonthlySummary, RemoteMonthlySummary, AnnualLeave,
 )
 from collections import defaultdict as _defaultdict
 from attendance.views.utils import (
@@ -223,8 +223,9 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     }
 
 
-def _get_sales_payroll_row(emp, year, month, emp_type, banks):
-    """Build a payroll data row for a sales employee (commission-only, no attendance deductions)."""
+def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None, total_holidays=0):
+    """Build a payroll data row for a sales employee (commission-only, no attendance deductions).
+    Fixed salary employees get attendance-based salary instead of commission."""
     if emp_type == 'inhouse':
         submissions_qs = BankSubmission.objects.filter(employee=emp, year=year, month=month)
         adjustments = PayrollAdjustment.objects.filter(employee=emp, year=year, month=month)
@@ -242,7 +243,6 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks):
     reductions = float(
         adjustments.filter(adjustment_type='reduction').aggregate(total=Sum('amount'))['total'] or 0
     )
-    net_payroll = commission + incentives - reductions
 
     # display_type is based on location field (same logic as the Salary Setup page)
     if emp_type == 'inhouse':
@@ -250,10 +250,49 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks):
     else:
         display_type = 'inhouse' if (emp.location and emp.location.lower() == 'inhouse') else 'remote'
 
+    # Fixed salary: attendance-based salary, bank counts kept for record only
+    if emp.is_fixed_salary:
+        if days_in_month is None:
+            days_in_month = calendar.monthrange(year, month)[1]
+        salary = float(emp.salary) if emp.salary else 0.0
+        daily_rate = salary / days_in_month if salary > 0 else 0.0
+        total_working_days = days_in_month - total_holidays
+
+        if emp_type == 'inhouse':
+            summary = MonthlySummary.objects.filter(employee=emp, year=year, month=month).first()
+            absent_days = (summary.leave_days or 0) if summary else 0
+        else:
+            summary = RemoteMonthlySummary.objects.filter(employee=emp, year=year, month=month).first()
+            present_days = (summary.present_days or 0) if summary else 0
+            absent_days = max(0, total_working_days - present_days)
+
+        deduction = daily_rate * absent_days
+        base_salary = round(salary - deduction, 2)
+        net_payroll = round(base_salary + incentives - reductions, 2)
+
+        return {
+            'employee': emp,
+            'employee_type': emp_type,
+            'display_type': display_type,
+            'currency': emp.currency,
+            'is_fixed_salary': True,
+            'salary': round(salary, 2),
+            'daily_rate': round(daily_rate, 2),
+            'absent_days': absent_days,
+            'deduction': round(deduction, 2),
+            'bank_counts_list': bank_counts_list,
+            'commission': round(commission, 2),
+            'incentives': round(incentives, 2),
+            'reductions': round(reductions, 2),
+            'net_payroll': net_payroll,
+        }
+
+    net_payroll = commission + incentives - reductions
     return {
         'employee': emp,
         'employee_type': emp_type,
         'display_type': display_type,
+        'is_fixed_salary': False,
         'currency': emp.currency,
         'bank_counts_list': bank_counts_list,
         'commission': round(commission, 2),
@@ -310,7 +349,7 @@ def payroll_dashboard(request):
         department='Sales', is_active=True
     ).order_by('name')
     sales_inhouse_data = [
-        _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks)
+        _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks, days_in_month, total_holidays)
         for emp in sales_inhouse_employees
     ]
     total_sales_inhouse, _, _, _ = _build_section_totals(sales_inhouse_data)
@@ -327,17 +366,26 @@ def payroll_dashboard(request):
     if all_inhouse_tcr_ids:
         remote_employees = remote_employees.exclude(tcr_id__in=all_inhouse_tcr_ids)
     remote_data = [
-        _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks)
+        _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, days_in_month, total_holidays)
         for emp in remote_employees
     ]
     total_remote, _, _, _ = _build_section_totals(remote_data)
 
-    # Combined sales data for spreadsheet view
-    all_sales_data = sales_inhouse_data + remote_data
+    # Combined sales data: fixed salary employees first, then commission employees
+    all_sales_data = sorted(
+        sales_inhouse_data + remote_data,
+        key=lambda r: (0 if r.get('is_fixed_salary') else 1, r['employee'].name.lower())
+    )
 
     # Combined Sales totals
     all_sales_rows = sales_inhouse_data + remote_data
-    total_sales, sales_incentives_total, sales_reductions_total, total_sales_commission = _build_section_totals(all_sales_rows)
+    total_sales, sales_incentives_total, sales_reductions_total, _ = _build_section_totals(all_sales_rows)
+    # Tfoot total: commission from commission employees + attendance salary from fixed salary employees
+    total_sales_commission = round(
+        sum(r.get('commission', 0) for r in all_sales_rows if not r.get('is_fixed_salary')) +
+        sum(r['net_payroll'] for r in all_sales_rows if r.get('is_fixed_salary')),
+        2
+    )
 
     grand_total = round(total_admin + total_sales, 2)
 
