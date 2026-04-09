@@ -126,7 +126,8 @@
     border: 1px solid #4338ca;
   }
   .ps-table .sec-head td.divider {
-    width: 12px;
+    min-width: 20px;
+    padding: 0 10px;
     background: #fff;
     border: none;
   }
@@ -142,6 +143,8 @@
   }
   .ps-table .col-head th.amt { text-align: right; }
   .ps-table .col-head td.divider {
+    min-width: 20px;
+    padding: 0 10px;
     background: #fff;
     border: none;
   }
@@ -162,7 +165,8 @@
   .ps-table tbody tr td.divider {
     border: none;
     background: #fff;
-    padding: 0;
+    min-width: 20px;
+    padding: 0 10px;
   }
 
   /* Total row */
@@ -273,6 +277,24 @@
     border-bottom: 1px solid #f8fafc;
   }
   .ps-box-row .v { font-weight: 600; color: #1e293b; }
+
+  /* ── Signature row ── */
+  .ps-signature-row {
+    margin: 100px 20px 24px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .ps-sig-box {
+    width: 38%;
+  }
+  .ps-sig-line {
+    margin-bottom: 6px;
+  }
+  .ps-sig-label {
+    font-size: 9pt;
+    color: #475569;
+    text-align: center;
+  }
 
   /* ── Footer ── */
   .ps-footer {
@@ -466,9 +488,16 @@
     </div>
   </div>
 
-  <!-- Footer (Row 37) -->
-  <div class="ps-footer">
-    This is a computer generated payslip and does not require signature
+  <!-- Signature row -->
+  <div class="ps-signature-row">
+    <div class="ps-sig-box">
+      <div class="ps-sig-line"></div>
+      <div class="ps-sig-label">Verified by</div>
+    </div>
+    <div class="ps-sig-box">
+      <div class="ps-sig-line"></div>
+      <div class="ps-sig-label">Received by</div>
+    </div>
   </div>
 
 </div><!-- /payslip -->
