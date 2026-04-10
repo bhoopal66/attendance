@@ -152,9 +152,28 @@ def _lookup_or_create_employee(person_id, name):
     return employee, True
 
 
+def _strip_csv_suffix(name):
+    """Strip parenthetical suffix from CSV names like 'Bridget (TCR Team)' → 'Bridget'."""
+    return re.sub(r'\s*\(.*\)\s*$', '', name).strip()
+
+
+def _find_inhouse_by_name(name):
+    """Find a unique active in-house employee matching the given name (with or without CSV suffix)."""
+    match = Employee.objects.filter(name=name, is_active=True)
+    if match.count() == 1:
+        return match.first()
+    # Try stripping parenthetical suffix: "Bridget (TCR Team)" → "Bridget"
+    base_name = _strip_csv_suffix(name)
+    if base_name != name:
+        match = Employee.objects.filter(name__iexact=base_name, is_active=True)
+        if match.count() == 1:
+            return match.first()
+    return None
+
+
 def _lookup_or_create_remote_employee(extension_id, name):
     """
-    Look up a remote employee using the same 4-tier strategy as in-house.
+    Look up a remote employee using a 5-tier strategy.
     Returns (employee, was_created).
     """
     # Tier 1: Exact match
@@ -194,8 +213,32 @@ def _lookup_or_create_remote_employee(extension_id, name):
         logger.info("Matched %s via alias extension_id %s → updated to %s", employee.name, extension_id, extension_id)
         return employee, False
 
-    # Tier 4: Create new
+    # Tier 4: Cross-reference via in-house employee's tcr_id to find already-linked remote
+    inhouse = _find_inhouse_by_name(name)
+    if inhouse and inhouse.tcr_id:
+        linked_remote = RemoteEmployee.objects.filter(tcr_id=inhouse.tcr_id).first()
+        if linked_remote:
+            old_id = linked_remote.extension_id
+            RemoteEmployeeIDAlias.objects.get_or_create(employee=linked_remote, extension_id=old_id)
+            linked_remote.extension_id = extension_id
+            linked_remote.save(update_fields=['extension_id', 'updated_at'])
+            logger.info("Matched '%s' via in-house tcr_id %s → updated extension %s → %s",
+                        name, inhouse.tcr_id, old_id, extension_id)
+            return linked_remote, False
+
+    # Tier 5: Create new — auto-link to in-house employee if one has a tcr_id
     employee = RemoteEmployee.objects.create(extension_id=extension_id, name=name)
+
+    if inhouse and inhouse.tcr_id:
+        employee.tcr_id = inhouse.tcr_id
+        for field in ('department', 'location', 'team', 'currency', 'is_fixed_salary',
+                      'salary', 'designation', 'joining_date', 'payroll_type'):
+            inhouse_val = getattr(inhouse, field, None)
+            if inhouse_val is not None:
+                setattr(employee, field, inhouse_val)
+        employee.save()
+        logger.info("Auto-linked new remote employee '%s' to in-house via TCR ID %s", name, inhouse.tcr_id)
+
     logger.info("Created new remote employee: %s (ext=%s)", name, extension_id)
     return employee, True
 
