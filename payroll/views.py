@@ -371,12 +371,23 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             ).count()
             half_days = 0  # in-house half-day detection lives in the report layer
         else:
+            # Skip Sundays + custom holidays: they're already excluded from
+            # total_working_days, and calculate_attendance_status() returns
+            # 'present' for any Sunday with talk_duration, which would
+            # double-discount them and understate absent days.
+            holiday_dates = set(
+                Holiday.objects.filter(
+                    date__year=year, date__month=month
+                ).values_list('date', flat=True)
+            )
             call_records = list(RemoteCallRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
             ))
             present_days = 0
             half_days = 0
             for r in call_records:
+                if r.date.weekday() == 6 or r.date in holiday_dates:
+                    continue
                 status = r.calculate_attendance_status()
                 if status == 'present':
                     present_days += 1
