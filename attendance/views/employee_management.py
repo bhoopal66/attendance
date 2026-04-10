@@ -25,7 +25,7 @@ logger = logging.getLogger('attendance')
 ALLOWED_UPDATE_FIELDS = {
     'name', 'email', 'phone', 'department', 'location', 'team',
     'is_active', 'salary', 'designation', 'joining_date', 'leaving_date',
-    'tcr_id', 'is_fixed_salary',
+    'tcr_id',
 }
 ALLOWED_BULK_FIELDS = {'department', 'location', 'team', 'is_active'}
 

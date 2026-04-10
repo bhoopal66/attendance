@@ -612,13 +612,6 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                         <input type="text" id="editDesignation" placeholder="e.g. Sales Executive">
                     </div>
                 </div>
-                <div class="form-group" id="fixedSalaryField" style="display:none">
-                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-                        <input type="checkbox" id="editFixedSalary" style="width:16px;height:16px;accent-color:#16a34a;">
-                        <span>Fixed Salary</span>
-                    </label>
-                    <small class="form-help">Fixed salary employees: any call activity on a day counts as Present (talk duration thresholds are ignored)</small>
-                </div>
                 <div class="form-group">
                     <label>Leaving Date</label>
                     <input type="date" id="editLeavingDate">
@@ -817,9 +810,6 @@ function openEditModal(id, type, linkedRemoteId) {
     document.getElementById('designationField').style.display = (emp.type === 'remote' || isLinked) ? '' : 'none';
     document.getElementById('editDesignation').value = emp.designation || '';
 
-    document.getElementById('fixedSalaryField').style.display = '';
-    document.getElementById('editFixedSalary').checked = emp.is_fixed_salary || false;
-
     document.getElementById('editModal').classList.add('show');
 }
 
@@ -849,7 +839,6 @@ async function saveEmployee() {
         designation:      document.getElementById('editDesignation').value || null,
         joining_date:     document.getElementById('editJoiningDate').value || null,
         leaving_date:     document.getElementById('editLeavingDate').value || null,
-        is_fixed_salary:  document.getElementById('editFixedSalary').checked,
         portal_password:  document.getElementById('editPassword').value,
     };
 

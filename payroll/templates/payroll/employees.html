@@ -171,10 +171,40 @@
 
     .no-salary { color: #94a3b8; font-style: italic; }
 
+    .badge-fixed { background: #dcfce7; color: #166534; }
     .badge-attendance { background: #dbeafe; color: #1d4ed8; }
     .badge-performance { background: #fef3c7; color: #92400e; }
-    .badge-fixed { background: #dcfce7; color: #166534; }
-    .badge-actual { background: #f1f5f9; color: #475569; }
+
+    /* 3-way salary type selector */
+    .stype-pills {
+        display: flex;
+        gap: 8px;
+    }
+    .stype-pill {
+        flex: 1;
+        padding: 10px 8px;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        background: white;
+        cursor: pointer;
+        text-align: center;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #64748b;
+        transition: all 0.15s;
+        line-height: 1.2;
+    }
+    .stype-pill .pill-sub {
+        display: block;
+        font-size: 0.66rem;
+        font-weight: 500;
+        margin-top: 3px;
+        opacity: 0.75;
+    }
+    .stype-pill:hover:not(.selected) { border-color: #94a3b8; }
+    .stype-pill.selected.fixed { border-color: #16a34a; background: #dcfce7; color: #166534; }
+    .stype-pill.selected.attendance { border-color: #1d4ed8; background: #dbeafe; color: #1d4ed8; }
+    .stype-pill.selected.performance { border-color: #d97706; background: #fef3c7; color: #92400e; }
 
     .btn-edit {
         padding: 5px 12px;
@@ -441,7 +471,6 @@
                 <tr>
                     <th>Name</th>
                     <th>Department</th>
-                    <th>Payroll Type</th>
                     <th>Salary Type</th>
                     <th>Designation</th>
                     <th class="text-right">Salary</th>
@@ -466,18 +495,13 @@
                             <span class="badge badge-none">—</span>
                         {% endif %}
                     </td>
-                    <td id="ptype-inhouse-{{ emp.id }}">
-                        {% if emp.payroll_type == 'performance' %}
-                            <span class="badge badge-performance">Performance</span>
-                        {% else %}
-                            <span class="badge badge-attendance">Attendance</span>
-                        {% endif %}
-                    </td>
                     <td id="stype-inhouse-{{ emp.id }}">
                         {% if emp.is_fixed_salary %}
                             <span class="badge badge-fixed">Fixed</span>
+                        {% elif emp.payroll_type == 'performance' %}
+                            <span class="badge badge-performance">Performance-Based</span>
                         {% else %}
-                            <span class="badge badge-actual">Attendance-based</span>
+                            <span class="badge badge-attendance">Attendance-Based</span>
                         {% endif %}
                     </td>
                     <td id="desig-inhouse-{{ emp.id }}">
@@ -527,7 +551,6 @@
                 <tr>
                     <th>Name</th>
                     <th>Department</th>
-                    <th>Payroll Type</th>
                     <th>Salary Type</th>
                     <th>Designation</th>
                     <th class="text-right">Salary</th>
@@ -552,18 +575,13 @@
                             <span class="badge badge-none">—</span>
                         {% endif %}
                     </td>
-                    <td id="ptype-remote-{{ emp.id }}">
-                        {% if emp.payroll_type == 'performance' %}
-                            <span class="badge badge-performance">Performance</span>
-                        {% else %}
-                            <span class="badge badge-attendance">Attendance</span>
-                        {% endif %}
-                    </td>
                     <td id="stype-remote-{{ emp.id }}">
                         {% if emp.is_fixed_salary %}
                             <span class="badge badge-fixed">Fixed</span>
+                        {% elif emp.payroll_type == 'performance' %}
+                            <span class="badge badge-performance">Performance-Based</span>
                         {% else %}
-                            <span class="badge badge-actual">Attendance-based</span>
+                            <span class="badge badge-attendance">Attendance-Based</span>
                         {% endif %}
                     </td>
                     <td id="desig-remote-{{ emp.id }}">
@@ -627,33 +645,22 @@
             </div>
 
             <div class="form-group" style="margin-bottom:14px">
-                <label>Payroll Type</label>
-                <div class="toggle-wrap">
-                    <span class="toggle-label" id="lblAttendance">Attendance</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="editPayrollType" onchange="updateToggleLabels()">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="toggle-label" id="lblPerformance">Performance</span>
-                </div>
-                <div id="payrollTypeHint" style="font-size:0.72rem;color:#94a3b8;margin-top:5px;">
-                    Attendance-based: late &amp; leave deductions apply
-                </div>
-            </div>
-
-            <div class="form-group" style="margin-bottom:14px">
                 <label>Salary Type</label>
-                <div class="toggle-wrap">
-                    <span class="toggle-label" id="lblActualSalary">Attendance-based</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="editFixedSalary" onchange="updateFixedSalaryLabels()">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="toggle-label" id="lblFixedSalary">Fixed</span>
+                <div class="stype-pills">
+                    <button type="button" class="stype-pill fixed" id="pillFixed" onclick="selectSalaryType('fixed')">
+                        Fixed
+                        <span class="pill-sub">1 punch / call = paid</span>
+                    </button>
+                    <button type="button" class="stype-pill attendance" id="pillAttendance" onclick="selectSalaryType('attendance')">
+                        Attendance-Based
+                        <span class="pill-sub">deducts for absences</span>
+                    </button>
+                    <button type="button" class="stype-pill performance" id="pillPerformance" onclick="selectSalaryType('performance')">
+                        Performance-Based
+                        <span class="pill-sub">no attendance deductions</span>
+                    </button>
                 </div>
-                <div id="fixedSalaryHint" style="font-size:0.72rem;color:#94a3b8;margin-top:5px;">
-                    Attendance-based: salary based on actual attendance &amp; talk minutes
-                </div>
+                <div id="salaryTypeHint" style="font-size:0.72rem;color:#94a3b8;margin-top:6px;"></div>
             </div>
 
             <div class="form-row">
@@ -689,13 +696,21 @@
     let editEmpId = null;
     let editEmpType = null;
     let editCurrency = 'AED';
-    let editPayrollType = 'attendance';
+    let editSalaryType = 'attendance';  // 'fixed' | 'attendance' | 'performance'
 
     function openEdit(empType, empId, name, designation, salary, currency, department, payrollType, isFixedSalary) {
         editEmpId = empId;
         editEmpType = empType;
         editCurrency = currency || 'AED';
-        editPayrollType = payrollType || 'attendance';
+
+        // Derive the unified 3-way salary type from the two backend fields
+        if (isFixedSalary) {
+            editSalaryType = 'fixed';
+        } else if (payrollType === 'performance') {
+            editSalaryType = 'performance';
+        } else {
+            editSalaryType = 'attendance';
+        }
 
         document.getElementById('editEmpName').textContent = name;
         document.getElementById('editEmpSub').textContent = empType === 'inhouse' ? 'In-House Employee' : 'Remote Employee';
@@ -705,44 +720,36 @@
         document.getElementById('editFeedback').className = 'save-feedback';
         document.getElementById('editFeedback').textContent = '';
 
-        // Set payroll type toggle
-        document.getElementById('editPayrollType').checked = (editPayrollType === 'performance');
-        updateToggleLabels();
-
-        // Set salary type toggle
-        document.getElementById('editFixedSalary').checked = !!isFixedSalary;
-        updateFixedSalaryLabels();
-
+        selectSalaryType(editSalaryType);
         selectCurrency(editCurrency);
         document.getElementById('editModal').classList.add('show');
     }
 
-    function updateFixedSalaryLabels() {
-        const isFixed = document.getElementById('editFixedSalary').checked;
-        document.getElementById('lblActualSalary').classList.toggle('active', !isFixed);
-        document.getElementById('lblFixedSalary').classList.toggle('active', isFixed);
-        document.getElementById('fixedSalaryHint').textContent = isFixed
-            ? 'Fixed: a single punch / call on a day marks the employee Present — full salary regardless of duration'
-            : 'Attendance-based: salary based on actual attendance & talk minutes';
-    }
+    function selectSalaryType(type) {
+        editSalaryType = type;
+        document.getElementById('pillFixed').classList.toggle('selected', type === 'fixed');
+        document.getElementById('pillAttendance').classList.toggle('selected', type === 'attendance');
+        document.getElementById('pillPerformance').classList.toggle('selected', type === 'performance');
 
-    function updateToggleLabels() {
-        const isPerformance = document.getElementById('editPayrollType').checked;
-        document.getElementById('lblAttendance').classList.toggle('active', !isPerformance);
-        document.getElementById('lblPerformance').classList.toggle('active', isPerformance);
-        document.getElementById('payrollTypeHint').textContent = isPerformance
-            ? 'Performance-based: no late & leave deductions'
-            : 'Attendance-based: late & leave deductions apply';
+        const hint = document.getElementById('salaryTypeHint');
+        if (type === 'fixed') {
+            hint.textContent = 'A single punch / call on a workday marks the employee Present — full salary regardless of duration.';
+        } else if (type === 'performance') {
+            hint.textContent = 'No attendance deductions. Pay comes from commissions / bank submissions.';
+        } else {
+            hint.textContent = 'Salary scales with actual attendance. Late, half-day and leave deductions apply.';
+        }
     }
 
     function onDeptChange() {
         const dept = document.getElementById('editDept').value;
+        // Only auto-suggest if currently on a non-fixed type
+        if (editSalaryType === 'fixed') return;
         if (dept === 'Sales') {
-            document.getElementById('editPayrollType').checked = true;
+            selectSalaryType('performance');
         } else if (dept === 'Admin') {
-            document.getElementById('editPayrollType').checked = false;
+            selectSalaryType('attendance');
         }
-        updateToggleLabels();
     }
 
     function closeEdit() {
@@ -770,8 +777,10 @@
         const salary = document.getElementById('editSalary').value;
         const designation = document.getElementById('editDesig').value.trim();
         const department = document.getElementById('editDept').value;
-        const payrollType = document.getElementById('editPayrollType').checked ? 'performance' : 'attendance';
-        const isFixedSalary = document.getElementById('editFixedSalary').checked;
+
+        // Map the unified 3-way selector back to the two backend fields
+        const isFixedSalary = (editSalaryType === 'fixed');
+        const payrollType = (editSalaryType === 'performance') ? 'performance' : 'attendance';
 
         btn.disabled = true;
         btn.textContent = 'Saving...';
@@ -810,19 +819,15 @@
                         ? escapeHtml(data.designation)
                         : `<span style="color:#94a3b8">—</span>`;
                 }
-                const ptypeEl = document.getElementById(`ptype-${editEmpType}-${editEmpId}`);
-                if (ptypeEl) {
-                    if (data.payroll_type === 'performance') {
-                        ptypeEl.innerHTML = `<span class="badge badge-performance">Performance</span>`;
-                    } else {
-                        ptypeEl.innerHTML = `<span class="badge badge-attendance">Attendance</span>`;
-                    }
-                }
                 const stypeEl = document.getElementById(`stype-${editEmpType}-${editEmpId}`);
                 if (stypeEl) {
-                    stypeEl.innerHTML = data.is_fixed_salary
-                        ? `<span class="badge badge-fixed">Fixed</span>`
-                        : `<span class="badge badge-actual">Attendance-based</span>`;
+                    if (data.is_fixed_salary) {
+                        stypeEl.innerHTML = `<span class="badge badge-fixed">Fixed</span>`;
+                    } else if (data.payroll_type === 'performance') {
+                        stypeEl.innerHTML = `<span class="badge badge-performance">Performance-Based</span>`;
+                    } else {
+                        stypeEl.innerHTML = `<span class="badge badge-attendance">Attendance-Based</span>`;
+                    }
                 }
                 // Refresh the row's edit button so a re-open keeps the new value
                 const rowEl = document.getElementById(`row-${editEmpType}-${editEmpId}`);
