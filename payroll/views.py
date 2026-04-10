@@ -26,6 +26,7 @@ from collections import defaultdict as _defaultdict
 from attendance.views.utils import (
     MONTH_CHOICES, MONTH_NAMES, YEAR_RANGE,
     get_selected_month_year, superuser_required,
+    get_active_special_periods_for_month, get_remote_thresholds_from_period,
 )
 from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DEDUCTION_CATEGORY_CHOICES
 
@@ -356,15 +357,17 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
     # Attendance-based: salary scales with actual attendance, plus any commission.
     # In-house: any punch-in counts as present (half-day detection lives in the
     # report layer). Remote: present/half/absent are computed on-the-fly from
-    # raw talk-time using the standard thresholds (weekday 45/90, friday 30/60,
-    # saturday 21/45). The stored RemoteCallRecord.attendance_status is NOT
-    # consulted because it can be stale: if the employee was ever toggled to
-    # is_fixed_salary, every record was saved with status 'present'/'absent'
-    # only (no 'half_day'), and toggling back doesn't re-trigger save().
-    # Computing inline is also independent of the is_fixed_salary flag, which
-    # is the right behavior for an attendance-based payroll. A 'half_day'
-    # counts as 0.5 of a worked day. Sundays + custom holidays are excluded
-    # from both the count and the working-day denominator.
+    # raw talk-time, mirroring the calendar view logic: special period thresholds
+    # are applied per-day when an active SpecialShiftPeriod covers that date,
+    # otherwise the defaults (weekday 45/90, friday 30/60, saturday 21/45) are
+    # used. The stored RemoteCallRecord.attendance_status is NOT consulted because
+    # it can be stale: if the employee was ever toggled to is_fixed_salary, every
+    # record was saved with status 'present'/'absent' only (no 'half_day'), and
+    # toggling back doesn't re-trigger save(). Computing inline is also independent
+    # of the is_fixed_salary flag, which is the right behavior for an
+    # attendance-based payroll. A 'half_day' counts as 0.5 of a worked day.
+    # Sundays + custom holidays are excluded from both the count and the
+    # working-day denominator.
     if getattr(emp, 'payroll_type', 'attendance') == 'attendance' and emp.salary:
         if days_in_month is None:
             days_in_month = calendar.monthrange(year, month)[1]
@@ -387,7 +390,9 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             call_records = RemoteCallRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
             ).only('date', 'total_talk_duration')
-            thresholds = RemoteCallRecord.DEFAULT_THRESHOLDS
+            month_start = datetime.date(year, month, 1)
+            month_end = datetime.date(year, month, days_in_month)
+            special_periods = get_active_special_periods_for_month(month_start, month_end)
             present_days = 0
             half_days = 0
             for r in call_records:
@@ -397,12 +402,20 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                 if not r.total_talk_duration:
                     continue
                 minutes = r.total_talk_duration.total_seconds() / 60
+                # Apply special period thresholds when one covers this day,
+                # falling back to defaults — mirrors the calendar view logic.
+                active_period = next(
+                    (p for p in special_periods if p.start_date <= r.date <= p.end_date),
+                    None,
+                ) if special_periods else None
+                period_thresholds = get_remote_thresholds_from_period(active_period) if active_period else None
+                t = period_thresholds or {}
                 if wd == 5:
-                    half_min, present_min = thresholds['saturday']
+                    half_min, present_min = t.get('saturday', RemoteCallRecord.DEFAULT_THRESHOLDS['saturday'])
                 elif wd == 4:
-                    half_min, present_min = thresholds['friday']
+                    half_min, present_min = t.get('friday', RemoteCallRecord.DEFAULT_THRESHOLDS['friday'])
                 else:
-                    half_min, present_min = thresholds['weekday']
+                    half_min, present_min = t.get('weekday', RemoteCallRecord.DEFAULT_THRESHOLDS['weekday'])
                 if minutes >= present_min:
                     present_days += 1
                 elif minutes >= half_min:
