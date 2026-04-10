@@ -246,3 +246,48 @@ class DeductionEntry(models.Model):
     def __str__(self):
         emp = self.employee or self.remote_employee
         return f"{emp.name} — {self.get_category_display()} {self.start_year}/{self.start_month}: {self.total_amount}"
+
+
+class DeductionCarryover(models.Model):
+    """
+    When an employee's final salary would go negative, the overflow is capped
+    at zero and carried into the following month as an additional deduction.
+    """
+    employee = models.ForeignKey(
+        'attendance.Employee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='deduction_carryovers',
+    )
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='deduction_carryovers',
+    )
+    from_year = models.IntegerField()
+    from_month = models.IntegerField()
+    to_year = models.IntegerField()
+    to_month = models.IntegerField()
+    overflow_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    applied_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'from_year', 'from_month'],
+                condition=models.Q(employee__isnull=False),
+                name='unique_inhouse_carryover_month',
+            ),
+            models.UniqueConstraint(
+                fields=['remote_employee', 'from_year', 'from_month'],
+                condition=models.Q(remote_employee__isnull=False),
+                name='unique_remote_carryover_month',
+            ),
+        ]
+
+    def __str__(self):
+        emp = self.employee or self.remote_employee
+        return f"{emp.name} overflow {self.from_month}/{self.from_year} → {self.to_month}/{self.to_year}: {self.overflow_amount}"

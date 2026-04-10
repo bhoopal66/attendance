@@ -28,7 +28,7 @@ from attendance.views.utils import (
     get_selected_month_year, superuser_required,
     get_active_special_periods_for_month, get_remote_thresholds_from_period,
 )
-from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DEDUCTION_CATEGORY_CHOICES
+from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, DEDUCTION_CATEGORY_CHOICES
 
 logger = logging.getLogger('payroll')
 
@@ -426,7 +426,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         absent_days = max(0, total_working_days - effective_present)
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
-        net_payroll = round(base_salary + commission + incentives - reductions, 2)
+        net_payroll = round(base_salary + incentives - reductions, 2)
 
         return {
             'employee': emp,
@@ -502,14 +502,30 @@ def payroll_dashboard(request):
     ])
 
     # --- Admin section (in-house Admin dept) ---
-    admin_employees = Employee.objects.filter(
+    admin_employees = list(Employee.objects.filter(
         department='Admin', is_active=True
-    ).order_by('name')
+    ).order_by('name'))
     admin_data = [
         _get_inhouse_payroll_row(emp, selected_year, selected_month, month_start, month_end, total_holidays)
         for emp in admin_employees
     ]
     total_admin, admin_incentives_total, admin_reductions_total, _ = _build_section_totals(admin_data)
+
+    # Admin commission spreadsheet data (for Sales tab sub-section)
+    admin_commission_data = []
+    for emp in admin_employees:
+        submissions_qs = BankSubmission.objects.filter(employee=emp, year=selected_year, month=selected_month)
+        bank_counts = {s.bank_id: s.submission_count for s in submissions_qs}
+        bank_counts_list = [bank_counts.get(b.id, 0) for b in banks]
+        commission = _get_commission(selected_year, selected_month, employee=emp, currency=emp.currency)
+        admin_commission_data.append({
+            'employee': emp,
+            'employee_type': 'inhouse',
+            'currency': emp.currency,
+            'bank_counts_list': bank_counts_list,
+            'commission': round(commission, 2),
+        })
+    total_admin_commission = round(sum(r['commission'] for r in admin_commission_data), 2)
 
     # --- Sales section: in-house Sales employees (commission-only) ---
     sales_inhouse_employees = Employee.objects.filter(
@@ -590,6 +606,7 @@ def payroll_dashboard(request):
             'id': entry.id,
             'employee': emp,
             'employee_type': emp_type,
+            'currency': emp.currency,
             'category_display': entry.get_category_display(),
             'entry_type': entry.entry_type,
             'total_amount': float(entry.total_amount),
@@ -608,6 +625,15 @@ def payroll_dashboard(request):
         s.employee_id: s
         for s in MonthlySummary.objects.filter(year=selected_year, month=selected_month)
     }
+
+    # Load incoming carryovers for the selected month (overflow from previous month)
+    incoming_carryovers = DeductionCarryover.objects.filter(
+        to_year=selected_year, to_month=selected_month
+    )
+    carryover_by_emp = {}
+    for co in incoming_carryovers:
+        key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
+        carryover_by_emp[key] = co.overflow_amount
 
     section3_rows = []
     for emp in Employee.objects.filter(is_active=True).order_by('department', 'name'):
@@ -628,10 +654,13 @@ def payroll_dashboard(request):
         else:
             ded_cols_for_total = _DED_COLS
         total_ded = round(sum(cat[c] for c in ded_cols_for_total), 2)
+        emp_key = ('inhouse', emp.id)
+        carryover_in = float(carryover_by_emp.get(emp_key, 0))
+        total_ded = round(total_ded + carryover_in, 2)
         total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
-        row = {'employee': emp, 'employee_type': 'inhouse', 'is_inhouse': True}
+        row = {'employee': emp, 'employee_type': 'inhouse', 'is_inhouse': True, 'currency': emp.currency}
         row.update(cat)
-        row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2)})
+        row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2), 'carryover_in': carryover_in})
         section3_rows.append(row)
 
     for emp in RemoteEmployee.objects.filter(is_active=True).order_by('name'):
@@ -639,10 +668,13 @@ def payroll_dashboard(request):
         for ded_entry in active_by_emp.get(('remote', emp.id), []):
             cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
         total_ded = round(sum(cat[c] for c in _DED_COLS), 2)
+        emp_key = ('remote', emp.id)
+        carryover_in = float(carryover_by_emp.get(emp_key, 0))
+        total_ded = round(total_ded + carryover_in, 2)
         total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
-        row = {'employee': emp, 'employee_type': 'remote', 'is_inhouse': False}
+        row = {'employee': emp, 'employee_type': 'remote', 'is_inhouse': False, 'currency': emp.currency}
         row.update(cat)
-        row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2)})
+        row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2), 'carryover_in': carryover_in})
         section3_rows.append(row)
 
     s3_total_ded = round(sum(r['total_deductions'] for r in section3_rows), 2)
@@ -670,6 +702,12 @@ def payroll_dashboard(request):
     for row in section3_rows:
         ded_by_emp[(row['employee_type'], row['employee'].id)] = row
 
+    # Compute next calendar month for carryover targeting
+    if selected_month == 12:
+        _co_to_month, _co_to_year = 1, selected_year + 1
+    else:
+        _co_to_month, _co_to_year = selected_month + 1, selected_year
+
     final_rows = []
     for emp in Employee.objects.filter(is_active=True).order_by('department', 'name'):
         key = ('inhouse', emp.id)
@@ -678,7 +716,25 @@ def payroll_dashboard(request):
         payroll_net = p['net_payroll'] if p else 0.0
         total_ded = d['total_deductions'] if d else 0.0
         total_add = d['total_additions'] if d else 0.0
+        carryover_in = d['carryover_in'] if d else 0.0
         final_salary = round(payroll_net - total_ded + total_add, 2)
+        if final_salary < 0:
+            overflow = Decimal(str(abs(final_salary)))
+            final_salary = 0.0
+            DeductionCarryover.objects.update_or_create(
+                employee=emp, from_year=selected_year, from_month=selected_month,
+                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
+                          'remote_employee': None},
+            )
+        else:
+            DeductionCarryover.objects.filter(
+                employee=emp, from_year=selected_year, from_month=selected_month
+            ).delete()
+        if carryover_in > 0:
+            incoming_co = incoming_carryovers.filter(employee=emp).first()
+            if incoming_co:
+                incoming_co.applied_amount = Decimal(str(min(carryover_in, float(incoming_co.overflow_amount))))
+                incoming_co.save(update_fields=['applied_amount'])
         final_rows.append({
             'employee': emp,
             'employee_type': 'inhouse',
@@ -697,7 +753,25 @@ def payroll_dashboard(request):
         payroll_net = p['net_payroll'] if p else 0.0
         total_ded = d['total_deductions'] if d else 0.0
         total_add = d['total_additions'] if d else 0.0
+        carryover_in = d['carryover_in'] if d else 0.0
         final_salary = round(payroll_net - total_ded + total_add, 2)
+        if final_salary < 0:
+            overflow = Decimal(str(abs(final_salary)))
+            final_salary = 0.0
+            DeductionCarryover.objects.update_or_create(
+                remote_employee=emp, from_year=selected_year, from_month=selected_month,
+                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
+                          'employee': None},
+            )
+        else:
+            DeductionCarryover.objects.filter(
+                remote_employee=emp, from_year=selected_year, from_month=selected_month
+            ).delete()
+        if carryover_in > 0:
+            incoming_co = incoming_carryovers.filter(remote_employee=emp).first()
+            if incoming_co:
+                incoming_co.applied_amount = Decimal(str(min(carryover_in, float(incoming_co.overflow_amount))))
+                incoming_co.save(update_fields=['applied_amount'])
         final_rows.append({
             'employee': emp,
             'employee_type': 'remote',
@@ -712,6 +786,56 @@ def payroll_dashboard(request):
     final_total_aed = round(sum(r['final_salary'] for r in final_rows if r.get('currency', 'AED') == 'AED'), 2)
     final_total_inr = round(sum(r['final_salary'] for r in final_rows if r.get('currency', 'AED') == 'INR'), 2)
     final_total = round(sum(r['final_salary'] for r in final_rows), 2)
+
+    # Carryover history for all active employees
+    from django.db.models import Q as _Q
+    all_carryovers = DeductionCarryover.objects.filter(
+        _Q(employee__in=Employee.objects.filter(is_active=True)) |
+        _Q(remote_employee__in=RemoteEmployee.objects.filter(is_active=True))
+    ).select_related('employee', 'remote_employee').order_by('-from_year', '-from_month')
+
+    # Build per-employee 12-month carryover timeline for selected year
+    _co_timeline_dict = {}
+    _co_year_qs = DeductionCarryover.objects.filter(
+        (_Q(employee__in=Employee.objects.filter(is_active=True)) |
+         _Q(remote_employee__in=RemoteEmployee.objects.filter(is_active=True))) &
+        (_Q(from_year=selected_year) | _Q(to_year=selected_year))
+    ).select_related('employee', 'remote_employee').order_by('from_year', 'from_month')
+    for _co in _co_year_qs:
+        if _co.employee_id:
+            _ek = ('inhouse', _co.employee_id)
+            _ename = _co.employee.name
+            _edept = _co.employee.department or 'In-House'
+            _ecurr = _co.employee.currency
+        else:
+            _ek = ('remote', _co.remote_employee_id)
+            _ename = _co.remote_employee.name
+            _edept = 'Remote'
+            _ecurr = _co.remote_employee.currency
+        if _ek not in _co_timeline_dict:
+            _co_timeline_dict[_ek] = {'name': _ename, 'dept': _edept, 'currency': _ecurr, 'cells': [None] * 12}
+        _cells = _co_timeline_dict[_ek]['cells']
+        _status = 'applied' if _co.applied_amount >= _co.overflow_amount else ('partial' if _co.applied_amount > 0 else 'pending')
+        if _co.from_year == selected_year:
+            _cells[_co.from_month - 1] = {
+                'type': 'overflow',
+                'amount': float(_co.overflow_amount),
+                'to_month': _co.to_month,
+                'to_year': _co.to_year,
+                'cross_year': _co.to_year != selected_year,
+                'status': _status,
+            }
+        if _co.to_year == selected_year:
+            _cells[_co.to_month - 1] = {
+                'type': 'carryover',
+                'applied': float(_co.applied_amount),
+                'overflow': float(_co.overflow_amount),
+                'from_month': _co.from_month,
+                'from_year': _co.from_year,
+                'cross_year': _co.from_year != selected_year,
+                'status': _status,
+            }
+    carryover_timeline = list(_co_timeline_dict.values())
 
     # Grand total split by currency
     all_rows = admin_data + all_sales_data
@@ -730,6 +854,8 @@ def payroll_dashboard(request):
         'total_admin': total_admin,
         'admin_incentives_total': admin_incentives_total,
         'admin_reductions_total': admin_reductions_total,
+        'admin_commission_data': admin_commission_data,
+        'total_admin_commission': total_admin_commission,
         # Sales (spreadsheet)
         'banks': banks,
         'banks_json': banks_json,
@@ -752,6 +878,9 @@ def payroll_dashboard(request):
         's3_total_add': s3_total_add,
         's3_net': s3_net,
         'all_employees_json': all_employees_json,
+        # Carryover schedule
+        'all_carryovers': all_carryovers,
+        'carryover_timeline': carryover_timeline,
         # Final Summary
         'final_rows': final_rows,
         'final_total': final_total,
