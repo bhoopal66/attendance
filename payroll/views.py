@@ -355,12 +355,13 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
 
     # Attendance-based: salary scales with actual attendance, plus any commission.
     # In-house: any punch-in counts as present (half-day detection lives in the
-    # report layer). Remote: status is determined by talk-time thresholds via
-    # calculate_attendance_status() — call counts are ignored. Both 'present'
-    # and 'half_day' talk time count as a full worked day for payroll; only
-    # fully absent days (talk below the half-day threshold or no record at all)
-    # reduce the salary. Sundays + custom holidays are excluded from the
-    # working-day denominator and from the present count.
+    # report layer). Remote: read the stored RemoteCallRecord.attendance_status
+    # — the same field the remote attendance report displays — so the payroll
+    # and the report can never disagree. That stored value is set at upload
+    # time by calculate_attendance_status(), which uses talk-time thresholds
+    # (call counts are ignored). A 'half_day' counts as 0.5 of a worked day.
+    # Sundays + custom holidays are excluded from the working-day denominator
+    # and from the present count.
     if getattr(emp, 'payroll_type', 'attendance') == 'attendance' and emp.salary:
         if days_in_month is None:
             days_in_month = calendar.monthrange(year, month)[1]
@@ -380,22 +381,20 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                     date__year=year, date__month=month
                 ).values_list('date', flat=True)
             )
-            call_records = list(RemoteCallRecord.objects.filter(
+            call_records = RemoteCallRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
-            ))
+            ).only('date', 'attendance_status')
             present_days = 0
             half_days = 0
             for r in call_records:
                 if r.date.weekday() == 6 or r.date in holiday_dates:
                     continue
-                status = r.calculate_attendance_status()
-                if status == 'present':
+                if r.attendance_status == 'present':
                     present_days += 1
-                elif status == 'half_day':
+                elif r.attendance_status == 'half_day':
                     half_days += 1
 
-        # Half-day talk time still counts as a worked day for payroll purposes.
-        effective_present = present_days + half_days
+        effective_present = present_days + (half_days * 0.5)
         absent_days = max(0, total_working_days - effective_present)
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
@@ -1661,8 +1660,10 @@ def download_payslip(request, emp_type, emp_id):
         att_late_ded = round(daily_rate * (late_half_days * 0.5), 2)
     else:
         banks = list(Bank.objects.filter(is_active=True).order_by('name'))
+        total_holidays = _count_holidays(selected_year, selected_month, days_in_month)
         payroll = _get_sales_payroll_row(
-            emp, selected_year, selected_month, emp_type, banks
+            emp, selected_year, selected_month, emp_type, banks,
+            days_in_month, total_holidays,
         )
         incentives = payroll['incentives']
         commission = payroll['commission']
