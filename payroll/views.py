@@ -353,6 +353,63 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             'net_payroll': net_payroll,
         }
 
+    # Attendance-based: salary scales with actual attendance, plus any commission.
+    # Half days count as 0.5 of a working day. Statuses are recomputed on-the-fly
+    # from raw call records so the math is correct even if stored statuses are
+    # stale from a previous fixed-salary configuration.
+    if getattr(emp, 'payroll_type', 'attendance') == 'attendance' and emp.salary:
+        if days_in_month is None:
+            days_in_month = calendar.monthrange(year, month)[1]
+        salary = float(emp.salary)
+        daily_rate = salary / days_in_month if salary > 0 else 0.0
+        total_working_days = days_in_month - total_holidays
+
+        if emp_type == 'inhouse':
+            present_days = AttendanceRecord.objects.filter(
+                employee=emp, date__year=year, date__month=month,
+                first_in__isnull=False,
+            ).count()
+            half_days = 0  # in-house half-day detection lives in the report layer
+        else:
+            call_records = list(RemoteCallRecord.objects.filter(
+                employee=emp, date__year=year, date__month=month,
+            ))
+            present_days = 0
+            half_days = 0
+            for r in call_records:
+                status = r.calculate_attendance_status()
+                if status == 'present':
+                    present_days += 1
+                elif status == 'half_day':
+                    half_days += 1
+
+        effective_present = present_days + (half_days * 0.5)
+        absent_days = max(0, total_working_days - effective_present)
+        deduction = daily_rate * absent_days
+        base_salary = round(salary - deduction, 2)
+        net_payroll = round(base_salary + commission + incentives - reductions, 2)
+
+        return {
+            'employee': emp,
+            'employee_type': emp_type,
+            'display_type': display_type,
+            'currency': emp.currency,
+            'is_fixed_salary': False,
+            'is_attendance_based': True,
+            'salary': round(salary, 2),
+            'daily_rate': round(daily_rate, 2),
+            'present_days': present_days,
+            'half_days': half_days,
+            'absent_days': round(absent_days, 1),
+            'deduction': round(deduction, 2),
+            'base_salary': base_salary,
+            'bank_counts_list': bank_counts_list,
+            'commission': round(commission, 2),
+            'incentives': round(incentives, 2),
+            'reductions': round(reductions, 2),
+            'net_payroll': net_payroll,
+        }
+
     net_payroll = commission + incentives - reductions
     return {
         'employee': emp,
@@ -442,10 +499,14 @@ def payroll_dashboard(request):
     ]
     total_remote, _, _, _ = _build_section_totals(remote_data)
 
-    # Combined sales data: fixed salary employees first, then commission employees
+    # Combined sales data: salary-bearing rows (fixed / attendance-based) first,
+    # then pure commission rows
+    def _has_base_salary(r):
+        return r.get('is_fixed_salary') or r.get('is_attendance_based')
+
     all_sales_data = sorted(
         sales_inhouse_data + remote_data,
-        key=lambda r: (0 if r.get('is_fixed_salary') else 1, r['employee'].name.lower())
+        key=lambda r: (0 if _has_base_salary(r) else 1, r['employee'].name.lower())
     )
 
     # Combined Sales totals
@@ -453,11 +514,12 @@ def payroll_dashboard(request):
     total_sales, sales_incentives_total, sales_reductions_total, _ = _build_section_totals(all_sales_rows)
     total_sales_aed = round(sum(r['net_payroll'] for r in all_sales_rows if r.get('currency', 'AED') == 'AED'), 2)
     total_sales_inr = round(sum(r['net_payroll'] for r in all_sales_rows if r.get('currency', 'AED') == 'INR'), 2)
-    # Tfoot totals split by currency (commission employees use commission, fixed salary use net_payroll)
+    # Tfoot totals split by currency. Salary-bearing rows surface net_payroll
+    # (they may have salary + commission), pure commission rows surface commission only.
     def _sales_tfoot(rows, currency):
         return round(
-            sum(r.get('commission', 0) for r in rows if not r.get('is_fixed_salary') and r.get('currency', 'AED') == currency) +
-            sum(r['net_payroll'] for r in rows if r.get('is_fixed_salary') and r.get('currency', 'AED') == currency),
+            sum(r.get('commission', 0) for r in rows if not _has_base_salary(r) and r.get('currency', 'AED') == currency) +
+            sum(r['net_payroll'] for r in rows if _has_base_salary(r) and r.get('currency', 'AED') == currency),
             2
         )
     total_sales_commission_aed = _sales_tfoot(all_sales_rows, 'AED')

@@ -1244,18 +1244,20 @@
                 <tbody>
                     {% for item in all_sales_data %}
                     <tr data-emp-id="{{ item.employee.id }}" data-emp-type="{{ item.employee_type }}"
-                        {% if item.is_fixed_salary %}data-fixed-salary="true" data-fixed-amount="{{ item.net_payroll }}"{% endif %}
-                        style="{% if item.is_fixed_salary %}background:#f0fdf4;{% endif %}">
-                        <td class="sheet-td-name" {% if item.is_fixed_salary %}style="background:#f0fdf4;"{% endif %}>
+                        {% if item.is_fixed_salary or item.is_attendance_based %}data-fixed-salary="true" data-fixed-amount="{{ item.net_payroll }}"{% endif %}
+                        style="{% if item.is_fixed_salary %}background:#f0fdf4;{% elif item.is_attendance_based %}background:#eff6ff;{% endif %}">
+                        <td class="sheet-td-name" {% if item.is_fixed_salary %}style="background:#f0fdf4;"{% elif item.is_attendance_based %}style="background:#eff6ff;"{% endif %}>
                             <div class="employee-name" style="display:flex;align-items:center;gap:6px;">
                                 {{ item.employee.name }}
                                 {% if item.employee.is_fixed_salary %}
                                 <span title="Fixed Salary" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#16a34a;flex-shrink:0;"></span>
+                                {% elif item.is_attendance_based %}
+                                <span title="Attendance-Based Salary" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#2563eb;flex-shrink:0;"></span>
                                 {% endif %}
                             </div>
                             {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                         </td>
-                        <td class="sheet-td-dept" {% if item.is_fixed_salary %}style="background:#f0fdf4;"{% endif %}>
+                        <td class="sheet-td-dept" {% if item.is_fixed_salary %}style="background:#f0fdf4;"{% elif item.is_attendance_based %}style="background:#eff6ff;"{% endif %}>
                             {% if item.display_type == 'inhouse' %}
                             <span class="dept-badge inhouse">In-House</span>
                             {% else %}
@@ -1263,16 +1265,16 @@
                             {% endif %}
                         </td>
                         {% for count in item.bank_counts_list %}
-                        <td class="sheet-td-bank" {% if item.is_fixed_salary %}style="background:#f0fdf4;opacity:0.6;"{% endif %}>
+                        <td class="sheet-td-bank" {% if item.is_fixed_salary %}style="background:#f0fdf4;opacity:0.6;"{% elif item.is_attendance_based %}style="background:#eff6ff;opacity:0.6;"{% endif %}>
                             <input type="number" class="bank-count-input"
                                    data-col="{{ forloop.counter0 }}"
                                    value="{{ count }}" min="0" step="1"
                                    readonly
-                                   {% if not item.is_fixed_salary %}oninput="recalcRow(this.closest('tr'))"{% endif %}>
+                                   {% if not item.is_fixed_salary and not item.is_attendance_based %}oninput="recalcRow(this.closest('tr'))"{% endif %}>
                         </td>
                         {% endfor %}
                         <td class="sheet-td-total" id="total-{{ item.employee_type }}-{{ item.employee.id }}" data-currency="{{ item.currency }}">
-                            {% if item.is_fixed_salary %}
+                            {% if item.is_fixed_salary or item.is_attendance_based %}
                             {{ item.currency }} {{ item.net_payroll|floatformat:2 }}
                             {% else %}
                             {{ item.currency }} {{ item.commission|floatformat:2 }}
