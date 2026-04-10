@@ -716,8 +716,12 @@ function updateSelection() {
         }
     } else if (count === 2) {
         const rows = checked.map(cb => cb.closest('tr'));
-        const anyLinked = rows.some(r => r.dataset.linkedRemoteId);
-        if (!anyLinked) {
+        const linkedRow = rows.find(r => r.dataset.linkedRemoteId);
+        const otherRow  = rows.find(r => !r.dataset.linkedRemoteId);
+        if (linkedRow && otherRow && otherRow.dataset.type === 'remote') {
+            // Linked row + duplicate remote → allow merging duplicate into linked remote
+            mergeBtn.style.display = 'inline-flex';
+        } else if (!linkedRow) {
             const types = rows.map(r => r.dataset.type);
             if (types[0] === types[1]) {
                 mergeBtn.style.display = 'inline-flex';
@@ -886,11 +890,22 @@ function openMergeModal() {
     const checked = [...document.querySelectorAll('.row-checkbox:checked')];
     if (checked.length !== 2) return;
 
-    mergeEmployees = checked.map(cb => {
-        const row = cb.closest('tr');
-        const emp = employeesData.find(e => e.id === parseInt(row.dataset.id) && e.type === row.dataset.type);
-        return emp;
-    });
+    const rows = checked.map(cb => cb.closest('tr'));
+    const linkedRow = rows.find(r => r.dataset.linkedRemoteId);
+
+    if (linkedRow) {
+        // Merging a duplicate remote into an already-linked remote employee
+        const dupRow = rows.find(r => !r.dataset.linkedRemoteId);
+        const linkedRemoteId = parseInt(linkedRow.dataset.linkedRemoteId);
+        const keepEmp = employeesData.find(e => e.id === linkedRemoteId && e.type === 'remote');
+        const dropEmp = employeesData.find(e => e.id === parseInt(dupRow.dataset.id) && e.type === 'remote');
+        mergeEmployees = [keepEmp, dropEmp];
+    } else {
+        mergeEmployees = checked.map(cb => {
+            const row = cb.closest('tr');
+            return employeesData.find(e => e.id === parseInt(row.dataset.id) && e.type === row.dataset.type);
+        });
+    }
 
     const typeMismatch = mergeEmployees[0].type !== mergeEmployees[1].type;
     document.getElementById('mergeTypeMismatch').style.display = typeMismatch ? '' : 'none';
