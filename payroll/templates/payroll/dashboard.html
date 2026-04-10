@@ -1273,9 +1273,15 @@
                                    {% if not item.is_fixed_salary and not item.is_attendance_based %}oninput="recalcRow(this.closest('tr'))"{% endif %}>
                         </td>
                         {% endfor %}
-                        <td class="sheet-td-total" id="total-{{ item.employee_type }}-{{ item.employee.id }}" data-currency="{{ item.currency }}">
+                        <td class="sheet-td-total" id="total-{{ item.employee_type }}-{{ item.employee.id }}" data-currency="{{ item.currency }}"
+                            {% if item.is_attendance_based %}title="Salary {{ item.currency }} {{ item.salary|floatformat:2 }} | Daily {{ item.daily_rate|floatformat:2 }}&#10;Present {{ item.present_days }} | Half {{ item.half_days }} | Absent {{ item.absent_days }}&#10;Deduction {{ item.deduction|floatformat:2 }}"{% endif %}>
                             {% if item.is_fixed_salary or item.is_attendance_based %}
                             {{ item.currency }} {{ item.net_payroll|floatformat:2 }}
+                            {% if item.is_attendance_based %}
+                            <div style="font-size:0.65rem;font-weight:400;color:#64748b;margin-top:2px;line-height:1.2;">
+                                P{{ item.present_days }}·H{{ item.half_days }}·A{{ item.absent_days }}
+                            </div>
+                            {% endif %}
                             {% else %}
                             {{ item.currency }} {{ item.commission|floatformat:2 }}
                             {% endif %}

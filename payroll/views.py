@@ -355,13 +355,16 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
 
     # Attendance-based: salary scales with actual attendance, plus any commission.
     # In-house: any punch-in counts as present (half-day detection lives in the
-    # report layer). Remote: read the stored RemoteCallRecord.attendance_status
-    # — the same field the remote attendance report displays — so the payroll
-    # and the report can never disagree. That stored value is set at upload
-    # time by calculate_attendance_status(), which uses talk-time thresholds
-    # (call counts are ignored). A 'half_day' counts as 0.5 of a worked day.
-    # Sundays + custom holidays are excluded from the working-day denominator
-    # and from the present count.
+    # report layer). Remote: present/half/absent are computed on-the-fly from
+    # raw talk-time using the standard thresholds (weekday 45/90, friday 30/60,
+    # saturday 21/45). The stored RemoteCallRecord.attendance_status is NOT
+    # consulted because it can be stale: if the employee was ever toggled to
+    # is_fixed_salary, every record was saved with status 'present'/'absent'
+    # only (no 'half_day'), and toggling back doesn't re-trigger save().
+    # Computing inline is also independent of the is_fixed_salary flag, which
+    # is the right behavior for an attendance-based payroll. A 'half_day'
+    # counts as 0.5 of a worked day. Sundays + custom holidays are excluded
+    # from both the count and the working-day denominator.
     if getattr(emp, 'payroll_type', 'attendance') == 'attendance' and emp.salary:
         if days_in_month is None:
             days_in_month = calendar.monthrange(year, month)[1]
@@ -383,15 +386,26 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             )
             call_records = RemoteCallRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
-            ).only('date', 'attendance_status')
+            ).only('date', 'total_talk_duration')
+            thresholds = RemoteCallRecord.DEFAULT_THRESHOLDS
             present_days = 0
             half_days = 0
             for r in call_records:
-                if r.date.weekday() == 6 or r.date in holiday_dates:
+                wd = r.date.weekday()
+                if wd == 6 or r.date in holiday_dates:
                     continue
-                if r.attendance_status == 'present':
+                if not r.total_talk_duration:
+                    continue
+                minutes = r.total_talk_duration.total_seconds() / 60
+                if wd == 5:
+                    half_min, present_min = thresholds['saturday']
+                elif wd == 4:
+                    half_min, present_min = thresholds['friday']
+                else:
+                    half_min, present_min = thresholds['weekday']
+                if minutes >= present_min:
                     present_days += 1
-                elif r.attendance_status == 'half_day':
+                elif minutes >= half_min:
                     half_days += 1
 
         effective_present = present_days + (half_days * 0.5)
