@@ -173,6 +173,8 @@
 
     .badge-attendance { background: #dbeafe; color: #1d4ed8; }
     .badge-performance { background: #fef3c7; color: #92400e; }
+    .badge-fixed { background: #dcfce7; color: #166534; }
+    .badge-actual { background: #f1f5f9; color: #475569; }
 
     .btn-edit {
         padding: 5px 12px;
@@ -440,6 +442,7 @@
                     <th>Name</th>
                     <th>Department</th>
                     <th>Payroll Type</th>
+                    <th>Salary Type</th>
                     <th>Designation</th>
                     <th class="text-right">Salary</th>
                     <th>Currency</th>
@@ -470,6 +473,13 @@
                             <span class="badge badge-attendance">Attendance</span>
                         {% endif %}
                     </td>
+                    <td id="stype-inhouse-{{ emp.id }}">
+                        {% if emp.is_fixed_salary %}
+                            <span class="badge badge-fixed">Fixed</span>
+                        {% else %}
+                            <span class="badge badge-actual">Attendance-based</span>
+                        {% endif %}
+                    </td>
                     <td id="desig-inhouse-{{ emp.id }}">
                         {% if emp.designation %}{{ emp.designation }}{% else %}<span style="color:#94a3b8">—</span>{% endif %}
                     </td>
@@ -487,7 +497,7 @@
                         {{ emp.joining_date|default:"—" }}
                     </td>
                     <td>
-                        <button class="btn-edit" onclick="openEdit('inhouse', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}')">
+                        <button class="btn-edit" onclick="openEdit('inhouse', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %})">
                             Edit
                         </button>
                     </td>
@@ -518,6 +528,7 @@
                     <th>Name</th>
                     <th>Department</th>
                     <th>Payroll Type</th>
+                    <th>Salary Type</th>
                     <th>Designation</th>
                     <th class="text-right">Salary</th>
                     <th>Currency</th>
@@ -548,6 +559,13 @@
                             <span class="badge badge-attendance">Attendance</span>
                         {% endif %}
                     </td>
+                    <td id="stype-remote-{{ emp.id }}">
+                        {% if emp.is_fixed_salary %}
+                            <span class="badge badge-fixed">Fixed</span>
+                        {% else %}
+                            <span class="badge badge-actual">Attendance-based</span>
+                        {% endif %}
+                    </td>
                     <td id="desig-remote-{{ emp.id }}">
                         {% if emp.designation %}{{ emp.designation }}{% else %}<span style="color:#94a3b8">—</span>{% endif %}
                     </td>
@@ -565,7 +583,7 @@
                         {{ emp.joining_date|default:"—" }}
                     </td>
                     <td>
-                        <button class="btn-edit" onclick="openEdit('remote', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}')">
+                        <button class="btn-edit" onclick="openEdit('remote', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %})">
                             Edit
                         </button>
                     </td>
@@ -623,6 +641,21 @@
                 </div>
             </div>
 
+            <div class="form-group" style="margin-bottom:14px">
+                <label>Salary Type</label>
+                <div class="toggle-wrap">
+                    <span class="toggle-label" id="lblActualSalary">Attendance-based</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="editFixedSalary" onchange="updateFixedSalaryLabels()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label" id="lblFixedSalary">Fixed</span>
+                </div>
+                <div id="fixedSalaryHint" style="font-size:0.72rem;color:#94a3b8;margin-top:5px;">
+                    Attendance-based: salary based on actual attendance &amp; talk minutes
+                </div>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
                     <label>Salary</label>
@@ -658,7 +691,7 @@
     let editCurrency = 'AED';
     let editPayrollType = 'attendance';
 
-    function openEdit(empType, empId, name, designation, salary, currency, department, payrollType) {
+    function openEdit(empType, empId, name, designation, salary, currency, department, payrollType, isFixedSalary) {
         editEmpId = empId;
         editEmpType = empType;
         editCurrency = currency || 'AED';
@@ -676,8 +709,21 @@
         document.getElementById('editPayrollType').checked = (editPayrollType === 'performance');
         updateToggleLabels();
 
+        // Set salary type toggle
+        document.getElementById('editFixedSalary').checked = !!isFixedSalary;
+        updateFixedSalaryLabels();
+
         selectCurrency(editCurrency);
         document.getElementById('editModal').classList.add('show');
+    }
+
+    function updateFixedSalaryLabels() {
+        const isFixed = document.getElementById('editFixedSalary').checked;
+        document.getElementById('lblActualSalary').classList.toggle('active', !isFixed);
+        document.getElementById('lblFixedSalary').classList.toggle('active', isFixed);
+        document.getElementById('fixedSalaryHint').textContent = isFixed
+            ? 'Fixed: a single punch / call on a day marks the employee Present — full salary regardless of duration'
+            : 'Attendance-based: salary based on actual attendance & talk minutes';
     }
 
     function updateToggleLabels() {
@@ -725,6 +771,7 @@
         const designation = document.getElementById('editDesig').value.trim();
         const department = document.getElementById('editDept').value;
         const payrollType = document.getElementById('editPayrollType').checked ? 'performance' : 'attendance';
+        const isFixedSalary = document.getElementById('editFixedSalary').checked;
 
         btn.disabled = true;
         btn.textContent = 'Saving...';
@@ -739,6 +786,7 @@
                     designation: designation,
                     department: department,
                     payroll_type: payrollType,
+                    is_fixed_salary: isFixedSalary,
                 }),
             });
             const data = await res.json();
@@ -768,6 +816,22 @@
                         ptypeEl.innerHTML = `<span class="badge badge-performance">Performance</span>`;
                     } else {
                         ptypeEl.innerHTML = `<span class="badge badge-attendance">Attendance</span>`;
+                    }
+                }
+                const stypeEl = document.getElementById(`stype-${editEmpType}-${editEmpId}`);
+                if (stypeEl) {
+                    stypeEl.innerHTML = data.is_fixed_salary
+                        ? `<span class="badge badge-fixed">Fixed</span>`
+                        : `<span class="badge badge-actual">Attendance-based</span>`;
+                }
+                // Refresh the row's edit button so a re-open keeps the new value
+                const rowEl = document.getElementById(`row-${editEmpType}-${editEmpId}`);
+                if (rowEl) {
+                    const btnEl = rowEl.querySelector('.btn-edit');
+                    if (btnEl) {
+                        btnEl.setAttribute('onclick',
+                            `openEdit('${editEmpType}', ${editEmpId}, ${JSON.stringify(document.getElementById('editEmpName').textContent)}, ${JSON.stringify(data.designation || '')}, ${data.salary !== null ? data.salary : 'null'}, '${data.currency}', '${data.department || ''}', '${data.payroll_type}', ${data.is_fixed_salary ? 'true' : 'false'})`
+                        );
                     }
                 }
 

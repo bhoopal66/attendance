@@ -1337,6 +1337,9 @@ def payroll_employee_update(request, emp_type, employee_id):
             return JsonResponse({'success': False, 'error': 'Invalid payroll type'}, status=400)
         emp.payroll_type = pt
 
+    if 'is_fixed_salary' in data:
+        emp.is_fixed_salary = bool(data['is_fixed_salary'])
+
     emp.save()
     logger.info("Payroll employee updated: %s (%s) by %s", emp.name, emp_type, request.user.username)
     return JsonResponse({
@@ -1346,6 +1349,7 @@ def payroll_employee_update(request, emp_type, employee_id):
         'designation': emp.designation or '',
         'department': emp.department or '',
         'payroll_type': emp.payroll_type,
+        'is_fixed_salary': emp.is_fixed_salary,
     })
 
 
