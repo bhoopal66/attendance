@@ -119,6 +119,13 @@ def _build_period_from_data(data):
     return period
 
 
+def _parse_int_or_none(value):
+    """Parse a string to int, returning None if blank/missing."""
+    if value is None or str(value).strip() == '':
+        return None
+    return int(value)
+
+
 def _apply_data_to_period(period, data):
     period.name = (data.get('name') or '').strip()
     if not period.name:
@@ -129,6 +136,13 @@ def _apply_data_to_period(period, data):
     period.shift_end = _parse_time(data['shift_end'])
     period.sat_shift_start = _parse_time(data.get('sat_shift_start'))
     period.sat_shift_end = _parse_time(data.get('sat_shift_end'))
+    # Remote employee call-minute thresholds
+    period.remote_weekday_half_day_mins = _parse_int_or_none(data.get('remote_weekday_half_day_mins'))
+    period.remote_weekday_present_mins = _parse_int_or_none(data.get('remote_weekday_present_mins'))
+    period.remote_friday_half_day_mins = _parse_int_or_none(data.get('remote_friday_half_day_mins'))
+    period.remote_friday_present_mins = _parse_int_or_none(data.get('remote_friday_present_mins'))
+    period.remote_saturday_half_day_mins = _parse_int_or_none(data.get('remote_saturday_half_day_mins'))
+    period.remote_saturday_present_mins = _parse_int_or_none(data.get('remote_saturday_present_mins'))
     period.notes = (data.get('notes') or '').strip()
 
 
@@ -149,6 +163,12 @@ def _serialize_period(period):
         'shift_end': period.shift_end.strftime('%H:%M'),
         'sat_shift_start': period.sat_shift_start.strftime('%H:%M') if period.sat_shift_start else '',
         'sat_shift_end': period.sat_shift_end.strftime('%H:%M') if period.sat_shift_end else '',
+        'remote_weekday_half_day_mins': period.remote_weekday_half_day_mins or '',
+        'remote_weekday_present_mins': period.remote_weekday_present_mins or '',
+        'remote_friday_half_day_mins': period.remote_friday_half_day_mins or '',
+        'remote_friday_present_mins': period.remote_friday_present_mins or '',
+        'remote_saturday_half_day_mins': period.remote_saturday_half_day_mins or '',
+        'remote_saturday_present_mins': period.remote_saturday_present_mins or '',
         'notes': period.notes,
         'status': status,
     }

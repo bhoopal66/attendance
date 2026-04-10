@@ -20,8 +20,10 @@ from ..models import (
     RemoteCallRecord, RemoteEmployee, RemoteMonthlySummary,
 )
 from .utils import (
-    MONTH_NAMES, get_employee_shift_for_date, get_holiday_data,
-    get_saturday_shift, get_selected_month_year,
+    MONTH_NAMES, get_active_special_periods_for_month,
+    get_employee_shift_for_date, get_holiday_data,
+    get_remote_thresholds_from_period, get_saturday_shift,
+    get_selected_month_year,
 )
 
 logger = logging.getLogger('attendance')
@@ -410,6 +412,7 @@ def download_remote_employee_report(request, employee_id):
     month_end = datetime.date(selected_year, selected_month, days_in_month)
 
     holiday_dates, _, _ = get_holiday_data(month_start, month_end)
+    special_periods = get_active_special_periods_for_month(month_start, month_end)
 
     records = RemoteCallRecord.objects.filter(
         employee=employee,
@@ -462,11 +465,21 @@ def download_remote_employee_report(request, employee_id):
             total_calls += answered_calls
             total_talk_minutes += talk_min
 
-            if record.attendance_status == 'present':
+            # Check for special shift period with remote thresholds
+            active_period = None
+            if special_periods:
+                active_period = next(
+                    (p for p in special_periods if p.start_date <= date <= p.end_date),
+                    None
+                )
+            remote_thresholds = get_remote_thresholds_from_period(active_period) if active_period else None
+            att_status = record.calculate_attendance_status(thresholds=remote_thresholds) if remote_thresholds else record.attendance_status
+
+            if att_status == 'present':
                 status = "Present"
                 fill = GREEN_FILL
                 present_days += 1
-            elif record.attendance_status == 'half_day':
+            elif att_status == 'half_day':
                 status = "Half Day"
                 fill = YELLOW_FILL
                 half_days += 1

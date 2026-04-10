@@ -81,6 +81,22 @@ def get_active_special_periods_for_month(month_start, month_end):
     ).order_by('start_date'))
 
 
+def get_remote_thresholds_from_period(period):
+    """
+    Extract remote call-minute thresholds from a SpecialShiftPeriod.
+    Returns a dict suitable for RemoteCallRecord.calculate_attendance_status(),
+    or None if the period has no remote thresholds set.
+    """
+    thresholds = {}
+    if period.remote_weekday_half_day_mins is not None:
+        thresholds['weekday'] = (period.remote_weekday_half_day_mins, period.remote_weekday_present_mins)
+    if period.remote_friday_half_day_mins is not None:
+        thresholds['friday'] = (period.remote_friday_half_day_mins, period.remote_friday_present_mins)
+    if period.remote_saturday_half_day_mins is not None:
+        thresholds['saturday'] = (period.remote_saturday_half_day_mins, period.remote_saturday_present_mins)
+    return thresholds or None
+
+
 def get_employee_shift_for_date(employee, target_date):
     """
     Get employee's shift timings for a specific date using 3-tier lookup strategy.

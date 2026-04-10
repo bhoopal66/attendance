@@ -16,8 +16,10 @@ from ..models import (
 )
 from .utils import (
     MONTH_CHOICES, MONTH_NAMES, WEEKDAY_HEADERS, YEAR_RANGE,
-    build_calendar_grid, get_approved_leave_days,
-    get_employee_shift_for_date, get_holiday_data, get_saturday_shift,
+    build_calendar_grid, get_active_special_periods_for_month,
+    get_approved_leave_days,
+    get_employee_shift_for_date, get_holiday_data,
+    get_remote_thresholds_from_period, get_saturday_shift,
     get_selected_month_year,
 )
 
@@ -224,7 +226,7 @@ def _build_inhouse_portal_data(employee, selected_year, selected_month, cal_data
 
 
 def _build_remote_portal_data(employee, selected_year, selected_month, cal_data,
-                              holiday_dates, current_day):
+                              holiday_dates, current_day, special_periods=None):
     """Build calendar and summary data for a remote employee portal view."""
     days_in_month = cal_data['days_in_month']
 
@@ -259,10 +261,24 @@ def _build_remote_portal_data(employee, selected_year, selected_month, cal_data,
             talk_minutes = int(record.total_talk_duration.total_seconds() / 60) if record.total_talk_duration else 0
             total_talk_seconds += record.total_talk_duration.total_seconds() if record.total_talk_duration else 0
 
-            if record.attendance_status == 'present':
+            # Check for special shift period with remote thresholds
+            active_period = None
+            if special_periods:
+                active_period = next(
+                    (p for p in special_periods if p.start_date <= date <= p.end_date),
+                    None
+                )
+            remote_thresholds = get_remote_thresholds_from_period(active_period) if active_period else None
+
+            if remote_thresholds:
+                att_status = record.calculate_attendance_status(thresholds=remote_thresholds)
+            else:
+                att_status = record.attendance_status
+
+            if att_status == 'present':
                 status = 'green'
                 summary['present_days'] += 1
-            elif record.attendance_status == 'half_day':
+            elif att_status == 'half_day':
                 status = 'yellow'
                 summary['half_days'] += 1
             else:
@@ -327,8 +343,10 @@ def employee_portal(request):
         except RemoteEmployee.DoesNotExist:
             return redirect('employee_logout')
 
+        special_periods = get_active_special_periods_for_month(month_start, month_end)
         calendar_data, summary = _build_remote_portal_data(
-            employee, selected_year, selected_month, cal_data, holiday_dates, current_day
+            employee, selected_year, selected_month, cal_data, holiday_dates, current_day,
+            special_periods=special_periods
         )
         context = {
             'employee': employee,

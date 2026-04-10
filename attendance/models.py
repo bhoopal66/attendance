@@ -119,11 +119,13 @@ class Holiday(models.Model):
 
 class SpecialShiftPeriod(models.Model):
     """
-    A named date range during which all in-house employees work different hours.
+    A named date range during which employees work different hours / thresholds.
     e.g., Ramadan working hours (9:00 AM - 4:00 PM) for a specific date range.
 
     During this period, the special shift overrides each employee's normal shift
     when computing attendance status in the report.
+
+    For remote employees, call-minute thresholds can be overridden per day type.
     """
     name = models.CharField(max_length=100, help_text="e.g., 'Ramadan 2025'")
     start_date = models.DateField()
@@ -137,6 +139,31 @@ class SpecialShiftPeriod(models.Model):
     sat_shift_end = models.TimeField(
         null=True, blank=True,
         help_text="Saturday shift end (leave blank to keep the regular 2:00 PM)"
+    )
+    # Remote employee call-minute thresholds (leave blank to keep defaults)
+    remote_weekday_half_day_mins = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Mon-Thu: minimum talk minutes for half day (default 45)"
+    )
+    remote_weekday_present_mins = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Mon-Thu: minimum talk minutes for present (default 90)"
+    )
+    remote_friday_half_day_mins = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Friday: minimum talk minutes for half day (default 30)"
+    )
+    remote_friday_present_mins = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Friday: minimum talk minutes for present (default 60)"
+    )
+    remote_saturday_half_day_mins = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Saturday: minimum talk minutes for half day (default 21)"
+    )
+    remote_saturday_present_mins = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Saturday: minimum talk minutes for present (default 45)"
     )
     notes = models.TextField(blank=True, help_text="Optional notes about this period")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -155,6 +182,16 @@ class SpecialShiftPeriod(models.Model):
             raise ValidationError({'shift_end': "Shift end must be after shift start."})
         if bool(self.sat_shift_start) != bool(self.sat_shift_end):
             raise ValidationError("Both Saturday shift start and end must be set together.")
+        # Validate remote thresholds: half_day must be less than present
+        for label, hd, pr in [
+            ('Mon-Thu', self.remote_weekday_half_day_mins, self.remote_weekday_present_mins),
+            ('Friday', self.remote_friday_half_day_mins, self.remote_friday_present_mins),
+            ('Saturday', self.remote_saturday_half_day_mins, self.remote_saturday_present_mins),
+        ]:
+            if hd is not None and pr is not None and hd >= pr:
+                raise ValidationError(f"{label} remote: half-day minutes must be less than present minutes.")
+            if bool(hd is not None) != bool(pr is not None):
+                raise ValidationError(f"{label} remote: both half-day and present thresholds must be set together.")
 
 
 class Employee(BaseEmployee):
@@ -317,17 +354,23 @@ class RemoteCallRecord(models.Model):
     def __str__(self):
         return f"{self.employee.name} - {self.date} ({self.attendance_status})"
 
-    def calculate_attendance_status(self):
+    # Default call-minute thresholds per day type: (half_day_min, present_min)
+    DEFAULT_THRESHOLDS = {
+        'weekday': (45, 90),    # Mon-Thu
+        'friday': (30, 60),
+        'saturday': (21, 45),
+    }
+
+    def calculate_attendance_status(self, thresholds=None):
         """
         Calculate attendance status based on talk duration and day of week.
 
-        Rules:
-        - Mon-Thu: <45min=Absent, 45-89min=Half Day, >=90min=Present
-        - Friday: <30min=Absent, 30-59min=Half Day, >=60min=Present
-        - Saturday: <=20min=Absent, 21-44min=Half Day, >=45min=Present
-        - Sunday: Holiday (no attendance calculation)
+        Args:
+            thresholds: Optional dict with keys 'weekday', 'friday', 'saturday',
+                        each mapping to (half_day_min, present_min) tuples.
+                        Falls back to DEFAULT_THRESHOLDS for any missing key.
 
-        Fixed salary employees: any call activity (answered calls or talk duration) = Present.
+        Fixed salary employees: any call activity = Present.
         """
         if self.employee.is_fixed_salary:
             total_calls = (self.answered_calls or 0) + (self.no_answered or 0) + (self.busy or 0) + (self.failed or 0)
@@ -341,27 +384,21 @@ class RemoteCallRecord(models.Model):
 
         if weekday == 6:  # Sunday - Holiday
             return 'present'
-        elif weekday == 5:  # Saturday
-            if talk_minutes >= 45:
-                return 'present'
-            elif talk_minutes >= 21:
-                return 'half_day'
-            else:
-                return 'absent'
+
+        t = thresholds or {}
+        if weekday == 5:  # Saturday
+            half_min, present_min = t.get('saturday', self.DEFAULT_THRESHOLDS['saturday'])
         elif weekday == 4:  # Friday
-            if talk_minutes >= 60:
-                return 'present'
-            elif talk_minutes >= 30:
-                return 'half_day'
-            else:
-                return 'absent'
+            half_min, present_min = t.get('friday', self.DEFAULT_THRESHOLDS['friday'])
         else:  # Monday-Thursday
-            if talk_minutes >= 90:
-                return 'present'
-            elif talk_minutes >= 45:
-                return 'half_day'
-            else:
-                return 'absent'
+            half_min, present_min = t.get('weekday', self.DEFAULT_THRESHOLDS['weekday'])
+
+        if talk_minutes >= present_min:
+            return 'present'
+        elif talk_minutes >= half_min:
+            return 'half_day'
+        else:
+            return 'absent'
 
     def save(self, *args, **kwargs):
         self.attendance_status = self.calculate_attendance_status()

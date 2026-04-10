@@ -18,7 +18,7 @@ from .utils import (
     build_calendar_grid, count_holidays_in_range,
     get_bulk_approved_leave_days, get_bulk_employee_shifts,
     get_active_special_periods_for_month, get_common_report_context,
-    get_holiday_data, get_saturday_shift,
+    get_holiday_data, get_remote_thresholds_from_period, get_saturday_shift,
     get_selected_month_year,
 )
 
@@ -361,6 +361,7 @@ def remote_attendance_report(request):
     month_end = cal_data['month_end']
 
     holiday_dates, holiday_names, holidays_qs = get_holiday_data(month_start, month_end)
+    special_periods = get_active_special_periods_for_month(month_start, month_end)
 
     today = datetime.date.today()
     is_current_month = selected_year == today.year and selected_month == today.month
@@ -407,14 +408,27 @@ def remote_attendance_report(request):
                     total_talk_seconds += record.total_talk_duration.total_seconds()
 
                 answered_calls = record.answered_calls
-                status = record.attendance_status
+
+                # Check if a special shift period applies and has remote thresholds
+                active_period = None
+                if special_periods:
+                    active_period = next(
+                        (p for p in special_periods if p.start_date <= date_obj <= p.end_date),
+                        None
+                    )
+                remote_thresholds = get_remote_thresholds_from_period(active_period) if active_period else None
+
+                if remote_thresholds:
+                    status = record.calculate_attendance_status(thresholds=remote_thresholds)
+                else:
+                    status = record.attendance_status
 
                 if not is_sunday:
-                    if record.attendance_status == 'present':
+                    if status == 'present':
                         present_count += 1
-                    elif record.attendance_status == 'half_day':
+                    elif status == 'half_day':
                         half_day_count += 1
-                    elif record.attendance_status == 'absent':
+                    elif status == 'absent':
                         absent_count += 1
 
             elif day < current_day:

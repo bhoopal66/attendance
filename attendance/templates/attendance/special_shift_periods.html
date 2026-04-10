@@ -49,6 +49,7 @@
 .period-shifts { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .shift-chip { background: #f3f4f6; border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.78rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.3rem; }
 .shift-chip.special { background: #ede9fe; color: #6d28d9; font-weight: 600; }
+.shift-chip.remote-chip { background: #dcfce7; color: #15803d; font-weight: 600; }
 .period-notes { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.35rem; font-style: italic; }
 
 .period-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
@@ -103,7 +104,7 @@
     <!-- Info Banner -->
     <div class="info-banner">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span>During an active period, the special shift hours automatically replace each employee's normal shift when computing attendance status in reports. No need to update individual employees.</span>
+        <span>During an active period, the special shift hours automatically replace each in-house employee's normal shift, and remote employee call-minute thresholds are adjusted when computing attendance status in reports. No need to update individual employees.</span>
     </div>
 
     <!-- Period List -->
@@ -135,12 +136,41 @@
                     <div class="shift-chip">Saturday: regular (10:00–14:00)</div>
                     {% endif %}
                 </div>
+                {% if period.remote_weekday_half_day_mins %}
+                <div class="period-shifts" style="margin-top: 0.3rem;">
+                    <div class="shift-chip remote-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                        Remote Mon–Thu: {{ period.remote_weekday_half_day_mins }}–{{ period.remote_weekday_present_mins }} min
+                    </div>
+                    {% if period.remote_friday_half_day_mins %}
+                    <div class="shift-chip remote-chip">Fri: {{ period.remote_friday_half_day_mins }}–{{ period.remote_friday_present_mins }} min</div>
+                    {% endif %}
+                    {% if period.remote_saturday_half_day_mins %}
+                    <div class="shift-chip remote-chip">Sat: {{ period.remote_saturday_half_day_mins }}–{{ period.remote_saturday_present_mins }} min</div>
+                    {% endif %}
+                </div>
+                {% endif %}
                 {% if period.notes %}
                 <div class="period-notes">{{ period.notes }}</div>
                 {% endif %}
             </div>
             <div class="period-actions">
-                <button class="btn-ghost" onclick="openEditModal({{ period.id }}, '{{ period.name|escapejs }}', '{{ period.start_date|date:'Y-m-d' }}', '{{ period.end_date|date:'Y-m-d' }}', '{{ period.shift_start|time:'H:i' }}', '{{ period.shift_end|time:'H:i' }}', '{% if period.sat_shift_start %}{{ period.sat_shift_start|time:'H:i' }}{% endif %}', '{% if period.sat_shift_end %}{{ period.sat_shift_end|time:'H:i' }}{% endif %}', '{{ period.notes|escapejs }}')">Edit</button>
+                <button class="btn-ghost" onclick='openEditModal({{ period.id }}, {
+                    "name": "{{ period.name|escapejs }}",
+                    "start_date": "{{ period.start_date|date:'Y-m-d' }}",
+                    "end_date": "{{ period.end_date|date:'Y-m-d' }}",
+                    "shift_start": "{{ period.shift_start|time:'H:i' }}",
+                    "shift_end": "{{ period.shift_end|time:'H:i' }}",
+                    "sat_shift_start": "{% if period.sat_shift_start %}{{ period.sat_shift_start|time:'H:i' }}{% endif %}",
+                    "sat_shift_end": "{% if period.sat_shift_end %}{{ period.sat_shift_end|time:'H:i' }}{% endif %}",
+                    "remote_weekday_half_day_mins": "{{ period.remote_weekday_half_day_mins|default_if_none:'' }}",
+                    "remote_weekday_present_mins": "{{ period.remote_weekday_present_mins|default_if_none:'' }}",
+                    "remote_friday_half_day_mins": "{{ period.remote_friday_half_day_mins|default_if_none:'' }}",
+                    "remote_friday_present_mins": "{{ period.remote_friday_present_mins|default_if_none:'' }}",
+                    "remote_saturday_half_day_mins": "{{ period.remote_saturday_half_day_mins|default_if_none:'' }}",
+                    "remote_saturday_present_mins": "{{ period.remote_saturday_present_mins|default_if_none:'' }}",
+                    "notes": "{{ period.notes|escapejs }}"
+                })'>Edit</button>
                 <button class="btn-danger" onclick="confirmDelete({{ period.id }}, '{{ period.name|escapejs }}')">Delete</button>
             </div>
         </div>
@@ -208,6 +238,42 @@
                 </div>
             </div>
 
+            <div class="form-section-label">Remote Employee Thresholds <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional — leave blank to keep defaults)</span></div>
+            <div class="form-hint" style="margin-bottom: 0.4rem;">Minimum talk minutes for half-day / present status. Defaults: Mon-Thu 45/90, Fri 30/60, Sat 21/45</div>
+            <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div class="form-group">
+                    <label>Mon–Thu Half Day</label>
+                    <input type="number" id="mRemoteWeekdayHalf" min="1" placeholder="45">
+                </div>
+                <div class="form-group">
+                    <label>Mon–Thu Present</label>
+                    <input type="number" id="mRemoteWeekdayPresent" min="1" placeholder="90">
+                </div>
+                <div></div>
+            </div>
+            <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div class="form-group">
+                    <label>Friday Half Day</label>
+                    <input type="number" id="mRemoteFridayHalf" min="1" placeholder="30">
+                </div>
+                <div class="form-group">
+                    <label>Friday Present</label>
+                    <input type="number" id="mRemoteFridayPresent" min="1" placeholder="60">
+                </div>
+                <div></div>
+            </div>
+            <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div class="form-group">
+                    <label>Saturday Half Day</label>
+                    <input type="number" id="mRemoteSatHalf" min="1" placeholder="21">
+                </div>
+                <div class="form-group">
+                    <label>Saturday Present</label>
+                    <input type="number" id="mRemoteSatPresent" min="1" placeholder="45">
+                </div>
+                <div></div>
+            </div>
+
             <div class="form-group">
                 <label for="mNotes">Notes</label>
                 <textarea id="mNotes" placeholder="Optional notes..."></textarea>
@@ -234,23 +300,35 @@ function openAddModal() {
     document.getElementById('mShiftEnd').value = '16:00';
     document.getElementById('mSatStart').value = '';
     document.getElementById('mSatEnd').value = '';
+    document.getElementById('mRemoteWeekdayHalf').value = '';
+    document.getElementById('mRemoteWeekdayPresent').value = '';
+    document.getElementById('mRemoteFridayHalf').value = '';
+    document.getElementById('mRemoteFridayPresent').value = '';
+    document.getElementById('mRemoteSatHalf').value = '';
+    document.getElementById('mRemoteSatPresent').value = '';
     document.getElementById('mNotes').value = '';
     hideError();
     document.getElementById('shiftModal').classList.add('open');
     document.getElementById('mName').focus();
 }
 
-function openEditModal(id, name, start, end, shiftStart, shiftEnd, satStart, satEnd, notes) {
+function openEditModal(id, data) {
     editingId = id;
     document.getElementById('modalTitle').textContent = 'Edit Special Shift Period';
-    document.getElementById('mName').value = name;
-    document.getElementById('mStart').value = start;
-    document.getElementById('mEnd').value = end;
-    document.getElementById('mShiftStart').value = shiftStart;
-    document.getElementById('mShiftEnd').value = shiftEnd;
-    document.getElementById('mSatStart').value = satStart;
-    document.getElementById('mSatEnd').value = satEnd;
-    document.getElementById('mNotes').value = notes;
+    document.getElementById('mName').value = data.name;
+    document.getElementById('mStart').value = data.start_date;
+    document.getElementById('mEnd').value = data.end_date;
+    document.getElementById('mShiftStart').value = data.shift_start;
+    document.getElementById('mShiftEnd').value = data.shift_end;
+    document.getElementById('mSatStart').value = data.sat_shift_start;
+    document.getElementById('mSatEnd').value = data.sat_shift_end;
+    document.getElementById('mRemoteWeekdayHalf').value = data.remote_weekday_half_day_mins;
+    document.getElementById('mRemoteWeekdayPresent').value = data.remote_weekday_present_mins;
+    document.getElementById('mRemoteFridayHalf').value = data.remote_friday_half_day_mins;
+    document.getElementById('mRemoteFridayPresent').value = data.remote_friday_present_mins;
+    document.getElementById('mRemoteSatHalf').value = data.remote_saturday_half_day_mins;
+    document.getElementById('mRemoteSatPresent').value = data.remote_saturday_present_mins;
+    document.getElementById('mNotes').value = data.notes;
     hideError();
     document.getElementById('shiftModal').classList.add('open');
 }
@@ -281,6 +359,12 @@ async function saveModal() {
         shift_end: document.getElementById('mShiftEnd').value,
         sat_shift_start: document.getElementById('mSatStart').value,
         sat_shift_end: document.getElementById('mSatEnd').value,
+        remote_weekday_half_day_mins: document.getElementById('mRemoteWeekdayHalf').value,
+        remote_weekday_present_mins: document.getElementById('mRemoteWeekdayPresent').value,
+        remote_friday_half_day_mins: document.getElementById('mRemoteFridayHalf').value,
+        remote_friday_present_mins: document.getElementById('mRemoteFridayPresent').value,
+        remote_saturday_half_day_mins: document.getElementById('mRemoteSatHalf').value,
+        remote_saturday_present_mins: document.getElementById('mRemoteSatPresent').value,
         notes: document.getElementById('mNotes').value.trim(),
     };
 
@@ -290,6 +374,20 @@ async function saveModal() {
     if (payload.end_date < payload.start_date) { showError('End date must be after start date.'); return; }
     if ((payload.sat_shift_start && !payload.sat_shift_end) || (!payload.sat_shift_start && payload.sat_shift_end)) {
         showError('Both Saturday shift start and end must be provided together.'); return;
+    }
+    // Validate remote thresholds: both half-day and present must be set together, and half < present
+    const remoteChecks = [
+        ['Mon-Thu', payload.remote_weekday_half_day_mins, payload.remote_weekday_present_mins],
+        ['Friday', payload.remote_friday_half_day_mins, payload.remote_friday_present_mins],
+        ['Saturday', payload.remote_saturday_half_day_mins, payload.remote_saturday_present_mins],
+    ];
+    for (const [label, hd, pr] of remoteChecks) {
+        if ((hd && !pr) || (!hd && pr)) {
+            showError(`${label} remote: both half-day and present minutes must be set together.`); return;
+        }
+        if (hd && pr && parseInt(hd) >= parseInt(pr)) {
+            showError(`${label} remote: half-day minutes must be less than present minutes.`); return;
+        }
     }
 
     btn.disabled = true;
