@@ -20,6 +20,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from attendance.models import (
     Employee, RemoteEmployee, Holiday,
     LeaveRequest, MonthlySummary, RemoteMonthlySummary, AnnualLeave,
+    AttendanceRecord, RemoteCallRecord,
 )
 from collections import defaultdict as _defaultdict
 from attendance.views.utils import (
@@ -303,7 +304,11 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
     else:
         display_type = 'inhouse' if (emp.location and emp.location.lower() == 'inhouse') else 'remote'
 
-    # Fixed salary: attendance-based salary, bank counts kept for record only
+    # Fixed salary: attendance-based salary, bank counts kept for record only.
+    # Present days are computed on-the-fly from raw records (a single punch / call
+    # on a workday counts as Present) so the calculation reflects the *current*
+    # fixed-salary rule even if stored summaries / attendance_status fields are
+    # stale from before the toggle was flipped.
     if emp.is_fixed_salary:
         if days_in_month is None:
             days_in_month = calendar.monthrange(year, month)[1]
@@ -312,13 +317,21 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         total_working_days = days_in_month - total_holidays
 
         if emp_type == 'inhouse':
-            summary = MonthlySummary.objects.filter(employee=emp, year=year, month=month).first()
-            absent_days = (summary.leave_days or 0) if summary else 0
+            present_days = AttendanceRecord.objects.filter(
+                employee=emp, date__year=year, date__month=month,
+                first_in__isnull=False,
+            ).count()
         else:
-            summary = RemoteMonthlySummary.objects.filter(employee=emp, year=year, month=month).first()
-            present_days = (summary.present_days or 0) if summary else 0
-            absent_days = max(0, total_working_days - present_days)
+            call_records = RemoteCallRecord.objects.filter(
+                employee=emp, date__year=year, date__month=month,
+            ).only('answered_calls', 'no_answered', 'busy', 'failed')
+            present_days = sum(
+                1 for r in call_records
+                if (r.answered_calls or 0) + (r.no_answered or 0)
+                   + (r.busy or 0) + (r.failed or 0) > 0
+            )
 
+        absent_days = max(0, total_working_days - present_days)
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
         net_payroll = round(base_salary + incentives - reductions, 2)
