@@ -213,7 +213,7 @@ def _lookup_or_create_remote_employee(extension_id, name):
         logger.info("Matched %s via alias extension_id %s → updated to %s", employee.name, extension_id, extension_id)
         return employee, False
 
-    # Tier 4: Cross-reference via in-house employee's tcr_id to find already-linked remote
+    # Tier 4: Cross-reference via in-house employee to find already-linked remote
     inhouse = _find_inhouse_by_name(name)
     if inhouse and inhouse.tcr_id:
         linked_remote = RemoteEmployee.objects.filter(tcr_id=inhouse.tcr_id).first()
@@ -226,18 +226,39 @@ def _lookup_or_create_remote_employee(extension_id, name):
                         name, inhouse.tcr_id, old_id, extension_id)
             return linked_remote, False
 
-    # Tier 5: Create new — auto-link to in-house employee if one has a tcr_id
+    # Tier 4b: Match by base name within existing remote employees
+    # Handles name variations like "Bridget (TCR Team)" vs "Bridget ( TCR Team )"
+    base_name = _strip_csv_suffix(name)
+    if base_name != name:
+        base_matches = RemoteEmployee.objects.filter(
+            name__icontains=base_name, is_active=True
+        )
+        if base_matches.count() == 1:
+            employee = base_matches.first()
+            if employee.extension_id != extension_id:
+                old_id = employee.extension_id
+                RemoteEmployeeIDAlias.objects.get_or_create(employee=employee, extension_id=old_id)
+                employee.extension_id = extension_id
+                employee.name = name  # Update to latest name from CSV
+                employee.save(update_fields=['extension_id', 'name', 'updated_at'])
+                logger.info("Matched '%s' via base name '%s' → updated extension %s → %s",
+                            name, base_name, old_id, extension_id)
+            return employee, False
+
+    # Tier 5: Create new — auto-link to in-house employee if one exists
     employee = RemoteEmployee.objects.create(extension_id=extension_id, name=name)
 
-    if inhouse and inhouse.tcr_id:
-        employee.tcr_id = inhouse.tcr_id
+    if inhouse:
+        # Copy shared fields from in-house record
+        if inhouse.tcr_id:
+            employee.tcr_id = inhouse.tcr_id
         for field in ('department', 'location', 'team', 'currency', 'is_fixed_salary',
                       'salary', 'designation', 'joining_date', 'payroll_type'):
             inhouse_val = getattr(inhouse, field, None)
             if inhouse_val is not None:
                 setattr(employee, field, inhouse_val)
         employee.save()
-        logger.info("Auto-linked new remote employee '%s' to in-house via TCR ID %s", name, inhouse.tcr_id)
+        logger.info("Auto-copied fields from in-house '%s' to new remote employee", inhouse.name)
 
     logger.info("Created new remote employee: %s (ext=%s)", name, extension_id)
     return employee, True
