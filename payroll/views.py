@@ -347,6 +347,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             'daily_rate': round(daily_rate, 2),
             'absent_days': absent_days,
             'deduction': round(deduction, 2),
+            'base_salary': base_salary,
             'bank_counts_list': bank_counts_list,
             'commission': round(commission, 2),
             'incentives': round(incentives, 2),
@@ -1695,8 +1696,8 @@ def download_payslip(request, emp_type, emp_id):
         incentives = payroll['incentives']
         commission = payroll['commission']
         reductions = payroll['reductions']
-        absent_days_display = 0
-        basic_full = 0.0
+        absent_days_display = payroll.get('absent_days', 0)
+        basic_full = payroll.get('base_salary', 0.0)
         allowance_full = 0.0
         att_leave_ded = 0.0
         att_late_ded = 0.0
