@@ -354,9 +354,13 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         }
 
     # Attendance-based: salary scales with actual attendance, plus any commission.
-    # Half days count as 0.5 of a working day. Statuses are recomputed on-the-fly
-    # from raw call records so the math is correct even if stored statuses are
-    # stale from a previous fixed-salary configuration.
+    # In-house: any punch-in counts as present (half-day detection lives in the
+    # report layer). Remote: status is determined by talk-time thresholds via
+    # calculate_attendance_status() — call counts are ignored. Both 'present'
+    # and 'half_day' talk time count as a full worked day for payroll; only
+    # fully absent days (talk below the half-day threshold or no record at all)
+    # reduce the salary. Sundays + custom holidays are excluded from the
+    # working-day denominator and from the present count.
     if getattr(emp, 'payroll_type', 'attendance') == 'attendance' and emp.salary:
         if days_in_month is None:
             days_in_month = calendar.monthrange(year, month)[1]
@@ -369,12 +373,8 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                 employee=emp, date__year=year, date__month=month,
                 first_in__isnull=False,
             ).count()
-            half_days = 0  # in-house half-day detection lives in the report layer
+            half_days = 0
         else:
-            # Skip Sundays + custom holidays: they're already excluded from
-            # total_working_days, and calculate_attendance_status() returns
-            # 'present' for any Sunday with talk_duration, which would
-            # double-discount them and understate absent days.
             holiday_dates = set(
                 Holiday.objects.filter(
                     date__year=year, date__month=month
@@ -394,7 +394,8 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                 elif status == 'half_day':
                     half_days += 1
 
-        effective_present = present_days + (half_days * 0.5)
+        # Half-day talk time still counts as a worked day for payroll purposes.
+        effective_present = present_days + half_days
         absent_days = max(0, total_working_days - effective_present)
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
