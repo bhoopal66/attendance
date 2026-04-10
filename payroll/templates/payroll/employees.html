@@ -175,36 +175,90 @@
     .badge-attendance { background: #dbeafe; color: #1d4ed8; }
     .badge-performance { background: #fef3c7; color: #92400e; }
 
-    /* 3-way salary type selector */
+    /* 3-way salary type selector — stacked rows */
     .stype-pills {
         display: flex;
+        flex-direction: column;
         gap: 8px;
     }
     .stype-pill {
-        flex: 1;
-        padding: 10px 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 12px 14px;
         border: 2px solid #e2e8f0;
-        border-radius: 8px;
+        border-radius: 10px;
         background: white;
         cursor: pointer;
-        text-align: center;
-        font-size: 0.78rem;
-        font-weight: 600;
-        color: #64748b;
+        text-align: left;
+        font-family: inherit;
+        color: #1e293b;
         transition: all 0.15s;
-        line-height: 1.2;
+        line-height: 1.3;
+    }
+    .stype-pill:hover:not(.selected) {
+        border-color: #94a3b8;
+        background: #f8fafc;
+    }
+    .stype-pill .pill-radio {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 2px solid #cbd5e1;
+        background: white;
+        position: relative;
+        transition: all 0.15s;
+    }
+    .stype-pill.selected .pill-radio::after {
+        content: '';
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    .stype-pill .pill-text {
+        flex: 1;
+        min-width: 0;
+    }
+    .stype-pill .pill-title {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #0f172a;
     }
     .stype-pill .pill-sub {
         display: block;
-        font-size: 0.66rem;
-        font-weight: 500;
-        margin-top: 3px;
-        opacity: 0.75;
+        font-size: 0.75rem;
+        font-weight: 400;
+        color: #64748b;
+        margin-top: 2px;
     }
-    .stype-pill:hover:not(.selected) { border-color: #94a3b8; }
-    .stype-pill.selected.fixed { border-color: #16a34a; background: #dcfce7; color: #166534; }
-    .stype-pill.selected.attendance { border-color: #1d4ed8; background: #dbeafe; color: #1d4ed8; }
-    .stype-pill.selected.performance { border-color: #d97706; background: #fef3c7; color: #92400e; }
+
+    .stype-pill.selected.fixed {
+        border-color: #16a34a;
+        background: #f0fdf4;
+        color: #16a34a;
+    }
+    .stype-pill.selected.fixed .pill-title { color: #166534; }
+    .stype-pill.selected.fixed .pill-sub { color: #15803d; }
+
+    .stype-pill.selected.attendance {
+        border-color: #2563eb;
+        background: #eff6ff;
+        color: #2563eb;
+    }
+    .stype-pill.selected.attendance .pill-title { color: #1d4ed8; }
+    .stype-pill.selected.attendance .pill-sub { color: #1e40af; }
+
+    .stype-pill.selected.performance {
+        border-color: #d97706;
+        background: #fffbeb;
+        color: #d97706;
+    }
+    .stype-pill.selected.performance .pill-title { color: #92400e; }
+    .stype-pill.selected.performance .pill-sub { color: #b45309; }
 
     .btn-edit {
         padding: 5px 12px;
@@ -648,19 +702,27 @@
                 <label>Salary Type</label>
                 <div class="stype-pills">
                     <button type="button" class="stype-pill fixed" id="pillFixed" onclick="selectSalaryType('fixed')">
-                        Fixed
-                        <span class="pill-sub">1 punch / call = paid</span>
+                        <span class="pill-radio"></span>
+                        <span class="pill-text">
+                            <span class="pill-title">Fixed</span>
+                            <span class="pill-sub">A single punch / call marks the day Present</span>
+                        </span>
                     </button>
                     <button type="button" class="stype-pill attendance" id="pillAttendance" onclick="selectSalaryType('attendance')">
-                        Attendance-Based
-                        <span class="pill-sub">deducts for absences</span>
+                        <span class="pill-radio"></span>
+                        <span class="pill-text">
+                            <span class="pill-title">Attendance-Based</span>
+                            <span class="pill-sub">Salary scales with actual attendance, deductions apply</span>
+                        </span>
                     </button>
                     <button type="button" class="stype-pill performance" id="pillPerformance" onclick="selectSalaryType('performance')">
-                        Performance-Based
-                        <span class="pill-sub">no attendance deductions</span>
+                        <span class="pill-radio"></span>
+                        <span class="pill-text">
+                            <span class="pill-title">Performance-Based</span>
+                            <span class="pill-sub">Commission only, no attendance deductions</span>
+                        </span>
                     </button>
                 </div>
-                <div id="salaryTypeHint" style="font-size:0.72rem;color:#94a3b8;margin-top:6px;"></div>
             </div>
 
             <div class="form-row">
@@ -730,15 +792,6 @@
         document.getElementById('pillFixed').classList.toggle('selected', type === 'fixed');
         document.getElementById('pillAttendance').classList.toggle('selected', type === 'attendance');
         document.getElementById('pillPerformance').classList.toggle('selected', type === 'performance');
-
-        const hint = document.getElementById('salaryTypeHint');
-        if (type === 'fixed') {
-            hint.textContent = 'A single punch / call on a workday marks the employee Present — full salary regardless of duration.';
-        } else if (type === 'performance') {
-            hint.textContent = 'No attendance deductions. Pay comes from commissions / bank submissions.';
-        } else {
-            hint.textContent = 'Salary scales with actual attendance. Late, half-day and leave deductions apply.';
-        }
     }
 
     function onDeptChange() {
