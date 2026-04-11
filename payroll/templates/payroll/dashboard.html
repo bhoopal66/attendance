@@ -2089,7 +2089,7 @@
             <!-- Amount + autofill -->
             <div class="form-row" style="align-items:flex-end;">
                 <div class="form-group">
-                    <label>Amount (AED)</label>
+                    <label id="dedAmountLabel">Amount (AED)</label>
                     <input type="number" id="dedAmount" step="0.01" min="0.01" placeholder="0.00" oninput="updateSplitPreview()">
                 </div>
                 <div id="dedAutofillWrap" style="display:none;flex-shrink:0;padding-bottom:1px;">
@@ -2793,6 +2793,7 @@
         document.getElementById('dedError').style.display = 'none';
         document.getElementById('dedAutofillInfo').style.display = 'none';
         document.getElementById('dedAutofillWrap').style.display = 'none';
+        document.getElementById('dedAmountLabel').textContent = 'Amount (AED)';
         updateSplitPreview();
 
         // Pre-select employee if called from a row's + button
@@ -2803,7 +2804,7 @@
                     break;
                 }
             }
-            onDedCategoryChange();
+            onDedEmployeeChange();
         }
 
         document.getElementById('deductionModal').classList.add('show');
@@ -2814,6 +2815,9 @@
     }
 
     function onDedEmployeeChange() {
+        const currency = getSelectedEmpCurrency();
+        document.getElementById('dedAmountLabel').textContent = `Amount (${currency})`;
+        updateSplitPreview();
         onDedCategoryChange(); // Re-evaluate autofill button visibility
     }
 
