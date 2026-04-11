@@ -683,10 +683,10 @@ def payroll_dashboard(request):
 
     # All employees for Add modal dropdown
     all_employees_json = json.dumps([
-        {'id': emp.id, 'name': emp.name, 'type': 'inhouse', 'dept': emp.department or ''}
+        {'id': emp.id, 'name': emp.name, 'type': 'inhouse', 'dept': emp.department or '', 'currency': emp.currency}
         for emp in Employee.objects.filter(is_active=True).order_by('name')
     ] + [
-        {'id': emp.id, 'name': emp.name, 'type': 'remote', 'dept': 'Remote'}
+        {'id': emp.id, 'name': emp.name, 'type': 'remote', 'dept': 'Remote', 'currency': emp.currency}
         for emp in RemoteEmployee.objects.filter(is_active=True).order_by('name')
     ])
 

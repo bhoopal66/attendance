@@ -2778,6 +2778,7 @@
             const opt = document.createElement('option');
             opt.value = emp.id;
             opt.dataset.type = emp.type;
+            opt.dataset.currency = emp.currency || 'AED';
             opt.textContent = `${emp.name}${emp.dept ? ' (' + emp.dept + ')' : ''}`;
             sel.appendChild(opt);
         });
@@ -2828,11 +2829,18 @@
         document.getElementById('dedAutofillInfo').style.display = 'none';
     }
 
+    function getSelectedEmpCurrency() {
+        const empSel = document.getElementById('dedEmployee');
+        const selectedOpt = empSel.options[empSel.selectedIndex];
+        return (selectedOpt && selectedOpt.dataset.currency) || 'AED';
+    }
+
     function updateSplitPreview() {
         const amount = parseFloat(document.getElementById('dedAmount').value) || 0;
         const split = Math.max(1, parseInt(document.getElementById('dedSplitMonths').value) || 1);
         const perMonth = amount > 0 ? (amount / split).toFixed(2) : '—';
-        document.getElementById('dedSplitPreview').textContent = amount > 0 ? `AED ${perMonth}` : '—';
+        const currency = getSelectedEmpCurrency();
+        document.getElementById('dedSplitPreview').textContent = amount > 0 ? `${currency} ${perMonth}` : '—';
     }
 
     async function loadAutofill() {
@@ -2856,11 +2864,12 @@
                 document.getElementById('dedAmount').value = amount.toFixed(2);
                 updateSplitPreview();
 
+                const currency = getSelectedEmpCurrency();
                 let info = '';
                 if (cat === 'leave_deduction') {
-                    info = `Absent days: ${data.absent_days} × AED ${data.daily_rate}/day = AED ${data.leave_amount.toFixed(2)}`;
+                    info = `Absent days: ${data.absent_days} × ${currency} ${data.daily_rate}/day = ${currency} ${data.leave_amount.toFixed(2)}`;
                 } else {
-                    info = `Late days: ${data.late_days} → ${data.late_half_days} half-day deductions × AED ${(data.daily_rate * 0.5).toFixed(2)} = AED ${data.late_amount.toFixed(2)}`;
+                    info = `Late days: ${data.late_days} → ${data.late_half_days} half-day deductions × ${currency} ${(data.daily_rate * 0.5).toFixed(2)} = ${currency} ${data.late_amount.toFixed(2)}`;
                 }
                 const infoEl = document.getElementById('dedAutofillInfo');
                 infoEl.style.display = 'block';
