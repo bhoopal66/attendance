@@ -33,4 +33,6 @@ urlpatterns = [
     path('payslip/<str:emp_type>/<int:emp_id>/', views.download_payslip, name='download_payslip'),
     # Advance payment voucher
     path('voucher/advance/', views.advance_voucher_download, name='advance_voucher'),
+    # Exchange rate
+    path('api/exchange-rate/save/', views.save_exchange_rate, name='save_exchange_rate'),
 ]

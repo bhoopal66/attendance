@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PayrollAdjustment, Bank, BankSubmission
+from .models import PayrollAdjustment, Bank, BankSubmission, ExchangeRate
 
 
 @admin.register(PayrollAdjustment)
@@ -39,3 +39,10 @@ class BankSubmissionAdmin(admin.ModelAdmin):
     def get_commission(self, obj):
         return f"AED {obj.commission:.2f}"
     get_commission.short_description = 'Commission'
+
+
+@admin.register(ExchangeRate)
+class ExchangeRateAdmin(admin.ModelAdmin):
+    list_display = ('currency', 'year', 'month', 'rate', 'updated_at')
+    list_filter = ('currency', 'year')
+    ordering = ('-year', '-month')

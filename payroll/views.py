@@ -28,7 +28,7 @@ from attendance.views.utils import (
     get_selected_month_year, superuser_required,
     get_active_special_periods_for_month, get_remote_thresholds_from_period,
 )
-from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, DEDUCTION_CATEGORY_CHOICES
+from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, DEDUCTION_CATEGORY_CHOICES
 
 logger = logging.getLogger('payroll')
 
@@ -580,6 +580,24 @@ def payroll_dashboard(request):
     total_sales_commission_aed = _sales_tfoot(all_sales_rows, 'AED')
     total_sales_commission_inr = _sales_tfoot(all_sales_rows, 'INR')
 
+    # --- Exchange rate for INR → AED conversion (rate on 10th of the month) ---
+    inr_exchange_rate = None
+    inr_rate_obj = ExchangeRate.objects.filter(
+        currency='INR', year=selected_year, month=selected_month
+    ).first()
+    if inr_rate_obj:
+        inr_exchange_rate = float(inr_rate_obj.rate)
+
+    # Add net_payroll_aed to each sales row
+    for row in all_sales_data:
+        amount = row.get('net_payroll') if (row.get('is_fixed_salary') or row.get('is_attendance_based')) else row.get('commission', 0)
+        if row.get('currency', 'AED') == 'INR' and inr_exchange_rate and inr_exchange_rate > 0:
+            row['net_payroll_aed'] = round(amount / inr_exchange_rate, 2)
+        else:
+            row['net_payroll_aed'] = round(amount, 2)
+
+    total_sales_all_aed = round(sum(r['net_payroll_aed'] for r in all_sales_data), 2)
+
     grand_total = round(total_admin + total_sales, 2)
 
     # --- Section 3: Employee Deduction Spreadsheet ---
@@ -680,6 +698,12 @@ def payroll_dashboard(request):
     s3_total_ded = round(sum(r['total_deductions'] for r in section3_rows), 2)
     s3_total_add = round(sum(r['total_additions'] for r in section3_rows), 2)
     s3_net = round(s3_total_add - s3_total_ded, 2)
+    s3_total_ded_aed = round(sum(r['total_deductions'] for r in section3_rows if r.get('currency', 'AED') == 'AED'), 2)
+    s3_total_ded_inr = round(sum(r['total_deductions'] for r in section3_rows if r.get('currency', 'AED') == 'INR'), 2)
+    s3_total_add_aed = round(sum(r['total_additions'] for r in section3_rows if r.get('currency', 'AED') == 'AED'), 2)
+    s3_total_add_inr = round(sum(r['total_additions'] for r in section3_rows if r.get('currency', 'AED') == 'INR'), 2)
+    s3_net_aed = round(s3_total_add_aed - s3_total_ded_aed, 2)
+    s3_net_inr = round(s3_total_add_inr - s3_total_ded_inr, 2)
 
     # All employees for Add modal dropdown
     all_employees_json = json.dumps([
@@ -786,6 +810,11 @@ def payroll_dashboard(request):
     final_total_aed = round(sum(r['final_salary'] for r in final_rows if r.get('currency', 'AED') == 'AED'), 2)
     final_total_inr = round(sum(r['final_salary'] for r in final_rows if r.get('currency', 'AED') == 'INR'), 2)
     final_total = round(sum(r['final_salary'] for r in final_rows), 2)
+    # Combined total: convert INR to AED and add
+    if inr_exchange_rate and inr_exchange_rate > 0 and final_total_inr > 0:
+        final_total_combined_aed = round(final_total_aed + (final_total_inr / inr_exchange_rate), 2)
+    else:
+        final_total_combined_aed = final_total_aed
 
     # Carryover history for all active employees
     from django.db.models import Q as _Q
@@ -912,12 +941,20 @@ def payroll_dashboard(request):
         'total_sales_commission_inr': total_sales_commission_inr,
         'sales_incentives_total': sales_incentives_total,
         'sales_reductions_total': sales_reductions_total,
+        'inr_exchange_rate': inr_exchange_rate,
+        'total_sales_all_aed': total_sales_all_aed,
         # Deductions & Additions (Section 3)
         'section3_rows': section3_rows,
         'all_deductions_list': all_deductions_list,
         's3_total_ded': s3_total_ded,
         's3_total_add': s3_total_add,
         's3_net': s3_net,
+        's3_total_ded_aed': s3_total_ded_aed,
+        's3_total_ded_inr': s3_total_ded_inr,
+        's3_total_add_aed': s3_total_add_aed,
+        's3_total_add_inr': s3_total_add_inr,
+        's3_net_aed': s3_net_aed,
+        's3_net_inr': s3_net_inr,
         'all_employees_json': all_employees_json,
         # Carryover schedule
         'all_carryovers': all_carryovers,
@@ -927,6 +964,7 @@ def payroll_dashboard(request):
         'final_total': final_total,
         'final_total_aed': final_total_aed,
         'final_total_inr': final_total_inr,
+        'final_total_combined_aed': final_total_combined_aed,
         # Grand total
         'grand_total': grand_total,
         'grand_total_aed': grand_total_aed,
@@ -2010,3 +2048,38 @@ def advance_voucher_download(request):
         'year': year,
         'month_name': _month_full.get(month, str(month)),
     })
+
+
+# ============================================
+# Exchange Rate API
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def save_exchange_rate(request):
+    """Save or update the exchange rate for INR on the 10th of a given month."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    year = data.get('year')
+    month = data.get('month')
+    rate = data.get('rate')
+
+    if not all([year, month, rate]):
+        return JsonResponse({'success': False, 'error': 'year, month, and rate are required'}, status=400)
+
+    try:
+        rate_val = Decimal(str(rate))
+        if rate_val <= 0:
+            raise ValueError
+    except (ValueError, Exception):
+        return JsonResponse({'success': False, 'error': 'Rate must be a positive number'}, status=400)
+
+    obj, created = ExchangeRate.objects.update_or_create(
+        currency='INR', year=int(year), month=int(month),
+        defaults={'rate': rate_val},
+    )
+    return JsonResponse({'success': True, 'rate': float(obj.rate), 'created': created})
