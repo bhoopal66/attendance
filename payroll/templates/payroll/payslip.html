@@ -337,7 +337,10 @@
   </div>
 
   <!-- Title -->
-  <div class="ps-title">Payslip for the month of {{ month_name }} {{ selected_year }}</div>
+  <div class="ps-title" style="display:flex;justify-content:space-between;align-items:center;padding:7px 20px;">
+    <span>Payslip for the month of {{ month_name }} {{ selected_year }}</span>
+    <span style="font-size:9pt;font-weight:600;color:#6366f1;letter-spacing:0.5px;font-family:'SF Mono','Monaco',monospace;">{{ doc_ref }}</span>
+  </div>
 
   <!-- Employee info (4-column table matching template: label | value | label | value) -->
   <div class="ps-info">

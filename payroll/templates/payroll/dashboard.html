@@ -437,6 +437,34 @@
     .co-legend-overflow .co-legend-dot { background: #fee2e2; border: 1px solid #dc2626; }
     .co-legend-carryover .co-legend-dot { background: #fef3c7; border: 1px solid #b45309; }
 
+    /* Carryover detailed cell content */
+    .co-cell-detail { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 4px 2px; }
+    .co-cell-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid; }
+    .co-cell-overflow .co-cell-top { border-color: #fca5a5; }
+    .co-cell-carryover .co-cell-top { border-color: #fde68a; }
+    .co-cell-type-label { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .co-cell-overflow .co-cell-type-label { color: #b91c1c; }
+    .co-cell-carryover .co-cell-type-label { color: #92400e; }
+    .co-cell-total { font-size: 0.72rem; font-weight: 700; font-family: 'SF Mono', monospace; }
+    .co-cell-overflow .co-cell-total { color: #7f1d1d; }
+    .co-cell-carryover .co-cell-total { color: #78350f; }
+    .co-cat-group { margin-top: 2px; }
+    .co-cat-group-label { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; padding: 1px 0; border-bottom: 1px dashed; margin-bottom: 2px; }
+    .co-cat-group-label.ded { color: #dc2626; border-color: #fca5a5; }
+    .co-cat-group-label.add { color: #16a34a; border-color: #86efac; }
+    .co-cat-group-label.co { color: #92400e; border-color: #fde68a; }
+    .co-cat-row { display: flex; justify-content: space-between; align-items: center; padding: 1px 0; font-size: 0.67rem; }
+    .co-cat-name { color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px; }
+    .co-cat-amt { font-family: 'SF Mono', monospace; font-weight: 600; white-space: nowrap; }
+    .co-cat-amt.ded { color: #dc2626; }
+    .co-cat-amt.add { color: #16a34a; }
+    .co-cat-amt.neutral { color: #64748b; }
+    .co-cell-footer { font-size: 0.58rem; color: #94a3b8; margin-top: 4px; padding-top: 3px; border-top: 1px dashed #e2e8f0; white-space: nowrap; }
+    .co-cell-empty { color: #cbd5e1; font-size: 0.7rem; }
+    .co-voucher-btn { display: inline-flex; align-items: center; margin-left: 3px; padding: 1px 3px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 3px; color: #2563eb; text-decoration: none; flex-shrink: 0; }
+    .co-voucher-btn:hover { background: #dbeafe; }
+    .co-month-td { min-width: 130px; width: 130px; text-align: left; padding: 5px 6px; border-bottom: 1px solid #f1f5f9; border-left: 1px solid #f1f5f9; vertical-align: top; background: #fafafa; }
+
     /* Payroll Table */
     .payroll-table {
         width: 100%;
@@ -1710,7 +1738,7 @@
 
         {% if carryover_timeline %}
         <div style="padding:0 16px 10px;font-size:0.78rem;color:#64748b;">
-            Showing carry-over activity for <strong>{{ selected_year }}</strong>. Only employees with overflow in {{ selected_year }} appear here.
+            Carry-over activity for <strong>{{ selected_year }}</strong>. Red cells = overflow month (salary went negative). Amber cells = month the carryover was applied.
         </div>
         <div style="overflow-x:auto;">
         <table class="co-timeline-table">
@@ -1745,27 +1773,87 @@
                     <td class="co-month-td{% if cell %} co-cell-{{ cell.type }}{% endif %}">
                         {% if cell %}
                             {% if cell.type == 'overflow' %}
-                            <div class="co-cell-pill co-cell-pill-overflow">
-                                <span class="co-pill-label">Overflow</span>
-                                <span class="co-pill-amount">{{ cell.amount|floatformat:2 }}</span>
-                                {% if cell.cross_year %}
-                                <span class="co-pill-note">→ {{ cell.to_month }}/{{ cell.to_year }}</span>
-                                {% else %}
-                                <span class="co-pill-note">→ next month</span>
+                            <div class="co-cell-detail co-cell-overflow">
+                                <div class="co-cell-top">
+                                    <span class="co-cell-type-label">Overflow</span>
+                                    <span class="co-cell-total">{{ cell.amount|floatformat:2 }}</span>
+                                </div>
+                                {% if cell.advance_items %}
+                                <div class="co-cat-group">
+                                    <div class="co-cat-group-label ded">Advance</div>
+                                    {% for adv in cell.advance_items %}
+                                    <div class="co-cat-row">
+                                        <span class="co-cat-name" title="{{ adv.note }}">{{ adv.note }}</span>
+                                        <span style="display:flex;align-items:center;gap:2px;flex-shrink:0;">
+                                            <span class="co-cat-amt ded">-{{ adv.amount|floatformat:2 }}</span>
+                                            <a href="{% url 'advance_voucher' %}?entry_id={{ adv.entry_id }}&year={{ selected_year }}&month={{ forloop.parentloop.counter }}" title="Print Payment Voucher" class="co-voucher-btn" target="_blank">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:11px;height:11px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                            </a>
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
                                 {% endif %}
+                                {% if cell.breakdown_ded %}
+                                <div class="co-cat-group" {% if cell.advance_items %}style="margin-top:4px;"{% endif %}>
+                                    <div class="co-cat-group-label ded">Deductions</div>
+                                    {% for cat, amt in cell.breakdown_ded.items %}
+                                    <div class="co-cat-row">
+                                        <span class="co-cat-name" title="{{ cat }}">{{ cat }}</span>
+                                        <span class="co-cat-amt ded">-{{ amt|floatformat:2 }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                {% if cell.breakdown_add %}
+                                <div class="co-cat-group" style="margin-top:4px;">
+                                    <div class="co-cat-group-label add">Additions</div>
+                                    {% for cat, amt in cell.breakdown_add.items %}
+                                    <div class="co-cat-row">
+                                        <span class="co-cat-name" title="{{ cat }}">{{ cat }}</span>
+                                        <span class="co-cat-amt add">+{{ amt|floatformat:2 }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                {% if not cell.advance_items and not cell.breakdown_ded and not cell.breakdown_add %}
+                                <div style="font-size:0.62rem;color:#94a3b8;font-style:italic;padding:2px 0;">Attendance / salary shortfall</div>
+                                {% endif %}
+                                <div class="co-cell-footer">
+                                    {% if cell.cross_year %}→ {{ cell.to_month_name }} {{ cell.to_year }}{% else %}→ next month{% endif %}
+                                </div>
                             </div>
+
                             {% elif cell.type == 'carryover' %}
-                            <div class="co-cell-pill co-cell-pill-carryover">
-                                <span class="co-pill-label">Carried</span>
-                                <span class="co-pill-amount">{{ cell.overflow|floatformat:2 }}</span>
-                                {% if cell.cross_year %}
-                                <span class="co-pill-note">← {{ cell.from_month }}/{{ cell.from_year }}</span>
-                                {% else %}
-                                <span class="co-pill-note">← prev month</span>
-                                {% endif %}
-                                <span class="co-pill-status co-s-{{ cell.status }}">{{ cell.status|title }}</span>
+                            <div class="co-cell-detail co-cell-carryover">
+                                <div class="co-cell-top">
+                                    <span class="co-cell-type-label">Carried</span>
+                                    <span class="co-cell-total">{{ cell.overflow|floatformat:2 }}</span>
+                                </div>
+                                <div class="co-cat-group">
+                                    <div class="co-cat-group-label co">Applied</div>
+                                    <div class="co-cat-row">
+                                        <span class="co-cat-name">Deducted</span>
+                                        <span class="co-cat-amt ded">-{{ cell.applied|floatformat:2 }}</span>
+                                    </div>
+                                    {% if cell.remaining > 0 %}
+                                    <div class="co-cat-row">
+                                        <span class="co-cat-name" style="color:#dc2626;font-weight:600;">Pending</span>
+                                        <span class="co-cat-amt ded">{{ cell.remaining|floatformat:2 }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div style="margin-top:4px;">
+                                    <span class="co-pill-status co-s-{{ cell.status }}">{{ cell.status|title }}</span>
+                                </div>
+                                <div class="co-cell-footer">
+                                    {% if cell.cross_year %}← {{ cell.from_month_name }} {{ cell.from_year }}{% else %}← prev month{% endif %}
+                                </div>
                             </div>
                             {% endif %}
+
+                        {% else %}
+                        <span class="co-cell-empty">—</span>
                         {% endif %}
                     </td>
                     {% endfor %}
@@ -1777,11 +1865,11 @@
         <div class="co-legend">
             <span class="co-legend-item co-legend-overflow">
                 <span class="co-legend-dot"></span>
-                Salary went negative — overflow carried to next month
+                Overflow — salary went negative, excess carried to next month
             </span>
             <span class="co-legend-item co-legend-carryover">
                 <span class="co-legend-dot"></span>
-                Carryover applied as additional deduction this month
+                Carried — overflow applied as additional deduction
             </span>
         </div>
         {% else %}

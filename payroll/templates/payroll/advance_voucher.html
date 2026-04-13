@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Voucher — {{ emp.name }} — {{ month_name }} {{ year }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Calibri', Arial, sans-serif;
+    font-size: 11pt;
+    color: #1a1a1a;
+    background: #f0f0f0;
+  }
+
+  /* ── Print action bar ── */
+  .action-bar {
+    background: #1e1b4b;
+    padding: 11px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-print {
+    background: #4F46E5;
+    color: #fff;
+    border: none;
+    padding: 8px 22px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+  }
+  .btn-print:hover { background: #4338ca; }
+  .action-bar span {
+    color: #c7d2fe;
+    font-size: 0.82rem;
+  }
+
+  /* ── Voucher wrapper ── */
+  .voucher-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 16px 48px;
+    gap: 28px;
+  }
+
+  /* ── Single voucher card ── */
+  .voucher {
+    background: #fff;
+    width: 680px;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.13);
+    padding: 0;
+  }
+
+  /* ── Company header ── */
+  .v-header {
+    background: #4F46E5;
+    color: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    text-align: center;
+    padding: 12px 20px 9px;
+  }
+  .v-header h1 {
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .v-header p {
+    font-size: 8.5pt;
+    margin-top: 3px;
+    opacity: 0.88;
+  }
+
+  /* ── Voucher title band ── */
+  .v-title {
+    background: #EEF2FF;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    text-align: center;
+    padding: 10px 20px;
+    font-size: 16pt;
+    font-weight: 700;
+    color: #3730a3;
+    border-top: 1px solid #c7d2fe;
+    border-bottom: 2px solid #4F46E5;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Meta row: date + voucher number ── */
+  .v-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 28px 8px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .v-meta .v-date {
+    font-size: 10pt;
+    font-weight: 700;
+    color: #334155;
+  }
+  .v-meta .v-no {
+    font-size: 10pt;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  /* ── Details table ── */
+  .v-body {
+    padding: 18px 28px 0;
+  }
+  .v-row {
+    display: flex;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 11pt;
+  }
+  .v-row:last-child { border-bottom: none; }
+  .v-label {
+    width: 200px;
+    flex-shrink: 0;
+    color: #475569;
+    font-size: 10.5pt;
+  }
+  .v-colon {
+    width: 16px;
+    flex-shrink: 0;
+    color: #94a3b8;
+  }
+  .v-value {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 11pt;
+  }
+  .v-value.amount {
+    font-size: 12.5pt;
+    color: #1e3a8a;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Installment note */
+  .v-install-note {
+    padding: 0 28px 10px;
+    font-size: 8.5pt;
+    color: #64748b;
+    font-style: italic;
+  }
+
+  /* ── Spacer ── */
+  .v-spacer { height: 48px; }
+
+  /* ── Received + Signature row ── */
+  .v-bottom {
+    padding: 0 28px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .v-received {
+    font-size: 10.5pt;
+    color: #334155;
+  }
+  .v-received .v-received-line {
+    margin-top: 36px;
+    border-top: 1px solid #1e293b;
+    width: 160px;
+    padding-top: 5px;
+    font-size: 9pt;
+    color: #64748b;
+    text-align: center;
+  }
+  .v-sig-block {
+    text-align: center;
+  }
+  .v-sig-line-top {
+    border-top: 1px solid #1e293b;
+    width: 180px;
+    margin-bottom: 5px;
+    margin-top: 36px;
+  }
+  .v-sig-label {
+    font-size: 9pt;
+    color: #64748b;
+  }
+
+  /* ── Page break between vouchers ── */
+  .voucher + .voucher { page-break-before: always; }
+
+  /* ── Print styles ── */
+  @media print {
+    @page { size: A4; margin: 14mm 16mm; }
+    body { background: #fff; }
+    .action-bar { display: none !important; }
+    .voucher-wrap { padding: 0; gap: 0; }
+    .voucher { box-shadow: none; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="action-bar">
+  <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+  <span>Use your browser's print dialog — choose "Save as PDF" to export.</span>
+</div>
+
+<div class="voucher-wrap">
+{% for entry in advance_entries %}
+<div class="voucher">
+
+  <!-- Company header -->
+  <div class="v-header">
+    <h1>TAAMUL CREDIT REVIEW SERVICES</h1>
+    <p>Office 319, Garhoud Star Building, Al Garhoud, Dubai, UAE</p>
+  </div>
+
+  <!-- Voucher title -->
+  <div class="v-title">Payment Voucher</div>
+
+  <!-- Date + V. No. -->
+  <div class="v-meta">
+    <span class="v-date">{{ entry.date|date:"d / m / Y" }}</span>
+    <span class="v-no">V. No. {{ entry.voucher_no }}</span>
+  </div>
+
+  <!-- Details -->
+  <div class="v-body">
+    <div class="v-row">
+      <span class="v-label">Paid to</span>
+      <span class="v-colon">:</span>
+      <span class="v-value">{{ emp.name }}</span>
+    </div>
+    <div class="v-row">
+      <span class="v-label">Towards</span>
+      <span class="v-colon">:</span>
+      <span class="v-value">{{ entry.towards }}</span>
+    </div>
+    <div class="v-row">
+      <span class="v-label">Amount ({{ emp.currency }})</span>
+      <span class="v-colon">:</span>
+      <span class="v-value amount">{{ emp.currency }} {{ entry.total_amount|floatformat:0 }}/-</span>
+    </div>
+    <div class="v-row">
+      <span class="v-label">Mode of payment</span>
+      <span class="v-colon">:</span>
+      <span class="v-value">Cash</span>
+    </div>
+  </div>
+
+  {% if entry.split_months > 1 %}
+  <div class="v-install-note">
+    Instalment {{ entry.installment_num }} of {{ entry.split_months }} &nbsp;·&nbsp;
+    {{ emp.currency }} {{ entry.installment_amount|floatformat:2 }} / month
+  </div>
+  {% endif %}
+
+  <div class="v-spacer"></div>
+
+  <!-- Received by + Signature -->
+  <div class="v-bottom">
+    <div class="v-received">
+      Received by:
+      <div class="v-received-line">Employee Signature</div>
+    </div>
+    <div class="v-sig-block">
+      <div class="v-sig-line-top"></div>
+      <div class="v-sig-label">Authorised Signatory</div>
+    </div>
+  </div>
+
+</div><!-- /.voucher -->
+{% endfor %}
+</div><!-- /.voucher-wrap -->
+
+<script>
+  // Auto-open print dialog on load
+  window.addEventListener('load', function() { window.print(); });
+</script>
+
+</body>
+</html>

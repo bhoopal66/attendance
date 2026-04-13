@@ -28,7 +28,7 @@ from attendance.views.utils import (
     get_selected_month_year, superuser_required,
     get_active_special_periods_for_month, get_remote_thresholds_from_period,
 )
-from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, DEDUCTION_CATEGORY_CHOICES
+from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, DEDUCTION_CATEGORY_CHOICES
 
 logger = logging.getLogger('payroll')
 
@@ -794,6 +794,16 @@ def payroll_dashboard(request):
         _Q(remote_employee__in=RemoteEmployee.objects.filter(is_active=True))
     ).select_related('employee', 'remote_employee').order_by('-from_year', '-from_month')
 
+    # Pre-build deduction entry lookup for timeline breakdown
+    _all_ded_entries_raw = DeductionEntry.objects.select_related('employee', 'remote_employee').filter(
+        _Q(employee__in=Employee.objects.filter(is_active=True)) |
+        _Q(remote_employee__in=RemoteEmployee.objects.filter(is_active=True))
+    )
+    _entries_by_emp = defaultdict(list)
+    for _e in _all_ded_entries_raw:
+        _ek2 = ('inhouse', _e.employee_id) if _e.employee_id else ('remote', _e.remote_employee_id)
+        _entries_by_emp[_ek2].append(_e)
+
     # Build per-employee 12-month carryover timeline for selected year
     _co_timeline_dict = {}
     _co_year_qs = DeductionCarryover.objects.filter(
@@ -813,24 +823,55 @@ def payroll_dashboard(request):
             _edept = 'Remote'
             _ecurr = _co.remote_employee.currency
         if _ek not in _co_timeline_dict:
-            _co_timeline_dict[_ek] = {'name': _ename, 'dept': _edept, 'currency': _ecurr, 'cells': [None] * 12}
+            _co_timeline_dict[_ek] = {
+                'name': _ename, 'dept': _edept, 'currency': _ecurr,
+                'emp_type': _ek[0], 'emp_id': _ek[1],
+                'cells': [None] * 12,
+            }
         _cells = _co_timeline_dict[_ek]['cells']
         _status = 'applied' if _co.applied_amount >= _co.overflow_amount else ('partial' if _co.applied_amount > 0 else 'pending')
         if _co.from_year == selected_year:
+            # Build per-category breakdown for this overflow month
+            _from_idx = _co.from_year * 12 + (_co.from_month - 1)
+            _brkd_ded = {}
+            _brkd_add = {}
+            _advance_items = []  # individual advance entries (not aggregated)
+            for _e in _entries_by_emp.get(_ek, []):
+                _e_start = _e.start_year * 12 + (_e.start_month - 1)
+                if _e_start <= _from_idx < _e_start + _e.split_months:
+                    _amt = round(float(_e.installment_amount), 2)
+                    if _e.category == 'advance':
+                        _advance_items.append({
+                            'entry_id': _e.id,
+                            'amount': _amt,
+                            'note': _e.note or 'Cash Advance',
+                        })
+                    elif _e.entry_type == 'deduction':
+                        _cat = _e.get_category_display()
+                        _brkd_ded[_cat] = round(_brkd_ded.get(_cat, 0) + _amt, 2)
+                    else:
+                        _cat = _e.get_category_display()
+                        _brkd_add[_cat] = round(_brkd_add.get(_cat, 0) + _amt, 2)
             _cells[_co.from_month - 1] = {
                 'type': 'overflow',
                 'amount': float(_co.overflow_amount),
                 'to_month': _co.to_month,
+                'to_month_name': _month_names[_co.to_month],
                 'to_year': _co.to_year,
                 'cross_year': _co.to_year != selected_year,
                 'status': _status,
+                'breakdown_ded': _brkd_ded,
+                'breakdown_add': _brkd_add,
+                'advance_items': _advance_items,
             }
         if _co.to_year == selected_year:
             _cells[_co.to_month - 1] = {
                 'type': 'carryover',
                 'applied': float(_co.applied_amount),
                 'overflow': float(_co.overflow_amount),
+                'remaining': round(float(_co.overflow_amount) - float(_co.applied_amount), 2),
                 'from_month': _co.from_month,
+                'from_month_name': _month_names[_co.from_month],
                 'from_year': _co.from_year,
                 'cross_year': _co.from_year != selected_year,
                 'status': _status,
@@ -1872,6 +1913,18 @@ def download_payslip(request, emp_type, emp_id):
 
     salary_words = _amount_in_words(net_salary) if net_salary > 0 else 'Zero Only'
 
+    # --- Register document and get stable reference ID ---
+    if emp_type == 'inhouse':
+        _gdoc, _ = GeneratedDocument.objects.get_or_create(
+            doc_type='payslip', employee=emp, year=selected_year, month=selected_month,
+            defaults={'remote_employee': None},
+        )
+    else:
+        _gdoc, _ = GeneratedDocument.objects.get_or_create(
+            doc_type='payslip', remote_employee=emp, year=selected_year, month=selected_month,
+            defaults={'employee': None},
+        )
+
     # --- Render HTML payslip ---
     logger.info("Payslip viewed for %s %s/%s by %s", emp.name, selected_month, selected_year, request.user.username)
     return render(request, 'payroll/payslip.html', {
@@ -1894,4 +1947,66 @@ def download_payslip(request, emp_type, emp_id):
         'total_deductions': total_deductions,
         'net_salary': net_salary,
         'salary_words': salary_words,
+        'doc_ref': _gdoc.ref,
+    })
+
+
+# ============================================
+# Advance Payment Voucher (print view)
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required)
+def advance_voucher_download(request):
+    """Render a printable payment voucher page for an advance deduction."""
+    entry_id = request.GET.get('entry_id')
+    try:
+        year = int(request.GET.get('year', 0))
+        month = int(request.GET.get('month', 0))
+    except (TypeError, ValueError):
+        from django.http import Http404
+        raise Http404("Invalid parameters.")
+
+    entry = get_object_or_404(DeductionEntry, pk=entry_id, category='advance')
+    emp = entry.employee or entry.remote_employee
+    emp_type = 'inhouse' if entry.employee_id else 'remote'
+
+    _month_full = {
+        1: 'January', 2: 'February', 3: 'March', 4: 'April',
+        5: 'May', 6: 'June', 7: 'July', 8: 'August',
+        9: 'September', 10: 'October', 11: 'November', 12: 'December',
+    }
+
+    e_start = entry.start_year * 12 + (entry.start_month - 1)
+    target_idx = year * 12 + (month - 1)
+
+    # Register document and get stable reference ID
+    _gdoc, _ = GeneratedDocument.objects.get_or_create(
+        doc_type='advance_voucher',
+        deduction_entry=entry,
+        year=year,
+        month=month,
+        defaults={
+            'employee': entry.employee,
+            'remote_employee': entry.remote_employee,
+        },
+    )
+
+    advance_entries = [{
+        'voucher_no': _gdoc.ref,
+        'date': entry.created_at.date(),
+        'towards': entry.note if entry.note else 'Cash Advance',
+        'total_amount': float(entry.total_amount),
+        'installment_amount': float(entry.installment_amount),
+        'split_months': entry.split_months,
+        'installment_num': target_idx - e_start + 1,
+    }]
+
+    return render(request, 'payroll/advance_voucher.html', {
+        'emp': emp,
+        'emp_type': emp_type,
+        'advance_entries': advance_entries,
+        'month': month,
+        'year': year,
+        'month_name': _month_full.get(month, str(month)),
     })

@@ -31,4 +31,6 @@ urlpatterns = [
     path('api/deductions/autofill/', views.autofill_deduction, name='autofill_deduction'),
     # Payslip download
     path('payslip/<str:emp_type>/<int:emp_id>/', views.download_payslip, name='download_payslip'),
+    # Advance payment voucher
+    path('voucher/advance/', views.advance_voucher_download, name='advance_voucher'),
 ]
