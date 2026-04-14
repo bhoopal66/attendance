@@ -865,8 +865,89 @@ def payroll_dashboard(request):
         _ek2 = ('inhouse', _e.employee_id) if _e.employee_id else ('remote', _e.remote_employee_id)
         _entries_by_emp[_ek2].append(_e)
 
-    # Build per-employee 12-month carryover timeline for selected year
+    # Build per-employee 12-month deduction/carryover timeline for selected year
     _co_timeline_dict = {}
+
+    # Helper: collect all entries for an employee (including duplicates)
+    def _get_emp_entries(_ek):
+        _entries = list(_entries_by_emp.get(_ek, []))
+        if _ek[0] == 'inhouse':
+            for _did in _inhouse_dupe_ids.get(_ek[1], []):
+                _entries.extend(_entries_by_emp.get(('inhouse', _did), []))
+        else:
+            for _did in _remote_dupe_ids.get(_ek[1], []):
+                _entries.extend(_entries_by_emp.get(('remote', _did), []))
+        return _entries
+
+    # Helper: build breakdown for a given month index from a list of entries
+    def _build_breakdown(_entries, _target_idx):
+        _brkd_ded, _brkd_add, _adv = {}, {}, []
+        for _e in _entries:
+            _e_start = _e.start_year * 12 + (_e.start_month - 1)
+            if _e_start <= _target_idx < _e_start + _e.split_months:
+                _amt = round(float(_e.installment_amount), 2)
+                if _e.category == 'advance':
+                    _adv.append({'entry_id': _e.id, 'amount': _amt, 'note': _e.note or 'Cash Advance'})
+                elif _e.entry_type == 'deduction':
+                    _cat = _e.get_category_display()
+                    _brkd_ded[_cat] = round(_brkd_ded.get(_cat, 0) + _amt, 2)
+                else:
+                    _cat = _e.get_category_display()
+                    _brkd_add[_cat] = round(_brkd_add.get(_cat, 0) + _amt, 2)
+        return _brkd_ded, _brkd_add, _adv
+
+    # Step 1: Build timeline from ALL employees with deduction entries
+    # Collect entries per employee: payroll employees (with duplicate merging) + any others
+    _timeline_emp_data = {}  # _ek -> (entries_list, name, dept, currency)
+    _covered_keys = set()
+    for emp in _payroll_inhouse:
+        _ek = ('inhouse', emp.id)
+        _all_entries = _get_emp_entries(_ek)
+        if _all_entries:
+            _timeline_emp_data[_ek] = (_all_entries, emp.name, emp.department or 'In-House', emp.currency)
+        _covered_keys.add(_ek)
+        for _did in _inhouse_dupe_ids.get(emp.id, []):
+            _covered_keys.add(('inhouse', _did))
+    for emp in remote_employees:
+        _ek = ('remote', emp.id)
+        _all_entries = _get_emp_entries(_ek)
+        if _all_entries:
+            _timeline_emp_data[_ek] = (_all_entries, emp.name, 'Remote', emp.currency)
+        _covered_keys.add(_ek)
+        for _did in _remote_dupe_ids.get(emp.id, []):
+            _covered_keys.add(('remote', _did))
+    # Include employees with entries that aren't in the payroll sets
+    for _ek, _entries in _entries_by_emp.items():
+        if _ek in _covered_keys:
+            continue
+        _eobj = _entries[0].employee if _ek[0] == 'inhouse' else _entries[0].remote_employee
+        _timeline_emp_data[_ek] = (
+            list(_entries), _eobj.name,
+            _eobj.department or 'Other' if _ek[0] == 'inhouse' else 'Remote',
+            _eobj.currency,
+        )
+
+    for _ek, (_all_entries, _ename, _edept, _ecurr) in _timeline_emp_data.items():
+        cells = [None] * 12
+        has_any = False
+        for _mi in range(12):
+            _tidx = selected_year * 12 + _mi
+            _bd, _ba, _adv = _build_breakdown(_all_entries, _tidx)
+            if _adv or _bd or _ba:
+                has_any = True
+                cells[_mi] = {
+                    'type': 'entries',
+                    'advance_items': _adv,
+                    'breakdown_ded': _bd,
+                    'breakdown_add': _ba,
+                }
+        if has_any:
+            _co_timeline_dict[_ek] = {
+                'name': _ename, 'dept': _edept, 'currency': _ecurr,
+                'emp_type': _ek[0], 'emp_id': _ek[1], 'cells': cells,
+            }
+
+    # Step 2: Overlay carryover data on top of entry cells
     _co_year_qs = DeductionCarryover.objects.filter(
         (_Q(employee__in=Employee.objects.filter(is_active=True)) |
          _Q(remote_employee__in=RemoteEmployee.objects.filter(is_active=True))) &
@@ -892,45 +973,22 @@ def payroll_dashboard(request):
         _cells = _co_timeline_dict[_ek]['cells']
         _status = 'applied' if _co.applied_amount >= _co.overflow_amount else ('partial' if _co.applied_amount > 0 else 'pending')
         if _co.from_year == selected_year:
-            # Build per-category breakdown for this overflow month
-            _from_idx = _co.from_year * 12 + (_co.from_month - 1)
-            _brkd_ded = {}
-            _brkd_add = {}
-            _advance_items = []  # individual advance entries (not aggregated)
-            # Include entries from duplicate employees (same name, different IDs)
-            _entries_for_emp = list(_entries_by_emp.get(_ek, []))
-            if _ek[0] == 'inhouse':
-                for _dupe_id in _inhouse_dupe_ids.get(_ek[1], []):
-                    _entries_for_emp.extend(_entries_by_emp.get(('inhouse', _dupe_id), []))
-            else:
-                for _dupe_id in _remote_dupe_ids.get(_ek[1], []):
-                    _entries_for_emp.extend(_entries_by_emp.get(('remote', _dupe_id), []))
-            for _e in _entries_for_emp:
-                _e_start = _e.start_year * 12 + (_e.start_month - 1)
-                if _e_start <= _from_idx < _e_start + _e.split_months:
-                    _amt = round(float(_e.installment_amount), 2)
-                    if _e.category == 'advance':
-                        _advance_items.append({
-                            'entry_id': _e.id,
-                            'amount': _amt,
-                            'note': _e.note or 'Cash Advance',
-                        })
-                    elif _e.entry_type == 'deduction':
-                        _cat = _e.get_category_display()
-                        _brkd_ded[_cat] = round(_brkd_ded.get(_cat, 0) + _amt, 2)
-                    else:
-                        _cat = _e.get_category_display()
-                        _brkd_add[_cat] = round(_brkd_add.get(_cat, 0) + _amt, 2)
-            # Preserve incoming carryover info if this overflow cell overwrites a carryover cell
-            _existing_cell = _cells[_co.from_month - 1]
+            _existing = _cells[_co.from_month - 1]
+            # Grab entry breakdown from existing cell (entries or carryover-with-entries)
+            _brkd_ded = _existing.get('breakdown_ded', {}) if _existing else {}
+            _brkd_add = _existing.get('breakdown_add', {}) if _existing else {}
+            _advance_items = _existing.get('advance_items', []) if _existing else []
+            # Preserve incoming carryover info if overwriting a carryover cell
             _incoming_co_info = None
-            if _existing_cell and _existing_cell.get('type') == 'carryover':
+            if _existing and _existing.get('type') == 'carryover':
                 _incoming_co_info = {
-                    'amount': _existing_cell['overflow'],
-                    'applied': _existing_cell['applied'],
-                    'from_month_name': _existing_cell['from_month_name'],
-                    'from_year': _existing_cell['from_year'],
+                    'amount': _existing['overflow'],
+                    'applied': _existing['applied'],
+                    'from_month_name': _existing['from_month_name'],
+                    'from_year': _existing['from_year'],
                 }
+            elif _existing and _existing.get('incoming_carryover'):
+                _incoming_co_info = _existing['incoming_carryover']
             _cells[_co.from_month - 1] = {
                 'type': 'overflow',
                 'amount': float(_co.overflow_amount),
@@ -945,17 +1003,26 @@ def payroll_dashboard(request):
                 'incoming_carryover': _incoming_co_info,
             }
         if _co.to_year == selected_year:
-            _cells[_co.to_month - 1] = {
-                'type': 'carryover',
-                'applied': float(_co.applied_amount),
-                'overflow': float(_co.overflow_amount),
-                'remaining': round(float(_co.overflow_amount) - float(_co.applied_amount), 2),
-                'from_month': _co.from_month,
-                'from_month_name': _month_names[_co.from_month],
-                'from_year': _co.from_year,
-                'cross_year': _co.from_year != selected_year,
-                'status': _status,
-            }
+            _existing = _cells[_co.to_month - 1]
+            # Don't overwrite an overflow cell (it already merged everything)
+            if not _existing or _existing.get('type') != 'overflow':
+                _carryover_cell = {
+                    'type': 'carryover',
+                    'applied': float(_co.applied_amount),
+                    'overflow': float(_co.overflow_amount),
+                    'remaining': round(float(_co.overflow_amount) - float(_co.applied_amount), 2),
+                    'from_month': _co.from_month,
+                    'from_month_name': _month_names[_co.from_month],
+                    'from_year': _co.from_year,
+                    'cross_year': _co.from_year != selected_year,
+                    'status': _status,
+                }
+                # Preserve entry breakdown if overwriting an entries cell
+                if _existing and _existing.get('type') == 'entries':
+                    _carryover_cell['advance_items'] = _existing['advance_items']
+                    _carryover_cell['breakdown_ded'] = _existing['breakdown_ded']
+                    _carryover_cell['breakdown_add'] = _existing['breakdown_add']
+                _cells[_co.to_month - 1] = _carryover_cell
     carryover_timeline = list(_co_timeline_dict.values())
 
     # Grand total split by currency
