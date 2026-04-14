@@ -865,6 +865,11 @@ def payroll_dashboard(request):
         _ek2 = ('inhouse', _e.employee_id) if _e.employee_id else ('remote', _e.remote_employee_id)
         _entries_by_emp[_ek2].append(_e)
 
+    # Pre-load monthly summaries for all months of selected year (for timeline breakdown)
+    _all_year_summaries = {}
+    for _s in MonthlySummary.objects.filter(year=selected_year):
+        _all_year_summaries[(_s.employee_id, _s.month)] = _s
+
     # Build per-employee 12-month carryover timeline for selected year
     _co_timeline_dict = {}
     _co_year_qs = DeductionCarryover.objects.filter(
@@ -897,7 +902,15 @@ def payroll_dashboard(request):
             _brkd_ded = {}
             _brkd_add = {}
             _advance_items = []  # individual advance entries (not aggregated)
-            for _e in _entries_by_emp.get(_ek, []):
+            # Include entries from duplicate employees (same name, different IDs)
+            _entries_for_emp = list(_entries_by_emp.get(_ek, []))
+            if _ek[0] == 'inhouse':
+                for _dupe_id in _inhouse_dupe_ids.get(_ek[1], []):
+                    _entries_for_emp.extend(_entries_by_emp.get(('inhouse', _dupe_id), []))
+            else:
+                for _dupe_id in _remote_dupe_ids.get(_ek[1], []):
+                    _entries_for_emp.extend(_entries_by_emp.get(('remote', _dupe_id), []))
+            for _e in _entries_for_emp:
                 _e_start = _e.start_year * 12 + (_e.start_month - 1)
                 if _e_start <= _from_idx < _e_start + _e.split_months:
                     _amt = round(float(_e.installment_amount), 2)
@@ -913,6 +926,21 @@ def payroll_dashboard(request):
                     else:
                         _cat = _e.get_category_display()
                         _brkd_add[_cat] = round(_brkd_add.get(_cat, 0) + _amt, 2)
+            # Include auto-computed leave/late deductions from attendance
+            if _ek[0] == 'inhouse':
+                _emp_obj = _co.employee
+                _is_admin = (_emp_obj.department == 'Admin')
+                if _emp_obj and _emp_obj.salary and _emp_obj.payroll_type != 'performance' and not _is_admin:
+                    _sum = _all_year_summaries.get((_emp_obj.id, _co.from_month))
+                    if _sum:
+                        _dim = calendar.monthrange(_co.from_year, _co.from_month)[1]
+                        _daily = float(_emp_obj.salary) / _dim
+                        _leave_ded = round(_daily * (_sum.leave_days or 0), 2)
+                        _late_ded = round(_daily * ((_sum.late_days or 0) // 3) * 0.5, 2)
+                        if _leave_ded > 0:
+                            _brkd_ded['Leave Deduction'] = round(_brkd_ded.get('Leave Deduction', 0) + _leave_ded, 2)
+                        if _late_ded > 0:
+                            _brkd_ded['Late Deduction'] = round(_brkd_ded.get('Late Deduction', 0) + _late_ded, 2)
             _cells[_co.from_month - 1] = {
                 'type': 'overflow',
                 'amount': float(_co.overflow_amount),
