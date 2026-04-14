@@ -653,11 +653,40 @@ def payroll_dashboard(request):
         key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
         carryover_by_emp[key] = co.overflow_amount
 
+    # Build duplicate-to-confirmed mapping: for each confirmed employee (has tcr_id),
+    # collect IDs of same-name duplicates (no tcr_id) so their deductions merge into the main row
+    _inhouse_dupe_ids = _defaultdict(list)  # confirmed emp id -> [duplicate emp ids]
+    _confirmed_inhouse_names = set()
+    for _emp in Employee.objects.filter(is_active=True, tcr_id__isnull=False):
+        _confirmed_inhouse_names.add(_emp.name)
+    for _emp in Employee.objects.filter(is_active=True, tcr_id__isnull=True):
+        if _emp.name in _confirmed_inhouse_names:
+            _main = Employee.objects.filter(name=_emp.name, is_active=True, tcr_id__isnull=False).first()
+            if _main:
+                _inhouse_dupe_ids[_main.id].append(_emp.id)
+
+    _remote_dupe_ids = _defaultdict(list)
+    _confirmed_remote_names = set()
+    for _emp in RemoteEmployee.objects.filter(is_active=True, tcr_id__isnull=False):
+        _confirmed_remote_names.add(_emp.name)
+    for _emp in RemoteEmployee.objects.filter(is_active=True, tcr_id__isnull=True):
+        if _emp.name in _confirmed_remote_names:
+            _main = RemoteEmployee.objects.filter(name=_emp.name, is_active=True, tcr_id__isnull=False).first()
+            if _main:
+                _remote_dupe_ids[_main.id].append(_emp.id)
+
     section3_rows = []
-    for emp in Employee.objects.filter(is_active=True).order_by('department', 'name'):
+    _inhouse_ded_qs = Employee.objects.filter(is_active=True).order_by('department', 'name')
+    for emp in _inhouse_ded_qs:
+        if not emp.tcr_id and emp.name in _confirmed_inhouse_names:
+            continue  # skip duplicate — merged into confirmed row
         cat = {c: 0.0 for c in _ALL_CATS}
+        # Aggregate deductions from this employee + any same-name duplicates
         for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
             cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        for dupe_id in _inhouse_dupe_ids.get(emp.id, []):
+            for ded_entry in active_by_emp.get(('inhouse', dupe_id), []):
+                cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
         # Auto-compute leave/late from attendance (skip for performance-based payroll)
         summary = inhouse_summaries.get(emp.id)
         if summary and emp.salary and emp.payroll_type != 'performance':
@@ -674,6 +703,8 @@ def payroll_dashboard(request):
         total_ded = round(sum(cat[c] for c in ded_cols_for_total), 2)
         emp_key = ('inhouse', emp.id)
         carryover_in = float(carryover_by_emp.get(emp_key, 0))
+        for dupe_id in _inhouse_dupe_ids.get(emp.id, []):
+            carryover_in += float(carryover_by_emp.get(('inhouse', dupe_id), 0))
         total_ded = round(total_ded + carryover_in, 2)
         total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
         row = {'employee': emp, 'employee_type': 'inhouse', 'is_inhouse': True, 'currency': emp.currency}
@@ -681,13 +712,21 @@ def payroll_dashboard(request):
         row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2), 'carryover_in': carryover_in})
         section3_rows.append(row)
 
-    for emp in RemoteEmployee.objects.filter(is_active=True).order_by('name'):
+    _remote_ded_qs = RemoteEmployee.objects.filter(is_active=True).order_by('name')
+    for emp in _remote_ded_qs:
+        if not emp.tcr_id and emp.name in _confirmed_remote_names:
+            continue  # skip duplicate — merged into confirmed row
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('remote', emp.id), []):
             cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        for dupe_id in _remote_dupe_ids.get(emp.id, []):
+            for ded_entry in active_by_emp.get(('remote', dupe_id), []):
+                cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
         total_ded = round(sum(cat[c] for c in _DED_COLS), 2)
         emp_key = ('remote', emp.id)
         carryover_in = float(carryover_by_emp.get(emp_key, 0))
+        for dupe_id in _remote_dupe_ids.get(emp.id, []):
+            carryover_in += float(carryover_by_emp.get(('remote', dupe_id), 0))
         total_ded = round(total_ded + carryover_in, 2)
         total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
         row = {'employee': emp, 'employee_type': 'remote', 'is_inhouse': False, 'currency': emp.currency}
@@ -705,13 +744,15 @@ def payroll_dashboard(request):
     s3_net_aed = round(s3_total_add_aed - s3_total_ded_aed, 2)
     s3_net_inr = round(s3_total_add_inr - s3_total_ded_inr, 2)
 
-    # All employees for Add modal dropdown
+    # All employees for Add modal dropdown (exclude duplicates of confirmed employees)
     all_employees_json = json.dumps([
         {'id': emp.id, 'name': emp.name, 'type': 'inhouse', 'dept': emp.department or '', 'currency': emp.currency}
         for emp in Employee.objects.filter(is_active=True).order_by('name')
+        if emp.tcr_id or emp.name not in _confirmed_inhouse_names
     ] + [
         {'id': emp.id, 'name': emp.name, 'type': 'remote', 'dept': 'Remote', 'currency': emp.currency}
         for emp in RemoteEmployee.objects.filter(is_active=True).order_by('name')
+        if emp.tcr_id or emp.name not in _confirmed_remote_names
     ])
 
     # --- Section 5: Final Summary ---
@@ -734,6 +775,8 @@ def payroll_dashboard(request):
 
     final_rows = []
     for emp in Employee.objects.filter(is_active=True).order_by('department', 'name'):
+        if not emp.tcr_id and emp.name in _confirmed_inhouse_names:
+            continue
         key = ('inhouse', emp.id)
         p = payroll_by_emp.get(key)
         d = ded_by_emp.get(key)

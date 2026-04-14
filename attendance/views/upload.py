@@ -98,23 +98,41 @@ def _validate_file_extension(filename, allowed_extensions):
 
 def _lookup_or_create_employee(person_id, name):
     """
-    Look up an in-house employee using a 4-tier strategy. Returns (employee, was_created).
+    Look up an in-house employee using a tiered strategy. Returns (employee, was_created).
 
-    Tier 1 — Exact match (person_id + name): fastest path, no changes needed.
-    Tier 2 — Active employee with the same name (unique): ID changed in the machine,
-              archive the old ID and update to the new one.
-    Tier 3 — Active employee via alias history: name also changed, but we recognise
-              the old ID. Only active employees are checked — inactive employees'
-              IDs are considered released and may be re-assigned to new people.
-    Tier 4 — Create new: genuinely new person.
+    Employees with a tcr_id are considered confirmed — they are matched first
+    (by name or person_id) and their person_id is updated if it changed.
+    The fallback tiers (name matching, alias history, create new) only apply
+    to employees WITHOUT a tcr_id.
     """
-    # Tier 1: Exact match
+    # Tier 0: Exact match on person_id + name (fast path, any employee)
     employee = Employee.objects.filter(person_id=person_id, name=name).first()
     if employee:
         return employee, False
 
-    # Tier 2: Active employee with same name
-    active_by_name = Employee.objects.filter(name=name, is_active=True)
+    # --- Confirmed employees (tcr_id is set) take priority ---
+
+    # Tier 1a: Confirmed employee matched by name
+    confirmed_by_name = Employee.objects.filter(name=name, tcr_id__isnull=False, is_active=True)
+    if confirmed_by_name.count() == 1:
+        employee = confirmed_by_name.first()
+        if employee.person_id != person_id:
+            old_id = employee.person_id
+            EmployeeIDAlias.objects.get_or_create(employee=employee, person_id=old_id)
+            employee.person_id = person_id
+            employee.save(update_fields=['person_id', 'updated_at'])
+            logger.info("Updated person_id for %s (tcr_id=%s): %s → %s", name, employee.tcr_id, old_id, person_id)
+        return employee, False
+
+    # Tier 1b: Confirmed employee matched by person_id (name may have changed)
+    confirmed_by_pid = Employee.objects.filter(person_id=person_id, tcr_id__isnull=False, is_active=True).first()
+    if confirmed_by_pid:
+        return confirmed_by_pid, False
+
+    # --- Fallback tiers for employees WITHOUT tcr_id ---
+
+    # Tier 2: Active employee with same name (no tcr_id)
+    active_by_name = Employee.objects.filter(name=name, is_active=True, tcr_id__isnull=True)
     count = active_by_name.count()
 
     if count == 1:
@@ -127,7 +145,6 @@ def _lookup_or_create_employee(person_id, name):
             logger.info("Updated person_id for %s: %s → %s (old ID archived)", name, old_id, person_id)
         return employee, False
     elif count > 1:
-        # Multiple active employees share this name — try exact person_id among them
         employee = active_by_name.filter(person_id=person_id).first()
         if employee:
             return employee, False
