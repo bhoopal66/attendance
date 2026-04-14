@@ -1922,7 +1922,16 @@
                                     {% endfor %}
                                 </div>
                                 {% endif %}
-                                {% if not cell.advance_items and not cell.breakdown_ded and not cell.breakdown_add %}
+                                {% if cell.incoming_carryover %}
+                                <div class="co-cat-group" {% if cell.advance_items or cell.breakdown_ded or cell.breakdown_add %}style="margin-top:4px;"{% endif %}>
+                                    <div class="co-cat-group-label ded">Carryover from {{ cell.incoming_carryover.from_month_name }} {{ cell.incoming_carryover.from_year }}</div>
+                                    <div class="co-cat-row">
+                                        <span class="co-cat-name">Previous overflow</span>
+                                        <span class="co-cat-amt ded">-{{ cell.incoming_carryover.amount|floatformat:2 }}</span>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if not cell.advance_items and not cell.breakdown_ded and not cell.breakdown_add and not cell.incoming_carryover %}
                                 <div style="font-size:0.62rem;color:#94a3b8;font-style:italic;padding:2px 0;">Attendance / salary shortfall</div>
                                 {% endif %}
                                 <div class="co-cell-footer">
