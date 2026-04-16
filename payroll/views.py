@@ -11,7 +11,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 from django.core.management import call_command
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.views.decorators.http import require_http_methods
@@ -320,7 +320,8 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         if emp_type == 'inhouse':
             present_days = AttendanceRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
-                first_in__isnull=False,
+            ).filter(
+                Q(first_in__isnull=False) | Q(is_work_from_home=True)
             ).count()
         else:
             call_records = RemoteCallRecord.objects.filter(
@@ -379,7 +380,8 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         if emp_type == 'inhouse':
             present_days = AttendanceRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
-                first_in__isnull=False,
+            ).filter(
+                Q(first_in__isnull=False) | Q(is_work_from_home=True)
             ).count()
             half_days = 0
         else:

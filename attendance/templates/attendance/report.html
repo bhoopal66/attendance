@@ -156,6 +156,10 @@
 .cl.cl-holiday{background:#DDD6FE;color:#5B21B6}
 .cl.cl-inc{background:#FED7AA;color:#9A3412}
 .cl.cl-onduty{background:#99F6E4;color:#115E59}
+.cl.cl-wfh{background:#BAE6FD;color:#0369A1}
+.wfh-toggle{display:flex;align-items:center;gap:.45rem;font-size:.82rem;font-weight:600;color:var(--text-secondary);cursor:pointer;user-select:none}
+.wfh-toggle input[type="checkbox"]{accent-color:var(--primary-color);cursor:pointer;width:15px;height:15px;flex-shrink:0}
+.wfh-hint{font-size:.72rem;color:var(--text-secondary);margin-top:.2rem;margin-left:20px}
 .edit-icon{position:absolute;top:3px;right:3px;opacity:0;color:var(--primary-color);transition:opacity .12s}
 .grace-tick{position:absolute;top:2px;right:3px;font-size:.6rem;font-weight:900;color:#DC2626;line-height:1;pointer-events:none}
 
@@ -376,10 +380,18 @@
                             {% with day_info=employee.calendar_data|get_item:day %}
                             {% if day_info %}
                             <div class="att-d status-{{ day_info.status }} {% if day_info.is_sunday %}sun{% endif %} {% if day > current_day %}future{% endif %} {% if user.is_superuser %}editable{% endif %}"
-                                {% if user.is_superuser %}onclick="openEditModal({{ employee.id }}, '{{ employee.name }}', {{ day }}, '{{ day_info.record.first_in|time:'H:i'|default:'' }}', '{{ day_info.record.last_out|time:'H:i'|default:'' }}')"{% endif %}>
+                                {% if user.is_superuser %}onclick="openEditModal({{ employee.id }}, '{{ employee.name }}', {{ day }}, '{{ day_info.record.first_in|time:'H:i'|default:'' }}', '{{ day_info.record.last_out|time:'H:i'|default:'' }}', {{ day_info.is_wfh|yesno:'true,false' }})"{% endif %}>
                                 <span class="dn">{{ day }}</span>
                                 {% if day_info.is_grace %}<span class="grace-tick">✕</span>{% endif %}
-                                {% if not day_info.status %}
+                                {% if day_info.is_wfh %}
+                                    {% if day_info.record.first_in or day_info.record.last_out %}
+                                    <div class="ct">
+                                        <span>In {% if day_info.record.first_in %}{{ day_info.record.first_in|time:"H:i" }}{% else %}--:--{% endif %}</span>
+                                        <span>Out {% if day_info.record.last_out %}{{ day_info.record.last_out|time:"H:i" }}{% else %}--:--{% endif %}</span>
+                                    </div>
+                                    {% endif %}
+                                    <span class="cl cl-wfh">WFH</span>
+                                {% elif not day_info.status %}
                                 {% elif day_info.status == 'on_duty' %}
                                     <div class="ct">
                                         <span>In {{ day_info.on_duty_request.approved_first_in|time:"H:i" }}</span>
@@ -447,6 +459,13 @@
             <form id="editAttendanceForm">
                 <input type="hidden" id="editEmployeeId" name="employee_id">
                 <input type="hidden" id="editDate" name="date">
+                <div class="modal-form-group">
+                    <label class="wfh-toggle">
+                        <input type="checkbox" id="editWfh" name="is_work_from_home">
+                        <span>Work from Home</span>
+                    </label>
+                    <div class="wfh-hint">Counts as full day attendance regardless of punch times</div>
+                </div>
                 <div class="modal-form-group">
                     <label for="editFirstIn">First In Time</label>
                     <input type="time" id="editFirstIn" name="first_in">
@@ -520,5 +539,5 @@ document.addEventListener('keydown', function(e) {
     else if (e.key === 'ArrowRight') { navModal(1); e.preventDefault(); }
 });
 </script>
-<script src="{% static 'attendance/js/report.js' %}?v=5"></script>
+<script src="{% static 'attendance/js/report.js' %}?v=6"></script>
 {% endblock %}

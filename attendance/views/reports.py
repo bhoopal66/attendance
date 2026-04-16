@@ -97,6 +97,24 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
                 paid_leave_count += 1
         elif is_sunday or is_holiday_date:
             status = 'holiday'
+        elif record and record.is_work_from_home:
+            # WFH override: always counts as full day present
+            actual_working_days_count += 1
+            calendar_data[day] = {
+                'record': record,
+                'status': 'green',
+                'is_wfh': True,
+                'is_sunday': is_sunday,
+                'is_saturday': is_saturday,
+                'is_half_day': False,
+                'is_late': False,
+                'is_grace': False,
+                'is_holiday': is_holiday_date,
+                'is_paid_leave': is_paid_leave,
+                'is_incomplete': False,
+                'on_duty_request': None,
+            }
+            continue
         elif record:
             total_secs = record.work_duration.total_seconds() if record.work_duration else 0
 
@@ -190,6 +208,7 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
         calendar_data[day] = {
             'record': record,
             'status': status,
+            'is_wfh': False,
             'is_sunday': is_sunday,
             'is_saturday': is_saturday,
             'is_half_day': is_half_day,

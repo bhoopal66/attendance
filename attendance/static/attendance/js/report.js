@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // Edit Modal Functions
 // ============================================
 
-function openEditModal(employeeId, employeeName, day, firstIn, lastOut) {
+function openEditModal(employeeId, employeeName, day, firstIn, lastOut, isWfh) {
     const modal = document.getElementById('editModal');
     if (!modal) return;
 
@@ -112,6 +112,7 @@ function openEditModal(employeeId, employeeName, day, firstIn, lastOut) {
     document.getElementById('editDate').value = dateStr;
     document.getElementById('editFirstIn').value = firstIn || '';
     document.getElementById('editLastOut').value = lastOut || '';
+    document.getElementById('editWfh').checked = isWfh || false;
 
     // Clear any previous messages
     const msgEl = document.getElementById('modalMessage');
@@ -146,7 +147,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 employee_id: document.getElementById('editEmployeeId').value,
                 date: document.getElementById('editDate').value,
                 first_in: document.getElementById('editFirstIn').value || null,
-                last_out: document.getElementById('editLastOut').value || null
+                last_out: document.getElementById('editLastOut').value || null,
+                is_work_from_home: document.getElementById('editWfh').checked
             };
 
             fetch(config.updateAttendanceUrl || '/api/attendance/update/', {

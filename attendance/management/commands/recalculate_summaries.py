@@ -115,6 +115,11 @@ class Command(BaseCommand):
                 if is_sunday or is_holiday:
                     continue
 
+                # WFH: always counts as full working day, skip punch-time checks
+                if record.is_work_from_home:
+                    working_days += 1
+                    continue
+
                 total_secs = record.work_duration.total_seconds() if record.work_duration else 0
 
                 # Fixed salary: punch-in alone = present, no late/half-day counting

@@ -76,6 +76,7 @@ def update_attendance(request):
         date_str = data.get('date')
         first_in = data.get('first_in')
         last_out = data.get('last_out')
+        is_work_from_home = bool(data.get('is_work_from_home', False))
 
         if not employee_id or not date_str:
             return JsonResponse({'error': 'Missing required fields: employee_id, date'}, status=400)
@@ -102,7 +103,8 @@ def update_attendance(request):
             defaults={
                 'first_in': first_in_time,
                 'last_out': last_out_time,
-                'work_duration': work_duration
+                'work_duration': work_duration,
+                'is_work_from_home': is_work_from_home,
             }
         )
 
@@ -121,7 +123,8 @@ def update_attendance(request):
                 'date': date_str,
                 'first_in': first_in,
                 'last_out': last_out,
-                'work_duration': str(work_duration) if work_duration else None
+                'work_duration': str(work_duration) if work_duration else None,
+                'is_work_from_home': is_work_from_home,
             }
         })
 

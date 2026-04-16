@@ -225,6 +225,11 @@ class AttendanceRecord(models.Model):
     last_out = models.TimeField(null=True, blank=True)
     work_duration = models.DurationField(null=True, blank=True)
 
+    is_work_from_home = models.BooleanField(
+        default=False,
+        help_text="Mark this day as Work From Home (counts as full day present)"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
