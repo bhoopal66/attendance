@@ -20,6 +20,7 @@ DEDUCTION_CATEGORY_CHOICES = [
     # Additions
     ('last_month_balance', 'Last Month Balance'),
     ('paid_leave', 'Paid Leave'),
+    ('other_addition', 'Others'),
 ]
 
 _DEDUCTION_CATS = {

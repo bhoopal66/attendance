@@ -608,7 +608,7 @@ def payroll_dashboard(request):
         7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
     }
     _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
-    _ADD_COLS = ['last_month_balance', 'paid_leave']
+    _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
     _ALL_CATS = _DED_COLS + _ADD_COLS
     target_idx = selected_year * 12 + (selected_month - 1)
 
@@ -2048,7 +2048,7 @@ def download_payslip(request, emp_type, emp_id):
             amt = float(entry.installment_amount)
             if entry.category == 'advance':
                 advance_ded += amt
-            elif entry.category in ('paid_leave', 'last_month_balance'):
+            elif entry.category in ('paid_leave', 'last_month_balance', 'other_addition'):
                 additions += amt
             elif entry.category == 'leave_deduction':
                 leave_ded_manual += amt
