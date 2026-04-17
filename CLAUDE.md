@@ -61,7 +61,7 @@ Production uses `DJANGO_SETTINGS_MODULE=attendance_project.settings.production`.
 ### Apps
 
 - **attendance/** - Main app: attendance tracking, employee management, leave requests, employee portal
-- **payroll/** - Payroll adjustments (incentives/reductions per employee per month)
+- **payroll/** - Payroll dashboard, adjustments, bank submissions, deductions, payslips, and salary setup
 - **attendance_project/** - Django project settings and URL routing
 
 ### Views (Modular Structure)
@@ -74,6 +74,8 @@ Views are split into modules under `attendance/views/`:
 - `employee_portal.py` - Employee portal (login, attendance view, leave/early-leave requests)
 - `employee_management.py` - Employee CRUD operations with field allowlists
 - `leave_management.py` - Leave request approval workflow
+- `annual_leave.py` - Annual leave assignment by admin (paid/unpaid, with `AnnualLeave` model)
+- `shift_management.py` - Special shift periods (e.g., Ramadan reduced hours) via `SpecialShiftPeriod`
 - `api.py` - JSON API endpoints for frontend interactions
 
 All view functions are re-exported from `attendance/views/__init__.py`.
@@ -97,24 +99,36 @@ All view functions are re-exported from `attendance/views/__init__.py`.
 - `AttendanceRecord` - Daily attendance for in-house (unique_together: employee+date)
 - `RemoteCallRecord` - Daily call stats for remote (unique_together: employee+date)
 - `MonthlySummary` / `RemoteMonthlySummary` - Monthly aggregates
+- `ShiftHistory` - Records shift type changes over time for in-house employees
+- `EmployeeIDAlias` / `RemoteEmployeeIDAlias` - Alternate IDs for employee deduplication/merging
 
 **Request Management:**
 - `EarlyLeaveRequest` - On-duty/field visit requests with clean() validation ensuring exactly one employee FK is set
 - `LeaveRequest` - 4 types (sick, medical, annual, casual) with clean() date validation
+- `AnnualLeave` - Admin-assigned annual leave blocks (paid/unpaid) spanning date ranges
 - `Holiday` - Custom holidays (Sundays are auto-detected)
+- `SpecialShiftPeriod` - Date ranges with modified attendance thresholds (e.g., Ramadan)
 
-**Payroll:**
-- `PayrollAdjustment` - Monthly incentives/reductions per employee
+**Payroll (`payroll/models.py`):**
+- `PayrollAdjustment` - Monthly incentives/reductions per employee (both in-house and remote)
+- `Bank` - Bank with AED and optional INR per-account charge; `charge_for_currency()` returns the right rate
+- `BankSubmission` - Per-employee-per-month submission count per bank; unique per (employee, bank, year, month)
+- `DeductionEntry` - Deduction or addition (determined by `entry_type` property); can be split over N months; `installment_amount = total / split_months`; `is_active_in(year, month)` checks if a month falls in the split range
+- `DeductionCarryover` - Auto-created when net salary would go negative; `overflow_amount` carries into the following month
+- `ExchangeRate` - 1 AED = N units of foreign currency, stored per currency per month
+- `GeneratedDocument` - Registry of every payslip/voucher; stable human-readable ref (`PS-XXXXX` / `PV-XXXXX`) via `ref` property
 
 ### URL Structure
 
-**Admin Panel:** `/` (upload), `/report/` (in-house reports), `/report/remote/` (remote reports), `/employees/`, `/leave-requests/`
+**Admin Panel:** `/` (upload), `/report/` (in-house), `/report/remote/` (remote), `/employees/`, `/leave-requests/`, `/annual-leave/`, `/special-shifts/`
 
-**Employee Portal:** `/portal/` (dashboard), `/portal/login/`, `/portal/early-leave-request/`, `/portal/leave-request/`, `/portal/api/my-requests/`
+**Employee Management:** `/employees/update/`, `/employees/bulk-update/`, `/employees/merge/`, `/employees/delete/`, `/employees/link/`, `/employees/unlink/`
 
-**APIs:** `/api/attendance/update/`, `/api/pending-requests/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
+**Employee Portal:** `/portal/` (dashboard), `/portal/login/`, `/portal/logout/`, `/portal/change-password/`, `/portal/early-leave-request/`, `/portal/leave-request/`, `/portal/api/my-requests/`
 
-**Payroll:** `/payroll/`, `/payroll/api/adjustments/<id>/`, `/payroll/api/adjustments/add/`, `/payroll/api/adjustments/delete/<id>/`
+**APIs:** `/api/attendance/update/`, `/api/pending-count/`, `/api/pending-requests/`, `/request/<id>/data/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
+
+**Payroll:** `/payroll/` (dashboard), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/`, `/payroll/api/deductions/`, `/payroll/api/exchange-rate/save/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/voucher/advance/`
 
 ### Authentication
 
@@ -196,6 +210,65 @@ Status auto-calculated on save via `calculate_attendance_status()` based on talk
 
 - Development: Served from `attendance/static/`
 - Production: WhiteNoise middleware + `collectstatic` to `staticfiles/`
+
+## Payroll Architecture
+
+All payroll logic lives in `payroll/views.py`. Every model (payroll and attendance) uses the dual-FK pattern: `employee` (in-house) and `remote_employee` (remote) — exactly one must be set; `clean()` enforces this.
+
+### Employee Fields That Drive Payroll
+
+These fields on `Employee` / `RemoteEmployee` control how payroll is calculated:
+
+| Field | Values | Effect |
+|-------|--------|--------|
+| `department` | `'Admin'`, `'Sales'`, `None` | Determines which dashboard section the employee appears in |
+| `salary` | Decimal or null | Monthly gross salary |
+| `currency` | `'AED'` (default), `'INR'` | Governs commission calculation path and payslip formatting |
+| `payroll_type` | `'attendance'`, `'performance'` | Admin section only: `'performance'` skips all late/absent deductions |
+| `is_fixed_salary` | bool | Sales section only: attendance-based salary instead of pure commission |
+| `tcr_id` | string | Cross-links in-house and remote records for the same person; remote employees whose `tcr_id` matches an active in-house employee are excluded from the Sales section to prevent double-counting |
+| `location` | string | On `RemoteEmployee`, value `'inhouse'` moves the employee to the in-house column of the Salary Setup page (`/payroll/employees/`) |
+
+### Dashboard Sections (`_get_inhouse_payroll_row` / `_get_sales_payroll_row`)
+
+**Admin section** — in-house employees with `department='Admin'`:
+- Salary split: Basic 40%, Housing 40%, Transport 20%
+- `daily_rate = salary / days_in_month`
+- Deductions: `(absent_days + half_days×0.5 + (late_days÷3)×0.5) × daily_rate`
+- `payroll_type='performance'` → zero deductions regardless of attendance
+
+**Sales section** — in-house `department='Sales'` + remote employees (excluding those with matching in-house `tcr_id`):
+- Default: pure commission (submission_count × bank rate), no base salary
+- `is_fixed_salary=True`: attendance-based salary computed on-the-fly from raw records; bank counts are still recorded but ignored for net payroll
+- `is_fixed_salary=False` + salary set + `payroll_type='attendance'`: salary scaled by attendance ratio, commission added on top
+
+### DSA Commission Calculation (`_get_commission`)
+
+- **AED employees**: `commission = Σ (submission_count × bank.per_account_charge)`
+- **INR employees**: tiered via `_calc_inr_tiered_commission()`:
+  - First `INR_COMMISSION_THRESHOLD` (4) accounts across all banks: bank's `inr_per_account_charge` each
+  - Every account beyond threshold: `INR_OVERFLOW_RATE` (3000 INR) each
+  - Banks are processed alphabetically; the 4-account cap is a rolling total, not per-bank
+
+### Annual Leave Compensation (`_annual_leave_day_counts`)
+
+`AnnualLeave` has `is_paid` and `salary_percentage` (0–100%). During payroll:
+- **Working days** (Mon–Sat, non-holiday): compensate `salary_pct%` of `daily_rate × working_days` — this offsets the absent-day deduction already applied via `base_payroll`
+- **Non-working days** (Sundays + holidays): normally paid at 100%; during leave, only paid at `salary_pct%` — deduct the remaining `(100 − salary_pct)%`
+
+### Deduction Entry Mechanics
+
+`DeductionEntry.split_months > 1` spreads the total over N consecutive months starting from `start_year`/`start_month`. Use `is_active_in(year, month)` to test applicability. When net salary goes negative, `DeductionCarryover` records the overflow to apply it the following month.
+
+### Payslips and Vouchers
+
+- `download_payslip(emp_type, emp_id)` — generates an in-memory PDF-style Excel payslip; registers a `GeneratedDocument` entry
+- `advance_voucher_download()` — generates an advance payment voucher for a `DeductionEntry` of type `advance`
+- Both documents get stable reference IDs via `GeneratedDocument.ref` (`PS-XXXXX` / `PV-XXXXX`)
+
+### Remote Attendance Thresholds in Payroll
+
+Sales payroll recomputes remote attendance inline (does not rely on stored `RemoteCallRecord.attendance_status`) using `get_active_special_periods_for_month()` and `get_remote_thresholds_from_period()` from `attendance/views/utils.py`. This ensures correctness if `is_fixed_salary` was toggled after records were saved.
 
 ## Git Workflow
 

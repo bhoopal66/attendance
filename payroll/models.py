@@ -4,6 +4,7 @@ Payroll models for salary adjustments, DSA bank submissions, and deduction track
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from attendance.models import Employee
@@ -378,3 +379,24 @@ class GeneratedDocument(models.Model):
     def __str__(self):
         emp = self.employee or self.remote_employee
         return f"{self.ref} — {emp.name if emp else '?'} {self.month}/{self.year}"
+
+
+class FrozenPayrollMonth(models.Model):
+    """
+    Immutable snapshot of a fully-computed payroll month.
+    Once a month is frozen, the dashboard serves from this snapshot instead of
+    recalculating — so future changes to employee settings, bank rates, or
+    attendance summaries don't alter historical payroll figures.
+    """
+    year = models.IntegerField()
+    month = models.IntegerField(help_text="1-12")
+    frozen_at = models.DateTimeField()
+    frozen_by = models.CharField(max_length=150, blank=True, help_text="Username of the admin who froze this month")
+    snapshot = models.JSONField(help_text="Full serialised payroll context for this month")
+
+    class Meta:
+        unique_together = [('year', 'month')]
+        ordering = ['-year', '-month']
+
+    def __str__(self):
+        return f"Frozen payroll {self.month}/{self.year} (by {self.frozen_by})"

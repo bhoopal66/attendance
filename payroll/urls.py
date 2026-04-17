@@ -35,4 +35,7 @@ urlpatterns = [
     path('voucher/advance/', views.advance_voucher_download, name='advance_voucher'),
     # Exchange rate
     path('api/exchange-rate/save/', views.save_exchange_rate, name='save_exchange_rate'),
+    # Freeze / unfreeze payroll month
+    path('api/freeze/', views.freeze_payroll, name='freeze_payroll'),
+    path('api/unfreeze/', views.unfreeze_payroll, name='unfreeze_payroll'),
 ]

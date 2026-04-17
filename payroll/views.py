@@ -9,6 +9,7 @@ import calendar
 import logging
 from collections import defaultdict
 from decimal import Decimal
+from types import SimpleNamespace
 
 from django.core.management import call_command
 from django.db.models import Q, Sum
@@ -28,7 +29,7 @@ from attendance.views.utils import (
     get_selected_month_year, superuser_required,
     get_active_special_periods_for_month, get_remote_thresholds_from_period,
 )
-from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, DEDUCTION_CATEGORY_CHOICES
+from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, DEDUCTION_CATEGORY_CHOICES
 
 logger = logging.getLogger('payroll')
 
@@ -477,6 +478,176 @@ def _build_section_totals(rows):
 
 
 # ============================================
+# Freeze / Snapshot Helpers
+# ============================================
+
+def _serialize_payroll_context(ctx):
+    """Convert a computed payroll context dict into a JSON-serialisable snapshot.
+    Replaces Employee/RemoteEmployee model objects with flat primitive fields so
+    the snapshot can be stored in FrozenPayrollMonth.snapshot (JSONField).
+    """
+    def _emp_fields(emp):
+        return {
+            'employee_id': emp.id,
+            'employee_name': emp.name,
+            'employee_designation': getattr(emp, 'designation', None),
+            'employee_location': getattr(emp, 'location', '') or '',
+            'employee_department': getattr(emp, 'department', '') or '',
+            'employee_currency': getattr(emp, 'currency', 'AED'),
+            'employee_is_fixed_salary': getattr(emp, 'is_fixed_salary', False),
+        }
+
+    def _ser_rows(rows):
+        result = []
+        for row in rows:
+            d = {}
+            for k, v in row.items():
+                if k == 'employee':
+                    d.update(_emp_fields(v))
+                else:
+                    d[k] = v
+            result.append(d)
+        return result
+
+    banks = ctx.get('banks', [])
+    return {
+        'meta': {
+            'total_holidays': ctx.get('total_holidays', 0),
+            'inr_exchange_rate': ctx.get('inr_exchange_rate'),
+        },
+        'admin_data': _ser_rows(ctx.get('admin_data', [])),
+        'total_admin': ctx.get('total_admin', 0),
+        'admin_incentives_total': ctx.get('admin_incentives_total', 0),
+        'admin_reductions_total': ctx.get('admin_reductions_total', 0),
+        'admin_commission_data': _ser_rows(ctx.get('admin_commission_data', [])),
+        'total_admin_commission': ctx.get('total_admin_commission', 0),
+        'banks': [
+            {
+                'id': b.id, 'name': b.name,
+                'per_account_charge': float(b.per_account_charge),
+                'inr_per_account_charge': float(b.inr_per_account_charge) if b.inr_per_account_charge else None,
+            }
+            for b in banks
+        ],
+        'all_sales_data': _ser_rows(ctx.get('all_sales_data', [])),
+        'total_sales_inhouse': ctx.get('total_sales_inhouse', 0),
+        'total_remote': ctx.get('total_remote', 0),
+        'total_sales': ctx.get('total_sales', 0),
+        'total_sales_aed': ctx.get('total_sales_aed', 0),
+        'total_sales_inr': ctx.get('total_sales_inr', 0),
+        'total_sales_commission_aed': ctx.get('total_sales_commission_aed', 0),
+        'total_sales_commission_inr': ctx.get('total_sales_commission_inr', 0),
+        'sales_incentives_total': ctx.get('sales_incentives_total', 0),
+        'sales_reductions_total': ctx.get('sales_reductions_total', 0),
+        'total_sales_all_aed': ctx.get('total_sales_all_aed', 0),
+        'section3_rows': _ser_rows(ctx.get('section3_rows', [])),
+        's3_total_ded': ctx.get('s3_total_ded', 0),
+        's3_total_add': ctx.get('s3_total_add', 0),
+        's3_net': ctx.get('s3_net', 0),
+        's3_total_ded_aed': ctx.get('s3_total_ded_aed', 0),
+        's3_total_ded_inr': ctx.get('s3_total_ded_inr', 0),
+        's3_total_add_aed': ctx.get('s3_total_add_aed', 0),
+        's3_total_add_inr': ctx.get('s3_total_add_inr', 0),
+        's3_net_aed': ctx.get('s3_net_aed', 0),
+        's3_net_inr': ctx.get('s3_net_inr', 0),
+        'final_rows': _ser_rows(ctx.get('final_rows', [])),
+        'final_total': ctx.get('final_total', 0),
+        'final_total_aed': ctx.get('final_total_aed', 0),
+        'final_total_inr': ctx.get('final_total_inr', 0),
+        'final_total_combined_aed': ctx.get('final_total_combined_aed', 0),
+        'grand_total': ctx.get('grand_total', 0),
+        'grand_total_aed': ctx.get('grand_total_aed', 0),
+        'grand_total_inr': ctx.get('grand_total_inr', 0),
+    }
+
+
+def _row_to_ns(d):
+    """Wrap a serialised row dict in SimpleNamespace so Django template dot-access works."""
+    emp = SimpleNamespace(
+        id=d.get('employee_id'),
+        name=d.get('employee_name', ''),
+        designation=d.get('employee_designation'),
+        location=d.get('employee_location', ''),
+        department=d.get('employee_department', ''),
+        currency=d.get('employee_currency', 'AED'),
+        is_fixed_salary=d.get('employee_is_fixed_salary', False),
+    )
+    ns = SimpleNamespace(**{k: v for k, v in d.items()})
+    ns.employee = emp
+    return ns
+
+
+def _deserialize_payroll_context(snapshot, selected_month, selected_year):
+    """Rebuild a template-compatible context from a frozen JSON snapshot."""
+    banks = [SimpleNamespace(**b) for b in snapshot.get('banks', [])]
+    banks_json = json.dumps([
+        {
+            'id': b.id, 'name': b.name,
+            'rate': b.per_account_charge,
+            'inr_rate': b.inr_per_account_charge,
+        }
+        for b in banks
+    ])
+    meta = snapshot.get('meta', {})
+    return {
+        'total_holidays': meta.get('total_holidays', 0),
+        'inr_exchange_rate': meta.get('inr_exchange_rate'),
+        'banks': banks,
+        'banks_json': banks_json,
+        'admin_data': [_row_to_ns(r) for r in snapshot.get('admin_data', [])],
+        'total_admin': snapshot.get('total_admin', 0),
+        'admin_incentives_total': snapshot.get('admin_incentives_total', 0),
+        'admin_reductions_total': snapshot.get('admin_reductions_total', 0),
+        'admin_commission_data': [_row_to_ns(r) for r in snapshot.get('admin_commission_data', [])],
+        'total_admin_commission': snapshot.get('total_admin_commission', 0),
+        'all_sales_data': [_row_to_ns(r) for r in snapshot.get('all_sales_data', [])],
+        'total_sales_inhouse': snapshot.get('total_sales_inhouse', 0),
+        'total_remote': snapshot.get('total_remote', 0),
+        'total_sales': snapshot.get('total_sales', 0),
+        'total_sales_aed': snapshot.get('total_sales_aed', 0),
+        'total_sales_inr': snapshot.get('total_sales_inr', 0),
+        'total_sales_commission_aed': snapshot.get('total_sales_commission_aed', 0),
+        'total_sales_commission_inr': snapshot.get('total_sales_commission_inr', 0),
+        'sales_incentives_total': snapshot.get('sales_incentives_total', 0),
+        'sales_reductions_total': snapshot.get('sales_reductions_total', 0),
+        'total_sales_all_aed': snapshot.get('total_sales_all_aed', 0),
+        'section3_rows': [_row_to_ns(r) for r in snapshot.get('section3_rows', [])],
+        'all_deductions_list': [],  # edit modal disabled when frozen
+        'all_employees_json': '[]',
+        's3_total_ded': snapshot.get('s3_total_ded', 0),
+        's3_total_add': snapshot.get('s3_total_add', 0),
+        's3_net': snapshot.get('s3_net', 0),
+        's3_total_ded_aed': snapshot.get('s3_total_ded_aed', 0),
+        's3_total_ded_inr': snapshot.get('s3_total_ded_inr', 0),
+        's3_total_add_aed': snapshot.get('s3_total_add_aed', 0),
+        's3_total_add_inr': snapshot.get('s3_total_add_inr', 0),
+        's3_net_aed': snapshot.get('s3_net_aed', 0),
+        's3_net_inr': snapshot.get('s3_net_inr', 0),
+        'final_rows': [_row_to_ns(r) for r in snapshot.get('final_rows', [])],
+        'final_total': snapshot.get('final_total', 0),
+        'final_total_aed': snapshot.get('final_total_aed', 0),
+        'final_total_inr': snapshot.get('final_total_inr', 0),
+        'final_total_combined_aed': snapshot.get('final_total_combined_aed', 0),
+        'grand_total': snapshot.get('grand_total', 0),
+        'grand_total_aed': snapshot.get('grand_total_aed', 0),
+        'grand_total_inr': snapshot.get('grand_total_inr', 0),
+        # Carryover timeline is always live (spans all months, not specific to frozen month)
+        'all_carryovers': DeductionCarryover.objects.none(),
+        'carryover_timeline': [],
+        # Template navigation
+        'selected_month': selected_month,
+        'selected_year': selected_year,
+        'month_name': MONTH_NAMES[selected_month],
+        'months': MONTH_CHOICES,
+        'years': YEAR_RANGE,
+        'INR_COMMISSION_THRESHOLD': INR_COMMISSION_THRESHOLD,
+        'INR_OVERFLOW_RATE': int(INR_OVERFLOW_RATE),
+        'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
+        'is_frozen': True,
+    }
+
+
+# ============================================
 # Main Dashboard
 # ============================================
 
@@ -485,6 +656,17 @@ def _build_section_totals(rows):
 def payroll_dashboard(request):
     """Payroll dashboard showing Admin and Sales sections."""
     selected_month, selected_year = get_selected_month_year(request)
+
+    # --- Frozen month: serve snapshot instead of recalculating ---
+    frozen_obj = FrozenPayrollMonth.objects.filter(
+        year=selected_year, month=selected_month
+    ).first()
+    if frozen_obj:
+        ctx = _deserialize_payroll_context(frozen_obj.snapshot, selected_month, selected_year)
+        ctx['frozen_at'] = frozen_obj.frozen_at
+        ctx['frozen_by'] = frozen_obj.frozen_by
+        return render(request, 'payroll/dashboard.html', ctx)
+
     _, days_in_month = calendar.monthrange(selected_year, selected_month)
     month_start = datetime.date(selected_year, selected_month, 1)
     month_end = datetime.date(selected_year, selected_month, days_in_month)
@@ -1089,9 +1271,389 @@ def payroll_dashboard(request):
         'grand_total': grand_total,
         'grand_total_aed': grand_total_aed,
         'grand_total_inr': grand_total_inr,
+        # Freeze state
+        'is_frozen': False,
+        'frozen_at': None,
+        'frozen_by': None,
+        'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
     }
 
     return render(request, 'payroll/dashboard.html', context)
+
+
+# ============================================
+# Freeze / Unfreeze Payroll Month
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def freeze_payroll(request):
+    """Compute and store an immutable snapshot of payroll for the given month."""
+    try:
+        data = json.loads(request.body)
+        year = int(data['year'])
+        month = int(data['month'])
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+    if FrozenPayrollMonth.objects.filter(year=year, month=month).exists():
+        return JsonResponse({'success': False, 'error': 'This month is already frozen.'}, status=400)
+
+    # Run the full payroll calculation inline (mirrors payroll_dashboard logic).
+    _, days_in_month = calendar.monthrange(year, month)
+    month_start = datetime.date(year, month, 1)
+    month_end = datetime.date(year, month, days_in_month)
+    total_holidays = _count_holidays(year, month, days_in_month)
+    banks = list(Bank.objects.filter(is_active=True).order_by('name'))
+
+    admin_employees = list(Employee.objects.filter(department='Admin', is_active=True).order_by('name'))
+    admin_data = [
+        _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_holidays)
+        for emp in admin_employees
+    ]
+    total_admin, admin_incentives_total, admin_reductions_total, _ = _build_section_totals(admin_data)
+
+    admin_commission_data = []
+    for emp in admin_employees:
+        submissions_qs = BankSubmission.objects.filter(employee=emp, year=year, month=month)
+        bank_counts = {s.bank_id: s.submission_count for s in submissions_qs}
+        bank_counts_list = [bank_counts.get(b.id, 0) for b in banks]
+        commission = _get_commission(year, month, employee=emp, currency=emp.currency)
+        admin_commission_data.append({
+            'employee': emp,
+            'employee_type': 'inhouse',
+            'currency': emp.currency,
+            'bank_counts_list': bank_counts_list,
+            'commission': round(commission, 2),
+        })
+    total_admin_commission = round(sum(r['commission'] for r in admin_commission_data), 2)
+
+    sales_inhouse_employees = Employee.objects.filter(department='Sales', is_active=True).order_by('name')
+    sales_inhouse_data = [
+        _get_sales_payroll_row(emp, year, month, 'inhouse', banks, days_in_month, total_holidays)
+        for emp in sales_inhouse_employees
+    ]
+    total_sales_inhouse, _, _, _ = _build_section_totals(sales_inhouse_data)
+
+    all_inhouse_tcr_ids = set(
+        Employee.objects.filter(is_active=True).exclude(tcr_id='').values_list('tcr_id', flat=True)
+    )
+    remote_employees = RemoteEmployee.objects.filter(is_active=True).order_by('name')
+    if all_inhouse_tcr_ids:
+        remote_employees = remote_employees.exclude(tcr_id__in=all_inhouse_tcr_ids)
+    remote_data = [
+        _get_sales_payroll_row(emp, year, month, 'remote', banks, days_in_month, total_holidays)
+        for emp in remote_employees
+    ]
+    total_remote, _, _, _ = _build_section_totals(remote_data)
+
+    def _has_base_salary(r):
+        return r.get('is_fixed_salary') or r.get('is_attendance_based')
+
+    all_sales_data = sorted(
+        sales_inhouse_data + remote_data,
+        key=lambda r: (0 if _has_base_salary(r) else 1, r['employee'].name.lower())
+    )
+    all_sales_rows = sales_inhouse_data + remote_data
+    total_sales, sales_incentives_total, sales_reductions_total, _ = _build_section_totals(all_sales_rows)
+    total_sales_aed = round(sum(r['net_payroll'] for r in all_sales_rows if r.get('currency', 'AED') == 'AED'), 2)
+    total_sales_inr = round(sum(r['net_payroll'] for r in all_sales_rows if r.get('currency', 'AED') == 'INR'), 2)
+
+    def _sales_tfoot(rows, currency):
+        return round(
+            sum(r.get('commission', 0) for r in rows if not _has_base_salary(r) and r.get('currency', 'AED') == currency) +
+            sum(r['net_payroll'] for r in rows if _has_base_salary(r) and r.get('currency', 'AED') == currency),
+            2
+        )
+    total_sales_commission_aed = _sales_tfoot(all_sales_rows, 'AED')
+    total_sales_commission_inr = _sales_tfoot(all_sales_rows, 'INR')
+
+    inr_exchange_rate = None
+    inr_rate_obj = ExchangeRate.objects.filter(currency='INR', year=year, month=month).first()
+    if inr_rate_obj:
+        inr_exchange_rate = float(inr_rate_obj.rate)
+
+    for row in all_sales_data:
+        amount = row.get('net_payroll') if (_has_base_salary(row)) else row.get('commission', 0)
+        if row.get('currency', 'AED') == 'INR' and inr_exchange_rate and inr_exchange_rate > 0:
+            row['net_payroll_aed'] = round(amount / inr_exchange_rate, 2)
+        else:
+            row['net_payroll_aed'] = round(amount, 2)
+    total_sales_all_aed = round(sum(r['net_payroll_aed'] for r in all_sales_data), 2)
+
+    _month_names_short = {
+        1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+        7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
+    }
+    _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
+    _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
+    _ALL_CATS = _DED_COLS + _ADD_COLS
+    target_idx = year * 12 + (month - 1)
+
+    active_by_emp = _defaultdict(list)
+    for entry in DeductionEntry.objects.select_related('employee', 'remote_employee').order_by('-created_at'):
+        emp = entry.employee or entry.remote_employee
+        emp_type = 'inhouse' if entry.employee else 'remote'
+        start_idx = entry.start_year * 12 + (entry.start_month - 1)
+        if start_idx <= target_idx < start_idx + entry.split_months:
+            active_by_emp[(emp_type, emp.id)].append(entry)
+
+    inhouse_summaries = {
+        s.employee_id: s
+        for s in MonthlySummary.objects.filter(year=year, month=month)
+    }
+    incoming_carryovers = DeductionCarryover.objects.filter(to_year=year, to_month=month)
+    carryover_by_emp = {}
+    for co in incoming_carryovers:
+        key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
+        carryover_by_emp[key] = co.overflow_amount
+
+    _payroll_inhouse = list(Employee.objects.filter(
+        is_active=True, department__in=['Admin', 'Sales']
+    ).order_by('department', 'name'))
+    _payroll_inhouse_ids = {e.id for e in _payroll_inhouse}
+    _payroll_inhouse_names = {e.name: e.id for e in _payroll_inhouse}
+    _inhouse_dupe_ids = _defaultdict(list)
+    for _emp in Employee.objects.filter(is_active=True).exclude(id__in=_payroll_inhouse_ids):
+        main_id = _payroll_inhouse_names.get(_emp.name)
+        if main_id:
+            _inhouse_dupe_ids[main_id].append(_emp.id)
+
+    _remote_ids = {e.id for e in remote_employees}
+    _remote_names = {e.name: e.id for e in remote_employees}
+    _remote_dupe_ids = _defaultdict(list)
+    for _emp in RemoteEmployee.objects.filter(is_active=True).exclude(id__in=_remote_ids):
+        main_id = _remote_names.get(_emp.name)
+        if main_id:
+            _remote_dupe_ids[main_id].append(_emp.id)
+
+    section3_rows = []
+    for emp in _payroll_inhouse:
+        cat = {c: 0.0 for c in _ALL_CATS}
+        for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
+            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        for dupe_id in _inhouse_dupe_ids.get(emp.id, []):
+            for ded_entry in active_by_emp.get(('inhouse', dupe_id), []):
+                cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        summary = inhouse_summaries.get(emp.id)
+        if summary and emp.salary and emp.payroll_type != 'performance':
+            daily = float(emp.salary) / days_in_month
+            cat['leave_deduction'] = round(daily * (summary.leave_days or 0), 2)
+            cat['late_deduction'] = round(daily * ((summary.late_days or 0) // 3) * 0.5, 2)
+        if emp.department == 'Admin':
+            ded_cols_for_total = [c for c in _DED_COLS if c not in ('leave_deduction', 'late_deduction')]
+        else:
+            ded_cols_for_total = _DED_COLS
+        total_ded = round(sum(cat[c] for c in ded_cols_for_total), 2)
+        carryover_in = float(carryover_by_emp.get(('inhouse', emp.id), 0))
+        for dupe_id in _inhouse_dupe_ids.get(emp.id, []):
+            carryover_in += float(carryover_by_emp.get(('inhouse', dupe_id), 0))
+        total_ded = round(total_ded + carryover_in, 2)
+        total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
+        row = {'employee': emp, 'employee_type': 'inhouse', 'is_inhouse': True, 'currency': emp.currency}
+        row.update(cat)
+        row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2), 'carryover_in': carryover_in})
+        section3_rows.append(row)
+
+    for emp in remote_employees:
+        cat = {c: 0.0 for c in _ALL_CATS}
+        for ded_entry in active_by_emp.get(('remote', emp.id), []):
+            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        for dupe_id in _remote_dupe_ids.get(emp.id, []):
+            for ded_entry in active_by_emp.get(('remote', dupe_id), []):
+                cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        total_ded = round(sum(cat[c] for c in _DED_COLS), 2)
+        carryover_in = float(carryover_by_emp.get(('remote', emp.id), 0))
+        for dupe_id in _remote_dupe_ids.get(emp.id, []):
+            carryover_in += float(carryover_by_emp.get(('remote', dupe_id), 0))
+        total_ded = round(total_ded + carryover_in, 2)
+        total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
+        row = {'employee': emp, 'employee_type': 'remote', 'is_inhouse': False, 'currency': emp.currency}
+        row.update(cat)
+        row.update({'total_deductions': total_ded, 'total_additions': total_add, 'net': round(total_add - total_ded, 2), 'carryover_in': carryover_in})
+        section3_rows.append(row)
+
+    s3_total_ded = round(sum(r['total_deductions'] for r in section3_rows), 2)
+    s3_total_add = round(sum(r['total_additions'] for r in section3_rows), 2)
+    s3_net = round(s3_total_add - s3_total_ded, 2)
+    s3_total_ded_aed = round(sum(r['total_deductions'] for r in section3_rows if r.get('currency', 'AED') == 'AED'), 2)
+    s3_total_ded_inr = round(sum(r['total_deductions'] for r in section3_rows if r.get('currency', 'AED') == 'INR'), 2)
+    s3_total_add_aed = round(sum(r['total_additions'] for r in section3_rows if r.get('currency', 'AED') == 'AED'), 2)
+    s3_total_add_inr = round(sum(r['total_additions'] for r in section3_rows if r.get('currency', 'AED') == 'INR'), 2)
+    s3_net_aed = round(s3_total_add_aed - s3_total_ded_aed, 2)
+    s3_net_inr = round(s3_total_add_inr - s3_total_ded_inr, 2)
+
+    payroll_by_emp = {}
+    for row in admin_data:
+        payroll_by_emp[('inhouse', row['employee'].id)] = row
+    for row in all_sales_data:
+        payroll_by_emp[(row['employee_type'], row['employee'].id)] = row
+    ded_by_emp = {}
+    for row in section3_rows:
+        ded_by_emp[(row['employee_type'], row['employee'].id)] = row
+
+    if month == 12:
+        _co_to_month, _co_to_year = 1, year + 1
+    else:
+        _co_to_month, _co_to_year = month + 1, year
+
+    final_rows = []
+    for emp in _payroll_inhouse:
+        key = ('inhouse', emp.id)
+        p = payroll_by_emp.get(key)
+        d = ded_by_emp.get(key)
+        payroll_net = p['net_payroll'] if p else 0.0
+        total_ded = d['total_deductions'] if d else 0.0
+        total_add = d['total_additions'] if d else 0.0
+        carryover_in = d['carryover_in'] if d else 0.0
+        final_salary = round(payroll_net - total_ded + total_add, 2)
+        if final_salary < 0:
+            overflow = Decimal(str(abs(final_salary)))
+            final_salary = 0.0
+            DeductionCarryover.objects.update_or_create(
+                employee=emp, from_year=year, from_month=month,
+                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month, 'remote_employee': None},
+            )
+        else:
+            DeductionCarryover.objects.filter(employee=emp, from_year=year, from_month=month).delete()
+        if carryover_in > 0:
+            inc_co = incoming_carryovers.filter(employee=emp).first()
+            if inc_co:
+                inc_co.applied_amount = Decimal(str(min(carryover_in, float(inc_co.overflow_amount))))
+                inc_co.save(update_fields=['applied_amount'])
+        final_rows.append({
+            'employee': emp,
+            'employee_type': 'inhouse',
+            'department': emp.department or 'In-House',
+            'currency': emp.currency,
+            'payroll_net': payroll_net,
+            'total_deductions': total_ded,
+            'total_additions': total_add,
+            'final_salary': final_salary,
+        })
+
+    for emp in remote_employees:
+        key = ('remote', emp.id)
+        p = payroll_by_emp.get(key)
+        d = ded_by_emp.get(key)
+        payroll_net = p['net_payroll'] if p else 0.0
+        total_ded = d['total_deductions'] if d else 0.0
+        total_add = d['total_additions'] if d else 0.0
+        carryover_in = d['carryover_in'] if d else 0.0
+        final_salary = round(payroll_net - total_ded + total_add, 2)
+        if final_salary < 0:
+            overflow = Decimal(str(abs(final_salary)))
+            final_salary = 0.0
+            DeductionCarryover.objects.update_or_create(
+                remote_employee=emp, from_year=year, from_month=month,
+                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month, 'employee': None},
+            )
+        else:
+            DeductionCarryover.objects.filter(remote_employee=emp, from_year=year, from_month=month).delete()
+        if carryover_in > 0:
+            inc_co = incoming_carryovers.filter(remote_employee=emp).first()
+            if inc_co:
+                inc_co.applied_amount = Decimal(str(min(carryover_in, float(inc_co.overflow_amount))))
+                inc_co.save(update_fields=['applied_amount'])
+        final_rows.append({
+            'employee': emp,
+            'employee_type': 'remote',
+            'department': 'Remote',
+            'currency': emp.currency,
+            'payroll_net': payroll_net,
+            'total_deductions': total_ded,
+            'total_additions': total_add,
+            'final_salary': final_salary,
+        })
+
+    final_total_aed = round(sum(r['final_salary'] for r in final_rows if r.get('currency', 'AED') == 'AED'), 2)
+    final_total_inr = round(sum(r['final_salary'] for r in final_rows if r.get('currency', 'AED') == 'INR'), 2)
+    final_total = round(sum(r['final_salary'] for r in final_rows), 2)
+    if inr_exchange_rate and inr_exchange_rate > 0 and final_total_inr > 0:
+        final_total_combined_aed = round(final_total_aed + (final_total_inr / inr_exchange_rate), 2)
+    else:
+        final_total_combined_aed = final_total_aed
+
+    all_rows = admin_data + all_sales_data
+    grand_total_aed = round(sum(r['net_payroll'] for r in all_rows if r.get('currency', 'AED') == 'AED'), 2)
+    grand_total_inr = round(sum(r['net_payroll'] for r in all_rows if r.get('currency', 'AED') == 'INR'), 2)
+    grand_total = round(total_admin + total_sales, 2)
+
+    snapshot_ctx = {
+        'total_holidays': total_holidays,
+        'inr_exchange_rate': inr_exchange_rate,
+        'banks': banks,
+        'admin_data': admin_data,
+        'total_admin': total_admin,
+        'admin_incentives_total': admin_incentives_total,
+        'admin_reductions_total': admin_reductions_total,
+        'admin_commission_data': admin_commission_data,
+        'total_admin_commission': total_admin_commission,
+        'all_sales_data': all_sales_data,
+        'total_sales_inhouse': total_sales_inhouse,
+        'total_remote': total_remote,
+        'total_sales': total_sales,
+        'total_sales_aed': total_sales_aed,
+        'total_sales_inr': total_sales_inr,
+        'total_sales_commission_aed': total_sales_commission_aed,
+        'total_sales_commission_inr': total_sales_commission_inr,
+        'sales_incentives_total': sales_incentives_total,
+        'sales_reductions_total': sales_reductions_total,
+        'total_sales_all_aed': total_sales_all_aed,
+        'section3_rows': section3_rows,
+        's3_total_ded': s3_total_ded,
+        's3_total_add': s3_total_add,
+        's3_net': s3_net,
+        's3_total_ded_aed': s3_total_ded_aed,
+        's3_total_ded_inr': s3_total_ded_inr,
+        's3_total_add_aed': s3_total_add_aed,
+        's3_total_add_inr': s3_total_add_inr,
+        's3_net_aed': s3_net_aed,
+        's3_net_inr': s3_net_inr,
+        'final_rows': final_rows,
+        'final_total': final_total,
+        'final_total_aed': final_total_aed,
+        'final_total_inr': final_total_inr,
+        'final_total_combined_aed': final_total_combined_aed,
+        'grand_total': grand_total,
+        'grand_total_aed': grand_total_aed,
+        'grand_total_inr': grand_total_inr,
+    }
+    snapshot = _serialize_payroll_context(snapshot_ctx)
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    FrozenPayrollMonth.objects.create(
+        year=year, month=month,
+        frozen_at=now,
+        frozen_by=request.user.username,
+        snapshot=snapshot,
+    )
+    logger.info("Payroll frozen for %s/%s by %s", month, year, request.user.username)
+    return JsonResponse({'success': True, 'frozen_at': now.isoformat()})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+@require_http_methods(["POST"])
+def unfreeze_payroll(request):
+    """Delete the frozen snapshot for a month, reverting to live calculation."""
+    try:
+        data = json.loads(request.body)
+        year = int(data['year'])
+        month = int(data['month'])
+        password = data.get('password', '')
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+    if not request.user.check_password(password):
+        return JsonResponse({'success': False, 'error': 'Incorrect password.'}, status=403)
+
+    deleted, _ = FrozenPayrollMonth.objects.filter(year=year, month=month).delete()
+    if not deleted:
+        return JsonResponse({'success': False, 'error': 'This month is not frozen.'}, status=400)
+
+    logger.info("Payroll unfrozen for %s/%s by %s", month, year, request.user.username)
+    return JsonResponse({'success': True})
 
 
 # ============================================
