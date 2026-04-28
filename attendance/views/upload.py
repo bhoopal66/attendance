@@ -171,10 +171,24 @@ def _lookup_or_create_employee(person_id, name):
             logger.info("Updated person_id for %s (tcr_id=%s): %s → %s", name, employee.tcr_id, old_id, person_id)
         return employee, False
 
-    # Tier 1b: Confirmed employee matched by person_id (name may have changed)
-    confirmed_by_pid = Employee.objects.filter(person_id=person_id, tcr_id__isnull=False, is_active=True).first()
+    # Tier 1b: Confirmed employee matched by person_id AND name.
+    # If only person_id matches but the name differs, treat it as a reassigned
+    # machine ID (e.g., leaver's slot given to a new hire) and fall through to
+    # create a fresh record. Admin can merge later if it really was the same person.
+    confirmed_by_pid = Employee.objects.filter(
+        person_id=person_id, name=name, tcr_id__isnull=False, is_active=True
+    ).first()
     if confirmed_by_pid:
         return confirmed_by_pid, False
+    name_mismatch_pid = Employee.objects.filter(
+        person_id=person_id, tcr_id__isnull=False, is_active=True
+    ).exclude(name=name).first()
+    if name_mismatch_pid:
+        logger.info(
+            "person_id %s is held by confirmed employee '%s' but upload name is '%s' — "
+            "treating as reassigned ID; new record will be created",
+            person_id, name_mismatch_pid.name, name
+        )
 
     # --- Fallback tiers for employees WITHOUT tcr_id ---
 
@@ -197,9 +211,12 @@ def _lookup_or_create_employee(person_id, name):
             return employee, False
         return active_by_name.order_by('-updated_at').first(), False
 
-    # Tier 3: Check alias history (active employees only — inactive IDs are released)
+    # Tier 3: Check alias history (active employees only — inactive IDs are released).
+    # Only reuse the alias if the name on the upload matches the alias-owning
+    # employee's current name. If the name differs, this is a reassigned ID — fall
+    # through to create a new record.
     alias = EmployeeIDAlias.objects.filter(
-        person_id=person_id, employee__is_active=True
+        person_id=person_id, employee__is_active=True, employee__name=name
     ).select_related('employee').first()
     if alias:
         employee = alias.employee
@@ -209,6 +226,15 @@ def _lookup_or_create_employee(person_id, name):
         employee.save(update_fields=['person_id', 'updated_at'])
         logger.info("Matched %s via alias person_id %s → updated to %s", employee.name, person_id, person_id)
         return employee, False
+    mismatched_alias = EmployeeIDAlias.objects.filter(
+        person_id=person_id, employee__is_active=True
+    ).select_related('employee').first()
+    if mismatched_alias:
+        logger.info(
+            "person_id %s is in alias history of '%s' but upload name is '%s' — "
+            "treating as reassigned ID; new record will be created",
+            person_id, mismatched_alias.employee.name, name
+        )
 
     # Tier 4: Create new
     employee = Employee.objects.create(person_id=person_id, name=name)
