@@ -96,6 +96,53 @@ def _validate_file_extension(filename, allowed_extensions):
     return ext
 
 
+def _clean_id(value):
+    """
+    Normalize a Person ID / Extension ID coming from a spreadsheet.
+
+    Pandas often reads numeric IDs as floats (12345 -> 12345.0); naively
+    str()-ing those produces "12345.0" which never matches the stored
+    CharField "12345". HTML cells can also carry NBSP / extra whitespace.
+    """
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, float):
+        if pd.isna(value):
+            return None
+        if value.is_integer():
+            return str(int(value))
+        return str(value)
+    if isinstance(value, int):
+        return str(value)
+    s = str(value).replace('\xa0', ' ').strip()
+    if not s or s.lower() in ('nan', 'none', '<na>'):
+        return None
+    # Trailing ".0" from accidental float stringification upstream
+    if re.fullmatch(r'\d+\.0+', s):
+        s = s.split('.', 1)[0]
+    return s
+
+
+def _clean_name(value):
+    """Normalize a name from a spreadsheet: NBSP -> space, collapse whitespace."""
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    s = str(value).replace('\xa0', ' ').strip()
+    if not s or s.lower() in ('nan', 'none', '<na>'):
+        return None
+    return re.sub(r'\s+', ' ', s)
+
+
 def _lookup_or_create_employee(person_id, name):
     """
     Look up an in-house employee using a tiered strategy. Returns (employee, was_created).
@@ -358,7 +405,8 @@ def upload_file(request):
             engine = "xlrd" if ext.lower() == ".xls" else "openpyxl"
             df = pd.read_excel(excel_file, engine=engine)
 
-        df.replace("-", pd.NA, inplace=True)
+        for col in ("First-In", "Last-Out"):
+            df[col] = df[col].replace("-", pd.NA)
         date_val = pd.to_datetime(selected_date_str).date()
 
         df["First-In"] = pd.to_datetime(
@@ -370,7 +418,21 @@ def upload_file(request):
             errors="coerce"
         )
 
-        grouped = df.groupby(["Person ID", "Name"])
+        # Normalize identifiers BEFORE groupby so type coercion (12345.0 vs "12345"),
+        # NBSP, and stray whitespace don't fragment a single employee into multiple
+        # groups or cause Tier 0 lookups to miss and silently spawn duplicates.
+        df["Person ID"] = df["Person ID"].apply(_clean_id)
+        df["Name"] = df["Name"].apply(_clean_name)
+
+        bad_rows = df[df["Person ID"].isna() | df["Name"].isna()]
+        if not bad_rows.empty:
+            logger.warning(
+                "Skipping %d row(s) with missing Person ID or Name in %s",
+                len(bad_rows), excel_file.name
+            )
+        df = df.dropna(subset=["Person ID", "Name"])
+
+        grouped = df.groupby(["Person ID", "Name"], dropna=False)
         processed_count = 0
         new_employees = []
 
@@ -469,8 +531,13 @@ def upload_remote_call_stats(request):
                     continue
 
                 parts = str(extension_col).split('-', 1)
-                extension_id = parts[0].strip()
-                name = parts[1].strip() if len(parts) > 1 else 'Unknown'
+                extension_id = _clean_id(parts[0])
+                raw_name = parts[1] if len(parts) > 1 else 'Unknown'
+                name = _clean_name(raw_name) or 'Unknown'
+
+                if not extension_id:
+                    logger.warning("Skipping remote row with empty extension ID: %r", extension_col)
+                    continue
 
                 employee, created = _lookup_or_create_remote_employee(extension_id, name)
                 if created:
@@ -587,8 +654,13 @@ def upload_remote_monthly(request):
                 dates_processed.add(record_date)
 
                 parts = str(extension_col).split('-', 1)
-                extension_id = parts[0].strip()
-                name = parts[1].strip() if len(parts) > 1 else 'Unknown'
+                extension_id = _clean_id(parts[0])
+                raw_name = parts[1] if len(parts) > 1 else 'Unknown'
+                name = _clean_name(raw_name) or 'Unknown'
+
+                if not extension_id:
+                    logger.warning("Skipping monthly remote row with empty extension ID: %r", extension_col)
+                    continue
 
                 employee, created = _lookup_or_create_remote_employee(extension_id, name)
                 if created:
