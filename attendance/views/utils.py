@@ -205,24 +205,84 @@ def get_approved_leave_days(employee, month_start, month_end):
     """
     Get set of day numbers that have approved leave for an employee in a month.
     Returns: set of day integers (1-31)
+
+    Sandwich rule: if the Saturday before AND the Monday after a Sunday are
+    both approved leave (whether as one span or two separate requests), the
+    Sunday in between is auto-added as leave too. The 2-day buffer on the
+    query lets this bridge work across month boundaries.
     """
     from attendance.models import LeaveRequest
 
+    query_start = month_start - datetime.timedelta(days=2)
+    query_end = month_end + datetime.timedelta(days=2)
     approved_leaves = LeaveRequest.objects.filter(
         employee=employee,
         status='approved',
-        start_date__lte=month_end,
-        end_date__gte=month_start
+        start_date__lte=query_end,
+        end_date__gte=query_start,
     )
-    leave_days = set()
+
+    leave_dates = set()
     for leave in approved_leaves:
-        start = max(leave.start_date, month_start)
-        end = min(leave.end_date, month_end)
+        start = max(leave.start_date, query_start)
+        end = min(leave.end_date, query_end)
         curr = start
         while curr <= end:
-            leave_days.add(curr.day)
+            leave_dates.add(curr)
             curr += datetime.timedelta(days=1)
-    return leave_days
+
+    current = month_start
+    while current <= month_end:
+        if current.weekday() == 6:
+            sat = current - datetime.timedelta(days=1)
+            mon = current + datetime.timedelta(days=1)
+            if sat in leave_dates and mon in leave_dates:
+                leave_dates.add(current)
+        current += datetime.timedelta(days=1)
+
+    return {d.day for d in leave_dates if month_start <= d <= month_end}
+
+
+def get_bridge_sunday_days(employee, month_start, month_end):
+    """
+    Return day numbers of Sundays in [month_start, month_end] that are
+    sandwiched between an approved-leave Saturday and an approved-leave
+    Monday for this employee. These Sundays are treated as unpaid leave
+    in payroll (one daily_rate deducted per day).
+
+    A 2-day buffer on the LeaveRequest query lets the bridge work across
+    month boundaries.
+    """
+    from attendance.models import LeaveRequest
+
+    query_start = month_start - datetime.timedelta(days=2)
+    query_end = month_end + datetime.timedelta(days=2)
+    approved_leaves = LeaveRequest.objects.filter(
+        employee=employee,
+        status='approved',
+        start_date__lte=query_end,
+        end_date__gte=query_start,
+    )
+
+    leave_dates = set()
+    for leave in approved_leaves:
+        start = max(leave.start_date, query_start)
+        end = min(leave.end_date, query_end)
+        curr = start
+        while curr <= end:
+            leave_dates.add(curr)
+            curr += datetime.timedelta(days=1)
+
+    bridge = set()
+    current = month_start
+    while current <= month_end:
+        if current.weekday() == 6:
+            sat = current - datetime.timedelta(days=1)
+            mon = current + datetime.timedelta(days=1)
+            if sat in leave_dates and mon in leave_dates and current not in leave_dates:
+                bridge.add(current.day)
+        current += datetime.timedelta(days=1)
+    return bridge
 
 
 def get_common_report_context(month, year, cal_data, holidays_qs, show_inactive, search_query):

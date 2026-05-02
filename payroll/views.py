@@ -28,6 +28,7 @@ from attendance.views.utils import (
     MONTH_CHOICES, MONTH_NAMES, YEAR_RANGE,
     get_selected_month_year, superuser_required,
     get_active_special_periods_for_month, get_remote_thresholds_from_period,
+    get_bridge_sunday_days,
 )
 from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, DEDUCTION_CATEGORY_CHOICES
 
@@ -196,13 +197,19 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     # Every 3 late days = 1 half-day deduction
     late_half_days = late_days // 3
 
+    # Sandwich-rule unpaid Sundays: a Sunday between an approved-leave Sat
+    # and an approved-leave Mon is treated as unpaid leave (one daily_rate off).
+    bridge_sunday_count = len(get_bridge_sunday_days(emp, month_start, month_end))
+
     # Performance-based payroll: no late/leave deductions
     if getattr(emp, 'payroll_type', 'attendance') == 'performance':
         total_deduction_days = 0
         deduction = 0.0
     else:
-        # Deduct absent days, half-day shortfalls, and late penalties from full salary
-        total_deduction_days = absent_days + (half_days * 0.5) + (late_half_days * 0.5)
+        # Deduct absent days, half-day shortfalls, late penalties, and bridge Sundays
+        total_deduction_days = (
+            absent_days + (half_days * 0.5) + (late_half_days * 0.5) + bridge_sunday_count
+        )
         deduction = daily_rate * total_deduction_days
     base_payroll = salary - deduction
 
@@ -256,6 +263,7 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'late_days': late_days,
         'late_half_days': late_half_days,
         'paid_leave_days': paid_leave_days,
+        'bridge_sunday_count': bridge_sunday_count,
         'annual_leave_days': annual_leave_days,
         'annual_leave_compensation': round(annual_leave_compensation, 2),
         'annual_leave_extra_deduction': round(annual_leave_extra_deduction, 2),
@@ -324,6 +332,9 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             ).filter(
                 Q(first_in__isnull=False) | Q(is_work_from_home=True)
             ).count()
+            month_start = datetime.date(year, month, 1)
+            month_end = datetime.date(year, month, days_in_month)
+            bridge_sunday_count = len(get_bridge_sunday_days(emp, month_start, month_end))
         else:
             call_records = RemoteCallRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
@@ -333,8 +344,9 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                 if (r.answered_calls or 0) + (r.no_answered or 0)
                    + (r.busy or 0) + (r.failed or 0) > 0
             )
+            bridge_sunday_count = 0
 
-        absent_days = max(0, total_working_days - present_days)
+        absent_days = max(0, total_working_days - present_days) + bridge_sunday_count
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
         net_payroll = round(base_salary + incentives - reductions, 2)
@@ -385,7 +397,11 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                 Q(first_in__isnull=False) | Q(is_work_from_home=True)
             ).count()
             half_days = 0
+            _ms = datetime.date(year, month, 1)
+            _me = datetime.date(year, month, days_in_month)
+            bridge_sunday_count = len(get_bridge_sunday_days(emp, _ms, _me))
         else:
+            bridge_sunday_count = 0
             holiday_dates = set(
                 Holiday.objects.filter(
                     date__year=year, date__month=month
@@ -426,7 +442,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                     half_days += 1
 
         effective_present = present_days + (half_days * 0.5)
-        absent_days = max(0, total_working_days - effective_present)
+        absent_days = max(0, total_working_days - effective_present) + bridge_sunday_count
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
         net_payroll = round(base_salary + incentives - reductions, 2)
