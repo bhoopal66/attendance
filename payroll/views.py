@@ -326,15 +326,14 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         daily_rate = salary / days_in_month if salary > 0 else 0.0
         total_working_days = days_in_month - total_holidays
 
+        month_start = datetime.date(year, month, 1)
+        month_end = datetime.date(year, month, days_in_month)
         if emp_type == 'inhouse':
             present_days = AttendanceRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
             ).filter(
                 Q(first_in__isnull=False) | Q(is_work_from_home=True)
             ).count()
-            month_start = datetime.date(year, month, 1)
-            month_end = datetime.date(year, month, days_in_month)
-            bridge_sunday_count = len(get_bridge_sunday_days(emp, month_start, month_end))
         else:
             call_records = RemoteCallRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
@@ -344,7 +343,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                 if (r.answered_calls or 0) + (r.no_answered or 0)
                    + (r.busy or 0) + (r.failed or 0) > 0
             )
-            bridge_sunday_count = 0
+        bridge_sunday_count = len(get_bridge_sunday_days(emp, month_start, month_end))
 
         absent_days = max(0, total_working_days - present_days) + bridge_sunday_count
         deduction = daily_rate * absent_days
@@ -390,6 +389,9 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         daily_rate = salary / days_in_month if salary > 0 else 0.0
         total_working_days = days_in_month - total_holidays
 
+        _ms = datetime.date(year, month, 1)
+        _me = datetime.date(year, month, days_in_month)
+        bridge_sunday_count = len(get_bridge_sunday_days(emp, _ms, _me))
         if emp_type == 'inhouse':
             present_days = AttendanceRecord.objects.filter(
                 employee=emp, date__year=year, date__month=month,
@@ -397,11 +399,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                 Q(first_in__isnull=False) | Q(is_work_from_home=True)
             ).count()
             half_days = 0
-            _ms = datetime.date(year, month, 1)
-            _me = datetime.date(year, month, days_in_month)
-            bridge_sunday_count = len(get_bridge_sunday_days(emp, _ms, _me))
         else:
-            bridge_sunday_count = 0
             holiday_dates = set(
                 Holiday.objects.filter(
                     date__year=year, date__month=month

@@ -248,38 +248,72 @@ def get_bridge_sunday_days(employee, month_start, month_end):
     Return day numbers of Sundays in [month_start, month_end] that are
     sandwiched between an approved-leave Saturday and an approved-leave
     Monday for this employee. These Sundays are treated as unpaid leave
-    in payroll (one daily_rate deducted per day).
+    in payroll (one daily_rate deducted per day) regardless of whether the
+    surrounding leaves are themselves paid or unpaid.
 
-    A 2-day buffer on the LeaveRequest query lets the bridge work across
-    month boundaries.
+    Bridges any combination of approved LeaveRequest (in-house only) and
+    AnnualLeave (in-house or remote). Sundays that fall inside one
+    continuous Sat-Sun-Mon leave span are excluded — those are already
+    handled by their own leave record.
+
+    A 2-day buffer on the queries lets the bridge work across month
+    boundaries.
     """
-    from attendance.models import LeaveRequest
+    from attendance.models import LeaveRequest, AnnualLeave, RemoteEmployee
 
     query_start = month_start - datetime.timedelta(days=2)
     query_end = month_end + datetime.timedelta(days=2)
-    approved_leaves = LeaveRequest.objects.filter(
-        employee=employee,
-        status='approved',
+
+    is_remote = isinstance(employee, RemoteEmployee)
+
+    leave_spans = []  # list of (start_date, end_date) tuples
+
+    if not is_remote:
+        for lr in LeaveRequest.objects.filter(
+            employee=employee,
+            status='approved',
+            start_date__lte=query_end,
+            end_date__gte=query_start,
+        ):
+            leave_spans.append((lr.start_date, lr.end_date))
+
+    al_qs = AnnualLeave.objects.filter(
         start_date__lte=query_end,
         end_date__gte=query_start,
     )
+    if is_remote:
+        al_qs = al_qs.filter(remote_employee=employee)
+    else:
+        al_qs = al_qs.filter(employee=employee)
+    for al in al_qs:
+        leave_spans.append((al.start_date, al.end_date))
 
     leave_dates = set()
-    for leave in approved_leaves:
-        start = max(leave.start_date, query_start)
-        end = min(leave.end_date, query_end)
+    continuous_dates = set()  # dates inside a span that itself covers Sat..Mon
+    for start_date, end_date in leave_spans:
+        start = max(start_date, query_start)
+        end = min(end_date, query_end)
         curr = start
         while curr <= end:
             leave_dates.add(curr)
+            curr += datetime.timedelta(days=1)
+        # Mark Sundays already covered by a single span that also includes
+        # the surrounding Sat and Mon so we don't double-count them.
+        curr = start
+        while curr <= end:
+            if (curr.weekday() == 6
+                    and start_date <= curr - datetime.timedelta(days=1)
+                    and end_date >= curr + datetime.timedelta(days=1)):
+                continuous_dates.add(curr)
             curr += datetime.timedelta(days=1)
 
     bridge = set()
     current = month_start
     while current <= month_end:
-        if current.weekday() == 6:
+        if current.weekday() == 6 and current not in continuous_dates:
             sat = current - datetime.timedelta(days=1)
             mon = current + datetime.timedelta(days=1)
-            if sat in leave_dates and mon in leave_dates and current not in leave_dates:
+            if sat in leave_dates and mon in leave_dates:
                 bridge.add(current.day)
         current += datetime.timedelta(days=1)
     return bridge
