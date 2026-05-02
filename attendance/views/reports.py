@@ -16,6 +16,7 @@ from ..models import (
 from .utils import (
     MONTH_NAMES, SATURDAY_WORK_DURATION_SECONDS,
     build_calendar_grid, count_holidays_in_range,
+    get_bulk_annual_leave_non_working_days,
     get_bulk_approved_leave_days, get_bulk_employee_shifts,
     get_active_special_periods_for_month, get_common_report_context,
     get_holiday_data, get_remote_thresholds_from_period, get_saturday_shift,
@@ -280,6 +281,9 @@ def attendance_report(request):
     employees = list(employees)
     bulk_shifts = get_bulk_employee_shifts(employees, month_start)
     bulk_leave_days = get_bulk_approved_leave_days(employees, month_start, month_end)
+    bulk_annual_leave_non_working = get_bulk_annual_leave_non_working_days(
+        employees, month_start, month_end, holiday_dates
+    )
 
     # Fetch today's approved on-duty requests (for preview when no biometric data yet)
     today_on_duty_map = {}
@@ -311,6 +315,7 @@ def attendance_report(request):
 
         full_days = max(0, actual_working - half_days)
         leave_days = max(0, expected_working_days - actual_working - paid_leaves)
+        leave_days += bulk_annual_leave_non_working.get(employee.id, 0)
         late_half_days = late_count // 3
         total_deductions = leave_days + (half_days * 0.5) + (late_half_days * 0.5)
 

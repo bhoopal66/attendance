@@ -11,7 +11,7 @@ from django.shortcuts import redirect, render
 from django.contrib.auth.hashers import check_password, make_password
 
 from ..models import (
-    AttendanceRecord, EarlyLeaveRequest, Employee, Holiday,
+    AnnualLeave, AttendanceRecord, EarlyLeaveRequest, Employee, Holiday,
     LeaveRequest, RemoteCallRecord, RemoteEmployee,
 )
 from .utils import (
@@ -218,6 +218,22 @@ def _build_inhouse_portal_data(employee, selected_year, selected_month, cal_data
 
     late_half_days = summary['late_days'] // 3
     summary['late_half_days'] = late_half_days
+
+    # Count Sundays/holidays inside AnnualLeave periods — normally shown as
+    # 'holiday' in the calendar but should count toward the leave total so the
+    # displayed number matches the full calendar duration of the leave.
+    for al in AnnualLeave.objects.filter(
+        employee=employee,
+        start_date__lte=month_end,
+        end_date__gte=month_start,
+    ):
+        curr = max(al.start_date, month_start)
+        end = min(al.end_date, month_end)
+        while curr <= end:
+            if curr.weekday() == 6 or curr in holiday_dates:
+                summary['leave_days'] += 1
+            curr += datetime.timedelta(days=1)
+
     summary['total_deductions'] = (
         summary['leave_days'] + (summary['half_days'] * 0.5) +
         (late_half_days * 0.5)

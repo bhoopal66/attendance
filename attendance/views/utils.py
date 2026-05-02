@@ -414,3 +414,35 @@ def get_bulk_approved_leave_days(employees, month_start, month_end):
             curr += datetime.timedelta(days=1)
 
     return result
+
+
+def get_bulk_annual_leave_non_working_days(employees, month_start, month_end, holiday_dates):
+    """
+    Count Sundays and custom holidays that fall inside AnnualLeave periods for each
+    in-house employee. Returns {employee_id: int}.
+
+    These days normally appear as 'holiday' in the calendar, but when an employee is
+    on AnnualLeave they should be counted toward the leave total so the displayed
+    leave_days matches the full calendar duration of the leave period.
+    """
+    from attendance.models import AnnualLeave
+
+    employee_ids = [e.id for e in employees]
+    result = {e.id: 0 for e in employees}
+
+    annual_leaves = AnnualLeave.objects.filter(
+        employee_id__in=employee_ids,
+        start_date__lte=month_end,
+        end_date__gte=month_start,
+    )
+
+    for al in annual_leaves:
+        overlap_start = max(al.start_date, month_start)
+        overlap_end = min(al.end_date, month_end)
+        curr = overlap_start
+        while curr <= overlap_end:
+            if curr.weekday() == 6 or curr in holiday_dates:
+                result[al.employee_id] += 1
+            curr += timedelta(days=1)
+
+    return result
