@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.contrib.auth.decorators import login_required, user_passes_test
 
 from ..models import (
-    AttendanceRecord, EarlyLeaveRequest, Employee, MonthlySummary,
+    AnnualLeave, AttendanceRecord, EarlyLeaveRequest, Employee, MonthlySummary,
     RemoteCallRecord,
 )
 from .utils import (
@@ -193,6 +193,27 @@ def recalculate_monthly_summary(employee, year, month):
     )
 
     leave_days = max(0, total_workdays - working_days)
+
+    # Add Sundays and custom holidays within AnnualLeave periods so the
+    # stored leave_days matches the full calendar duration of the leave.
+    from ..models import Holiday
+    month_end = datetime.date(year, month, days_in_month)
+    holiday_dates = set(
+        Holiday.objects.filter(
+            date__year=year, date__month=month
+        ).values_list('date', flat=True)
+    )
+    for al in AnnualLeave.objects.filter(
+        employee=employee,
+        start_date__lte=month_end,
+        end_date__gte=month_start,
+    ):
+        curr = max(al.start_date, month_start)
+        end_al = min(al.end_date, month_end)
+        while curr <= end_al:
+            if curr.weekday() == 6 or curr in holiday_dates:
+                leave_days += 1
+            curr += datetime.timedelta(days=1)
 
     MonthlySummary.objects.update_or_create(
         employee=employee,

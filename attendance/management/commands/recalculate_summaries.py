@@ -13,7 +13,7 @@ import logging
 from django.core.management.base import BaseCommand
 
 from attendance.models import (
-    AttendanceRecord, Employee, Holiday, LeaveRequest, MonthlySummary,
+    AnnualLeave, AttendanceRecord, Employee, Holiday, LeaveRequest, MonthlySummary,
     RemoteCallRecord, RemoteEmployee, RemoteMonthlySummary,
 )
 from attendance.views.utils import (
@@ -195,6 +195,20 @@ class Command(BaseCommand):
                         paid_leave_count += 1
 
             leave_days = max(0, total_workdays - working_days - paid_leave_count)
+
+            # Add Sundays and custom holidays within AnnualLeave periods so the
+            # stored leave_days matches the full calendar duration of the leave.
+            for al in AnnualLeave.objects.filter(
+                employee=emp,
+                start_date__lte=month_end,
+                end_date__gte=month_start,
+            ):
+                curr = max(al.start_date, month_start)
+                end_al = min(al.end_date, month_end)
+                while curr <= end_al:
+                    if curr.weekday() == 6 or curr in holiday_dates:
+                        leave_days += 1
+                    curr += datetime.timedelta(days=1)
 
             MonthlySummary.objects.update_or_create(
                 employee=emp, year=year, month=month,

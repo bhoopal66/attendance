@@ -71,36 +71,21 @@ def _leave_days_in_month(leave, month_start, month_end):
 
 
 def _annual_leave_day_counts(al, month_start, month_end):
-    """Return (working_days, non_working_days) for the annual leave overlap with the month.
+    """Return (total_days, 0) for the annual leave overlap with the month.
 
-    working_days     — Mon-Sat excluding custom holidays (these are already deducted
-                       via absent_days in the monthly summary).
-    non_working_days — Sundays + custom holidays within the leave period.
-                       For paid leave  : ignored (never deducted, never compensated).
-                       For unpaid leave: must be additionally deducted because the
-                       employee should receive no pay for any day in that period.
+    total_days — all calendar days in the overlap (Mon–Sun, including holidays).
+                 MonthlySummary.leave_days now includes Sundays/holidays within
+                 AnnualLeave periods, so the base deduction already covers them.
+                 The second element is always 0; it exists only for call-site
+                 compatibility and has no financial effect.
     """
     overlap_start = max(al.start_date, month_start)
     overlap_end = min(al.end_date, month_end)
     if overlap_end < overlap_start:
         return 0, 0
 
-    holiday_dates = set(
-        Holiday.objects.filter(
-            date__gte=overlap_start, date__lte=overlap_end
-        ).values_list('date', flat=True)
-    )
-
-    working_days = 0
-    non_working_days = 0
-    current = overlap_start
-    while current <= overlap_end:
-        if current.weekday() != 6 and current not in holiday_dates:
-            working_days += 1
-        else:
-            non_working_days += 1
-        current += datetime.timedelta(days=1)
-    return working_days, non_working_days
+    total_days = (overlap_end - overlap_start).days + 1
+    return total_days, 0
 
 
 INR_COMMISSION_THRESHOLD = 4   # first N accounts use the bank's INR rate
