@@ -885,10 +885,13 @@ def payroll_dashboard(request):
                 cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
         # Auto-compute leave/late from attendance (skip for performance-based payroll)
         summary = inhouse_summaries.get(emp.id)
-        if summary and emp.salary and emp.payroll_type != 'performance':
+        if emp.salary and emp.payroll_type != 'performance':
             daily = float(emp.salary) / days_in_month
-            cat['leave_deduction'] = round(daily * (summary.leave_days or 0), 2)
-            cat['late_deduction'] = round(daily * ((summary.late_days or 0) // 3) * 0.5, 2)
+            bridge_count = len(get_bridge_sunday_days(emp, month_start, month_end))
+            base_leave_days = (summary.leave_days if summary else 0) or 0
+            base_late_days = (summary.late_days if summary else 0) or 0
+            cat['leave_deduction'] = round(daily * (base_leave_days + bridge_count), 2)
+            cat['late_deduction'] = round(daily * (base_late_days // 3) * 0.5, 2)
         # Admin employees: leave/late are display-only — already deducted in attendance
         # payroll (net_payroll). Exclude them from total_deductions to avoid double-counting
         # in the Final Summary.
@@ -1451,10 +1454,13 @@ def freeze_payroll(request):
             for ded_entry in active_by_emp.get(('inhouse', dupe_id), []):
                 cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
         summary = inhouse_summaries.get(emp.id)
-        if summary and emp.salary and emp.payroll_type != 'performance':
+        if emp.salary and emp.payroll_type != 'performance':
             daily = float(emp.salary) / days_in_month
-            cat['leave_deduction'] = round(daily * (summary.leave_days or 0), 2)
-            cat['late_deduction'] = round(daily * ((summary.late_days or 0) // 3) * 0.5, 2)
+            bridge_count = len(get_bridge_sunday_days(emp, month_start, month_end))
+            base_leave_days = (summary.leave_days if summary else 0) or 0
+            base_late_days = (summary.late_days if summary else 0) or 0
+            cat['leave_deduction'] = round(daily * (base_leave_days + bridge_count), 2)
+            cat['late_deduction'] = round(daily * (base_late_days // 3) * 0.5, 2)
         if emp.department == 'Admin':
             ded_cols_for_total = [c for c in _DED_COLS if c not in ('leave_deduction', 'late_deduction')]
         else:
