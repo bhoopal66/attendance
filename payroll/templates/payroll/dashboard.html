@@ -1381,79 +1381,39 @@
     .payroll-tabs {
         display: flex;
         gap: 0;
-        margin-bottom: 20px;
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
+        margin-bottom: 24px;
+        border-bottom: 2px solid #e2e8f0;
     }
 
     .payroll-tab {
-        flex: 1 1 0;
-        min-width: 0;
-        padding: 14px 8px 12px;
-        background: #f8fafc;
+        padding: 12px 24px;
+        background: transparent;
         border: none;
         border-bottom: 3px solid transparent;
-        font-size: 0.82rem;
-        font-weight: 600;
+        margin-bottom: -2px;
+        font-size: 0.9rem;
+        font-weight: 500;
         color: #64748b;
         cursor: pointer;
-        transition: all 0.15s;
+        transition: color 0.15s, border-bottom-color 0.15s;
         text-align: center;
-        line-height: 1.4;
-        overflow: hidden;
+        white-space: nowrap;
     }
 
     .payroll-tab .tab-label {
         display: block;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        font-size: 0.7rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
     }
 
-    .payroll-tab .tab-total {
-        display: block;
-        font-size: 0.8rem;
-        font-weight: 700;
-        font-family: 'SF Mono', 'Monaco', monospace;
-        margin-top: 4px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
+    .payroll-tab .tab-total,
+    .payroll-tab .tab-total-sub { display: none; }
 
-    .payroll-tab .tab-total-sub {
-        display: block;
-        font-size: 0.7rem;
-        font-weight: 600;
-        font-family: 'SF Mono', 'Monaco', monospace;
-        margin-top: 1px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .payroll-tab:not(:last-child) { border-right: 1px solid #e2e8f0; }
-    .payroll-tab:hover:not(.active) { background: #f1f5f9; }
+    .payroll-tab:hover:not(.active) { color: #334155; }
 
     .payroll-tab.active {
-        background: #fff;
-        color: #0f172a;
+        color: #4F46E5;
+        border-bottom-color: #4F46E5;
+        font-weight: 600;
     }
-    .payroll-tab.tab-admin.active { border-bottom-color: #2563eb; }
-    .payroll-tab.tab-admin.active .tab-total { color: #2563eb; }
-    .payroll-tab.tab-sales.active { border-bottom-color: #0d9488; }
-    .payroll-tab.tab-sales.active .tab-total { color: #0d9488; }
-    .payroll-tab.tab-ded.active { border-bottom-color: #dc2626; }
-    .payroll-tab.tab-ded.active .tab-total { color: #dc2626; }
-    .payroll-tab.tab-add.active { border-bottom-color: #059669; }
-    .payroll-tab.tab-add.active .tab-total { color: #059669; }
-    .payroll-tab.tab-final.active { border-bottom-color: #4338ca; }
-    .payroll-tab.tab-final.active .tab-total { color: #4338ca; }
 
     .payroll-tab-panel { display: none; }
     .payroll-tab-panel.active { display: block; }
@@ -1537,26 +1497,18 @@
     <div class="payroll-tabs">
         <button class="payroll-tab tab-admin active" onclick="switchPayrollTab(1)" id="payrollTab1">
             <span class="tab-label">Attendance Payroll</span>
-            <span class="tab-total">AED {{ total_admin|floatformat:2 }}</span>
         </button>
         <button class="payroll-tab tab-sales" onclick="switchPayrollTab(2)" id="payrollTab2">
             <span class="tab-label">Sales Payroll</span>
-            <span class="tab-total">AED {{ total_sales_aed|floatformat:2 }}</span>
-            {% if total_sales_inr %}<span class="tab-total-sub" style="color:#0369a1;">INR {{ total_sales_inr|floatformat:2 }}</span>{% endif %}
         </button>
         <button class="payroll-tab tab-ded" onclick="switchPayrollTab(3)" id="payrollTab3">
             <span class="tab-label">Deductions</span>
-            <span class="tab-total">{% if s3_total_ded_aed > 0 %}<span style="color:#dc2626;">-AED {{ s3_total_ded_aed|floatformat:2 }}</span>{% else %}0.00{% endif %}</span>
-            {% if s3_total_ded_inr > 0 %}<span class="tab-total-sub" style="color:#dc2626;">-INR {{ s3_total_ded_inr|floatformat:2 }}</span>{% endif %}
         </button>
         <button class="payroll-tab tab-add" onclick="switchPayrollTab(4)" id="payrollTab4">
             <span class="tab-label">Additions</span>
-            <span class="tab-total">{% if s3_total_add_aed > 0 %}<span style="color:#059669;">+AED {{ s3_total_add_aed|floatformat:2 }}</span>{% else %}0.00{% endif %}</span>
-            {% if s3_total_add_inr > 0 %}<span class="tab-total-sub" style="color:#059669;">+INR {{ s3_total_add_inr|floatformat:2 }}</span>{% endif %}
         </button>
         <button class="payroll-tab tab-final" onclick="switchPayrollTab(5)" id="payrollTab5">
             <span class="tab-label">Payroll Summary</span>
-            <span class="tab-total">AED {{ final_total_aed|floatformat:2 }}</span>
         </button>
     </div>
 

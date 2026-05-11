@@ -85,6 +85,19 @@ class BaseEmployee(models.Model):
         help_text="Fixed salary employees: punch-in alone counts as Present (no punch-out or duration thresholds required)"
     )
 
+    VISA_PROVIDER_CHOICES = [
+        ('Jumbo', 'Jumbo'),
+        ('OnTime', 'OnTime'),
+        ('Taamul', 'Taamul'),
+    ]
+    visa_provider = models.CharField(
+        max_length=20,
+        choices=VISA_PROVIDER_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Manpower visa provider; leave blank for own-visa employees"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

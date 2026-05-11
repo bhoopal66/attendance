@@ -2349,6 +2349,12 @@ def payroll_employee_update(request, emp_type, employee_id):
     if 'is_fixed_salary' in data:
         emp.is_fixed_salary = bool(data['is_fixed_salary'])
 
+    if 'visa_provider' in data:
+        vp = str(data['visa_provider']).strip()
+        if vp and vp not in ('Jumbo', 'OnTime', 'Taamul'):
+            return JsonResponse({'success': False, 'error': 'Invalid visa provider'}, status=400)
+        emp.visa_provider = vp or None
+
     emp.save()
     logger.info("Payroll employee updated: %s (%s) by %s", emp.name, emp_type, request.user.username)
     return JsonResponse({
@@ -2359,6 +2365,7 @@ def payroll_employee_update(request, emp_type, employee_id):
         'department': emp.department or '',
         'payroll_type': emp.payroll_type,
         'is_fixed_salary': emp.is_fixed_salary,
+        'visa_provider': emp.visa_provider or '',
     })
 
 

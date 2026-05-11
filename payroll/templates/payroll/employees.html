@@ -175,6 +175,11 @@
     .badge-attendance { background: #dbeafe; color: #1d4ed8; }
     .badge-performance { background: #fef3c7; color: #92400e; }
 
+    .badge-jumbo { background: #fce7f3; color: #9d174d; }
+    .badge-ontime { background: #ecfdf5; color: #065f46; }
+    .badge-taamul { background: #fff7ed; color: #9a3412; }
+    .badge-own { background: #f1f5f9; color: #64748b; }
+
     /* 3-way salary type selector — stacked rows */
     .stype-pills {
         display: flex;
@@ -529,6 +534,7 @@
                     <th>Designation</th>
                     <th class="text-right">Salary</th>
                     <th>Currency</th>
+                    <th>Visa Provider</th>
                     <th>Joined</th>
                     <th></th>
                 </tr>
@@ -571,11 +577,22 @@
                     <td id="currency-inhouse-{{ emp.id }}">
                         <span class="badge {% if emp.currency == 'INR' %}badge-inr{% else %}badge-aed{% endif %}">{{ emp.currency }}</span>
                     </td>
+                    <td id="vp-inhouse-{{ emp.id }}">
+                        {% if emp.visa_provider == 'Jumbo' %}
+                            <span class="badge badge-jumbo">Jumbo</span>
+                        {% elif emp.visa_provider == 'OnTime' %}
+                            <span class="badge badge-ontime">OnTime</span>
+                        {% elif emp.visa_provider == 'Taamul' %}
+                            <span class="badge badge-taamul">Taamul</span>
+                        {% else %}
+                            <span class="badge badge-own">Own</span>
+                        {% endif %}
+                    </td>
                     <td style="color:#64748b;font-size:0.82rem;">
                         {{ emp.joining_date|default:"—" }}
                     </td>
                     <td>
-                        <button class="btn-edit" onclick="openEdit('inhouse', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %})">
+                        <button class="btn-edit" onclick="openEdit('inhouse', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %}, '{{ emp.visa_provider|default:'' }}')">
                             Edit
                         </button>
                     </td>
@@ -609,6 +626,7 @@
                     <th>Designation</th>
                     <th class="text-right">Salary</th>
                     <th>Currency</th>
+                    <th>Visa Provider</th>
                     <th>Joined</th>
                     <th></th>
                 </tr>
@@ -651,11 +669,22 @@
                     <td id="currency-remote-{{ emp.id }}">
                         <span class="badge {% if emp.currency == 'INR' %}badge-inr{% else %}badge-aed{% endif %}">{{ emp.currency }}</span>
                     </td>
+                    <td id="vp-remote-{{ emp.id }}">
+                        {% if emp.visa_provider == 'Jumbo' %}
+                            <span class="badge badge-jumbo">Jumbo</span>
+                        {% elif emp.visa_provider == 'OnTime' %}
+                            <span class="badge badge-ontime">OnTime</span>
+                        {% elif emp.visa_provider == 'Taamul' %}
+                            <span class="badge badge-taamul">Taamul</span>
+                        {% else %}
+                            <span class="badge badge-own">Own</span>
+                        {% endif %}
+                    </td>
                     <td style="color:#64748b;font-size:0.82rem;">
                         {{ emp.joining_date|default:"—" }}
                     </td>
                     <td>
-                        <button class="btn-edit" onclick="openEdit('remote', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %})">
+                        <button class="btn-edit" onclick="openEdit('remote', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %}, '{{ emp.visa_provider|default:'' }}')">
                             Edit
                         </button>
                     </td>
@@ -732,7 +761,7 @@
                 </div>
             </div>
 
-            <div class="form-group" style="margin-bottom:0">
+            <div class="form-group" style="margin-bottom:14px">
                 <label>Currency</label>
                 <div class="currency-pills">
                     <button type="button" class="currency-pill aed selected" id="pillAED" onclick="selectCurrency('AED')">
@@ -742,6 +771,16 @@
                         INR — Indian Rupee
                     </button>
                 </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0">
+                <label>Visa Provider</label>
+                <select id="editVisaProvider">
+                    <option value="">Own Visa</option>
+                    <option value="Jumbo">Jumbo</option>
+                    <option value="OnTime">OnTime</option>
+                    <option value="Taamul">Taamul</option>
+                </select>
             </div>
 
             <div class="modal-actions">
@@ -760,7 +799,7 @@
     let editCurrency = 'AED';
     let editSalaryType = 'attendance';  // 'fixed' | 'attendance' | 'performance'
 
-    function openEdit(empType, empId, name, designation, salary, currency, department, payrollType, isFixedSalary) {
+    function openEdit(empType, empId, name, designation, salary, currency, department, payrollType, isFixedSalary, visaProvider) {
         editEmpId = empId;
         editEmpType = empType;
         editCurrency = currency || 'AED';
@@ -781,6 +820,7 @@
         document.getElementById('editDept').value = department || '';
         document.getElementById('editFeedback').className = 'save-feedback';
         document.getElementById('editFeedback').textContent = '';
+        document.getElementById('editVisaProvider').value = visaProvider || '';
 
         selectSalaryType(editSalaryType);
         selectCurrency(editCurrency);
@@ -830,6 +870,7 @@
         const salary = document.getElementById('editSalary').value;
         const designation = document.getElementById('editDesig').value.trim();
         const department = document.getElementById('editDept').value;
+        const visaProvider = document.getElementById('editVisaProvider').value;
 
         // Map the unified 3-way selector back to the two backend fields
         const isFixedSalary = (editSalaryType === 'fixed');
@@ -849,6 +890,7 @@
                     department: department,
                     payroll_type: payrollType,
                     is_fixed_salary: isFixedSalary,
+                    visa_provider: visaProvider,
                 }),
             });
             const data = await res.json();
@@ -882,13 +924,22 @@
                         stypeEl.innerHTML = `<span class="badge badge-attendance">Attendance-Based</span>`;
                     }
                 }
+                const vpEl = document.getElementById(`vp-${editEmpType}-${editEmpId}`);
+                if (vpEl) {
+                    const vpMap = {
+                        'Jumbo': '<span class="badge badge-jumbo">Jumbo</span>',
+                        'OnTime': '<span class="badge badge-ontime">OnTime</span>',
+                        'Taamul': '<span class="badge badge-taamul">Taamul</span>',
+                    };
+                    vpEl.innerHTML = vpMap[data.visa_provider] || '<span class="badge badge-own">Own</span>';
+                }
                 // Refresh the row's edit button so a re-open keeps the new value
                 const rowEl = document.getElementById(`row-${editEmpType}-${editEmpId}`);
                 if (rowEl) {
                     const btnEl = rowEl.querySelector('.btn-edit');
                     if (btnEl) {
                         btnEl.setAttribute('onclick',
-                            `openEdit('${editEmpType}', ${editEmpId}, ${JSON.stringify(document.getElementById('editEmpName').textContent)}, ${JSON.stringify(data.designation || '')}, ${data.salary !== null ? data.salary : 'null'}, '${data.currency}', '${data.department || ''}', '${data.payroll_type}', ${data.is_fixed_salary ? 'true' : 'false'})`
+                            `openEdit('${editEmpType}', ${editEmpId}, ${JSON.stringify(document.getElementById('editEmpName').textContent)}, ${JSON.stringify(data.designation || '')}, ${data.salary !== null ? data.salary : 'null'}, '${data.currency}', '${data.department || ''}', '${data.payroll_type}', ${data.is_fixed_salary ? 'true' : 'false'}, '${data.visa_provider || ''}')`
                         );
                     }
                 }
