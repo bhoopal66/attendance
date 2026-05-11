@@ -55,7 +55,7 @@
 
     .btn-go {
         padding: 10px 20px;
-        background: #4F46E5;
+        background: #1D4ED8;
         color: white;
         border: none;
         border-radius: 8px;
@@ -196,7 +196,7 @@
         outline: none;
         transition: border-color 0.15s;
     }
-    .unlock-modal input[type="password"]:focus { border-color: #4F46E5; }
+    .unlock-modal input[type="password"]:focus { border-color: #1D4ED8; }
     .unlock-modal-error {
         color: #dc2626;
         font-size: 0.8rem;
@@ -234,7 +234,7 @@
 
     /* Grand Total Banner */
     .grand-total-banner {
-        background: linear-gradient(135deg, #1e1b4b 0%, #4F46E5 100%);
+        background: linear-gradient(135deg, #1E3A8A 0%, #1D4ED8 100%);
         border-radius: 12px;
         padding: 20px 28px;
         margin-bottom: 24px;
@@ -771,8 +771,8 @@
     }
 
     .tab-btn.active {
-        color: #4F46E5;
-        border-bottom-color: #4F46E5;
+        color: #1D4ED8;
+        border-bottom-color: #1D4ED8;
         background: white;
     }
 
@@ -902,7 +902,7 @@
 
     .btn-save {
         padding: 9px 18px;
-        background: #4F46E5;
+        background: #1D4ED8;
         color: white;
         border: none;
         border-radius: 8px;
@@ -955,7 +955,7 @@
         text-align: center;
         font-family: 'SF Mono', monospace;
     }
-    .sub-input:focus { outline: none; border-color: #4F46E5; }
+    .sub-input:focus { outline: none; border-color: #1D4ED8; }
 
     .commission-cell {
         font-family: 'SF Mono', monospace;
@@ -1238,9 +1238,9 @@
 
     .bank-count-input:focus {
         outline: none;
-        border-color: #4F46E5;
+        border-color: #1D4ED8;
         background: #faf9ff;
-        box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12);
+        box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
     }
 
     .btn-adj-sm {
@@ -1293,7 +1293,7 @@
 
     .btn-save-all {
         padding: 10px 28px;
-        background: #4F46E5;
+        background: #1D4ED8;
         color: white;
         border: none;
         border-radius: 8px;
@@ -1302,7 +1302,7 @@
         font-size: 0.875rem;
         transition: background 0.15s;
     }
-    .btn-save-all:hover { background: #4338ca; }
+    .btn-save-all:hover { background: #1E40AF; }
     .btn-save-all:disabled { opacity: 0.6; cursor: not-allowed; }
 
     /* Deduction Spreadsheet (Section 3) */
@@ -1410,8 +1410,8 @@
     .payroll-tab:hover:not(.active) { color: #334155; }
 
     .payroll-tab.active {
-        color: #4F46E5;
-        border-bottom-color: #4F46E5;
+        color: #1D4ED8;
+        border-bottom-color: #1D4ED8;
         font-weight: 600;
     }
 
@@ -1434,20 +1434,27 @@
         <div class="header-right">
             {% if is_frozen %}
             <span class="frozen-badge">
-                🔒 Frozen {{ frozen_at|date:"d M Y" }} by {{ frozen_by }}
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                Frozen {{ frozen_at|date:"d M Y" }} by {{ frozen_by }}
                 <button class="btn-unfreeze" onclick="openUnlockModal()">Unlock</button>
             </span>
             {% else %}
-            <button class="btn-freeze" onclick="freezePayroll()">🔒 Freeze Month</button>
+            <button class="btn-freeze" onclick="freezePayroll()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                Freeze Month
+            </button>
             <button class="btn-recalculate" id="recalcBtn" onclick="recalculateSummaries()">
-                🔄 Recalculate
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Recalculate
             </button>
             <button class="btn-upload" onclick="openUploadModal()">
-                📤 Upload Submissions
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Upload Submissions
             </button>
             {% endif %}
             <a href="{% url 'manage_banks' %}" class="btn-banks">
-                🏦 Manage Banks
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l9-3 9 3M3 6v12l9 3 9-3V6M12 3v18" /></svg>
+                Manage Banks
             </a>
             <form class="month-selector" method="GET">
                 {% include 'payroll/includes/month_year_selector.html' %}
@@ -1723,7 +1730,7 @@
         {% endif %}
         {% else %}
         <div class="empty-state">
-            No banks configured. <a href="{% url 'manage_banks' %}" style="color:#4F46E5;font-weight:500;">Add banks first →</a>
+            No banks configured. <a href="{% url 'manage_banks' %}" style="color:#1D4ED8;font-weight:500;">Add banks first →</a>
         </div>
         {% endif %}
         {% else %}
@@ -2246,7 +2253,7 @@
     <!-- Tab Panel 5: Payroll Summary -->
     <div class="payroll-tab-panel" id="payrollPanel5">
     <div class="payroll-section">
-        <div class="section-header" style="background:linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);">
+        <div class="section-header" style="background:linear-gradient(135deg, #1E3A8A 0%, #1E40AF 100%);">
             <span class="section-title">
                 <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -2302,7 +2309,7 @@
                         <a href="/payroll/payslip/{{ row.employee_type }}/{{ row.employee.id }}/?month={{ selected_month }}&year={{ selected_year }}"
                            target="_blank"
                            title="Print Payslip"
-                           style="display:inline-block;padding:3px 9px;font-size:0.72rem;font-weight:600;color:#4F46E5;border:1px solid #4F46E5;border-radius:5px;text-decoration:none;white-space:nowrap;background:#F5F3FF;"
+                           style="display:inline-block;padding:3px 9px;font-size:0.72rem;font-weight:600;color:#1D4ED8;border:1px solid #1D4ED8;border-radius:5px;text-decoration:none;white-space:nowrap;background:#EFF6FF;"
                            >Payslip</a>
                     </td>
                 </tr>
@@ -2430,7 +2437,7 @@
 <!-- ============ UNLOCK PAYROLL MODAL ============ -->
 <div class="unlock-modal-overlay" id="unlockModal">
     <div class="unlock-modal">
-        <h3>🔓 Unlock {{ month_name }} {{ selected_year }}</h3>
+        <h3>Unlock {{ month_name }} {{ selected_year }}</h3>
         <p>Payroll will revert to live calculation. Any employee or settings changes made since the freeze will take effect immediately.</p>
         <p style="margin-bottom:14px;font-size:0.875rem;color:#475569;">Enter your admin password to confirm:</p>
         <input type="password" id="unlockPasswordInput" placeholder="Admin password" autocomplete="current-password">
@@ -2898,7 +2905,7 @@
                 el.innerHTML = `
                     <div class="no-banks-msg">
                         No active banks configured.<br>
-                        <a href="/payroll/banks/" style="color:#4F46E5;font-weight:500;">Add banks →</a>
+                        <a href="/payroll/banks/" style="color:#1D4ED8;font-weight:500;">Add banks →</a>
                     </div>`;
                 return;
             }
@@ -3400,17 +3407,17 @@
             });
             const data = await res.json();
             if (data.success) {
-                btn.textContent = '✅ Done';
+                btn.textContent = 'Done';
                 setTimeout(() => location.reload(), 800);
             } else {
                 alert('Error: ' + data.error);
                 btn.disabled = false;
-                btn.textContent = '🔄 Recalculate';
+                btn.textContent = 'Recalculate';
             }
         } catch (e) {
             alert('Request failed. Please try again.');
             btn.disabled = false;
-            btn.textContent = '🔄 Recalculate';
+            btn.textContent = 'Recalculate';
         }
     }
 

@@ -32,7 +32,7 @@
 
     .btn-primary {
         padding: 10px 20px;
-        background: #4F46E5;
+        background: #1D4ED8;
         color: white;
         border: none;
         border-radius: 8px;
@@ -44,7 +44,7 @@
         gap: 6px;
         text-decoration: none;
     }
-    .btn-primary:hover { background: #4338ca; }
+    .btn-primary:hover { background: #1E40AF; }
 
     .btn-back {
         padding: 9px 16px;
@@ -237,7 +237,7 @@
         font-size: 0.875rem;
         box-sizing: border-box;
     }
-    .form-group input:focus { outline: none; border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    .form-group input:focus { outline: none; border-color: #1D4ED8; box-shadow: 0 0 0 3px rgba(29,78,216,0.08); }
 
     .form-hint { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
 
@@ -262,7 +262,7 @@
 
     .btn-save {
         padding: 9px 20px;
-        background: #4F46E5;
+        background: #1D4ED8;
         color: white;
         border: none;
         border-radius: 8px;
@@ -270,7 +270,7 @@
         font-weight: 500;
         font-size: 0.875rem;
     }
-    .btn-save:hover { background: #4338ca; }
+    .btn-save:hover { background: #1E40AF; }
 
     .toast {
         position: fixed;
@@ -360,7 +360,7 @@
         </table>
         {% else %}
         <div class="empty-state" id="emptyState">
-            <div class="icon">🏦</div>
+            <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l9-3 9 3M3 6v12l9 3 9-3V6M12 3v18M3 12h18M3 18h18" /></svg></div>
             <p>No banks added yet. Add your first bank to start tracking DSA submissions.</p>
             <button class="btn-primary" onclick="openAddModal()">+ Add First Bank</button>
         </div>

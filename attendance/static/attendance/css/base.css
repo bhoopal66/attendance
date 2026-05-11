@@ -7,14 +7,14 @@
    ============================================ */
 :root {
     /* Primary */
-    --primary-color: #4F46E5;
-    --primary-hover: #4338CA;
-    --primary-light: #EEF2FF;
-    --primary-gradient: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%);
+    --primary-color: #1D4ED8;
+    --primary-hover: #1E40AF;
+    --primary-light: #DBEAFE;
+    --primary-gradient: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
 
     /* Accent */
-    --accent-purple: #8B5CF6;
-    --accent-purple-light: #F5F3FF;
+    --accent-purple: #6366F1;
+    --accent-purple-light: #EEF2FF;
 
     /* Semantic */
     --success-color: #10B981;
@@ -58,8 +58,8 @@
     --sidebar-bg: #0C1120;
     --sidebar-border: rgba(255, 255, 255, 0.05);
     --sidebar-item-hover: rgba(255, 255, 255, 0.06);
-    --sidebar-item-active-bg: rgba(99, 102, 241, 0.14);
-    --sidebar-accent: #818CF8;
+    --sidebar-item-active-bg: rgba(29, 78, 216, 0.15);
+    --sidebar-accent: #93C5FD;
 
     /* Top bar */
     --topbar-height: 56px;
@@ -70,7 +70,7 @@
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    --shadow-primary: 0 4px 14px rgba(79, 70, 229, 0.3);
+    --shadow-primary: 0 4px 14px rgba(29, 78, 216, 0.25);
     --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
     --shadow-card-hover: 0 8px 25px rgba(0, 0, 0, 0.08);
 
@@ -182,14 +182,14 @@ a:hover {
 .logo-icon {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, #6366f1 0%, #4F46E5 60%, #4338CA 100%);
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 60%, #1E40AF 100%);
     border-radius: 9px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     flex-shrink: 0;
-    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.55);
+    box-shadow: 0 4px 14px rgba(29, 78, 216, 0.4);
 }
 
 .logo-text {
@@ -294,8 +294,8 @@ a:hover {
 }
 
 .sidebar-item.active {
-    color: #c7d2fe;
-    background: rgba(99, 102, 241, 0.14);
+    color: #BFDBFE;
+    background: rgba(29, 78, 216, 0.15);
     font-weight: 600;
 }
 
@@ -307,7 +307,7 @@ a:hover {
     transform: translateY(-50%);
     height: 16px;
     width: 3px;
-    background: #818cf8;
+    background: #60A5FA;
     border-radius: 0 3px 3px 0;
 }
 
@@ -422,7 +422,7 @@ a:hover {
 .user-avatar {
     width: 29px;
     height: 29px;
-    background: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
+    background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
     color: white;
     border-radius: 8px;
     display: flex;
@@ -431,7 +431,7 @@ a:hover {
     font-weight: 800;
     font-size: 0.6875rem;
     flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
 }
 
 .user-info-text {
@@ -702,14 +702,14 @@ body.sidebar-collapsed .main-content {
 .page-header .header-icon {
     width: 42px;
     height: 42px;
-    background: linear-gradient(135deg, var(--primary-color) 0%, #6366F1 100%);
+    background: linear-gradient(135deg, var(--primary-color) 0%, #2563EB 100%);
     border-radius: 11px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.2);
 }
 
 .page-header .header-text h1 {
@@ -930,8 +930,8 @@ button, .btn {
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, #4338CA 0%, #4F46E5 100%);
-    box-shadow: 0 6px 18px rgba(79, 70, 229, 0.4);
+    background: linear-gradient(135deg, #1E40AF 0%, #1D4ED8 100%);
+    box-shadow: 0 6px 18px rgba(29, 78, 216, 0.35);
     transform: translateY(-1px);
     color: white;
 }
@@ -1026,7 +1026,7 @@ textarea {
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
 }
 
 input::placeholder, textarea::placeholder {
@@ -1151,7 +1151,7 @@ tr:hover {
 .status-present { background: #DCFCE7; color: #16A34A; padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.6875rem; font-weight: 600; }
 .status-absent  { background: #FEE2E2; color: #DC2626; padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.6875rem; font-weight: 600; }
 .status-half    { background: #FEF9C3; color: #CA8A04; padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.6875rem; font-weight: 600; }
-.status-holiday { background: #E0E7FF; color: #4338CA; padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.6875rem; font-weight: 600; }
+.status-holiday { background: #E0E7FF; color: #3730A3; padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.6875rem; font-weight: 600; }
 
 /* ============================================
    Filter Bar
@@ -1495,7 +1495,7 @@ tr:hover {
     border-radius: var(--radius-md);
     padding: 0.75rem 1rem;
     margin-bottom: 1rem;
-    border: 1px solid #C7D2FE;
+    border: 1px solid #BFDBFE;
 }
 
 .time-display-row {

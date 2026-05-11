@@ -31,14 +31,14 @@ body {
 .brand-icon {
     width: 34px;
     height: 34px;
-    background: linear-gradient(135deg, #4F46E5, #6366F1);
+    background: linear-gradient(135deg, #1D4ED8, #2563EB);
     border-radius: 9px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.45);
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.35);
 }
 
 .brand-name {
@@ -305,9 +305,9 @@ body {
 }
 
 .admin-link:hover {
-    border-color: #4F46E5;
-    color: #4F46E5;
-    background: #EEF2FF;
+    border-color: #1D4ED8;
+    color: #1D4ED8;
+    background: #DBEAFE;
 }
 
 @media (max-width: 860px) {

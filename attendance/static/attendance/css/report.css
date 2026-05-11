@@ -149,7 +149,7 @@
 
 .btn-download:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+    box-shadow: 0 6px 20px rgba(29, 78, 216, 0.35);
 }
 
 .download-dropdown {
@@ -207,12 +207,12 @@
 
 .employee-card:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.1);
+    box-shadow: 0 4px 15px rgba(29, 78, 216, 0.08);
 }
 
 .employee-card[open] {
     border-color: var(--primary-color);
-    box-shadow: 0 8px 25px rgba(79, 70, 229, 0.15);
+    box-shadow: 0 8px 25px rgba(29, 78, 216, 0.12);
 }
 
 .employee-summary {
@@ -408,7 +408,7 @@
 
 .calendar-day.editable:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+    box-shadow: 0 2px 8px rgba(29, 78, 216, 0.15);
     cursor: pointer;
 }
 
@@ -603,7 +603,7 @@
 }
 
 .summary-stat.neutral {
-    background: #F5F3FF;
+    background: #EFF6FF;
 }
 
 .summary-stat .stat-value {
@@ -629,7 +629,7 @@
 }
 
 .summary-stat.neutral .stat-value {
-    color: #7C3AED;
+    color: #2563EB;
 }
 
 .summary-stat .stat-label {

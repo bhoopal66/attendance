@@ -57,12 +57,12 @@
 .header-icon {
     width: 56px;
     height: 56px;
-    background: linear-gradient(135deg, var(--primary-color) 0%, #6366F1 100%);
+    background: linear-gradient(135deg, var(--primary-color) 0%, #2563EB 100%);
     border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.2);
 }
 
 .header-icon svg {
@@ -108,13 +108,13 @@
 }
 
 .btn-enterprise.btn-primary {
-    background: linear-gradient(135deg, var(--primary-color) 0%, #6366F1 100%);
+    background: linear-gradient(135deg, var(--primary-color) 0%, #2563EB 100%);
     color: white;
-    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+    box-shadow: 0 2px 8px rgba(29, 78, 216, 0.2);
 }
 
 .btn-enterprise.btn-primary:hover {
-    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35);
+    box-shadow: 0 4px 16px rgba(29, 78, 216, 0.3);
     transform: translateY(-1px);
 }
 
@@ -222,8 +222,8 @@
 }
 
 .metric-icon.total {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    background: linear-gradient(135deg, #374151 0%, #1F2937 100%);
+    box-shadow: 0 4px 12px rgba(31, 41, 55, 0.3);
 }
 
 .metric-icon.inhouse {
@@ -232,8 +232,8 @@
 }
 
 .metric-icon.remote {
-    background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    background: linear-gradient(135deg, #0891B2 0%, #0E7490 100%);
+    box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
 }
 
 .metric-icon.active {
@@ -351,7 +351,7 @@
 
 .search-enterprise input:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+    box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.08);
     outline: none;
 }
 
@@ -426,7 +426,7 @@
 
 .filter-input:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.08);
     outline: none;
 }
 
@@ -444,7 +444,7 @@
    BULK ACTIONS
    ========================== */
 .bulk-actions-enterprise {
-    background: linear-gradient(135deg, var(--primary-color) 0%, #6366F1 100%);
+    background: linear-gradient(135deg, var(--primary-color) 0%, #2563EB 100%);
     border-radius: 12px;
     padding: 1rem 1.5rem;
     margin-bottom: 1rem;
@@ -452,7 +452,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
     animation: slideDown 0.3s ease;
     flex-wrap: wrap;
 }
@@ -561,7 +561,7 @@
 }
 
 .data-grid tbody tr.selected td.col-actions {
-    background: rgba(79, 70, 229, 0.06);
+    background: rgba(29, 78, 216, 0.05);
 }
 
 .th-content {
@@ -600,7 +600,7 @@
 }
 
 .data-grid tbody tr.selected {
-    background: rgba(79, 70, 229, 0.06);
+    background: rgba(29, 78, 216, 0.05);
 }
 
 .data-grid tbody tr:last-child {
@@ -643,7 +643,7 @@
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: linear-gradient(135deg, var(--primary-color) 0%, #6366F1 100%);
+    background: linear-gradient(135deg, var(--primary-color) 0%, #2563EB 100%);
     color: white;
     display: flex;
     align-items: center;
@@ -672,9 +672,9 @@
 }
 
 .badge-enterprise.badge-remote {
-    background: #F5F3FF;
-    color: #8B5CF6;
-    border: 1px solid #EDE9FE;
+    background: #ECFEFF;
+    color: #0891B2;
+    border: 1px solid #CFFAFE;
 }
 
 .tag-enterprise {
@@ -756,10 +756,10 @@
 }
 
 .btn-edit-table:hover {
-    background: #6366F1;
-    border-color: #6366F1;
+    background: #1E40AF;
+    border-color: #1E40AF;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
 }
 
 .btn-edit-table svg {
@@ -1009,7 +1009,7 @@ input[type="checkbox"] {
 
 .form-control:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.08);
     outline: none;
 }
 
