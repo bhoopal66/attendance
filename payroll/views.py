@@ -2599,8 +2599,13 @@ def download_payslip(request, emp_type, emp_id):
         commission = payroll['commission']
         reductions = payroll['reductions']
         absent_days_display = payroll.get('absent_days', 0)
-        basic_full = payroll.get('salary', 0.0)
-        allowance_full = 0.0
+        raw_salary = payroll.get('salary', 0.0)
+        if raw_salary:
+            basic_full = round(raw_salary * 0.40, 2)
+            allowance_full = round(raw_salary * 0.60, 2)
+        else:
+            basic_full = 0.0
+            allowance_full = 0.0
         att_leave_ded = payroll.get('deduction', 0.0)
         att_late_ded = 0.0
 
