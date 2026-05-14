@@ -2596,7 +2596,7 @@ def download_payslip(request, emp_type, emp_id):
             days_in_month, total_holidays,
         )
         incentives = payroll['incentives']
-        commission = payroll['commission']
+        commission = 0.0 if payroll.get('is_fixed_salary') else payroll['commission']
         reductions = payroll['reductions']
         absent_days_display = payroll.get('absent_days', 0)
         raw_salary = payroll.get('salary', 0.0)
