@@ -88,6 +88,44 @@ def _annual_leave_day_counts(al, month_start, month_end):
     return total_days, 0
 
 
+def _sales_annual_leave_compensation(emp, emp_type, year, month, month_start, month_end, daily_rate):
+    """Annual leave compensation for sales fixed-salary / attendance-based employees.
+
+    The sales absent_days calculation uses total_working_days (excluding Sundays/holidays),
+    so compensation must also count only working days within each leave period.
+    """
+    holiday_dates = set(
+        Holiday.objects.filter(
+            date__year=year, date__month=month
+        ).values_list('date', flat=True)
+    )
+    if emp_type == 'inhouse':
+        al_qs = AnnualLeave.objects.filter(
+            employee=emp, start_date__lte=month_end, end_date__gte=month_start
+        )
+    else:
+        al_qs = AnnualLeave.objects.filter(
+            remote_employee=emp, start_date__lte=month_end, end_date__gte=month_start
+        )
+
+    compensation = 0.0
+    leave_working_days = 0
+    for al in al_qs:
+        overlap_start = max(al.start_date, month_start)
+        overlap_end = min(al.end_date, month_end)
+        curr = overlap_start
+        working_days = 0
+        while curr <= overlap_end:
+            if curr.weekday() != 6 and curr not in holiday_dates:
+                working_days += 1
+            curr += datetime.timedelta(days=1)
+        leave_working_days += working_days
+        salary_pct = float(al.salary_percentage) if al.is_paid else 0.0
+        compensation += daily_rate * working_days * salary_pct / 100.0
+
+    return round(compensation, 2), leave_working_days
+
+
 INR_COMMISSION_THRESHOLD = 4   # first N accounts use the bank's INR rate
 INR_OVERFLOW_RATE = Decimal('3000')  # INR per account beyond the threshold
 
@@ -333,7 +371,10 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         absent_days = max(0, total_working_days - present_days) + bridge_sunday_count
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
-        net_payroll = round(base_salary + incentives - reductions, 2)
+        al_compensation, al_days = _sales_annual_leave_compensation(
+            emp, emp_type, year, month, month_start, month_end, daily_rate
+        )
+        net_payroll = round(base_salary + al_compensation + incentives - reductions, 2)
 
         return {
             'employee': emp,
@@ -345,6 +386,8 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             'daily_rate': round(daily_rate, 2),
             'absent_days': absent_days,
             'deduction': round(deduction, 2),
+            'annual_leave_compensation': al_compensation,
+            'annual_leave_days': al_days,
             'base_salary': base_salary,
             'bank_counts_list': bank_counts_list,
             'commission': round(commission, 2),
@@ -428,7 +471,10 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         absent_days = max(0, total_working_days - effective_present) + bridge_sunday_count
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
-        net_payroll = round(base_salary + incentives - reductions, 2)
+        al_compensation, al_days = _sales_annual_leave_compensation(
+            emp, emp_type, year, month, _ms, _me, daily_rate
+        )
+        net_payroll = round(base_salary + al_compensation + incentives - reductions, 2)
 
         return {
             'employee': emp,
@@ -443,6 +489,8 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             'half_days': half_days,
             'absent_days': round(absent_days, 1),
             'deduction': round(deduction, 2),
+            'annual_leave_compensation': al_compensation,
+            'annual_leave_days': al_days,
             'base_salary': base_salary,
             'bank_counts_list': bank_counts_list,
             'commission': round(commission, 2),
@@ -877,10 +925,14 @@ def payroll_dashboard(request):
             base_late_days = (summary.late_days if summary else 0) or 0
             cat['leave_deduction'] = round(daily * (base_leave_days + bridge_count), 2)
             cat['late_deduction'] = round(daily * (base_late_days // 3) * 0.5, 2)
-        # Admin employees: leave/late are display-only — already deducted in attendance
-        # payroll (net_payroll). Exclude them from total_deductions to avoid double-counting
-        # in the Final Summary.
-        if emp.department == 'Admin':
+        # Exclude leave/late from total_deductions when payroll_net already bakes in the
+        # attendance deduction (Admin always; Sales when salary + non-performance payroll).
+        # Pure-commission Sales rows have payroll_net = commission with no attendance hit.
+        _has_attendance_salary = (
+            emp.salary and
+            getattr(emp, 'payroll_type', 'attendance') != 'performance'
+        )
+        if emp.department == 'Admin' or _has_attendance_salary:
             ded_cols_for_total = [c for c in _DED_COLS if c not in ('leave_deduction', 'late_deduction')]
         else:
             ded_cols_for_total = _DED_COLS
@@ -1446,7 +1498,11 @@ def freeze_payroll(request):
             base_late_days = (summary.late_days if summary else 0) or 0
             cat['leave_deduction'] = round(daily * (base_leave_days + bridge_count), 2)
             cat['late_deduction'] = round(daily * (base_late_days // 3) * 0.5, 2)
-        if emp.department == 'Admin':
+        _has_attendance_salary = (
+            emp.salary and
+            getattr(emp, 'payroll_type', 'attendance') != 'performance'
+        )
+        if emp.department == 'Admin' or _has_attendance_salary:
             ded_cols_for_total = [c for c in _DED_COLS if c not in ('leave_deduction', 'late_deduction')]
         else:
             ded_cols_for_total = _DED_COLS
@@ -2606,7 +2662,8 @@ def download_payslip(request, emp_type, emp_id):
         else:
             basic_full = 0.0
             allowance_full = 0.0
-        att_leave_ded = payroll.get('deduction', 0.0)
+        al_comp = payroll.get('annual_leave_compensation', 0.0)
+        att_leave_ded = max(0.0, payroll.get('deduction', 0.0) - al_comp)
         att_late_ded = 0.0
 
     # --- Active DeductionEntry records for this month ---
