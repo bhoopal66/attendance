@@ -38,8 +38,13 @@ class EmployeeAdmin(admin.ModelAdmin):
             'fields': ('salary', 'joining_date', 'designation', 'phone'),
             'classes': ('collapse',)
         }),
+        ('Payroll Settings', {
+            'fields': ('salary_cycle_start_day',),
+            'description': 'Pay period start day. 21 = 21st of prev month to 20th of current month; 1 = calendar month (1st to last day).',
+            'classes': ('collapse',)
+        }),
     )
-    
+
     def save_model(self, request, obj, form, change):
         # Hash password if it was changed and doesn't look like a hash
         if obj.portal_password and not obj.portal_password.startswith('pbkdf2_'):
@@ -103,8 +108,13 @@ class RemoteEmployeeAdmin(admin.ModelAdmin):
             'fields': ('phone',),
             'classes': ('collapse',)
         }),
+        ('Payroll Settings', {
+            'fields': ('salary_cycle_start_day',),
+            'description': 'Pay period start day. 21 = 21st of prev month to 20th of current month; 1 = calendar month (1st to last day).',
+            'classes': ('collapse',)
+        }),
     )
-    
+
     def save_model(self, request, obj, form, change):
         # Hash password if it was changed and doesn't look like a hash
         if obj.portal_password and not obj.portal_password.startswith('pbkdf2_'):

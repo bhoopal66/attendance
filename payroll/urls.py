@@ -38,4 +38,6 @@ urlpatterns = [
     # Freeze / unfreeze payroll month
     path('api/freeze/', views.freeze_payroll, name='freeze_payroll'),
     path('api/unfreeze/', views.unfreeze_payroll, name='unfreeze_payroll'),
+    # Test / simplified payroll dashboard
+    path('test/', views.payroll_test_dashboard, name='payroll_test_dashboard'),
 ]

@@ -26,6 +26,8 @@ ALLOWED_UPDATE_FIELDS = {
     'name', 'email', 'phone', 'department', 'location', 'team',
     'is_active', 'salary', 'designation', 'joining_date', 'leaving_date',
     'tcr_id',
+    # payroll fields
+    'currency', 'payroll_type', 'is_fixed_salary', 'visa_provider', 'salary_cycle_start_day',
 }
 ALLOWED_BULK_FIELDS = {'department', 'location', 'team', 'is_active'}
 
@@ -51,8 +53,12 @@ def _serialize_employee(emp, emp_type, remote_by_tcr=None, inhouse_by_tcr=None):
         'leaving_date': emp.leaving_date.strftime('%Y-%m-%d') if emp.leaving_date else '',
     }
     data['salary'] = float(emp.salary) if emp.salary else None
-    data['designation'] = emp.designation
+    data['designation'] = emp.designation or ''
     data['is_fixed_salary'] = getattr(emp, 'is_fixed_salary', False)
+    data['currency'] = getattr(emp, 'currency', 'AED') or 'AED'
+    data['payroll_type'] = getattr(emp, 'payroll_type', 'attendance') or 'attendance'
+    data['visa_provider'] = getattr(emp, 'visa_provider', '') or ''
+    data['salary_cycle_start_day'] = getattr(emp, 'salary_cycle_start_day', 21) or 21
     if emp.tcr_id:
         if emp_type == 'inhouse':
             remote = (remote_by_tcr or {}).get(emp.tcr_id)
@@ -174,8 +180,12 @@ def update_employee(request):
                     continue
                 value = data[field]
                 if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
-                             'joining_date', 'leaving_date', 'tcr_id'):
+                             'joining_date', 'leaving_date', 'tcr_id', 'visa_provider'):
                     value = value or None
+                elif field == 'salary_cycle_start_day':
+                    value = int(value) if value is not None else 21
+                elif field == 'is_fixed_salary':
+                    value = bool(value)
                 setattr(emp, field, value)
             if data.get('portal_password'):
                 emp.portal_password = make_password(data['portal_password'])
@@ -209,8 +219,13 @@ def update_employee(request):
         if field == 'designation' and not hasattr(emp, 'designation'):
             continue
         value = data[field]
-        if field in ('email', 'phone', 'department', 'location', 'team', 'designation', 'joining_date', 'leaving_date', 'tcr_id'):
+        if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
+                     'joining_date', 'leaving_date', 'tcr_id', 'visa_provider'):
             value = value or None
+        elif field == 'salary_cycle_start_day':
+            value = int(value) if value is not None else 21
+        elif field == 'is_fixed_salary':
+            value = bool(value)
         setattr(emp, field, value)
 
     # Handle password separately (needs hashing)

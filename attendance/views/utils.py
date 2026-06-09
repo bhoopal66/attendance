@@ -266,7 +266,8 @@ def get_bridge_sunday_days(employee, month_start, month_end):
 
     is_remote = isinstance(employee, RemoteEmployee)
 
-    leave_spans = []  # list of (start_date, end_date) tuples
+    lr_spans = []   # from LeaveRequest (Sundays NOT added to leave_days)
+    al_spans = []   # from AnnualLeave  (Sundays ARE added to leave_days by recalculate_summaries)
 
     if not is_remote:
         for lr in LeaveRequest.objects.filter(
@@ -275,7 +276,7 @@ def get_bridge_sunday_days(employee, month_start, month_end):
             start_date__lte=query_end,
             end_date__gte=query_start,
         ):
-            leave_spans.append((lr.start_date, lr.end_date))
+            lr_spans.append((lr.start_date, lr.end_date))
 
     al_qs = AnnualLeave.objects.filter(
         start_date__lte=query_end,
@@ -286,19 +287,26 @@ def get_bridge_sunday_days(employee, month_start, month_end):
     else:
         al_qs = al_qs.filter(employee=employee)
     for al in al_qs:
-        leave_spans.append((al.start_date, al.end_date))
+        al_spans.append((al.start_date, al.end_date))
 
     leave_dates = set()
-    continuous_dates = set()  # dates inside a span that itself covers Sat..Mon
-    for start_date, end_date in leave_spans:
+    for start_date, end_date in lr_spans + al_spans:
         start = max(start_date, query_start)
         end = min(end_date, query_end)
         curr = start
         while curr <= end:
             leave_dates.add(curr)
             curr += datetime.timedelta(days=1)
-        # Mark Sundays already covered by a single span that also includes
-        # the surrounding Sat and Mon so we don't double-count them.
+
+    # Only exclude Sundays that are inside an AnnualLeave span — those are
+    # already added to leave_days in recalculate_summaries, so deducting them
+    # again via bridge_sunday_count would be double-counting.
+    # Sundays inside a LeaveRequest span are NOT in leave_days, so they must
+    # still be counted as bridge Sundays to ensure the deduction is applied.
+    continuous_dates = set()
+    for start_date, end_date in al_spans:
+        start = max(start_date, query_start)
+        end = min(end_date, query_end)
         curr = start
         while curr <= end:
             if (curr.weekday() == 6

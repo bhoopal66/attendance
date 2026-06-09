@@ -50,7 +50,7 @@
 
 .emp-card{background:var(--surface-color);border:1px solid var(--border-color);border-radius:10px;padding:.75rem .85rem;cursor:pointer;transition:all .15s;position:relative}
 .emp-card:hover{border-color:#A5B4FC;box-shadow:0 4px 16px rgba(79,70,229,.1)}
-.emp-card:hover .emp-card-arrow{opacity:1}
+
 
 .emp-card-head{display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem}
 .emp-card-av{width:28px;height:28px;background:linear-gradient(135deg,#2563EB,#0891B2);color:white;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.7rem;flex-shrink:0}
@@ -60,7 +60,8 @@
 .emp-card-ded{padding:.12rem .4rem;border-radius:5px;font-size:.72rem;font-weight:700;flex-shrink:0}
 .emp-card-ded.has-ded{background:#FEE2E2;color:#DC2626}
 .emp-card-ded.zero{background:#F1F5F9;color:#94A3B8}
-.emp-card-arrow{position:absolute;top:.7rem;right:.7rem;opacity:0;color:var(--primary-color);transition:opacity .15s}
+.emp-card-arrow{position:absolute;top:.7rem;right:.7rem;opacity:0.35;color:var(--primary-color);transition:opacity .15s}
+.emp-card:hover .emp-card-arrow{opacity:1}
 .att-badge-off{background:#FEE2E2;color:#DC2626;padding:.05rem .28rem;border-radius:3px;font-size:.56rem;font-weight:700;text-transform:uppercase;margin-left:.2rem}
 
 /* Mini Calendar — color-only heatmap */
@@ -333,10 +334,10 @@
         <div class="cal-modal-top">
             <div class="cal-modal-nav">
                 <button class="cal-nav-btn" onclick="navModal(-1)" title="Previous (&#8592;)">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" fill="none" stroke="currentColor"/></svg>
                 </button>
                 <button class="cal-nav-btn" onclick="navModal(1)" title="Next (&#8594;)">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" fill="none" stroke="currentColor"/></svg>
                 </button>
             </div>
             <button class="cal-close-btn" onclick="closeCalModal()" title="Close (Esc)">&#x2715;</button>

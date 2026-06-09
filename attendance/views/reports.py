@@ -477,9 +477,20 @@ def remote_attendance_report(request):
             'total_talk_hours': round(total_talk_seconds / 3600, 1),
         }
 
+    employees = list(employees)
+
+    team_summary = {
+        'total_employees': len(employees),
+        'total_present': sum(e.summary['present_days'] for e in employees),
+        'total_half': sum(e.summary['half_days'] for e in employees),
+        'total_absent': sum(e.summary['absent_days'] for e in employees),
+    } if employees else {}
+
     context = get_common_report_context(
         selected_month, selected_year, cal_data, holidays_qs,
         show_inactive, search_query
     )
     context['employees'] = employees
+    context['team_summary'] = team_summary
+    context['month_name'] = MONTH_NAMES[selected_month]
     return render(request, 'attendance/remote_report.html', context)

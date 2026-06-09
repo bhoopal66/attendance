@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 
 from ..models import (
     AnnualLeave, AttendanceRecord, EarlyLeaveRequest, Employee, MonthlySummary,
-    RemoteCallRecord,
+    RemoteCallRecord, RemoteEmployee,
 )
 from .utils import (
     get_employee_shift_for_date, get_saturday_shift, superuser_required,
@@ -374,3 +374,69 @@ def decline_early_leave(request, request_id):
         request_id, request.user.username
     )
     return JsonResponse({'success': True, 'message': 'Request declined'})
+
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def update_remote_attendance(request):
+    """API endpoint to update a remote call record. Super admin only."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        employee_id = data.get('employee_id')
+        date_str = data.get('date')
+        talk_minutes = data.get('talk_minutes')
+        answered_calls = data.get('answered_calls', 0)
+
+        if not employee_id or not date_str:
+            return JsonResponse({'error': 'Missing required fields: employee_id, date'}, status=400)
+
+        record_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        try:
+            employee = RemoteEmployee.objects.get(id=employee_id)
+        except RemoteEmployee.DoesNotExist:
+            return JsonResponse({'error': 'Employee not found'}, status=404)
+
+        talk_minutes_int = int(talk_minutes) if talk_minutes is not None else 0
+        talk_duration = datetime.timedelta(minutes=talk_minutes_int) if talk_minutes_int > 0 else None
+
+        record, created = RemoteCallRecord.objects.get_or_create(
+            employee=employee,
+            date=record_date,
+            defaults={
+                'total_talk_duration': talk_duration,
+                'answered_calls': int(answered_calls),
+            }
+        )
+        if not created:
+            record.total_talk_duration = talk_duration
+            record.answered_calls = int(answered_calls)
+            record.save()
+
+        logger.info(
+            "Remote attendance updated by %s: employee=%s date=%s talk_min=%s",
+            request.user.username, employee.name, date_str, talk_minutes_int
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Remote attendance updated successfully',
+            'data': {
+                'employee_id': employee.id,
+                'date': date_str,
+                'talk_minutes': talk_minutes_int,
+                'answered_calls': int(answered_calls),
+                'status': record.attendance_status,
+            }
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except ValueError as e:
+        return JsonResponse({'error': f'Invalid data format: {e}'}, status=400)
+    except Exception:
+        logger.exception("Error updating remote attendance")
+        return JsonResponse({'error': 'An internal error occurred.'}, status=500)

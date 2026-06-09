@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}?v=23">
     <link rel="stylesheet" href="{% static 'attendance/css/employee_portal.css' %}?v=19">
+    <link rel="icon" type="image/png" href="{% static 'attendance/img/favicon.png' %}">
 </head>
 
 <body>
@@ -22,9 +23,7 @@
             <div class="sidebar-logo-area">
                 <a href="{% url 'employee_portal' %}" class="sidebar-logo">
                     <span class="logo-icon">
-                        <svg width="15" height="15" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
+                        <img src="{% static 'attendance/img/tcr-logo.png' %}" alt="TCR" width="28" height="28" style="display:block;">
                     </span>
                     <div>
                         <span class="logo-text">Taamul</span>

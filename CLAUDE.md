@@ -31,6 +31,10 @@ python manage.py recalculate_summaries 2026 3
 python manage.py recalculate_summaries 2026 3 --remote
 python manage.py recalculate_summaries 2026 3 --employee-id 42
 
+# Re-evaluate attendance status for fixed-salary remote employees (dry-run by default)
+python manage.py fix_remote_attendance
+python manage.py fix_remote_attendance --apply
+
 # Production commands (MySQL)
 DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py migrate
 DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py collectstatic --noinput
@@ -69,7 +73,7 @@ Production uses `DJANGO_SETTINGS_MODULE=attendance_project.settings.production`.
 Views are split into modules under `attendance/views/`:
 - `utils.py` - Shared utilities, constants, decorators, and helper functions
 - `upload.py` - XLS/CSV file upload and processing
-- `reports.py` - Attendance reports for in-house and remote employees
+- `reports.py` - Attendance reports for in-house and remote employees; remote report also computes `team_summary` (total_employees, total_present, total_half, total_absent) for the KPI bar at the top of the page
 - `downloads.py` - Excel report generation (openpyxl) with shared styles
 - `employee_portal.py` - Employee portal (login, attendance view, leave/early-leave requests)
 - `employee_management.py` - Employee CRUD operations with field allowlists
@@ -89,11 +93,19 @@ All view functions are re-exported from `attendance/views/__init__.py`.
 - `get_approved_leave_days()` - Get approved leave day numbers for an employee
 - `get_common_report_context()` - Build shared template context for report views
 - `superuser_required()` - Single source of truth for the superuser check
+- `require_post_json` - Decorator that enforces POST + JSON content-type on API views
+
+**Bulk query helpers** (avoid N+1 in report views that iterate many employees):
+- `get_bulk_employee_shifts(employees, date)` → `{employee_id: (shift_start, shift_end)}` — same 3-tier priority as `get_employee_shift_for_date` but in a single DB query
+- `get_bulk_approved_leave_days(employees, start, end)` → `{employee_id: set_of_day_ints}`
+- `get_bulk_annual_leave_non_working_days(employees, start, end, holiday_dates)` → `{employee_id: int}`
+
+Use these instead of the single-employee variants whenever rendering a full month's report for all employees.
 
 ### Data Models
 
 **Employee Tracking:**
-- `BaseEmployee` (abstract) - Shared fields for both employee types, with date validation
+- `BaseEmployee` (abstract) - Shared fields for both employee types, with date validation; includes `visa_provider` (choices: Jumbo, OnTime, Taamul; nullable — blank = own-visa employee) and `salary_cycle_start_day` (default 21; see [Salary Cycle](#salary-cycle-pay-period))
 - `Employee` - In-house employees with `person_id` from biometric machines
 - `RemoteEmployee` - Remote employees with `extension_id` from phone system
 - `AttendanceRecord` - Daily attendance for in-house (unique_together: employee+date)
@@ -115,8 +127,9 @@ All view functions are re-exported from `attendance/views/__init__.py`.
 - `BankSubmission` - Per-employee-per-month submission count per bank; unique per (employee, bank, year, month)
 - `DeductionEntry` - Deduction or addition (determined by `entry_type` property); can be split over N months; `installment_amount = total / split_months`; `is_active_in(year, month)` checks if a month falls in the split range
 - `DeductionCarryover` - Auto-created when net salary would go negative; `overflow_amount` carries into the following month
-- `ExchangeRate` - 1 AED = N units of foreign currency, stored per currency per month
+- `ExchangeRate` - 1 AED = N units of foreign currency, stored per currency per month; to convert foreign → AED: `amount / rate`
 - `GeneratedDocument` - Registry of every payslip/voucher; stable human-readable ref (`PS-XXXXX` / `PV-XXXXX`) via `ref` property
+- `FrozenPayrollMonth` - Immutable JSON snapshot of a fully-computed payroll month; once frozen, dashboard serves from this snapshot instead of recalculating — freeze/unfreeze via `/payroll/api/freeze/` and `/payroll/api/unfreeze/`
 
 ### URL Structure
 
@@ -126,9 +139,9 @@ All view functions are re-exported from `attendance/views/__init__.py`.
 
 **Employee Portal:** `/portal/` (dashboard), `/portal/login/`, `/portal/logout/`, `/portal/change-password/`, `/portal/early-leave-request/`, `/portal/leave-request/`, `/portal/api/my-requests/`
 
-**APIs:** `/api/attendance/update/`, `/api/pending-count/`, `/api/pending-requests/`, `/request/<id>/data/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
+**APIs:** `/api/attendance/update/`, `/api/remote/attendance/update/`, `/api/pending-count/`, `/api/pending-requests/`, `/request/<id>/data/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
 
-**Payroll:** `/payroll/` (dashboard), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/`, `/payroll/api/deductions/`, `/payroll/api/exchange-rate/save/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/voucher/advance/`
+**Payroll:** `/payroll/` (dashboard), `/payroll/test/` (new comprehensive dashboard — see below), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/<emp_type>/<id>/`, `/payroll/api/submissions/save/`, `/payroll/api/upload-submissions/` (bulk XLSX), `/payroll/api/deductions/add/`, `/payroll/api/deductions/autofill/`, `/payroll/api/recalculate/`, `/payroll/api/exchange-rate/save/`, `/payroll/api/freeze/`, `/payroll/api/unfreeze/`, `/payroll/api/employee/<emp_type>/<id>/update/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/voucher/advance/`
 
 ### Authentication
 
@@ -163,19 +176,27 @@ Custom error templates at `attendance/templates/`: `400.html`, `403.html`, `404.
 ### Other Components
 
 - `attendance/context_processors.py` - `pending_requests_processor` makes pending on-duty request counts available to all templates for authenticated superusers
-- `attendance/templatetags/attendance_extras.py` - Custom template filters
+- `attendance/templatetags/attendance_extras.py` - Custom template filters: `is_in_list`, `dictsumby` (sums a key across a list of dicts or objects)
 - `attendance/management/commands/recalculate_summaries.py` - Management command to rebuild monthly summaries
 
 ## Critical Implementation Details
 
+### XLS Upload Format
+
+The biometric machine exports `.xls` files that are actually HTML documents (not binary Excel). `upload.py` detects this automatically via `is_html_excel()` (checks for `<html` in the first 500 bytes) and parses them with BeautifulSoup (`parse_html_excel()`), looking for a `<table class="Punch_Report">` with 11 columns per row. Standard `.xls`/`.xlsx` files are handled with pandas/xlrd. Both paths normalise into the same DataFrame before processing. If a file parses unexpectedly, check which path was taken.
+
 ### Employee Lookup Strategy (XLS Upload)
 
-When processing XLS uploads (`upload.py:_lookup_or_create_employee`), the system uses a **3-tier lookup strategy** to prevent duplicate employee creation:
-1. Try exact match: `person_id` + `name`
-2. If multiple matches: Use most recently updated employee
-3. If no match: Create new employee record
+When processing XLS uploads (`upload.py:_lookup_or_create_employee`), the system uses a tiered strategy to prevent duplicate employee creation. Confirmed employees (those with `tcr_id` set) take priority at every tier:
 
-This is critical when the same `person_id` is reused for different employees or when names are duplicated.
+- **Tier 0**: Exact match on `person_id` + `name` (fast path)
+- **Tier 1a**: Confirmed employee (`tcr_id` set) matched by name — updates `person_id` if it changed, archives old ID as an alias
+- **Tier 1b**: Confirmed employee matched by `person_id` + `name`; if `person_id` matches but name differs, treats it as a reassigned machine slot (creates a new record)
+- **Tier 2**: Active employee without `tcr_id` matched by name — updates `person_id` and archives old ID; if multiple match, uses most recently updated
+- **Tier 3**: Check `EmployeeIDAlias` history for active employees (name must also match, otherwise treats as reassigned ID)
+- **Tier 4**: Create new employee record
+
+This is critical when the same `person_id` is reused (leavers' machine slots reassigned) or employee names have changed.
 
 ### Attendance Status Calculation
 
@@ -186,12 +207,47 @@ This is critical when the same `person_id` is reused for different employees or 
 - Red (Absent): No attendance record + not holiday/Sunday
 - Blue (Paid Leave): Approved leave request
 - Purple (Holiday): Sunday or custom holiday
+- **WFH override**: `AttendanceRecord.is_work_from_home=True` always counts as full-day Present, regardless of punch times
+- **Fixed salary override**: `Employee.is_fixed_salary=True` means punch-in alone counts as Present (no punch-out or duration threshold required)
 
 **Remote employees:**
 Status auto-calculated on save via `calculate_attendance_status()` based on talk duration and weekday:
 - Mon-Thu: <45min=Absent, 45-89min=Half, >=90min=Present
 - Friday: <30min=Absent, 30-59min=Half, >=60min=Present
 - Saturday: <=20min=Absent, 21-44min=Half, >=45min=Present
+- **Fixed salary override**: `RemoteEmployee.is_fixed_salary=True` means any call activity (answered, no-answered, busy, or failed) counts as Present regardless of talk duration
+
+Default thresholds can be overridden per period via `SpecialShiftPeriod` remote threshold fields.
+
+### Bridge Sunday Rule
+
+A Sunday that falls between an approved-leave Saturday and an approved-leave Monday is treated as an **unpaid absent day** in payroll (one `daily_rate` deducted), even though it is normally a holiday. This bridges the gap so employees cannot claim a free Sunday by surrounding it with leave days.
+
+Logic lives in `attendance/views/utils.py:get_bridge_sunday_days()`. It checks both `LeaveRequest` (in-house only) and `AnnualLeave` (in-house and remote). The two sources are handled differently:
+- **`AnnualLeave` spans**: Sundays within the span are excluded from the bridge count because `recalculate_summaries` already adds them to `MonthlySummary.leave_days` — counting them again here would be a double deduction.
+- **`LeaveRequest` spans**: Sundays within the span are **not** excluded and are still counted as bridge Sundays, because `LeaveRequest` records do not add Sundays to `leave_days`.
+
+### Salary Cycle / Pay Period
+
+Each employee has a `salary_cycle_start_day` (default `21`). This controls the date range used for attendance calculation in payroll:
+
+- **`cycle_start_day = 21`** (default): period is the 21st of the previous month to the 20th of the current month. This is a cross-calendar-month period, so `MonthlySummary` (which is calendar-month only) cannot be used. Attendance is computed directly from `AttendanceRecord` rows for the period.
+- **`cycle_start_day = 1`**: period is the 1st to last day of the current month (standard calendar month). `MonthlySummary` is used when available.
+
+Helper: `_get_employee_pay_period(cycle_start_day, year, month)` in `payroll/views.py` returns `(period_start, period_end, days_in_period, total_holidays)`. Both `_get_inhouse_payroll_row` and `_get_sales_payroll_row` accept `period_start`/`period_end` to support custom cycles.
+
+### Remote Attendance Inline Editing
+
+Admins can edit remote call records directly from the remote attendance report. The new API endpoint `POST /api/remote/attendance/update/` (`update_remote_attendance` in `api.py`) accepts `employee_id`, `date`, `talk_minutes`, and `answered_calls`. It upserts a `RemoteCallRecord` and returns the recalculated `attendance_status`. The remote report template renders an edit icon on each day cell and a modal form wired to this endpoint.
+
+### Test Payroll Dashboard (`/payroll/test/`)
+
+A new comprehensive payroll dashboard (`payroll_test_dashboard` view, template `payroll/test_dashboard.html`) that replaces the original dashboard workflow. Key differences from `/payroll/`:
+
+- **Deductions table**: All `DeductionEntry` records rendered as a matrix of categories (advance, visa_status_change, clawback, leave_deduction, late_deduction, other_deduction, last_month_balance, paid_leave, other_addition) per employee. `leave_deduction` and `late_deduction` are auto-computed for attendance-based employees.
+- **Final summary**: Combines payroll net + deductions + additions → `final_salary` per employee; automatically creates `DeductionCarryover` when `final_salary < 0`.
+- **Carryover schedule**: Shows all `DeductionCarryover` records with statuses (pending / partial / cleared) and highlights which are incoming/outgoing for the selected month.
+- **Per-employee pay periods**: Each employee's `salary_cycle_start_day` is respected; the `_emp_period(emp)` closure inside the view resolves the correct date range for every row.
 
 ### Early Leave Request Workflow
 
@@ -228,6 +284,8 @@ These fields on `Employee` / `RemoteEmployee` control how payroll is calculated:
 | `is_fixed_salary` | bool | Sales section only: attendance-based salary instead of pure commission |
 | `tcr_id` | string | Cross-links in-house and remote records for the same person; remote employees whose `tcr_id` matches an active in-house employee are excluded from the Sales section to prevent double-counting |
 | `location` | string | On `RemoteEmployee`, value `'inhouse'` moves the employee to the in-house column of the Salary Setup page (`/payroll/employees/`) |
+| `visa_provider` | `'Jumbo'`, `'OnTime'`, `'Taamul'`, `None` | Manpower visa provider; null = own-visa employee |
+| `salary_cycle_start_day` | int, default `21` | Pay period start day — `21` means 21st of previous month to 20th of current; `1` means calendar month (1st to last day) |
 
 ### Dashboard Sections (`_get_inhouse_payroll_row` / `_get_sales_payroll_row`)
 
@@ -270,6 +328,10 @@ These fields on `Employee` / `RemoteEmployee` control how payroll is calculated:
 
 Sales payroll recomputes remote attendance inline (does not rely on stored `RemoteCallRecord.attendance_status`) using `get_active_special_periods_for_month()` and `get_remote_thresholds_from_period()` from `attendance/views/utils.py`. This ensures correctness if `is_fixed_salary` was toggled after records were saved.
 
+### Payroll Freeze / Unfreeze
+
+Once a month's payroll is finalised, it can be frozen via `POST /payroll/api/freeze/`. This serialises the entire computed context into `FrozenPayrollMonth.snapshot` (JSONField). The dashboard then serves from that snapshot for that month — live employee/bank/attendance changes no longer affect the displayed figures. Unfreezing (`POST /payroll/api/unfreeze/`) deletes the snapshot and reverts to live recalculation. The payslip download still works against live data even when a month is frozen.
+
 ## Git Workflow
 
 Main branch: `main`
@@ -289,4 +351,3 @@ DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py c
 sudo systemctl restart attendance
 ```
 
-**Note:** The deployment `attendance.service` file needs `DJANGO_SETTINGS_MODULE` updated from `attendance_project.settings_production` to `attendance_project.settings.production`.

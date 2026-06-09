@@ -8,6 +8,7 @@
     <title>{% block title %}Taamul Attendance{% endblock %}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}?v=23">
+    <link rel="icon" type="image/png" href="{% static 'attendance/img/favicon.png' %}">
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -21,9 +22,7 @@
             <div class="sidebar-logo-area">
                 <a href="{% url 'report' %}" class="sidebar-logo">
                     <span class="logo-icon">
-                        <svg width="15" height="15" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
+                        <img src="{% static 'attendance/img/tcr-logo.png' %}" alt="TCR" width="28" height="28" style="display:block;">
                     </span>
                     <div>
                         <span class="logo-text">Taamul</span>
@@ -93,12 +92,6 @@
                         title="Payroll">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                         <span class="sidebar-item-text">Payroll</span>
-                    </a>
-                    <a href="{% url 'payroll_employees' %}"
-                        class="sidebar-item {% if request.resolver_match.url_name == 'payroll_employees' %}active{% endif %}"
-                        title="Payroll Employees">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        <span class="sidebar-item-text">Salary Setup</span>
                     </a>
                     <a href="{% url 'manage_banks' %}"
                         class="sidebar-item {% if request.resolver_match.url_name == 'manage_banks' %}active{% endif %}"

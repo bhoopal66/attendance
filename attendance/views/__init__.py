@@ -33,6 +33,7 @@ from .employee_portal import (
 )
 from .api import (
     update_attendance,
+    update_remote_attendance,
     recalculate_monthly_summary,
     get_request_attendance_data,
     approve_early_leave,
@@ -93,6 +94,7 @@ __all__ = [
     'get_my_requests',
     # API
     'update_attendance',
+    'update_remote_attendance',
     'recalculate_monthly_summary',
     'get_request_attendance_data',
     'approve_early_leave',

@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from django.core.management import call_command
 from django.db.models import Q, Sum
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required, user_passes_test
 
@@ -50,6 +50,37 @@ def _count_holidays(year, month, days_in_month):
     for holiday in Holiday.objects.filter(date__year=year, date__month=month):
         non_working.add(holiday.date.day)
     return len(non_working)
+
+
+def _count_holidays_in_period(period_start, period_end):
+    """Return total non-working days (Sundays + custom holidays) in a date range."""
+    non_working = set()
+    curr = period_start
+    while curr <= period_end:
+        if curr.weekday() == 6:
+            non_working.add(curr)
+        curr += datetime.timedelta(days=1)
+    for holiday in Holiday.objects.filter(date__gte=period_start, date__lte=period_end):
+        non_working.add(holiday.date)
+    return len(non_working)
+
+
+def _get_employee_pay_period(cycle_start_day, selected_year, selected_month):
+    """Return (period_start, period_end, days_in_period, total_holidays) for a given pay cycle."""
+    if cycle_start_day == 1:
+        period_start = datetime.date(selected_year, selected_month, 1)
+        last_day = calendar.monthrange(selected_year, selected_month)[1]
+        period_end = datetime.date(selected_year, selected_month, last_day)
+    else:
+        prev_year = selected_year - 1 if selected_month == 1 else selected_year
+        prev_month = 12 if selected_month == 1 else selected_month - 1
+        prev_month_last = calendar.monthrange(prev_year, prev_month)[1]
+        start_day = min(cycle_start_day, prev_month_last)
+        period_start = datetime.date(prev_year, prev_month, start_day)
+        period_end = datetime.date(selected_year, selected_month, cycle_start_day - 1)
+    days_in_period = (period_end - period_start).days + 1
+    total_holidays = _count_holidays_in_period(period_start, period_end)
+    return period_start, period_end, days_in_period, total_holidays
 
 
 def _leave_days_in_month(leave, month_start, month_end):
@@ -183,24 +214,77 @@ def _get_commission(year, month, employee=None, remote_employee=None, currency='
     ))
 
 
-def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_holidays):
+def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_holidays, days_in_period=None):
     """Build a payroll data row for one in-house employee."""
-    summary = MonthlySummary.objects.filter(
-        employee=emp, year=year, month=month
-    ).first()
+    _cross_month = (month_start.month != month_end.month or month_start.year != month_end.year)
 
-    if summary:
-        half_days = summary.half_days or 0
-        full_days = summary.working_days - half_days
-        effective_work_days = full_days + (half_days * 0.5)
-        absent_days = summary.leave_days or 0
-        late_days = summary.late_days or 0
+    if _cross_month and days_in_period is not None:
+        # Cross-month period (e.g. 21st–20th): MonthlySummary is calendar-month only,
+        # so compute attendance directly from AttendanceRecord.
+        _holiday_dates = set(Holiday.objects.filter(
+            date__gte=month_start, date__lte=month_end
+        ).values_list('date', flat=True))
+        _approved_leave_dates = set()
+        for lr in LeaveRequest.objects.filter(
+            employee=emp, status='approved',
+            start_date__lte=month_end, end_date__gte=month_start,
+        ):
+            _c = max(lr.start_date, month_start)
+            _e = min(lr.end_date, month_end)
+            while _c <= _e:
+                if _c.weekday() != 6 and _c not in _holiday_dates:
+                    _approved_leave_dates.add(_c)
+                _c += datetime.timedelta(days=1)
+        _recs = {r.date: r for r in AttendanceRecord.objects.filter(
+            employee=emp, date__gte=month_start, date__lte=month_end
+        )}
+        full_days = half_days = late_days = absent_days = 0
+        _c = month_start
+        while _c <= month_end:
+            if _c.weekday() == 6 or _c in _holiday_dates:
+                _c += datetime.timedelta(days=1)
+                continue
+            _r = _recs.get(_c)
+            if _r and (_r.first_in or _r.is_work_from_home):
+                if _r.is_work_from_home or emp.is_fixed_salary:
+                    full_days += 1
+                elif _r.first_in > datetime.time(12, 0):
+                    half_days += 1
+                else:
+                    full_days += 1
+            elif _c not in _approved_leave_dates:
+                absent_days += 1
+            _c += datetime.timedelta(days=1)
+        # Sundays/holidays inside AnnualLeave spans add to absent_days,
+        # mirroring recalculate_summaries which adds them to MonthlySummary.leave_days.
+        for _al in AnnualLeave.objects.filter(
+            employee=emp, start_date__lte=month_end, end_date__gte=month_start
+        ):
+            _c = max(_al.start_date, month_start)
+            _ae = min(_al.end_date, month_end)
+            while _c <= _ae:
+                if _c.weekday() == 6 or _c in _holiday_dates:
+                    absent_days += 1
+                _c += datetime.timedelta(days=1)
+        effective_work_days = full_days + half_days * 0.5
+        days_in_month = days_in_period
     else:
-        full_days = 0
-        half_days = 0
-        effective_work_days = 0.0
-        absent_days = 0
-        late_days = 0
+        summary = MonthlySummary.objects.filter(
+            employee=emp, year=year, month=month
+        ).first()
+        if summary:
+            half_days = summary.half_days or 0
+            full_days = summary.working_days - half_days
+            effective_work_days = full_days + (half_days * 0.5)
+            absent_days = summary.leave_days or 0
+            late_days = summary.late_days or 0
+        else:
+            full_days = 0
+            half_days = 0
+            effective_work_days = 0.0
+            absent_days = 0
+            late_days = 0
+        days_in_month = calendar.monthrange(year, month)[1]
 
     salary = float(emp.salary) if emp.salary else 0.0
     basic_salary = round(salary * 0.40, 2)
@@ -215,7 +299,6 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     )
     paid_leave_days = sum(_leave_days_in_month(leave, month_start, month_end) for leave in approved_leaves)
 
-    days_in_month = calendar.monthrange(year, month)[1]
     daily_rate = salary / days_in_month if salary > 0 else 0.0
     # Every 3 late days = 1 half-day deduction
     late_half_days = late_days // 3
@@ -301,7 +384,7 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     }
 
 
-def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None, total_holidays=0):
+def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None, total_holidays=0, period_start=None, period_end=None):
     """Build a payroll data row for a sales employee (commission-only, no attendance deductions).
     Fixed salary employees get attendance-based salary instead of commission."""
     if emp_type == 'inhouse':
@@ -349,30 +432,30 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         daily_rate = salary / days_in_month if salary > 0 else 0.0
         total_working_days = days_in_month - total_holidays
 
-        month_start = datetime.date(year, month, 1)
-        month_end = datetime.date(year, month, days_in_month)
+        _ms = period_start or datetime.date(year, month, 1)
+        _me = period_end or datetime.date(year, month, days_in_month)
         if emp_type == 'inhouse':
             present_days = AttendanceRecord.objects.filter(
-                employee=emp, date__year=year, date__month=month,
+                employee=emp, date__gte=_ms, date__lte=_me,
             ).filter(
                 Q(first_in__isnull=False) | Q(is_work_from_home=True)
             ).count()
         else:
             call_records = RemoteCallRecord.objects.filter(
-                employee=emp, date__year=year, date__month=month,
+                employee=emp, date__gte=_ms, date__lte=_me,
             ).only('answered_calls', 'no_answered', 'busy', 'failed')
             present_days = sum(
                 1 for r in call_records
                 if (r.answered_calls or 0) + (r.no_answered or 0)
                    + (r.busy or 0) + (r.failed or 0) > 0
             )
-        bridge_sunday_count = len(get_bridge_sunday_days(emp, month_start, month_end))
+        bridge_sunday_count = len(get_bridge_sunday_days(emp, _ms, _me))
 
         absent_days = max(0, total_working_days - present_days) + bridge_sunday_count
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
         al_compensation, al_days = _sales_annual_leave_compensation(
-            emp, emp_type, year, month, month_start, month_end, daily_rate
+            emp, emp_type, year, month, _ms, _me, daily_rate
         )
         net_payroll = round(base_salary + al_compensation + incentives - reductions, 2)
 
@@ -417,12 +500,12 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         daily_rate = salary / days_in_month if salary > 0 else 0.0
         total_working_days = days_in_month - total_holidays
 
-        _ms = datetime.date(year, month, 1)
-        _me = datetime.date(year, month, days_in_month)
+        _ms = period_start or datetime.date(year, month, 1)
+        _me = period_end or datetime.date(year, month, days_in_month)
         bridge_sunday_count = len(get_bridge_sunday_days(emp, _ms, _me))
         if emp_type == 'inhouse':
             present_days = AttendanceRecord.objects.filter(
-                employee=emp, date__year=year, date__month=month,
+                employee=emp, date__gte=_ms, date__lte=_me,
             ).filter(
                 Q(first_in__isnull=False) | Q(is_work_from_home=True)
             ).count()
@@ -430,15 +513,13 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         else:
             holiday_dates = set(
                 Holiday.objects.filter(
-                    date__year=year, date__month=month
+                    date__gte=_ms, date__lte=_me
                 ).values_list('date', flat=True)
             )
             call_records = RemoteCallRecord.objects.filter(
-                employee=emp, date__year=year, date__month=month,
+                employee=emp, date__gte=_ms, date__lte=_me,
             ).only('date', 'total_talk_duration')
-            month_start = datetime.date(year, month, 1)
-            month_end = datetime.date(year, month, days_in_month)
-            special_periods = get_active_special_periods_for_month(month_start, month_end)
+            special_periods = get_active_special_periods_for_month(_ms, _me)
             present_days = 0
             half_days = 0
             for r in call_records:
@@ -467,13 +548,19 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
                 elif minutes >= half_min:
                     half_days += 1
 
-        effective_present = present_days + (half_days * 0.5)
-        absent_days = max(0, total_working_days - effective_present) + bridge_sunday_count
-        deduction = daily_rate * absent_days
-        base_salary = round(salary - deduction, 2)
         al_compensation, al_days = _sales_annual_leave_compensation(
             emp, emp_type, year, month, _ms, _me, daily_rate
         )
+        effective_present = present_days + (half_days * 0.5)
+        if effective_present == 0 and al_compensation == 0:
+            # No attendance and no paid leave at all: deduct the entire calendar
+            # month (including Sundays/holidays) so net salary is zero rather
+            # than paying the non-working-day portion of the daily rate.
+            absent_days = float(days_in_month)
+        else:
+            absent_days = max(0, total_working_days - effective_present) + bridge_sunday_count
+        deduction = daily_rate * absent_days
+        base_salary = round(salary - deduction, 2)
         net_payroll = round(base_salary + al_compensation + incentives - reductions, 2)
 
         return {
@@ -2330,26 +2417,8 @@ def upload_submissions(request):
 @login_required
 @user_passes_test(superuser_required, login_url='/report/')
 def payroll_employees(request):
-    """Payroll employee database — salary, currency, designation for all employees.
-
-    Section assignment is driven by the location field:
-      location = 'inhouse' → in-house section (Employee table only)
-      location = 'remote'  → remote section (RemoteEmployee records whose
-                              location is not 'inhouse')
-    """
-    inhouse_employees = Employee.objects.filter(is_active=True).order_by('department', 'name')
-
-    # Only show remote employees whose location is not marked as 'inhouse'
-    remote_employees = (
-        RemoteEmployee.objects.filter(is_active=True)
-        .exclude(location__iexact='inhouse')
-        .order_by('name')
-    )
-
-    return render(request, 'payroll/employees.html', {
-        'inhouse_employees': inhouse_employees,
-        'remote_employees': remote_employees,
-    })
+    """Redirects to the unified employee management page."""
+    return redirect('employee_management')
 
 
 @login_required
@@ -2405,6 +2474,15 @@ def payroll_employee_update(request, emp_type, employee_id):
     if 'is_fixed_salary' in data:
         emp.is_fixed_salary = bool(data['is_fixed_salary'])
 
+    if 'salary_cycle_start_day' in data:
+        try:
+            cycle_day = int(data['salary_cycle_start_day'])
+            if not (1 <= cycle_day <= 28):
+                return JsonResponse({'success': False, 'error': 'salary_cycle_start_day must be 1–28'}, status=400)
+            emp.salary_cycle_start_day = cycle_day
+        except (TypeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid salary_cycle_start_day'}, status=400)
+
     if 'visa_provider' in data:
         vp = str(data['visa_provider']).strip()
         if vp and vp not in ('Jumbo', 'OnTime', 'Taamul'):
@@ -2422,6 +2500,7 @@ def payroll_employee_update(request, emp_type, employee_id):
         'payroll_type': emp.payroll_type,
         'is_fixed_salary': emp.is_fixed_salary,
         'visa_provider': emp.visa_provider or '',
+        'salary_cycle_start_day': emp.salary_cycle_start_day,
     })
 
 
@@ -2839,3 +2918,402 @@ def save_exchange_rate(request):
         defaults={'rate': rate_val},
     )
     return JsonResponse({'success': True, 'rate': float(obj.rate), 'created': created})
+
+
+# ============================================
+# Test / Simplified Payroll Dashboard
+# ============================================
+
+@login_required
+@user_passes_test(superuser_required, login_url='/report/')
+def payroll_test_dashboard(request):
+    """Simplified payroll dashboard with 4 tables by employee category."""
+    selected_month, selected_year = get_selected_month_year(request)
+
+    # Default pay period (21st prev → 20th current) used for header display
+    if selected_month == 1:
+        prev_month, prev_year = 12, selected_year - 1
+    else:
+        prev_month, prev_year = selected_month - 1, selected_year
+    default_period_start = datetime.date(prev_year, prev_month, 21)
+    default_period_end = datetime.date(selected_year, selected_month, 20)
+    default_days = (default_period_end - default_period_start).days + 1
+    default_holidays = _count_holidays_in_period(default_period_start, default_period_end)
+
+    # Per-employee pay period cache (keyed by cycle_start_day)
+    _period_cache = {}
+
+    def _emp_period(emp):
+        day = emp.salary_cycle_start_day or 21
+        if day not in _period_cache:
+            _period_cache[day] = _get_employee_pay_period(day, selected_year, selected_month)
+        return _period_cache[day]
+
+    banks = list(Bank.objects.filter(is_active=True).order_by('name'))
+    banks_json = json.dumps([
+        {'id': b.id, 'name': b.name, 'rate': float(b.per_account_charge),
+         'inr_rate': float(b.inr_per_account_charge) if b.inr_per_account_charge else None}
+        for b in banks
+    ])
+
+    all_inhouse_tcr_ids = set(
+        Employee.objects.filter(is_active=True)
+        .exclude(tcr_id__isnull=True).exclude(tcr_id='')
+        .values_list('tcr_id', flat=True)
+    )
+
+    # Table 1: Admin In-House
+    admin_inhouse_emps = list(Employee.objects.filter(department='Admin', is_active=True).order_by('name'))
+    admin_inhouse_rows = []
+    for emp in admin_inhouse_emps:
+        p_start, p_end, p_days, p_hols = _emp_period(emp)
+        admin_inhouse_rows.append(
+            _get_inhouse_payroll_row(emp, selected_year, selected_month, p_start, p_end, p_hols, days_in_period=p_days)
+        )
+
+    # Table 2: Admin Remote
+    admin_remote_qs = RemoteEmployee.objects.filter(department='Admin', is_active=True)
+    if all_inhouse_tcr_ids:
+        admin_remote_qs = admin_remote_qs.exclude(tcr_id__in=all_inhouse_tcr_ids)
+    admin_remote_emps = list(admin_remote_qs.order_by('name'))
+    admin_remote_rows = []
+    for emp in admin_remote_emps:
+        p_start, p_end, p_days, p_hols = _emp_period(emp)
+        admin_remote_rows.append(
+            _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        )
+
+    # Table 3: Sales - Fixed Salary (is_fixed_salary=True)
+    sales_fixed_inhouse_emps = list(Employee.objects.filter(
+        department='Sales', is_active=True, is_fixed_salary=True
+    ).order_by('name'))
+    sales_fixed_remote_qs = RemoteEmployee.objects.filter(
+        is_active=True, is_fixed_salary=True
+    ).exclude(department='Admin')
+    if all_inhouse_tcr_ids:
+        sales_fixed_remote_qs = sales_fixed_remote_qs.exclude(tcr_id__in=all_inhouse_tcr_ids)
+    sales_fixed_remote_emps = list(sales_fixed_remote_qs.order_by('name'))
+    sales_fixed_rows = []
+    for emp in sales_fixed_inhouse_emps:
+        p_start, p_end, p_days, p_hols = _emp_period(emp)
+        sales_fixed_rows.append(
+            _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        )
+    for emp in sales_fixed_remote_emps:
+        p_start, p_end, p_days, p_hols = _emp_period(emp)
+        sales_fixed_rows.append(
+            _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        )
+
+    # Table 4: Sales - Performance Based (is_fixed_salary=False)
+    sales_perf_inhouse_emps = list(Employee.objects.filter(
+        department='Sales', is_active=True, is_fixed_salary=False
+    ).order_by('name'))
+    sales_perf_remote_qs = RemoteEmployee.objects.filter(
+        is_active=True, is_fixed_salary=False
+    ).exclude(department='Admin')
+    if all_inhouse_tcr_ids:
+        sales_perf_remote_qs = sales_perf_remote_qs.exclude(tcr_id__in=all_inhouse_tcr_ids)
+    sales_perf_remote_emps = list(sales_perf_remote_qs.order_by('name'))
+    sales_perf_rows = []
+    for emp in sales_perf_inhouse_emps:
+        p_start, p_end, p_days, p_hols = _emp_period(emp)
+        sales_perf_rows.append(
+            _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        )
+    for emp in sales_perf_remote_emps:
+        p_start, p_end, p_days, p_hols = _emp_period(emp)
+        sales_perf_rows.append(
+            _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        )
+
+    # ---- Deductions & Additions ----
+    _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
+    _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
+    _ALL_CATS = _DED_COLS + _ADD_COLS
+    target_idx = selected_year * 12 + (selected_month - 1)
+    _mnames = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'}
+
+    active_by_emp = _defaultdict(list)
+    all_deductions_list = []
+    for entry in DeductionEntry.objects.select_related('employee', 'remote_employee').order_by('-created_at'):
+        emp_obj = entry.employee or entry.remote_employee
+        emp_type_str = 'inhouse' if entry.employee else 'remote'
+        start_idx = entry.start_year * 12 + (entry.start_month - 1)
+        if start_idx <= target_idx < start_idx + entry.split_months:
+            active_by_emp[(emp_type_str, emp_obj.id)].append(entry)
+        end_y, end_m = entry.end_month_year()
+        all_deductions_list.append({
+            'id': entry.id,
+            'employee': emp_obj,
+            'employee_type': emp_type_str,
+            'currency': emp_obj.currency,
+            'category_display': entry.get_category_display(),
+            'entry_type': entry.entry_type,
+            'total_amount': float(entry.total_amount),
+            'split_months': entry.split_months,
+            'installment_amount': float(entry.installment_amount),
+            'start_month_name': _mnames[entry.start_month],
+            'start_year': entry.start_year,
+            'end_month_name': _mnames[end_m],
+            'end_year': end_y,
+            'note': entry.note,
+            'created_at': entry.created_at.strftime('%d %b %Y'),
+            'is_active_this_month': start_idx <= target_idx < start_idx + entry.split_months,
+        })
+
+    all_payroll_inhouse = list(Employee.objects.filter(
+        is_active=True, department__in=['Admin', 'Sales']
+    ).order_by('department', 'name'))
+    all_payroll_remote_qs = RemoteEmployee.objects.filter(is_active=True)
+    if all_inhouse_tcr_ids:
+        all_payroll_remote_qs = all_payroll_remote_qs.exclude(tcr_id__in=all_inhouse_tcr_ids)
+    all_payroll_remote = list(all_payroll_remote_qs.order_by('name'))
+
+    incoming_carryovers = DeductionCarryover.objects.filter(to_year=selected_year, to_month=selected_month)
+    carryover_by_emp = {}
+    for co in incoming_carryovers:
+        key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
+        carryover_by_emp[key] = float(co.overflow_amount)
+
+    inhouse_summaries = {
+        s.employee_id: s
+        for s in MonthlySummary.objects.filter(year=selected_year, month=selected_month)
+    }
+
+    deduction_rows = []
+    for emp in all_payroll_inhouse:
+        cat = {c: 0.0 for c in _ALL_CATS}
+        for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
+            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        # Auto-fill leave/late for attendance-based employees
+        summary = inhouse_summaries.get(emp.id)
+        if emp.salary and emp.payroll_type != 'performance':
+            emp_p_start, emp_p_end, emp_p_days, _ = _emp_period(emp)
+            daily = float(emp.salary) / emp_p_days
+            bridge_count = len(get_bridge_sunday_days(emp, emp_p_start, emp_p_end))
+            cat['leave_deduction'] = round(daily * ((summary.leave_days if summary else 0) + bridge_count), 2)
+            cat['late_deduction'] = round(daily * ((summary.late_days if summary else 0) // 3) * 0.5, 2)
+        carryover_in = carryover_by_emp.get(('inhouse', emp.id), 0.0)
+        _has_salary = emp.salary and emp.payroll_type != 'performance'
+        ded_for_total = [c for c in _DED_COLS if c not in ('leave_deduction', 'late_deduction')] if (emp.department == 'Admin' or _has_salary) else _DED_COLS
+        total_ded = round(sum(cat[c] for c in ded_for_total) + carryover_in, 2)
+        total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
+        deduction_rows.append({
+            'employee': emp, 'employee_type': 'inhouse', 'currency': emp.currency,
+            'categories': cat, 'carryover_in': carryover_in,
+            'total_deductions': total_ded, 'total_additions': total_add,
+            'net': round(total_add - total_ded, 2),
+        })
+
+    for emp in all_payroll_remote:
+        cat = {c: 0.0 for c in _ALL_CATS}
+        for ded_entry in active_by_emp.get(('remote', emp.id), []):
+            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        carryover_in = carryover_by_emp.get(('remote', emp.id), 0.0)
+        total_ded = round(sum(cat[c] for c in _DED_COLS) + carryover_in, 2)
+        total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
+        deduction_rows.append({
+            'employee': emp, 'employee_type': 'remote', 'currency': emp.currency,
+            'categories': cat, 'carryover_in': carryover_in,
+            'total_deductions': total_ded, 'total_additions': total_add,
+            'net': round(total_add - total_ded, 2),
+        })
+
+    for row in sales_perf_rows:
+        row['combined_deductions'] = round(row.get('deduction', 0) + row.get('reductions', 0), 2)
+
+    # ---- Final Summary ----
+    all_payroll_rows = admin_inhouse_rows + admin_remote_rows + sales_fixed_rows + sales_perf_rows
+    payroll_by_emp = {}
+    for row in all_payroll_rows:
+        payroll_by_emp[(row['employee_type'], row['employee'].id)] = row
+    ded_by_emp = {(r['employee_type'], r['employee'].id): r for r in deduction_rows}
+
+    if selected_month == 12:
+        _co_to_month, _co_to_year = 1, selected_year + 1
+    else:
+        _co_to_month, _co_to_year = selected_month + 1, selected_year
+
+    final_rows = []
+    for emp in all_payroll_inhouse:
+        key = ('inhouse', emp.id)
+        p = payroll_by_emp.get(key)
+        d = ded_by_emp.get(key)
+        payroll_net = p['net_payroll'] if p else 0.0
+        total_ded = d['total_deductions'] if d else 0.0
+        total_add = d['total_additions'] if d else 0.0
+        carryover_in = d['carryover_in'] if d else 0.0
+        final_salary = round(payroll_net - total_ded + total_add, 2)
+        if final_salary < 0:
+            DeductionCarryover.objects.update_or_create(
+                employee=emp, from_year=selected_year, from_month=selected_month,
+                defaults={'overflow_amount': Decimal(str(abs(final_salary))),
+                          'to_year': _co_to_year, 'to_month': _co_to_month, 'remote_employee': None},
+            )
+            final_salary = 0.0
+        else:
+            DeductionCarryover.objects.filter(
+                employee=emp, from_year=selected_year, from_month=selected_month
+            ).delete()
+        carryover_out = 0.0
+        if final_salary == 0.0 and round(payroll_net - total_ded + total_add, 2) < 0:
+            carryover_out = round(abs(payroll_net - total_ded + total_add), 2)
+        if carryover_in > 0:
+            inc_co = incoming_carryovers.filter(employee=emp).first()
+            if inc_co:
+                inc_co.applied_amount = Decimal(str(min(carryover_in, float(inc_co.overflow_amount))))
+                inc_co.save(update_fields=['applied_amount'])
+        final_rows.append({
+            'employee': emp, 'employee_type': 'inhouse',
+            'department': emp.department or 'In-House', 'currency': emp.currency,
+            'payroll_net': payroll_net, 'total_deductions': total_ded,
+            'total_additions': total_add, 'final_salary': final_salary,
+            'carryover_in': carryover_in, 'carryover_out': carryover_out,
+        })
+
+    for emp in all_payroll_remote:
+        key = ('remote', emp.id)
+        p = payroll_by_emp.get(key)
+        d = ded_by_emp.get(key)
+        payroll_net = p['net_payroll'] if p else 0.0
+        total_ded = d['total_deductions'] if d else 0.0
+        total_add = d['total_additions'] if d else 0.0
+        carryover_in = d['carryover_in'] if d else 0.0
+        final_salary = round(payroll_net - total_ded + total_add, 2)
+        if final_salary < 0:
+            DeductionCarryover.objects.update_or_create(
+                remote_employee=emp, from_year=selected_year, from_month=selected_month,
+                defaults={'overflow_amount': Decimal(str(abs(final_salary))),
+                          'to_year': _co_to_year, 'to_month': _co_to_month, 'employee': None},
+            )
+            final_salary = 0.0
+        else:
+            DeductionCarryover.objects.filter(
+                remote_employee=emp, from_year=selected_year, from_month=selected_month
+            ).delete()
+        carryover_out = 0.0
+        if final_salary == 0.0 and round(payroll_net - total_ded + total_add, 2) < 0:
+            carryover_out = round(abs(payroll_net - total_ded + total_add), 2)
+        if carryover_in > 0:
+            inc_co = incoming_carryovers.filter(remote_employee=emp).first()
+            if inc_co:
+                inc_co.applied_amount = Decimal(str(min(carryover_in, float(inc_co.overflow_amount))))
+                inc_co.save(update_fields=['applied_amount'])
+        final_rows.append({
+            'employee': emp, 'employee_type': 'remote',
+            'department': getattr(emp, 'department', 'Remote') or 'Remote', 'currency': emp.currency,
+            'payroll_net': payroll_net, 'total_deductions': total_ded,
+            'total_additions': total_add, 'final_salary': final_salary,
+            'carryover_in': carryover_in, 'carryover_out': carryover_out,
+        })
+
+    final_total_aed = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'AED'), 2)
+    final_total_inr = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'INR'), 2)
+
+    inr_exchange_rate = None
+    inr_rate_obj = ExchangeRate.objects.filter(currency='INR', year=selected_year, month=selected_month).first()
+    if inr_rate_obj:
+        inr_exchange_rate = float(inr_rate_obj.rate)
+
+    if inr_exchange_rate and inr_exchange_rate > 0 and final_total_inr > 0:
+        final_total_combined_aed = round(final_total_aed + (final_total_inr / inr_exchange_rate), 2)
+    else:
+        final_total_combined_aed = final_total_aed
+
+    all_employees_json = json.dumps(
+        [{'id': e.id, 'name': e.name, 'type': 'inhouse', 'dept': e.department or '', 'currency': e.currency}
+         for e in all_payroll_inhouse] +
+        [{'id': e.id, 'name': e.name, 'type': 'remote', 'dept': 'Remote', 'currency': e.currency}
+         for e in all_payroll_remote]
+    )
+
+    def _section_totals(rows):
+        return {
+            'aed': round(sum(r['net_payroll'] for r in rows if r.get('currency', 'AED') == 'AED'), 2),
+            'inr': round(sum(r['net_payroll'] for r in rows if r.get('currency', 'AED') == 'INR'), 2),
+        }
+
+    _pmonth_abbr = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    period_label = f"21 {_pmonth_abbr[prev_month]} – 20 {_pmonth_abbr[selected_month]} {selected_year}"
+
+    # Carryover schedule — all records, ordered newest-first
+    carryover_schedule = []
+    for co in DeductionCarryover.objects.select_related('employee', 'remote_employee').order_by('-to_year', '-to_month', '-from_year', '-from_month'):
+        emp = co.employee or co.remote_employee
+        if not emp:
+            continue
+        emp_type = 'inhouse' if co.employee else 'remote'
+        remaining = round(float(co.overflow_amount) - float(co.applied_amount), 2)
+        if remaining <= 0:
+            status = 'cleared'
+        elif float(co.applied_amount) > 0:
+            status = 'partial'
+        else:
+            status = 'pending'
+        carryover_schedule.append({
+            'employee': emp,
+            'employee_type': emp_type,
+            'currency': emp.currency,
+            'from_month': co.from_month,
+            'from_year': co.from_year,
+            'from_label': f"{_pmonth_abbr[co.from_month]} {co.from_year}",
+            'to_month': co.to_month,
+            'to_year': co.to_year,
+            'to_label': f"{_pmonth_abbr[co.to_month]} {co.to_year}",
+            'overflow_amount': float(co.overflow_amount),
+            'applied_amount': float(co.applied_amount),
+            'remaining': remaining,
+            'status': status,
+            'is_incoming': (co.to_year == selected_year and co.to_month == selected_month),
+            'is_outgoing': (co.from_year == selected_year and co.from_month == selected_month),
+        })
+
+    carryover_pending_count = sum(1 for c in carryover_schedule if c['status'] != 'cleared')
+    carryover_pending_aed = round(sum(c['remaining'] for c in carryover_schedule if c['currency'] == 'AED' and c['status'] != 'cleared'), 2)
+    carryover_pending_inr = round(sum(c['remaining'] for c in carryover_schedule if c['currency'] == 'INR' and c['status'] != 'cleared'), 2)
+    carryover_incoming_count = sum(1 for c in carryover_schedule if c['is_incoming'])
+    carryover_outgoing_count = sum(1 for c in carryover_schedule if c['is_outgoing'])
+
+    return render(request, 'payroll/test_dashboard.html', {
+        'selected_month': selected_month,
+        'selected_year': selected_year,
+        'month_name': MONTH_NAMES[selected_month],
+        'period_label': period_label,
+        'period_start': default_period_start,
+        'period_end': default_period_end,
+        'months': MONTH_CHOICES,
+        'years': YEAR_RANGE,
+        'days_in_month': default_days,
+        'total_holidays': default_holidays,
+        'banks': banks,
+        'banks_json': banks_json,
+        'admin_inhouse_rows': admin_inhouse_rows,
+        'admin_inhouse_totals': _section_totals(admin_inhouse_rows),
+        'admin_remote_rows': admin_remote_rows,
+        'admin_remote_totals': _section_totals(admin_remote_rows),
+        'sales_fixed_rows': sales_fixed_rows,
+        'sales_fixed_totals': _section_totals(sales_fixed_rows),
+        'sales_perf_rows': sales_perf_rows,
+        'sales_perf_totals': _section_totals(sales_perf_rows),
+        'sales_perf_bank_totals': [
+            sum(row['bank_counts_list'][i] if row.get('bank_counts_list') and i < len(row['bank_counts_list']) else 0
+                for row in sales_perf_rows)
+            for i in range(len(banks))
+        ],
+        'deduction_rows': deduction_rows,
+        'all_deductions_list': all_deductions_list,
+        'final_rows': final_rows,
+        'final_total_aed': final_total_aed,
+        'final_total_inr': final_total_inr,
+        'final_total_combined_aed': final_total_combined_aed,
+        'inr_exchange_rate': inr_exchange_rate,
+        'all_employees_json': all_employees_json,
+        'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
+        'carryover_schedule': carryover_schedule,
+        'carryover_pending_count': carryover_pending_count,
+        'carryover_pending_aed': carryover_pending_aed,
+        'carryover_pending_inr': carryover_pending_inr,
+        'carryover_incoming_count': carryover_incoming_count,
+        'carryover_outgoing_count': carryover_outgoing_count,
+    })

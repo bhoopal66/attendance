@@ -1,0 +1,1381 @@
+{% extends 'attendance/base.html' %}
+{% load static attendance_extras %}
+
+{% block title %}Payroll (New) — {{ month_name }} {{ selected_year }}{% endblock %}
+{% block page_title %}Payroll — {{ month_name }} {{ selected_year }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ---- Layout ---- */
+.pd-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+.pd-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+}
+.pd-title {
+    font-size: 1.4rem; font-weight: 700; color: #0f172a;
+}
+.pd-title span { color: #6366f1; }
+
+.pd-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pd-controls select {
+    padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+    font-size: 0.875rem; background: #fff;
+}
+.btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.875rem; font-weight: 500; }
+.btn-primary { background: #4f46e5; color: #fff; }
+.btn-primary:hover { background: #4338ca; }
+.btn-secondary { background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
+.btn-secondary:hover { background: #e2e8f0; }
+.btn-danger { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+.btn-danger:hover { background: #fecaca; }
+.btn-success { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+.btn-success:hover { background: #bbf7d0; }
+.btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+.btn-xs { padding: 2px 8px; font-size: 0.72rem; }
+
+/* ---- Section cards ---- */
+.section-card {
+    background: #fff; border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 24px; overflow: hidden;
+}
+.section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; border-bottom: 1px solid #f1f5f9;
+}
+.section-title {
+    font-size: 0.95rem; font-weight: 700; color: #0f172a;
+    display: flex; align-items: center; gap: 8px;
+}
+.section-badge {
+    font-size: 0.72rem; font-weight: 600; padding: 2px 8px;
+    border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.badge-admin { background: #ede9fe; color: #5b21b6; }
+.badge-remote { background: #e0f2fe; color: #0369a1; }
+.badge-sales { background: #fef9c3; color: #854d0e; }
+.badge-fixed { background: #dcfce7; color: #15803d; }
+.badge-perf { background: #fff7ed; color: #c2410c; }
+.section-total {
+    font-size: 0.875rem; font-weight: 600; color: #4f46e5;
+}
+
+/* ---- Tables ---- */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th {
+    padding: 10px 12px; text-align: left; font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;
+    background: #f8fafc; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+}
+td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f8fafc; }
+tfoot td { background: #f8fafc; font-weight: 600; border-top: 2px solid #e2e8f0; }
+
+/* Text helpers */
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.num { font-family: 'SF Mono', 'Consolas', monospace; }
+.val-positive { color: #16a34a; }
+.val-negative { color: #dc2626; }
+.val-neutral { color: #334155; }
+.val-blue { color: #4f46e5; font-weight: 600; }
+.muted { color: #94a3b8; font-size: 0.78rem; }
+
+/* Currency badge */
+.curr-aed { display: inline-block; font-size: 0.7rem; font-weight: 600; color: #1d4ed8; background: #eff6ff; border-radius: 4px; padding: 1px 5px; }
+.curr-inr { display: inline-block; font-size: 0.7rem; font-weight: 600; color: #0369a1; background: #e0f2fe; border-radius: 4px; padding: 1px 5px; }
+
+/* Type badge */
+.type-inhouse { font-size: 0.7rem; background: #f1f5f9; color: #475569; border-radius: 4px; padding: 1px 6px; }
+.type-remote { font-size: 0.7rem; background: #e0f2fe; color: #0369a1; border-radius: 4px; padding: 1px 6px; }
+
+/* Empty state */
+.empty-row td { text-align: center; color: #94a3b8; padding: 24px; font-size: 0.85rem; }
+
+/* Adjust button */
+.adj-btn {
+    font-size: 0.72rem; padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0;
+    background: #f8fafc; color: #475569; cursor: pointer; white-space: nowrap;
+}
+.adj-btn:hover { background: #ede9fe; border-color: #c4b5fd; color: #5b21b6; }
+
+/* Bank submissions button */
+.bank-btn {
+    font-size: 0.72rem; padding: 3px 8px; border-radius: 6px; border: 1px solid #bbf7d0;
+    background: #f0fdf4; color: #15803d; cursor: pointer; white-space: nowrap;
+}
+.bank-btn:hover { background: #dcfce7; }
+
+/* Deduction entries list */
+.ded-entry {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 8px; border-radius: 6px; background: #f8fafc; margin-bottom: 4px;
+    font-size: 0.8rem;
+}
+.ded-entry.is-deduction { border-left: 3px solid #fca5a5; }
+.ded-entry.is-addition { border-left: 3px solid #86efac; }
+
+/* Modal */
+.modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(15,23,42,0.5); z-index: 1000;
+    align-items: center; justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+    background: #fff; border-radius: 14px; padding: 28px;
+    min-width: 440px; max-width: 560px; width: 100%;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modal-title { font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 20px; }
+.form-group { margin-bottom: 16px; }
+.form-label { font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 6px; display: block; }
+.form-control {
+    width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+    font-size: 0.875rem; box-sizing: border-box;
+}
+.form-control:focus { outline: none; border-color: #818cf8; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+.modal-close { cursor: pointer; color: #94a3b8; font-size: 1.2rem; }
+
+/* Final summary */
+.summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
+    padding: 16px 20px;
+}
+.summary-card {
+    border-radius: 10px; padding: 14px 16px; text-align: center;
+}
+.summary-card.aed { background: #eff6ff; border: 1px solid #bfdbfe; }
+.summary-card.inr { background: #e0f2fe; border: 1px solid #bae6fd; }
+.summary-card.combined { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.summary-card-label { font-size: 0.72rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+.summary-card-value { font-size: 1.4rem; font-weight: 700; font-family: monospace; }
+.summary-card.aed .summary-card-value { color: #1d4ed8; }
+.summary-card.inr .summary-card-value { color: #0369a1; }
+.summary-card.combined .summary-card-value { color: #15803d; }
+
+/* Deductions section entries */
+.ded-section { padding: 16px 20px; }
+.ded-emp-group { margin-bottom: 16px; }
+.ded-emp-name { font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
+.ded-entries-list { display: flex; flex-direction: column; gap: 4px; }
+
+/* Alert banner */
+.info-banner {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    padding: 10px 14px; font-size: 0.8rem; color: #92400e; margin-bottom: 16px;
+    display: flex; gap: 8px; align-items: flex-start;
+}
+
+/* AED / INR row and column differentiation */
+tr.row-inr td { background: #f0f9ff; }
+tr.row-inr:hover td { background: #e0f2fe; }
+tr.row-inr td:first-child { border-left: 3px solid #38bdf8; }
+tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
+.th-aed { background: #eff6ff !important; color: #1d4ed8 !important; }
+.th-inr { background: #e0f2fe !important; color: #0369a1 !important; }
+.val-inr { color: #0369a1; font-weight: 600; }
+.curr-split {
+    display: flex; gap: 6px; align-items: center; font-size: 0.72rem; font-weight: 600;
+}
+.curr-split span { padding: 1px 7px; border-radius: 4px; }
+.curr-split .s-aed { background: #eff6ff; color: #1d4ed8; }
+.curr-split .s-inr { background: #e0f2fe; color: #0369a1; }
+
+/* ---- Tabs ---- */
+.tab-bar {
+    display: flex; gap: 2px; background: #f1f5f9; border-radius: 10px;
+    padding: 4px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.tab-btn {
+    padding: 8px 18px; border: none; background: transparent; border-radius: 7px;
+    font-size: 0.82rem; font-weight: 600; color: #64748b; cursor: pointer;
+    white-space: nowrap; transition: all 0.15s;
+}
+.tab-btn:hover { color: #0f172a; background: rgba(255,255,255,0.6); }
+.tab-btn.active { background: #fff; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.tab-btn .tab-count {
+    display: inline-block; font-size: 0.68rem; font-weight: 700;
+    background: #e0e7ff; color: #4f46e5; border-radius: 10px;
+    padding: 0 6px; margin-left: 4px; vertical-align: middle;
+}
+.tab-btn.active .tab-count { background: #4f46e5; color: #fff; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ---- Summary tab ---- */
+.summary-overview-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px;
+    padding: 20px;
+}
+.sov-card {
+    border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 6px;
+}
+.sov-card.aed { background: #eff6ff; border: 1px solid #bfdbfe; }
+.sov-card.inr { background: #e0f2fe; border: 1px solid #bae6fd; }
+.sov-card.combined { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.sov-card.neutral { background: #f8fafc; border: 1px solid #e2e8f0; }
+.sov-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; }
+.sov-value { font-size: 1.5rem; font-weight: 700; font-family: monospace; }
+.sov-card.aed .sov-value { color: #1d4ed8; }
+.sov-card.inr .sov-value { color: #0369a1; }
+.sov-card.combined .sov-value { color: #15803d; }
+.sov-card.neutral .sov-value { color: #334155; }
+.sov-sub { font-size: 0.72rem; color: #94a3b8; }
+
+.section-breakdown { margin: 0 20px 20px; }
+.breakdown-title { font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.csym { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.2px; opacity: 0.55; margin-right: 2px; vertical-align: baseline; }
+
+/* Carryover filter buttons */
+.co-filter-btn {
+    padding: 5px 12px; border: 1px solid #e2e8f0; border-radius: 20px;
+    background: #f8fafc; color: #475569; font-size: 0.75rem; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+}
+.co-filter-btn:hover { border-color: #94a3b8; background: #f1f5f9; }
+.co-filter-btn.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pd-container">
+
+    <!-- Header -->
+    <div class="pd-header">
+        <div>
+            <div class="pd-title">Payroll — <span>{{ month_name }} {{ selected_year }}</span></div>
+            <div class="muted" style="margin-top:4px;">Period: {{ period_label }} &nbsp;·&nbsp; {{ days_in_month }} days · {{ total_holidays }} non-working days</div>
+        </div>
+        <div class="pd-controls">
+            <form method="get" style="display:flex;gap:8px;align-items:center;">
+                <select name="month">
+                    {% for val, label in months %}
+                    <option value="{{ val }}" {% if val == selected_month %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <select name="year">
+                    {% for yr in years %}
+                    <option value="{{ yr }}" {% if yr == selected_year %}selected{% endif %}>{{ yr }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">Go</button>
+            </form>
+            <a href="{% url 'payroll_dashboard' %}?month={{ selected_month }}&year={{ selected_year }}" class="btn btn-secondary">Old View</a>
+            <a href="{% url 'manage_banks' %}" class="btn btn-secondary">Banks</a>
+            <a href="{% url 'payroll_employees' %}" class="btn btn-secondary">Salary Setup</a>
+        </div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('summary')">
+            Summary
+        </button>
+        <button class="tab-btn" onclick="switchTab('admin-inhouse')">
+            Admin: In-House
+            <span class="tab-count">{{ admin_inhouse_rows|length }}</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('admin-remote')">
+            Admin: Remote
+            <span class="tab-count">{{ admin_remote_rows|length }}</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('sales-fixed')">
+            Sales: Fixed
+            <span class="tab-count">{{ sales_fixed_rows|length }}</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('sales-perf')">
+            Sales: Performance
+            <span class="tab-count">{{ sales_perf_rows|length }}</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('deductions')">
+            Deductions
+            <span class="tab-count">{{ all_deductions_list|length }}</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('carryovers')">
+            Carryovers
+            {% if carryover_pending_count %}<span class="tab-count" style="background:#f59e0b;color:#fff;">{{ carryover_pending_count }}</span>{% endif %}
+        </button>
+    </div>
+
+    <!-- ======================= TAB: Summary ======================= -->
+    <div class="tab-panel active" id="tab-summary">
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">Final Salary — {{ period_label }}</div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    {% if inr_exchange_rate %}
+                    <span class="muted">1 AED = {{ inr_exchange_rate }} INR</span>
+                    {% else %}
+                    <button class="btn btn-secondary btn-sm" onclick="openExchangeRateModal()">Set INR Rate</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Big totals -->
+            <div class="summary-overview-grid">
+                <div class="sov-card neutral">
+                    <div class="sov-label">Employees</div>
+                    <div class="sov-value">{{ final_rows|length }}</div>
+                    <div class="sov-sub">{{ days_in_month }} days · {{ total_holidays }} non-working</div>
+                </div>
+                <div class="sov-card aed">
+                    <div class="sov-label">Total AED Payroll</div>
+                    <div class="sov-value"><span class="csym" style="font-size:0.75rem;">AED</span> {{ final_total_aed|floatformat:2 }}</div>
+                </div>
+                {% if final_total_inr > 0 %}
+                <div class="sov-card inr">
+                    <div class="sov-label">Total INR Payroll</div>
+                    <div class="sov-value"><span class="csym" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2 }}</div>
+                    {% if inr_exchange_rate %}<div class="sov-sub">≈ AED {{ final_total_combined_aed|floatformat:0 }} combined</div>{% endif %}
+                </div>
+                {% endif %}
+                {% if final_total_combined_aed != final_total_aed %}
+                <div class="sov-card combined">
+                    <div class="sov-label">Combined (AED equiv.)</div>
+                    <div class="sov-value"><span class="csym" style="font-size:0.75rem;">AED</span> {{ final_total_combined_aed|floatformat:2 }}</div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Section breakdown -->
+            <div class="section-breakdown">
+                <div class="breakdown-title">Breakdown by Section</div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Section</th>
+                                <th class="text-right">Employees</th>
+                                <th class="text-right th-aed">Net (AED)</th>
+                                <th class="text-right th-inr">Net (INR)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="section-badge badge-admin">Admin</span> In-House</td>
+                                <td class="text-right muted">{{ admin_inhouse_rows|length }}</td>
+                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym">₹</span> {{ admin_inhouse_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><span class="section-badge badge-remote">Remote</span> Admin Remote</td>
+                                <td class="text-right muted">{{ admin_remote_rows|length }}</td>
+                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym">₹</span> {{ admin_remote_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><span class="section-badge badge-fixed">Fixed</span> Sales: Fixed Salary</td>
+                                <td class="text-right muted">{{ sales_fixed_rows|length }}</td>
+                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym">₹</span> {{ sales_fixed_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><span class="section-badge badge-perf">Perf</span> Sales: Performance</td>
+                                <td class="text-right muted">{{ sales_perf_rows|length }}</td>
+                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ sales_perf_totals.aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if sales_perf_totals.inr %}<span class="csym">₹</span> {{ sales_perf_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td><strong>Gross Payroll</strong></td>
+                                <td class="text-right num">{{ final_rows|length }}</td>
+                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ final_total_aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if final_total_inr %}<span class="csym">₹</span> {{ final_total_inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Per-employee final table -->
+            <div class="section-breakdown">
+                <div class="breakdown-title">Per-Employee Final Salary</div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Section</th>
+                                <th class="text-right">Net Payroll</th>
+                                <th class="text-right">Deductions</th>
+                                <th class="text-right">Additions</th>
+                                <th class="text-right" style="color:#7c3aed;">Carryover In</th>
+                                <th class="text-right" style="color:#b45309;">Carryover Out</th>
+                                <th class="text-right th-aed">Final (AED)</th>
+                                <th class="text-right th-inr">Final (INR)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in final_rows %}
+                            <tr class="row-{{ row.currency|lower }}">
+                                <td>{{ row.employee.name }}</td>
+                                <td class="muted">{{ row.department }}</td>
+                                <td class="text-right num">{{ row.payroll_net|floatformat:2 }}</td>
+                                <td class="text-right num val-negative">{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td class="text-right num val-positive">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td class="text-right num" style="color:#7c3aed;">{% if row.carryover_in > 0 %}-{{ row.carryover_in|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num" style="color:#b45309;">{% if row.carryover_out > 0 %}→ {{ row.carryover_out|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-blue" style="font-size:0.95rem;">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.final_salary|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-inr" style="font-size:0.95rem;">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.final_salary|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                            </tr>
+                            {% empty %}
+                            <tr class="empty-row"><td colspan="9">No employees found</td></tr>
+                            {% endfor %}
+                        </tbody>
+                        {% if final_rows %}
+                        <tfoot>
+                            <tr>
+                                <td colspan="2"><strong>Total</strong></td>
+                                <td class="text-right num">{{ final_rows|dictsumby:"payroll_net"|floatformat:2 }}</td>
+                                <td class="text-right num val-negative">{{ final_rows|dictsumby:"total_deductions"|floatformat:2 }}</td>
+                                <td class="text-right num val-positive">{{ final_rows|dictsumby:"total_additions"|floatformat:2 }}</td>
+                                <td class="text-right num" style="color:#7c3aed;">{{ final_rows|dictsumby:"carryover_in"|floatformat:2 }}</td>
+                                <td class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2 }}</td>
+                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ final_total_aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if final_total_inr %}<span class="csym">₹</span> {{ final_total_inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div><!-- end tab-summary -->
+
+    <!-- ======================= TABLE 1: Admin — In-House ======================= -->
+    <div class="tab-panel" id="tab-admin-inhouse">
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <span class="section-badge badge-admin">Admin</span>
+                In-House Employees
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <span class="muted">{{ admin_inhouse_rows|length }} employee{{ admin_inhouse_rows|length|pluralize }}</span>
+                <div class="curr-split">
+                    <span class="s-aed">AED <span class="csym">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</span>
+                    {% if admin_inhouse_totals.inr %}<span class="s-inr">₹ {{ admin_inhouse_totals.inr|floatformat:2 }}</span>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th class="text-right">Salary</th>
+                        <th class="text-right">Full Days</th>
+                        <th class="text-right">Half Days</th>
+                        <th class="text-right">Absent</th>
+                        <th class="text-right">Late</th>
+                        <th class="text-right">Deduction</th>
+                        <th class="text-right">Incentives</th>
+                        <th class="text-right">Reductions</th>
+                        <th class="text-right">Commission</th>
+                        <th class="text-right th-aed">Net (AED)</th>
+                        <th class="text-right th-inr">Net (INR)</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in admin_inhouse_rows %}
+                    <tr class="row-{{ row.currency|lower }}" data-emp-id="{{ row.employee.id }}" data-emp-type="inhouse">
+                        <td>
+                            <div>{{ row.employee.name }}</div>
+                            {% if row.employee.designation %}<div class="muted">{{ row.employee.designation }}</div>{% endif %}
+                            {% if row.employee.payroll_type == 'performance' %}<span class="badge-perf section-badge">Performance</span>{% endif %}
+                        </td>
+                        <td class="text-right num">{{ row.salary|floatformat:0 }}</td>
+                        <td class="text-right num">{{ row.full_days }}</td>
+                        <td class="text-right num">{{ row.half_days }}</td>
+                        <td class="text-right num {% if row.absent_days > 0 %}val-negative{% endif %}">{{ row.absent_days }}</td>
+                        <td class="text-right num {% if row.late_days > 0 %}val-negative{% endif %}">{{ row.late_days }}{% if row.late_half_days > 0 %}<span class="muted"> (×{{ row.late_half_days }}½)</span>{% endif %}</td>
+                        <td class="text-right num {% if row.deduction > 0 %}val-negative{% endif %}">{{ row.deduction|floatformat:2 }}</td>
+                        <td class="text-right num {% if row.incentives > 0 %}val-positive{% endif %}">{{ row.incentives|floatformat:2 }}</td>
+                        <td class="text-right num {% if row.reductions > 0 %}val-negative{% endif %}">{{ row.reductions|floatformat:2 }}</td>
+                        <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
+                            <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','inhouse','{{ row.employee.name }}')">{{ row.commission|floatformat:2 }}</button>
+                        </td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-inr">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-center">
+                            <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','inhouse','{{ row.employee.name }}')">+ Adjust</button>
+                            <a href="{% url 'download_payslip' 'inhouse' row.employee.id %}?month={{ selected_month }}&year={{ selected_year }}" class="adj-btn" style="text-decoration:none;">Payslip</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="empty-row"><td colspan="13">No Admin in-house employees found</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if admin_inhouse_rows %}
+                <tfoot>
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td></td><td></td><td></td><td></td><td></td>
+                        <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"deduction"|floatformat:2 }}</td>
+                        <td class="text-right num val-positive">{{ admin_inhouse_rows|dictsumby:"incentives"|floatformat:2 }}</td>
+                        <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"reductions"|floatformat:2 }}</td>
+                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"commission"|floatformat:2 }}</td>
+                        <td class="text-right num val-blue"><span class="csym">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym">₹</span> {{ admin_inhouse_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    </div><!-- end tab-admin-inhouse -->
+
+    <!-- ======================= TAB: Admin Remote ======================= -->
+    <div class="tab-panel" id="tab-admin-remote">
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <span class="section-badge badge-remote">Remote</span>
+                Admin Remote Employees
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <span class="muted">{{ admin_remote_rows|length }} employee{{ admin_remote_rows|length|pluralize }}</span>
+                <div class="curr-split">
+                    <span class="s-aed">AED <span class="csym">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</span>
+                    {% if admin_remote_totals.inr %}<span class="s-inr">₹ {{ admin_remote_totals.inr|floatformat:2 }}</span>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th class="text-right">Salary</th>
+                        <th class="text-right">Present Days</th>
+                        <th class="text-right">Absent Days</th>
+                        <th class="text-right">Deduction</th>
+                        <th class="text-right">Incentives</th>
+                        <th class="text-right">Reductions</th>
+                        <th class="text-right th-aed">Net (AED)</th>
+                        <th class="text-right th-inr">Net (INR)</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in admin_remote_rows %}
+                    <tr class="row-{{ row.currency|lower }}" data-emp-id="{{ row.employee.id }}" data-emp-type="remote">
+                        <td>
+                            <div>{{ row.employee.name }}</div>
+                            <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
+                        </td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}—{% endif %}</td>
+                        <td class="text-right num">
+                            {% if row.is_fixed_salary %}
+                                {% if row.absent_days is not None %}{{ row.absent_days|add:0|floatformat:0 }}{% endif %}
+                            {% elif row.is_attendance_based %}
+                                {{ row.present_days }}{% if row.half_days %} + {{ row.half_days }}½{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-right num {% if row.absent_days > 0 %}val-negative{% endif %}">
+                            {% if row.absent_days is not None %}{{ row.absent_days|floatformat:1 }}{% else %}—{% endif %}
+                        </td>
+                        <td class="text-right num {% if row.deduction > 0 %}val-negative{% endif %}">
+                            {% if row.deduction %}{{ row.deduction|floatformat:2 }}{% else %}—{% endif %}
+                        </td>
+                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
+                        <td class="text-right num val-negative">{{ row.reductions|floatformat:2 }}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-inr">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-center">
+                            <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','remote','{{ row.employee.name }}')">+ Adjust</button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="empty-row"><td colspan="10">No Admin remote employees found — set department to "Admin" on the remote employee's profile</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if admin_remote_rows %}
+                <tfoot>
+                    <tr>
+                        <td><strong>Total</strong></td><td></td><td></td>
+                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"absent_days"|floatformat:1 }}</td>
+                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"deduction"|floatformat:2 }}</td>
+                        <td class="text-right num val-positive">{{ admin_remote_rows|dictsumby:"incentives"|floatformat:2 }}</td>
+                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"reductions"|floatformat:2 }}</td>
+                        <td class="text-right num val-blue"><span class="csym">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym">₹</span> {{ admin_remote_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    </div><!-- end tab-admin-remote -->
+
+    <!-- ======================= TAB: Sales Fixed Salary ======================= -->
+    <div class="tab-panel" id="tab-sales-fixed">
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <span class="section-badge badge-fixed">Fixed</span>
+                Sales — Fixed Salary
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <span class="muted">{{ sales_fixed_rows|length }} employee{{ sales_fixed_rows|length|pluralize }}</span>
+                <div class="curr-split">
+                    <span class="s-aed">AED <span class="csym">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</span>
+                    {% if sales_fixed_totals.inr %}<span class="s-inr">₹ {{ sales_fixed_totals.inr|floatformat:2 }}</span>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th class="text-right">Salary</th>
+                        <th class="text-right">Present Days</th>
+                        <th class="text-right">Absent Days</th>
+                        <th class="text-right">Deduction</th>
+                        <th class="text-right">Commission</th>
+                        <th class="text-right">Incentives</th>
+                        <th class="text-right">Reductions</th>
+                        <th class="text-right th-aed">Net (AED)</th>
+                        <th class="text-right th-inr">Net (INR)</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in sales_fixed_rows %}
+                    <tr class="row-{{ row.currency|lower }}">
+                        <td>
+                            <div>{{ row.employee.name }}</div>
+                            <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
+                        </td>
+                        <td>
+                            {% if row.employee_type == 'remote' %}
+                            <span class="type-remote">Remote</span>
+                            {% else %}
+                            <span class="type-inhouse">In-House</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right num">{{ row.salary|floatformat:0 }}</td>
+                        <td class="text-right num">
+                            {% if row.is_fixed_salary %}
+                                {% with present=row.absent_days %}—{% endwith %}
+                            {% elif row.present_days %}{{ row.present_days }}{% if row.half_days %} + {{ row.half_days }}½{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-right num {% if row.absent_days > 0 %}val-negative{% endif %}">{{ row.absent_days|floatformat:1 }}</td>
+                        <td class="text-right num {% if row.deduction > 0 %}val-negative{% endif %}">{{ row.deduction|floatformat:2 }}</td>
+                        <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
+                            <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">{{ row.commission|floatformat:2 }}</button>
+                        </td>
+                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
+                        <td class="text-right num val-negative">{{ row.reductions|floatformat:2 }}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-inr">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-center">
+                            <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">+ Adjust</button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="empty-row"><td colspan="12">No fixed-salary sales employees found</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if sales_fixed_rows %}
+                <tfoot>
+                    <tr>
+                        <td><strong>Total</strong></td><td></td><td></td><td></td>
+                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"absent_days"|floatformat:1 }}</td>
+                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"deduction"|floatformat:2 }}</td>
+                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"commission"|floatformat:2 }}</td>
+                        <td class="text-right num val-positive">{{ sales_fixed_rows|dictsumby:"incentives"|floatformat:2 }}</td>
+                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"reductions"|floatformat:2 }}</td>
+                        <td class="text-right num val-blue"><span class="csym">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym">₹</span> {{ sales_fixed_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    </div><!-- end tab-sales-fixed -->
+
+    <!-- ======================= TAB: Sales Performance ======================= -->
+    <div class="tab-panel" id="tab-sales-perf">
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <span class="section-badge badge-perf">Performance</span>
+                Sales — Performance Based
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <span class="muted">{{ sales_perf_rows|length }} employee{{ sales_perf_rows|length|pluralize }}</span>
+                <div class="curr-split">
+                    <span class="s-aed">AED <span class="csym">AED</span> {{ sales_perf_totals.aed|floatformat:2 }}</span>
+                    {% if sales_perf_totals.inr %}<span class="s-inr">₹ {{ sales_perf_totals.inr|floatformat:2 }}</span>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th class="text-right">Base Salary</th>
+                        <th class="text-right">Deductions</th>
+                        {% for bank in banks %}<th class="text-right">{{ bank.name }}</th>{% endfor %}
+                        <th class="text-right">Commission</th>
+                        <th class="text-right">Incentives</th>
+                        <th class="text-right th-aed">Net (AED)</th>
+                        <th class="text-right th-inr">Net (INR)</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in sales_perf_rows %}
+                    <tr class="row-{{ row.currency|lower }}">
+                        <td>
+                            <div>{{ row.employee.name }}</div>
+                            <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
+                            {% if row.is_attendance_based %}<span class="muted">Att. Scaled</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if row.employee_type == 'remote' %}
+                            <span class="type-remote">Remote</span>
+                            {% else %}
+                            <span class="type-inhouse">In-House</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.combined_deductions > 0 %}val-negative{% endif %}">
+                            {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}
+                        </td>
+                        {% for count in row.bank_counts_list %}
+                        <td class="text-right num {% if count > 0 %}val-positive{% endif %}">{% if count %}{{ count }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        {% empty %}
+                        <td class="muted text-right">—</td>
+                        {% endfor %}
+                        <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
+                            {% if row.commission > 0 %}<span class="csym">{% if row.currency == 'INR' %}₹{% else %}AED{% endif %}</span> {% endif %}{{ row.commission|floatformat:2 }}
+                        </td>
+                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-inr">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-center">
+                            <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">Edit</button>
+                            <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">+ Adjust</button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="empty-row"><td colspan="10">No performance-based sales employees found</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if sales_perf_rows %}
+                <tfoot>
+                    <tr>
+                        <td><strong>Total</strong></td><td></td><td></td>
+                        <td class="text-right num val-negative">{{ sales_perf_rows|dictsumby:"combined_deductions"|floatformat:2 }}</td>
+                        {% for total in sales_perf_bank_totals %}<td class="text-right num">{{ total }}</td>{% endfor %}
+                        <td class="text-right num">{{ sales_perf_rows|dictsumby:"commission"|floatformat:2 }}</td>
+                        <td class="text-right num val-positive">{{ sales_perf_rows|dictsumby:"incentives"|floatformat:2 }}</td>
+                        <td class="text-right num val-blue"><span class="csym">AED</span> {{ sales_perf_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if sales_perf_totals.inr %}<span class="csym">₹</span> {{ sales_perf_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    </div><!-- end tab-sales-perf -->
+
+    <!-- ======================= TAB: Deductions ======================= -->
+    <div class="tab-panel" id="tab-deductions">
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">Deductions &amp; Additions</div>
+            <button class="btn btn-primary btn-sm" onclick="openAddDedModal()">+ Add Entry</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Category</th>
+                        <th>Note</th>
+                        <th class="text-right">Total Amount</th>
+                        <th>Period</th>
+                        <th class="text-right">This Month</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in all_deductions_list %}
+                    <tr id="ded-row-{{ entry.id }}">
+                        <td>
+                            {{ entry.employee.name }}
+                            {% if entry.employee_type == 'remote' %}<span class="type-remote">Remote</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if entry.entry_type == 'deduction' %}
+                            <span style="color:#dc2626;font-weight:600;">↓ {{ entry.category_display }}</span>
+                            {% else %}
+                            <span style="color:#16a34a;font-weight:600;">↑ {{ entry.category_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="muted">{{ entry.note|default:"—" }}</td>
+                        <td class="text-right num">
+                            <span class="curr-{{ entry.currency|lower }}">{{ entry.currency }}</span>
+                            {{ entry.total_amount|floatformat:2 }}
+                            {% if entry.split_months > 1 %}<div class="muted">÷ {{ entry.split_months }} months</div>{% endif %}
+                        </td>
+                        <td class="muted">
+                            {{ entry.start_month_name }} {{ entry.start_year }}
+                            {% if entry.split_months > 1 %} → {{ entry.end_month_name }} {{ entry.end_year }}{% endif %}
+                        </td>
+                        <td class="text-right num">
+                            {% if entry.entry_type == 'deduction' %}
+                            <span class="val-negative">-{{ entry.installment_amount|floatformat:2 }}</span>
+                            {% else %}
+                            <span class="val-positive">+{{ entry.installment_amount|floatformat:2 }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if entry.is_active_this_month %}
+                            <span style="font-size:0.72rem;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;">Active</span>
+                            {% else %}
+                            <span style="font-size:0.72rem;background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:12px;">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-danger btn-xs" onclick="deleteDedEntry({{ entry.id }})">Delete</button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="empty-row"><td colspan="8">No deduction or addition entries found</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    </div><!-- end tab-deductions -->
+
+    <!-- ======================= TAB: Carryovers ======================= -->
+    <div class="tab-panel" id="tab-carryovers">
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">Deduction Carryover Schedule</div>
+        </div>
+
+        <!-- What is a carryover? -->
+        <div style="margin:16px 20px;padding:14px 16px;background:#fef9c3;border:1px solid #fde68a;border-radius:10px;font-size:0.82rem;color:#78350f;line-height:1.6;">
+            <strong>What is a carryover?</strong> &nbsp;When an employee's total deductions exceed their salary in a given month, the salary is capped at zero and the unsatisfied deduction amount is <strong>carried forward as an extra deduction</strong> in the next month. Every row below is a <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.75rem;">DEDUCTION</span> — no additions here.
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600;">Salary went −ve in Month A</span>
+                <span style="color:#94a3b8;">→</span>
+                <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600;">Extra deduction applied in Month B</span>
+                <span style="color:#94a3b8;">→</span>
+                <span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600;">Cleared when fully recovered</span>
+            </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;padding:4px 20px 16px;border-bottom:1px solid #f1f5f9;">
+            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 18px;min-width:150px;">
+                <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#c2410c;margin-bottom:4px;">Still to Deduct</div>
+                <div style="font-size:1.4rem;font-weight:700;color:#9a3412;font-family:monospace;">{{ carryover_pending_count }}</div>
+                <div style="font-size:0.72rem;color:#c2410c;margin-top:2px;">unresolved deduction{{ carryover_pending_count|pluralize }}</div>
+            </div>
+            {% if carryover_pending_aed %}
+            <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 18px;min-width:150px;">
+                <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#be123c;margin-bottom:4px;">Deduction Balance (AED)</div>
+                <div style="font-size:1.1rem;font-weight:700;color:#9f1239;font-family:monospace;">{{ carryover_pending_aed|floatformat:2 }}</div>
+                <div style="font-size:0.72rem;color:#be123c;margin-top:2px;">to be recovered from salaries</div>
+            </div>
+            {% endif %}
+            {% if carryover_pending_inr %}
+            <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 18px;min-width:150px;">
+                <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#be123c;margin-bottom:4px;">Deduction Balance (INR)</div>
+                <div style="font-size:1.1rem;font-weight:700;color:#9f1239;font-family:monospace;">₹ {{ carryover_pending_inr|floatformat:2 }}</div>
+                <div style="font-size:0.72rem;color:#be123c;margin-top:2px;">to be recovered from salaries</div>
+            </div>
+            {% endif %}
+            <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 18px;min-width:150px;">
+                <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#0369a1;margin-bottom:4px;">Applied This Month</div>
+                <div style="font-size:1.4rem;font-weight:700;color:#075985;font-family:monospace;">{{ carryover_incoming_count }}</div>
+                <div style="font-size:0.72rem;color:#0369a1;margin-top:2px;">deducted from this month's salary</div>
+            </div>
+            <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:12px 18px;min-width:150px;">
+                <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#6d28d9;margin-bottom:4px;">Created This Month</div>
+                <div style="font-size:1.4rem;font-weight:700;color:#5b21b6;font-family:monospace;">{{ carryover_outgoing_count }}</div>
+                <div style="font-size:0.72rem;color:#6d28d9;margin-top:2px;">carried to next month</div>
+            </div>
+        </div>
+
+        <!-- Filter buttons -->
+        <div style="padding:12px 20px;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:0.75rem;font-weight:600;color:#64748b;margin-right:4px;">Show:</span>
+            <button class="co-filter-btn active" onclick="filterCarryovers('all')" data-filter="all">All ({{ carryover_schedule|length }})</button>
+            <button class="co-filter-btn" onclick="filterCarryovers('incoming')" data-filter="incoming">Applied this month ({{ carryover_incoming_count }})</button>
+            <button class="co-filter-btn" onclick="filterCarryovers('outgoing')" data-filter="outgoing">Created this month ({{ carryover_outgoing_count }})</button>
+            <button class="co-filter-btn" onclick="filterCarryovers('pending')" data-filter="pending">Not yet recovered</button>
+            <button class="co-filter-btn" onclick="filterCarryovers('cleared')" data-filter="cleared">Fully recovered</button>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrap">
+            <table id="carryoverTable">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Salary went −ve in</th>
+                        <th style="text-align:center;">→</th>
+                        <th>Deducted from</th>
+                        <th class="text-right">Total to Deduct</th>
+                        <th class="text-right">Already Deducted</th>
+                        <th class="text-right">Still to Deduct</th>
+                        <th class="text-center">Recovery</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for co in carryover_schedule %}
+                    <tr class="co-row"
+                        data-status="{{ co.status }}"
+                        data-incoming="{% if co.is_incoming %}1{% else %}0{% endif %}"
+                        data-outgoing="{% if co.is_outgoing %}1{% else %}0{% endif %}">
+                        <td>
+                            <div style="font-weight:600;color:#0f172a;">{{ co.employee.name }}</div>
+                            <div style="margin-top:2px;">
+                                {% if co.employee_type == 'inhouse' %}
+                                    <span class="section-badge badge-admin" style="font-size:0.62rem;">In-House</span>
+                                {% else %}
+                                    <span class="section-badge badge-remote" style="font-size:0.62rem;">Remote</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <span style="font-size:0.85rem;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 8px;border-radius:6px;">{{ co.from_label }}</span>
+                            {% if co.is_outgoing %}<div style="font-size:0.68rem;color:#6d28d9;margin-top:3px;">← this month</div>{% endif %}
+                        </td>
+                        <td style="color:#94a3b8;text-align:center;font-size:1.1rem;font-weight:300;">→</td>
+                        <td>
+                            <span style="font-size:0.85rem;color:#dc2626;font-weight:600;background:#fff1f2;padding:3px 8px;border-radius:6px;">{{ co.to_label }}</span>
+                            {% if co.is_incoming %}<div style="font-size:0.68rem;color:#dc2626;margin-top:3px;">← this month</div>{% endif %}
+                        </td>
+                        <td class="text-right num" style="color:#1e293b;">
+                            {% if co.currency == 'INR' %}₹{% else %}<span class="csym">AED</span>{% endif %}
+                            {{ co.overflow_amount|floatformat:2 }}
+                        </td>
+                        <td class="text-right num" style="color:#16a34a;">
+                            {% if co.applied_amount > 0 %}
+                                −{% if co.currency == 'INR' %}₹{% else %}<span class="csym">AED</span>{% endif %}{{ co.applied_amount|floatformat:2 }}
+                            {% else %}
+                                <span class="muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right num" style="font-weight:700;{% if co.remaining > 0 %}color:#dc2626;{% else %}color:#16a34a;{% endif %}">
+                            {% if co.remaining > 0 %}
+                                −{% if co.currency == 'INR' %}₹{% else %}<span class="csym">AED</span>{% endif %}{{ co.remaining|floatformat:2 }}
+                            {% else %}
+                                ✓ Nil
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if co.status == 'cleared' %}
+                                <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;background:#dcfce7;color:#15803d;letter-spacing:0.3px;">FULLY RECOVERED</span>
+                            {% elif co.status == 'partial' %}
+                                <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;background:#fef3c7;color:#92400e;letter-spacing:0.3px;">PARTIALLY DEDUCTED</span>
+                            {% else %}
+                                <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;background:#fee2e2;color:#991b1b;letter-spacing:0.3px;">NOT YET DEDUCTED</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8;">No carryover records found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if not carryover_schedule %}
+        <div style="padding:40px;text-align:center;color:#64748b;">
+            <div style="font-size:2rem;margin-bottom:8px;">✓</div>
+            <div style="font-weight:600;">No carryovers on record</div>
+            <div style="font-size:0.82rem;margin-top:4px;">All employee salaries have been settled without overflow.</div>
+        </div>
+        {% endif %}
+    </div>
+    </div><!-- end tab-carryovers -->
+
+</div><!-- end pd-container -->
+
+<!-- ======================= MODALS ======================= -->
+
+<!-- Add Adjustment Modal -->
+<div class="modal-overlay" id="adjModal">
+    <div class="modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="modal-title">Add Adjustment — <span id="adjEmpName"></span></div>
+            <span class="modal-close" onclick="closeModal('adjModal')">✕</span>
+        </div>
+        <input type="hidden" id="adjEmpId">
+        <input type="hidden" id="adjEmpType">
+        <div class="form-group">
+            <label class="form-label">Type</label>
+            <select id="adjType" class="form-control">
+                <option value="incentive">Incentive (adds to salary)</option>
+                <option value="reduction">Reduction (deducted from salary)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Amount</label>
+            <input type="number" id="adjAmount" class="form-control" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Reason</label>
+            <input type="text" id="adjReason" class="form-control" placeholder="Brief description">
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('adjModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveAdjustment()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Deduction/Addition Modal -->
+<div class="modal-overlay" id="addDedModal">
+    <div class="modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="modal-title">Add Deduction / Addition</div>
+            <span class="modal-close" onclick="closeModal('addDedModal')">✕</span>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Employee</label>
+            <select id="dedEmpSelect" class="form-control">
+                <option value="">— Select Employee —</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Category</label>
+            <select id="dedCategory" class="form-control">
+                <optgroup label="Deductions">
+                    {% for val, label in DEDUCTION_CATEGORY_CHOICES %}
+                    {% if val == 'advance' or val == 'visa_status_change' or val == 'clawback' or val == 'leave_deduction' or val == 'late_deduction' or val == 'other_deduction' %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </optgroup>
+                <optgroup label="Additions">
+                    {% for val, label in DEDUCTION_CATEGORY_CHOICES %}
+                    {% if val == 'last_month_balance' or val == 'paid_leave' or val == 'other_addition' %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </optgroup>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Total Amount</label>
+            <input type="number" id="dedAmount" class="form-control" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Split Over (months)</label>
+            <input type="number" id="dedSplitMonths" class="form-control" value="1" min="1" max="24">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Start Month</label>
+            <select id="dedStartMonth" class="form-control">
+                {% for val, label in months %}
+                <option value="{{ val }}" {% if val == selected_month %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Start Year</label>
+            <select id="dedStartYear" class="form-control">
+                {% for yr in years %}
+                <option value="{{ yr }}" {% if yr == selected_year %}selected{% endif %}>{{ yr }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Note (optional)</label>
+            <input type="text" id="dedNote" class="form-control" placeholder="Description or reference">
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('addDedModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveDeduction()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bank Submissions Modal -->
+<div class="modal-overlay" id="bankModal">
+    <div class="modal" style="min-width:500px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div class="modal-title">Bank Submissions — <span id="bankEmpName"></span></div>
+            <span class="modal-close" onclick="closeModal('bankModal')">✕</span>
+        </div>
+        <input type="hidden" id="bankEmpId">
+        <input type="hidden" id="bankEmpType">
+        <div id="bankSubmissionsList" style="margin-bottom:16px;"></div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('bankModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveBankSubmissions()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Exchange Rate Modal -->
+<div class="modal-overlay" id="exchangeRateModal">
+    <div class="modal" style="min-width:360px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="modal-title">Set INR Exchange Rate</div>
+            <span class="modal-close" onclick="closeModal('exchangeRateModal')">✕</span>
+        </div>
+        <div class="info-banner">
+            ⓘ Enter the rate on the 10th of this month. This is used to convert INR salaries to AED in the final summary.
+        </div>
+        <div class="form-group">
+            <label class="form-label">1 AED = ? INR</label>
+            <input type="number" id="inrRateInput" class="form-control" placeholder="e.g. 22.50" step="0.0001" min="0">
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('exchangeRateModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveExchangeRate()">Save</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BANKS = {{ banks_json|safe }};
+const ALL_EMPLOYEES = {{ all_employees_json|safe }};
+const SELECTED_MONTH = {{ selected_month }};
+const SELECTED_YEAR = {{ selected_year }};
+const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+}
+
+/* ---- Tab switching ---- */
+function filterCarryovers(filter) {
+    document.querySelectorAll('.co-filter-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.co-filter-btn[data-filter="${filter}"]`).classList.add('active');
+    document.querySelectorAll('#carryoverTable tbody .co-row').forEach(row => {
+        let show = false;
+        if (filter === 'all') show = true;
+        else if (filter === 'incoming') show = row.dataset.incoming === '1';
+        else if (filter === 'outgoing') show = row.dataset.outgoing === '1';
+        else if (filter === 'pending') show = row.dataset.status !== 'cleared';
+        else if (filter === 'cleared') show = row.dataset.status === 'cleared';
+        row.style.display = show ? '' : 'none';
+    });
+}
+
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+    document.getElementById('tab-' + tabId).classList.add('active');
+    event.currentTarget.classList.add('active');
+    location.hash = tabId;
+}
+
+// Restore active tab from URL hash on load
+(function () {
+    const hash = location.hash.replace('#', '');
+    const panel = hash && document.getElementById('tab-' + hash);
+    if (panel) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        panel.classList.add('active');
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            if (btn.getAttribute('onclick') === `switchTab('${hash}')`) btn.classList.add('active');
+        });
+    }
+})();
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+}
+function openModal(id) {
+    document.getElementById(id).classList.add('active');
+}
+// Close on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('active'); });
+});
+
+/* ---- Adjustment Modal ---- */
+function openAdjModal(empId, empType, empName) {
+    document.getElementById('adjEmpId').value = empId;
+    document.getElementById('adjEmpType').value = empType;
+    document.getElementById('adjEmpName').textContent = empName;
+    document.getElementById('adjAmount').value = '';
+    document.getElementById('adjReason').value = '';
+    openModal('adjModal');
+}
+
+async function saveAdjustment() {
+    const empId = document.getElementById('adjEmpId').value;
+    const empType = document.getElementById('adjEmpType').value;
+    const type = document.getElementById('adjType').value;
+    const amount = document.getElementById('adjAmount').value;
+    const reason = document.getElementById('adjReason').value;
+
+    if (!amount || !reason) { alert('Amount and reason are required.'); return; }
+
+    const url = empType === 'inhouse' ? '/payroll/api/adjustments/add/' : '/payroll/api/remote-adjustments/add/';
+    const body = {
+        employee_id: empId, type, amount: parseFloat(amount),
+        reason, year: SELECTED_YEAR, month: SELECTED_MONTH,
+    };
+    const r = await fetch(url, {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+        body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (data.success) { closeModal('adjModal'); location.reload(); }
+    else { alert(data.error || 'Failed to save adjustment.'); }
+}
+
+/* ---- Deduction Modal ---- */
+function openAddDedModal() {
+    // Populate employee select
+    const sel = document.getElementById('dedEmpSelect');
+    sel.innerHTML = '<option value="">— Select Employee —</option>';
+    ALL_EMPLOYEES.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify({id: e.id, type: e.type});
+        opt.textContent = `${e.name} (${e.dept || e.type})`;
+        sel.appendChild(opt);
+    });
+    openModal('addDedModal');
+}
+
+async function saveDeduction() {
+    const empVal = document.getElementById('dedEmpSelect').value;
+    if (!empVal) { alert('Please select an employee.'); return; }
+    const { id: empId, type: empType } = JSON.parse(empVal);
+    const category = document.getElementById('dedCategory').value;
+    const amount = document.getElementById('dedAmount').value;
+    const splitMonths = document.getElementById('dedSplitMonths').value;
+    const startMonth = document.getElementById('dedStartMonth').value;
+    const startYear = document.getElementById('dedStartYear').value;
+    const note = document.getElementById('dedNote').value;
+
+    if (!amount) { alert('Amount is required.'); return; }
+
+    const body = {
+        employee_id: empId, emp_type: empType, category,
+        total_amount: parseFloat(amount), split_months: parseInt(splitMonths),
+        start_month: parseInt(startMonth), start_year: parseInt(startYear), note,
+    };
+    const r = await fetch('/payroll/api/deductions/add/', {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+        body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (data.success) { closeModal('addDedModal'); location.reload(); }
+    else { alert(data.error || 'Failed to save deduction.'); }
+}
+
+async function deleteDedEntry(entryId) {
+    if (!confirm('Delete this entry?')) return;
+    const r = await fetch(`/payroll/api/deductions/delete/${entryId}/`, {
+        method: 'POST', headers: {'X-CSRFToken': getCsrf()},
+    });
+    const data = await r.json();
+    if (data.success) {
+        document.getElementById(`ded-row-${entryId}`)?.remove();
+    } else {
+        alert(data.error || 'Failed to delete.');
+    }
+}
+
+/* ---- Bank Submissions Modal ---- */
+function openBankModal(empId, empType, empName) {
+    document.getElementById('bankEmpId').value = empId;
+    document.getElementById('bankEmpType').value = empType;
+    document.getElementById('bankEmpName').textContent = empName;
+
+    const list = document.getElementById('bankSubmissionsList');
+    list.innerHTML = '<div style="color:#94a3b8;font-size:0.85rem;">Loading...</div>';
+    openModal('bankModal');
+
+    fetch(`/payroll/api/submissions/${empType}/${empId}/?month=${SELECTED_MONTH}&year=${SELECTED_YEAR}`)
+        .then(r => r.json())
+        .then(data => {
+            const submissionsMap = {};
+            (data.banks || []).forEach(s => { submissionsMap[s.bank_id] = s.submission_count; });
+
+            list.innerHTML = BANKS.map(b => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;">
+                    <div>
+                        <div style="font-weight:600;font-size:0.875rem;">${b.name}</div>
+                        <div style="font-size:0.75rem;color:#94a3b8;">AED ${b.rate}/account${b.inr_rate ? ` · INR ${b.inr_rate}/account` : ''}</div>
+                    </div>
+                    <input type="number" class="form-control" style="width:90px;text-align:center;"
+                           data-bank-id="${b.id}" value="${submissionsMap[b.id] || 0}" min="0">
+                </div>
+            `).join('') || '<div style="color:#94a3b8;">No active banks configured.</div>';
+        });
+}
+
+async function saveBankSubmissions() {
+    const empId = document.getElementById('bankEmpId').value;
+    const empType = document.getElementById('bankEmpType').value;
+    const inputs = document.querySelectorAll('#bankSubmissionsList input[data-bank-id]');
+    const submissions = [];
+    inputs.forEach(inp => {
+        submissions.push({ bank_id: parseInt(inp.dataset.bankId), count: parseInt(inp.value) || 0 });
+    });
+
+    const r = await fetch('/payroll/api/submissions/save/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+        body: JSON.stringify({
+            employee_id: empId, employee_type: empType,
+            year: SELECTED_YEAR, month: SELECTED_MONTH, submissions,
+        }),
+    });
+    const data = await r.json();
+    if (data.success) { closeModal('bankModal'); location.reload(); }
+    else { alert(data.error || 'Failed to save submissions.'); }
+}
+
+/* ---- Exchange Rate Modal ---- */
+function openExchangeRateModal() {
+    openModal('exchangeRateModal');
+}
+
+async function saveExchangeRate() {
+    const rate = document.getElementById('inrRateInput').value;
+    if (!rate) { alert('Please enter a rate.'); return; }
+    const r = await fetch('/payroll/api/exchange-rate/save/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+        body: JSON.stringify({ year: SELECTED_YEAR, month: SELECTED_MONTH, rate: parseFloat(rate), currency: 'INR' }),
+    });
+    const data = await r.json();
+    if (data.success) { closeModal('exchangeRateModal'); location.reload(); }
+    else { alert(data.error || 'Failed to save rate.'); }
+}
+</script>
+{% endblock %}

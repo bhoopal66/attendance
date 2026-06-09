@@ -160,6 +160,239 @@ tr.linked-row:hover { background: #f3e8ff !important; }
 .toast.error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 .toast.info    { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
 .toast-close-btn { background: none; border: none; cursor: pointer; color: inherit; padding: 0; margin-left: auto; opacity: .7; font-size: 1rem; }
+
+/* ═══════════════ Edit Modal ═══════════════ */
+.edit-modal-box {
+    background: #fff;
+    border-radius: 14px;
+    width: 94%;
+    max-width: 600px;
+    height: 600px;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07), 0 20px 40px -8px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+    animation: emIn 0.18s ease;
+}
+@keyframes emIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+/* ── Header ───── */
+.em-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; flex-shrink: 0;
+    background: linear-gradient(135deg, #1e3a8a 0%, #4f46e5 100%);
+}
+.em-hd-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.em-avatar {
+    width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.22);
+    color: #fff; font-size: 1.1rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+}
+.em-avatar.av-remote { background: rgba(139,92,246,0.28); border-color: rgba(196,181,253,0.35); }
+.em-hd-name { font-size: 0.95rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+.em-hd-meta { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
+.em-hd-badge { padding: 1px 8px; border-radius: 99px; font-size: 0.67rem; font-weight: 500; background: rgba(255,255,255,0.16); color: rgba(255,255,255,0.88); }
+.em-hd-id { font-size: 0.68rem; color: rgba(255,255,255,0.5); font-family: 'SF Mono', 'Menlo', monospace; }
+.em-close-btn {
+    width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.1); border: none; border-radius: 7px;
+    color: rgba(255,255,255,0.7); cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+}
+.em-close-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+/* ── Tabs ───── */
+.em-tabs {
+    display: flex; background: #fff; border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+}
+.em-tabs::-webkit-scrollbar { display: none; }
+.em-tab {
+    display: flex; align-items: center; gap: 6px;
+    padding: 10px 16px; font-size: 0.8rem; font-weight: 500; color: #6b7280;
+    background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; white-space: nowrap; transition: color 0.12s; flex-shrink: 0;
+    margin-bottom: -1px; font-family: inherit;
+}
+.em-tab svg { width: 13px; height: 13px; flex-shrink: 0; }
+.em-tab:hover { color: #111827; }
+.em-tab.active { color: #4f46e5; border-bottom-color: #4f46e5; font-weight: 600; }
+
+/* ── Feedback ───── */
+.em-feedback {
+    display: none; font-size: 0.8rem; padding: 9px 20px;
+    align-items: center; gap: 8px; flex-shrink: 0;
+}
+.em-feedback svg { width: 14px; height: 14px; flex-shrink: 0; }
+.em-feedback.success { display: flex; background: #f0fdf4; color: #16a34a; border-bottom: 1px solid #d1fae5; }
+.em-feedback.error   { display: flex; background: #fef2f2; color: #dc2626; border-bottom: 1px solid #fee2e2; }
+
+/* ── Panels ───── */
+.em-panels-wrap { flex: 1; overflow-y: auto; }
+.em-panel { display: none; padding: 18px 20px 22px; }
+.em-panel.active { display: block; animation: emFadeIn 0.15s ease; }
+@keyframes emFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Field helpers ───── */
+.em-g1 { margin-bottom: 14px; }
+.em-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+
+.em-label {
+    display: block; font-size: 0.78rem; font-weight: 500;
+    color: #374151; margin-bottom: 5px;
+}
+.em-label .req { color: #ef4444; margin-left: 2px; }
+
+.em-input {
+    width: 100%; padding: 7px 10px;
+    border: 1px solid #d1d5db; border-radius: 7px;
+    font-size: 0.875rem; color: #111827; background: #fff;
+    box-sizing: border-box; font-family: inherit; line-height: 1.5;
+    transition: border-color 0.12s, box-shadow 0.12s;
+    -webkit-appearance: none;
+}
+.em-input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+.em-input::placeholder { color: #9ca3af; }
+.em-input[readonly] { background: #f9fafb; color: #9ca3af; cursor: default; }
+select.em-input { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+
+.em-help { font-size: 0.72rem; color: #9ca3af; margin-top: 4px; line-height: 1.4; }
+
+.em-id-chip {
+    padding: 7px 10px; border: 1px solid #e5e7eb; border-radius: 7px;
+    font-size: 0.82rem; font-family: 'SF Mono', 'Menlo', monospace;
+    color: #6b7280; background: #f9fafb;
+    min-height: 36px; display: flex; align-items: center;
+}
+
+.em-divider {
+    display: flex; align-items: center; gap: 10px;
+    margin: 18px 0 12px; color: #9ca3af;
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.em-divider::after { content: ''; flex: 1; height: 1px; background: #f3f4f6; }
+
+/* ── Status toggle ───── */
+.em-status-grp {
+    display: flex; border: 1px solid #d1d5db; border-radius: 7px;
+    overflow: hidden; height: 36px;
+}
+.em-status-btn {
+    flex: 1; border: none; background: #fff; cursor: pointer;
+    font-size: 0.8rem; font-weight: 500; color: #9ca3af;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    transition: all 0.12s; font-family: inherit;
+}
+.em-status-btn + .em-status-btn { border-left: 1px solid #d1d5db; }
+.em-status-btn.st-active   { background: #f0fdf4; color: #15803d; font-weight: 600; }
+.em-status-btn.st-inactive { background: #fef2f2; color: #dc2626; font-weight: 600; }
+
+/* ── Password ───── */
+.em-pw-wrap { position: relative; }
+.em-pw-toggle {
+    position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: #9ca3af;
+    padding: 3px; display: flex; align-items: center; transition: color 0.12s;
+}
+.em-pw-toggle:hover { color: #6b7280; }
+.em-pw-wrap .em-input { padding-right: 36px; }
+
+/* ── Security card ───── */
+.em-security-card {
+    display: flex; gap: 12px; padding: 14px 16px;
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px;
+    margin-bottom: 18px;
+}
+.em-security-card > svg { color: #9ca3af; flex-shrink: 0; margin-top: 2px; }
+.em-security-title { font-size: 0.85rem; font-weight: 600; color: #111827; margin-bottom: 3px; }
+.em-security-sub   { font-size: 0.775rem; color: #6b7280; line-height: 1.5; }
+
+/* ── Footer ───── */
+.em-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; border-top: 1px solid #e5e7eb; background: #fff;
+    flex-shrink: 0; gap: 12px;
+}
+.em-tab-dots { display: flex; gap: 5px; align-items: center; }
+.em-dot { width: 5px; height: 5px; border-radius: 50%; background: #d1d5db; cursor: pointer; transition: all 0.2s; }
+.em-dot.active { width: 16px; border-radius: 3px; background: #4f46e5; }
+.em-footer-btns { display: flex; gap: 8px; }
+.em-btn-cancel {
+    padding: 7px 15px; background: #fff; border: 1px solid #d1d5db; border-radius: 7px;
+    font-size: 0.85rem; color: #374151; cursor: pointer; font-weight: 500;
+    transition: all 0.12s; font-family: inherit;
+}
+.em-btn-cancel:hover { background: #f9fafb; border-color: #9ca3af; }
+.em-btn-save {
+    padding: 7px 17px; background: #4f46e5; border: none; border-radius: 7px;
+    font-size: 0.85rem; color: #fff; cursor: pointer; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: background 0.12s; font-family: inherit;
+}
+.em-btn-save:hover { background: #4338ca; }
+.em-btn-save:disabled { opacity: 0.55; cursor: not-allowed; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 560px) {
+    .edit-modal-box { width: 100%; max-width: 100%; height: auto; min-height: 60vh; max-height: 96vh; border-radius: 14px 14px 0 0; }
+    .modal-overlay  { align-items: flex-end; }
+    .em-g2          { grid-template-columns: 1fr; }
+}
+
+/* Payroll badges */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+.badge-fixed       { background: #dcfce7; color: #166534; }
+.badge-attendance  { background: #dbeafe; color: #1d4ed8; }
+.badge-performance { background: #fef3c7; color: #92400e; }
+.badge-aed         { background: #ede9fe; color: #1D4ED8; }
+.badge-inr         { background: #e0f2fe; color: #0369a1; }
+.badge-jumbo       { background: #fce7f3; color: #9d174d; }
+.badge-ontime      { background: #ecfdf5; color: #065f46; }
+.badge-taamul      { background: #fff7ed; color: #9a3412; }
+.badge-own         { background: #f1f5f9; color: #64748b; }
+.cycle-badge       { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: #f0fdf4; color: #15803d; font-family: 'SF Mono', monospace; }
+.cycle-badge.default { background: #f1f5f9; color: #475569; }
+
+/* Salary type pills in modal */
+.stype-pills { display: flex; flex-direction: column; gap: 7px; }
+.stype-pill {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px;
+    background: #fff; cursor: pointer; text-align: left; font-family: inherit;
+    transition: all 0.12s; line-height: 1.3;
+}
+.stype-pill:hover:not(.selected) { border-color: #9ca3af; background: #f9fafb; }
+.stype-pill .pill-radio {
+    flex-shrink: 0; width: 15px; height: 15px; border-radius: 50%;
+    border: 1.5px solid #d1d5db; background: #fff; position: relative; transition: all 0.12s;
+}
+.stype-pill.selected .pill-radio::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: currentColor; }
+.stype-pill .pill-text { flex: 1; min-width: 0; }
+.stype-pill .pill-title { display: block; font-size: 0.85rem; font-weight: 500; color: #111827; }
+.stype-pill .pill-sub   { display: block; font-size: 0.73rem; color: #6b7280; margin-top: 1px; }
+.stype-pill.selected.fixed       { border-color: #16a34a; background: #f0fdf4; color: #16a34a; }
+.stype-pill.selected.fixed .pill-title { color: #166534; }
+.stype-pill.selected.fixed .pill-sub   { color: #15803d; }
+.stype-pill.selected.attendance  { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+.stype-pill.selected.attendance .pill-title { color: #1d4ed8; }
+.stype-pill.selected.attendance .pill-sub   { color: #1e40af; }
+.stype-pill.selected.performance { border-color: #d97706; background: #fffbeb; color: #d97706; }
+.stype-pill.selected.performance .pill-title { color: #92400e; }
+.stype-pill.selected.performance .pill-sub   { color: #b45309; }
+
+/* Currency pills in modal */
+.currency-pills { display: flex; gap: 7px; }
+.currency-pill {
+    flex: 1; padding: 7px 8px; border: 1px solid #d1d5db; border-radius: 7px;
+    background: #fff; cursor: pointer; text-align: center;
+    font-size: 0.83rem; font-weight: 500; color: #6b7280;
+    transition: all 0.12s; font-family: inherit;
+}
+.currency-pill.selected.aed { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+.currency-pill.selected.inr { border-color: #0369a1; background: #f0f9ff; color: #0369a1; font-weight: 600; }
+.currency-pill:hover:not(.selected) { border-color: #9ca3af; background: #f9fafb; }
 </style>
 {% endblock %}
 
@@ -275,6 +508,10 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Department</th>
+                    <th>Salary Type</th>
+                    <th>Pay Cycle</th>
+                    <th>Currency</th>
+                    <th>Visa Provider</th>
                     <th class="col-status">Status</th>
                     <th class="col-actions">Actions</th>
                 </tr>
@@ -319,6 +556,23 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <td>
                         {% if emp.department %}<span class="tag">{{ emp.department }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
+                    <td>
+                        {% if emp.is_fixed_salary %}<span class="badge badge-fixed">Fixed</span>
+                        {% elif emp.payroll_type == 'performance' %}<span class="badge badge-performance">Performance</span>
+                        {% else %}<span class="badge badge-attendance">Attendance</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if emp.salary_cycle_start_day == 1 %}<span class="cycle-badge">Full Month</span>
+                        {% elif emp.salary_cycle_start_day == 21 %}<span class="cycle-badge default">21→20</span>
+                        {% else %}<span class="cycle-badge">{{ emp.salary_cycle_start_day }}→{{ emp.salary_cycle_start_day|add:"-1" }}</span>{% endif %}
+                    </td>
+                    <td><span class="badge {% if emp.currency == 'INR' %}badge-inr{% else %}badge-aed{% endif %}">{{ emp.currency|default:"AED" }}</span></td>
+                    <td>
+                        {% if emp.visa_provider == 'Jumbo' %}<span class="badge badge-jumbo">Jumbo</span>
+                        {% elif emp.visa_provider == 'OnTime' %}<span class="badge badge-ontime">OnTime</span>
+                        {% elif emp.visa_provider == 'Taamul' %}<span class="badge badge-taamul">Taamul</span>
+                        {% else %}<span class="badge badge-own">Own</span>{% endif %}
+                    </td>
                     <td class="col-status">
                         <span class="status-dot-only {% if emp.is_active %}active{% else %}inactive{% endif %}" title="{{ emp.is_active|yesno:'Active,Inactive' }}"></span>
                     </td>
@@ -362,6 +616,23 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                     <td>
                         {% if emp.department %}<span class="tag">{{ emp.department }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
+                    <td>
+                        {% if emp.is_fixed_salary %}<span class="badge badge-fixed">Fixed</span>
+                        {% elif emp.payroll_type == 'performance' %}<span class="badge badge-performance">Performance</span>
+                        {% else %}<span class="badge badge-attendance">Attendance</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if emp.salary_cycle_start_day == 1 %}<span class="cycle-badge">Full Month</span>
+                        {% elif emp.salary_cycle_start_day == 21 %}<span class="cycle-badge default">21→20</span>
+                        {% else %}<span class="cycle-badge">{{ emp.salary_cycle_start_day }}→{{ emp.salary_cycle_start_day|add:"-1" }}</span>{% endif %}
+                    </td>
+                    <td><span class="badge {% if emp.currency == 'INR' %}badge-inr{% else %}badge-aed{% endif %}">{{ emp.currency|default:"AED" }}</span></td>
+                    <td>
+                        {% if emp.visa_provider == 'Jumbo' %}<span class="badge badge-jumbo">Jumbo</span>
+                        {% elif emp.visa_provider == 'OnTime' %}<span class="badge badge-ontime">OnTime</span>
+                        {% elif emp.visa_provider == 'Taamul' %}<span class="badge badge-taamul">Taamul</span>
+                        {% else %}<span class="badge badge-own">Own</span>{% endif %}
+                    </td>
                     <td class="col-status">
                         <span class="status-dot-only {% if emp.is_active %}active{% else %}inactive{% endif %}" title="{{ emp.is_active|yesno:'Active,Inactive' }}"></span>
                     </td>
@@ -374,7 +645,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
                 </tr>
                 {% endif %}
                 {% empty %}
-                <tr><td colspan="9">
+                <tr><td colspan="13">
                     <div class="empty-state">
                         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                         <h3>No employees found</h3>
@@ -510,131 +781,264 @@ tr.linked-row:hover { background: #f3e8ff !important; }
     </div>
 </div>
 
-<!-- Edit Modal -->
+<!-- Edit Modal — Redesigned -->
 <div class="modal-overlay" id="editModal">
-    <div class="modal-box">
-        <div class="modal-head">
-            <h3>Edit Employee</h3>
-            <button class="modal-close" onclick="closeEditModal()">&#x2715;</button>
-        </div>
-        <div class="modal-body">
-            <input type="hidden" id="editId">
-            <input type="hidden" id="editType">
-            <input type="hidden" id="editLinkedRemoteId">
+    <div class="edit-modal-box">
 
-            <div class="form-section">
-                <div class="form-section-title">Basic Information</div>
-                <div class="form-row cols-3">
-                    <div class="form-group">
-                        <label>Employee Type</label>
-                        <input type="text" id="editTypeDisplay" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label id="editIdentifierLabel">System ID</label>
-                        <input type="text" id="editIdentifier" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label>TCR Employee ID</label>
-                        <input type="text" id="editTcrId" placeholder="e.g. TCR1000224" style="text-transform:uppercase">
-                        <small class="form-help">Shared ID that links in-house &amp; remote records for the same person</small>
-                    </div>
-                </div>
-                <div class="form-group" id="linkedExtField" style="display:none">
-                    <label>Extension ID (Remote)</label>
-                    <input type="text" id="editLinkedIdentifier" readonly>
-                    <small class="form-help">Phone system extension for the linked remote record</small>
-                </div>
-                <div class="form-group">
-                    <label>Full Name *</label>
-                    <input type="text" id="editName" required placeholder="Employee full name">
-                </div>
-                <div class="form-row cols-2">
-                    <div class="form-group">
-                        <label>Email Address</label>
-                        <input type="email" id="editEmail" placeholder="employee@company.com">
-                    </div>
-                    <div class="form-group">
-                        <label>Phone Number</label>
-                        <input type="text" id="editPhone" placeholder="+971 XX XXX XXXX">
+        <!-- Hidden state -->
+        <input type="hidden" id="editId">
+        <input type="hidden" id="editType">
+        <input type="hidden" id="editLinkedRemoteId">
+
+        <!-- Header -->
+        <div class="em-header">
+            <div class="em-hd-left">
+                <div class="em-avatar" id="emAvatar">?</div>
+                <div style="min-width:0">
+                    <div class="em-hd-name" id="emHdName">Employee</div>
+                    <div class="em-hd-meta">
+                        <span class="em-hd-badge" id="emHdBadge">—</span>
+                        <span class="em-hd-id" id="emHdId"></span>
                     </div>
                 </div>
             </div>
+            <button class="em-close-btn" onclick="closeEditModal()" title="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
 
-            <div class="form-section">
-                <div class="form-section-title">Organisation</div>
-                <div class="form-row cols-3">
-                    <div class="form-group">
-                        <label>Department</label>
-                        <select id="editDepartment">
-                            <option value="">-- Select --</option>
+        <!-- Tabs -->
+        <div class="em-tabs">
+            <button class="em-tab active" data-tab="profile" onclick="switchTab('profile')">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                Profile
+            </button>
+            <button class="em-tab" data-tab="org" onclick="switchTab('org')">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                Organisation
+            </button>
+            <button class="em-tab" data-tab="payroll" onclick="switchTab('payroll')">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Payroll
+            </button>
+            <button class="em-tab" data-tab="security" onclick="switchTab('security')">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                Security
+            </button>
+        </div>
+
+        <!-- Feedback bar -->
+        <div class="em-feedback" id="emFeedback">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" id="emFbIcon"></svg>
+            <span id="emFbText"></span>
+        </div>
+
+        <!-- Panels -->
+        <div class="em-panels-wrap">
+
+            <!-- ── Profile ─────────────────────────────── -->
+            <div class="em-panel active" id="panel-profile">
+                <div class="em-g1">
+                    <label class="em-label">Full Name <span style="color:#ef4444;font-weight:700">*</span></label>
+                    <input type="text" id="editName" class="em-input" required placeholder="Employee full name">
+                </div>
+                <div class="em-g2">
+                    <div>
+                        <label class="em-label">Email Address</label>
+                        <input type="email" id="editEmail" class="em-input" placeholder="employee@company.com">
+                    </div>
+                    <div>
+                        <label class="em-label">Phone Number</label>
+                        <input type="text" id="editPhone" class="em-input" placeholder="+971 XX XXX XXXX">
+                    </div>
+                </div>
+
+                <div class="em-divider">System IDs</div>
+                <div class="em-g2">
+                    <div>
+                        <label class="em-label" id="editIdentifierLabel">System ID</label>
+                        <div class="em-id-chip" id="editIdentifier">—</div>
+                    </div>
+                    <div>
+                        <label class="em-label">TCR Employee ID</label>
+                        <input type="text" id="editTcrId" class="em-input" placeholder="e.g. TCR1000224" style="text-transform:uppercase">
+                        <div class="em-help">Links in-house &amp; remote records for the same person</div>
+                    </div>
+                </div>
+                <div class="em-g1" id="linkedExtField" style="display:none">
+                    <label class="em-label">Extension ID (Remote)</label>
+                    <div class="em-id-chip" id="editLinkedIdentifier">—</div>
+                    <div class="em-help">Phone system extension for the linked remote record</div>
+                </div>
+            </div>
+
+            <!-- ── Organisation ───────────────────────── -->
+            <div class="em-panel" id="panel-org">
+                <div class="em-g2">
+                    <div>
+                        <label class="em-label">Department</label>
+                        <select id="editDepartment" class="em-input">
+                            <option value="">— Not set —</option>
                             <option value="Sales">Sales</option>
                             <option value="Admin">Admin</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Location</label>
-                        <select id="editLocation">
-                            <option value="">-- Select --</option>
+                    <div>
+                        <label class="em-label">Location</label>
+                        <select id="editLocation" class="em-input">
+                            <option value="">— Not set —</option>
                             <option value="Inhouse">Inhouse</option>
                             <option value="Remote">Remote</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Team</label>
-                        <input type="text" id="editTeam" list="teamList" placeholder="Team name">
+                </div>
+                <div class="em-g2">
+                    <div>
+                        <label class="em-label">Team</label>
+                        <input type="text" id="editTeam" class="em-input" list="teamList" placeholder="Team name">
                         <datalist id="teamList">{% for t in teams %}<option value="{{ t }}">{% endfor %}</datalist>
                     </div>
+                    <div id="designationField">
+                        <label class="em-label">Designation</label>
+                        <input type="text" id="editDesignation" class="em-input" placeholder="e.g. Sales Executive">
+                    </div>
+                </div>
+
+                <div class="em-divider">Employment</div>
+                <div class="em-g2">
+                    <div>
+                        <label class="em-label">Status</label>
+                        <div class="em-status-grp">
+                            <button type="button" class="em-status-btn" id="statusActive" onclick="setStatus(true)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                Active
+                            </button>
+                            <button type="button" class="em-status-btn" id="statusInactive" onclick="setStatus(false)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                Inactive
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="em-label">Joining Date</label>
+                        <input type="date" id="editJoiningDate" class="em-input">
+                    </div>
+                </div>
+                <div class="em-g1">
+                    <label class="em-label">Leaving Date</label>
+                    <input type="date" id="editLeavingDate" class="em-input">
+                    <div class="em-help">Leave blank if the employee is still active</div>
                 </div>
             </div>
 
-            <div class="form-section">
-                <div class="form-section-title">Employment Details</div>
-                <div class="form-row cols-2">
-                    <div class="form-group">
-                        <label>Monthly Salary (AED)</label>
-                        <input type="number" id="editSalary" step="0.01" min="0" placeholder="5000.00">
-                    </div>
-                    <div class="form-group">
-                        <label>Joining Date</label>
-                        <input type="date" id="editJoiningDate">
+            <!-- ── Payroll ─────────────────────────────── -->
+            <div class="em-panel" id="panel-payroll">
+                <div class="em-g1">
+                    <label class="em-label">Salary Type</label>
+                    <div class="stype-pills">
+                        <button type="button" class="stype-pill fixed" id="pillFixed" onclick="selectSalaryType('fixed')">
+                            <span class="pill-radio"></span>
+                            <span class="pill-text">
+                                <span class="pill-title">Fixed</span>
+                                <span class="pill-sub">A single punch / call marks the day Present</span>
+                            </span>
+                        </button>
+                        <button type="button" class="stype-pill attendance" id="pillAttendance" onclick="selectSalaryType('attendance')">
+                            <span class="pill-radio"></span>
+                            <span class="pill-text">
+                                <span class="pill-title">Attendance-Based</span>
+                                <span class="pill-sub">Salary scales with actual attendance, deductions apply</span>
+                            </span>
+                        </button>
+                        <button type="button" class="stype-pill performance" id="pillPerformance" onclick="selectSalaryType('performance')">
+                            <span class="pill-radio"></span>
+                            <span class="pill-text">
+                                <span class="pill-title">Performance-Based</span>
+                                <span class="pill-sub">Commission only, no attendance deductions</span>
+                            </span>
+                        </button>
                     </div>
                 </div>
-                <div class="form-row cols-2">
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select id="editIsActive">
-                            <option value="true">Active</option>
-                            <option value="false">Inactive</option>
+
+                <div class="em-divider" style="margin-top:18px">Compensation</div>
+                <div class="em-g2">
+                    <div>
+                        <label class="em-label">Monthly Salary</label>
+                        <input type="number" id="editSalary" class="em-input" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label class="em-label">Currency</label>
+                        <div class="currency-pills">
+                            <button type="button" class="currency-pill aed" id="pillAED" onclick="selectCurrency('AED')">AED — Dirham</button>
+                            <button type="button" class="currency-pill inr" id="pillINR" onclick="selectCurrency('INR')">INR — Rupee</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="em-g2">
+                    <div>
+                        <label class="em-label">Visa Provider</label>
+                        <select id="editVisaProvider" class="em-input">
+                            <option value="">Own Visa</option>
+                            <option value="Jumbo">Jumbo</option>
+                            <option value="OnTime">OnTime</option>
+                            <option value="Taamul">Taamul</option>
                         </select>
                     </div>
-                    <div class="form-group" id="designationField" style="display:none">
-                        <label>Designation</label>
-                        <input type="text" id="editDesignation" placeholder="e.g. Sales Executive">
+                    <div>
+                        <label class="em-label">Pay Cycle</label>
+                        <select id="editCycleDay" class="em-input" onchange="onCycleChange()">
+                            <option value="21">21st → 20th (default)</option>
+                            <option value="1">Full month (1st → last)</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                        <div id="customCycleWrap" style="display:none;margin-top:8px">
+                            <input type="number" id="editCycleCustomDay" class="em-input" min="2" max="28" placeholder="Start day (2–28)">
+                            <div class="em-help">Runs from this day of the previous month to (day − 1) of selected month.</div>
+                        </div>
                     </div>
-                </div>
-                <div class="form-group">
-                    <label>Leaving Date</label>
-                    <input type="date" id="editLeavingDate">
-                    <small class="form-help">Leave blank if employee is still active</small>
                 </div>
             </div>
 
-            <div class="form-section">
-                <div class="form-section-title">Security</div>
-                <div class="form-group">
-                    <label>Reset Portal Password</label>
-                    <input type="password" id="editPassword" placeholder="Leave blank to keep current password">
-                    <small class="form-help">Only fill this if you want to change the employee's portal password</small>
+            <!-- ── Security ───────────────────────────── -->
+            <div class="em-panel" id="panel-security">
+                <div class="em-security-card">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                    <div>
+                        <div class="em-security-title">Portal Password</div>
+                        <div class="em-security-sub">Set a new password for this employee's portal login. Leave the field blank to keep the current password unchanged.</div>
+                    </div>
+                </div>
+                <div class="em-g1">
+                    <label class="em-label">New Password</label>
+                    <div class="em-pw-wrap">
+                        <input type="password" id="editPassword" class="em-input" placeholder="Leave blank to keep current">
+                        <button type="button" class="em-pw-toggle" onclick="togglePwVis()" title="Show / hide">
+                            <svg id="pwEyeOn" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg id="pwEyeOff" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:none"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
+
+        </div><!-- /em-panels-wrap -->
+
+        <!-- Footer -->
+        <div class="em-footer">
+            <div class="em-tab-dots" id="emTabDots">
+                <span class="em-dot active" onclick="switchTab('profile')" title="Profile"></span>
+                <span class="em-dot" onclick="switchTab('org')" title="Organisation"></span>
+                <span class="em-dot" onclick="switchTab('payroll')" title="Payroll"></span>
+                <span class="em-dot" onclick="switchTab('security')" title="Security"></span>
+            </div>
+            <div class="em-footer-btns">
+                <button class="em-btn-cancel" onclick="closeEditModal()">Cancel</button>
+                <button class="em-btn-save" id="saveEmpBtn" onclick="saveEmployee()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    Save Changes
+                </button>
+            </div>
         </div>
-        <div class="modal-footer">
-            <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
-            <button class="btn-save" onclick="saveEmployee()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                Save Changes
-            </button>
-        </div>
+
     </div>
 </div>
 
@@ -770,45 +1174,146 @@ async function applyBulkUpdate() {
     } catch { showToast('Error updating employees', 'error'); }
 }
 
-// ── Edit Modal ─────────────────────────────────────────────────────
+// ── Edit Modal state ───────────────────────────────────────────────
+let editCurrency  = 'AED';
+let editSalaryType = 'attendance';
+let editIsActive  = true;
+const TAB_ORDER   = ['profile', 'org', 'payroll', 'security'];
+
+function switchTab(tab) {
+    TAB_ORDER.forEach((t, i) => {
+        const btn  = document.querySelector(`.em-tab[data-tab="${t}"]`);
+        const panel = document.getElementById(`panel-${t}`);
+        const dot   = document.querySelectorAll('.em-dot')[i];
+        const active = t === tab;
+        btn.classList.toggle('active', active);
+        panel.classList.toggle('active', active);
+        dot.classList.toggle('active', active);
+    });
+}
+
+function selectSalaryType(type) {
+    editSalaryType = type;
+    document.getElementById('pillFixed').classList.toggle('selected', type === 'fixed');
+    document.getElementById('pillAttendance').classList.toggle('selected', type === 'attendance');
+    document.getElementById('pillPerformance').classList.toggle('selected', type === 'performance');
+}
+
+function selectCurrency(c) {
+    editCurrency = c;
+    document.getElementById('pillAED').classList.toggle('selected', c === 'AED');
+    document.getElementById('pillINR').classList.toggle('selected', c === 'INR');
+}
+
+function onCycleChange() {
+    const val = document.getElementById('editCycleDay').value;
+    document.getElementById('customCycleWrap').style.display = val === 'custom' ? 'block' : 'none';
+}
+
+function setStatus(active) {
+    editIsActive = active;
+    document.getElementById('statusActive').className   = 'em-status-btn' + (active  ? ' st-active'   : '');
+    document.getElementById('statusInactive').className = 'em-status-btn' + (!active ? ' st-inactive' : '');
+}
+
+function togglePwVis() {
+    const inp = document.getElementById('editPassword');
+    const on  = document.getElementById('pwEyeOn');
+    const off = document.getElementById('pwEyeOff');
+    const show = inp.type === 'password';
+    inp.type     = show ? 'text' : 'password';
+    on.style.display  = show ? 'none' : '';
+    off.style.display = show ? '' : 'none';
+}
+
+function setEmFeedback(msg, type) {
+    const el = document.getElementById('emFeedback');
+    const icon = document.getElementById('emFbIcon');
+    document.getElementById('emFbText').textContent = msg;
+    el.className = 'em-feedback ' + type;
+    if (type === 'success') {
+        icon.innerHTML = '<polyline points="20 6 9 17 4 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"/>';
+    } else {
+        icon.innerHTML = '<line x1="18" y1="6" x2="6" y2="18" stroke-width="2.5"/><line x1="6" y1="6" x2="18" y2="18" stroke-width="2.5"/>';
+    }
+}
+
+// ── Open / Close ───────────────────────────────────────────────────
 function openEditModal(id, type, linkedRemoteId) {
     linkedRemoteId = linkedRemoteId || null;
     const isLinked = !!linkedRemoteId;
     const emp = employeesData.find(e => e.id === id && e.type === type);
     if (!emp) return;
 
-    document.getElementById('editId').value           = emp.id;
-    document.getElementById('editType').value         = isLinked ? 'linked' : emp.type;
+    // Hidden fields
+    document.getElementById('editId').value             = emp.id;
+    document.getElementById('editType').value           = isLinked ? 'linked' : emp.type;
     document.getElementById('editLinkedRemoteId').value = linkedRemoteId || '';
-    document.getElementById('editTypeDisplay').value  = isLinked ? 'In-House + Remote (Linked)' : (emp.type === 'inhouse' ? 'In-House' : 'Remote');
-    document.getElementById('editIdentifierLabel').textContent = isLinked ? 'Fingerprint ID (In-House)' : 'System ID';
-    document.getElementById('editIdentifier').value   = emp.identifier;
-    document.getElementById('editTcrId').value        = emp.tcr_id || '';
-    document.getElementById('editName').value         = emp.name;
-    document.getElementById('editEmail').value        = emp.email || '';
-    document.getElementById('editPhone').value        = emp.phone || '';
-    document.getElementById('editDepartment').value   = emp.department || '';
-    document.getElementById('editLocation').value     = emp.location || '';
-    document.getElementById('editTeam').value         = emp.team || '';
-    document.getElementById('editIsActive').value     = emp.is_active.toString();
-    document.getElementById('editSalary').value       = emp.salary || '';
-    document.getElementById('editJoiningDate').value  = emp.joining_date || '';
-    document.getElementById('editLeavingDate').value  = emp.leaving_date || '';
-    document.getElementById('editPassword').value     = '';
 
-    // Extension ID row — only for linked employees
+    // Header
+    const typeLabel = isLinked ? 'Linked' : (emp.type === 'inhouse' ? 'In-House' : 'Remote');
+    document.getElementById('emAvatar').textContent = emp.name.trim().charAt(0).toUpperCase();
+    document.getElementById('emAvatar').className   = 'em-avatar' + (emp.type === 'remote' ? ' av-remote' : '');
+    document.getElementById('emHdName').textContent = emp.name;
+    document.getElementById('emHdBadge').textContent = typeLabel;
+    document.getElementById('emHdId').textContent   = emp.tcr_id ? emp.tcr_id : (emp.identifier ? emp.identifier : '');
+
+    // Profile tab
+    document.getElementById('editName').value  = emp.name;
+    document.getElementById('editEmail').value = emp.email || '';
+    document.getElementById('editPhone').value = emp.phone || '';
+    document.getElementById('editIdentifierLabel').textContent = isLinked ? 'Fingerprint ID (In-House)' : 'System ID';
+    document.getElementById('editIdentifier').textContent      = emp.identifier || '—';
+    document.getElementById('editTcrId').value = emp.tcr_id || '';
+
     const linkedExtField = document.getElementById('linkedExtField');
     if (isLinked) {
         const remoteEmp = employeesData.find(e => e.id === linkedRemoteId && e.type === 'remote');
-        document.getElementById('editLinkedIdentifier').value = remoteEmp ? remoteEmp.identifier : '';
+        document.getElementById('editLinkedIdentifier').textContent = remoteEmp ? remoteEmp.identifier : '—';
         linkedExtField.style.display = '';
     } else {
         linkedExtField.style.display = 'none';
     }
 
-    // Show designation for remote employees or linked pairs
+    // Organisation tab
+    document.getElementById('editDepartment').value = emp.department || '';
+    document.getElementById('editLocation').value   = emp.location || '';
+    document.getElementById('editTeam').value       = emp.team || '';
+    document.getElementById('editJoiningDate').value = emp.joining_date || '';
+    document.getElementById('editLeavingDate').value = emp.leaving_date || '';
+    setStatus(emp.is_active);
     document.getElementById('designationField').style.display = (emp.type === 'remote' || isLinked) ? '' : 'none';
     document.getElementById('editDesignation').value = emp.designation || '';
+
+    // Payroll tab
+    const isFixed = emp.is_fixed_salary;
+    const ptype   = emp.payroll_type || 'attendance';
+    if (isFixed)                    selectSalaryType('fixed');
+    else if (ptype === 'performance') selectSalaryType('performance');
+    else                              selectSalaryType('attendance');
+    selectCurrency(emp.currency || 'AED');
+    document.getElementById('editSalary').value       = emp.salary || '';
+    document.getElementById('editVisaProvider').value = emp.visa_provider || '';
+    const cycleDay    = emp.salary_cycle_start_day || 21;
+    const cycleSelect = document.getElementById('editCycleDay');
+    if (cycleDay === 21)     cycleSelect.value = '21';
+    else if (cycleDay === 1) cycleSelect.value = '1';
+    else { cycleSelect.value = 'custom'; document.getElementById('editCycleCustomDay').value = cycleDay; }
+    onCycleChange();
+
+    // Security tab
+    document.getElementById('editPassword').value = '';
+    document.getElementById('editPassword').type  = 'password';
+    document.getElementById('pwEyeOn').style.display  = '';
+    document.getElementById('pwEyeOff').style.display = 'none';
+
+    // Reset UI state
+    document.getElementById('emFeedback').className = 'em-feedback';
+    switchTab('profile');
+    document.getElementById('saveEmpBtn').disabled    = false;
+    document.getElementById('saveEmpBtn').textContent = '';
+    document.getElementById('saveEmpBtn').innerHTML   =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
 
     document.getElementById('editModal').classList.add('show');
 }
@@ -823,24 +1328,40 @@ async function saveEmployee() {
     const linkedRemoteId = document.getElementById('editLinkedRemoteId').value;
     const salaryVal = document.getElementById('editSalary').value.trim();
 
+    const cycleSelectVal = document.getElementById('editCycleDay').value;
+    const cycleDay = cycleSelectVal === 'custom'
+        ? parseInt(document.getElementById('editCycleCustomDay').value)
+        : parseInt(cycleSelectVal);
+
     const tcrVal = document.getElementById('editTcrId').value.trim().toUpperCase();
     const data = {
         id: parseInt(id), type,
         ...(type === 'linked' ? { linked_remote_id: parseInt(linkedRemoteId) } : {}),
-        tcr_id:        tcrVal || null,
-        name:          document.getElementById('editName').value,
-        email:         document.getElementById('editEmail').value,
-        phone:         document.getElementById('editPhone').value,
-        department:    document.getElementById('editDepartment').value,
-        location:      document.getElementById('editLocation').value,
-        team:          document.getElementById('editTeam').value,
-        is_active:        document.getElementById('editIsActive').value === 'true',
+        tcr_id:           tcrVal || null,
+        name:             document.getElementById('editName').value,
+        email:            document.getElementById('editEmail').value,
+        phone:            document.getElementById('editPhone').value,
+        department:       document.getElementById('editDepartment').value,
+        location:         document.getElementById('editLocation').value,
+        team:             document.getElementById('editTeam').value,
+        is_active:        editIsActive,
         salary:           salaryVal === '' ? null : salaryVal,
         designation:      document.getElementById('editDesignation').value || null,
         joining_date:     document.getElementById('editJoiningDate').value || null,
         leaving_date:     document.getElementById('editLeavingDate').value || null,
         portal_password:  document.getElementById('editPassword').value,
+        // payroll fields
+        is_fixed_salary:          editSalaryType === 'fixed',
+        payroll_type:             editSalaryType === 'performance' ? 'performance' : 'attendance',
+        currency:                 editCurrency,
+        visa_provider:            document.getElementById('editVisaProvider').value,
+        salary_cycle_start_day:   isNaN(cycleDay) ? 21 : cycleDay,
     };
+
+    const btn = document.getElementById('saveEmpBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="animation:spin .7s linear infinite"><path stroke-linecap="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Saving…';
+    document.getElementById('emFeedback').className = 'em-feedback';
 
     try {
         const res = await fetch('/employees/update/', {
@@ -849,9 +1370,20 @@ async function saveEmployee() {
             body: JSON.stringify(data),
         });
         const result = await res.json();
-        if (result.success) { showToast('Employee updated successfully', 'success'); setTimeout(() => location.reload(), 900); }
-        else showToast(result.error || 'Error updating employee', 'error');
-    } catch { showToast('Error saving changes', 'error'); }
+        if (result.success) {
+            setEmFeedback('Saved successfully!', 'success');
+            showToast('Employee updated successfully', 'success');
+            setTimeout(() => location.reload(), 900);
+        } else {
+            setEmFeedback(result.error || 'Failed to save. Please check your inputs.', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
+        }
+    } catch {
+        setEmFeedback('Network error. Please try again.', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
+    }
 }
 
 document.getElementById('editModal').addEventListener('click', function(e) {

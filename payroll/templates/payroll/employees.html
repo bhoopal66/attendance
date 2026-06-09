@@ -180,6 +180,18 @@
     .badge-taamul { background: #fff7ed; color: #9a3412; }
     .badge-own { background: #f1f5f9; color: #64748b; }
 
+    .cycle-badge {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: #f0fdf4;
+        color: #15803d;
+        font-family: 'SF Mono', monospace;
+    }
+    .cycle-badge.default { background: #f1f5f9; color: #475569; }
+
     /* 3-way salary type selector — stacked rows */
     .stype-pills {
         display: flex;
@@ -531,6 +543,7 @@
                     <th>Name</th>
                     <th>Department</th>
                     <th>Salary Type</th>
+                    <th>Pay Cycle</th>
                     <th>Designation</th>
                     <th class="text-right">Salary</th>
                     <th>Currency</th>
@@ -564,6 +577,15 @@
                             <span class="badge badge-attendance">Attendance-Based</span>
                         {% endif %}
                     </td>
+                    <td id="cycle-inhouse-{{ emp.id }}">
+                        {% if emp.salary_cycle_start_day == 1 %}
+                            <span class="cycle-badge">Full Month</span>
+                        {% elif emp.salary_cycle_start_day == 21 %}
+                            <span class="cycle-badge default">21→20</span>
+                        {% else %}
+                            <span class="cycle-badge">{{ emp.salary_cycle_start_day }}→{{ emp.salary_cycle_start_day|add:"-1" }}</span>
+                        {% endif %}
+                    </td>
                     <td id="desig-inhouse-{{ emp.id }}">
                         {% if emp.designation %}{{ emp.designation }}{% else %}<span style="color:#94a3b8">—</span>{% endif %}
                     </td>
@@ -592,7 +614,7 @@
                         {{ emp.joining_date|default:"—" }}
                     </td>
                     <td>
-                        <button class="btn-edit" onclick="openEdit('inhouse', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %}, '{{ emp.visa_provider|default:'' }}')">
+                        <button class="btn-edit" onclick="openEdit('inhouse', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %}, '{{ emp.visa_provider|default:'' }}', {{ emp.salary_cycle_start_day }})">
                             Edit
                         </button>
                     </td>
@@ -623,6 +645,7 @@
                     <th>Name</th>
                     <th>Department</th>
                     <th>Salary Type</th>
+                    <th>Pay Cycle</th>
                     <th>Designation</th>
                     <th class="text-right">Salary</th>
                     <th>Currency</th>
@@ -656,6 +679,15 @@
                             <span class="badge badge-attendance">Attendance-Based</span>
                         {% endif %}
                     </td>
+                    <td id="cycle-remote-{{ emp.id }}">
+                        {% if emp.salary_cycle_start_day == 1 %}
+                            <span class="cycle-badge">Full Month</span>
+                        {% elif emp.salary_cycle_start_day == 21 %}
+                            <span class="cycle-badge default">21→20</span>
+                        {% else %}
+                            <span class="cycle-badge">{{ emp.salary_cycle_start_day }}→{{ emp.salary_cycle_start_day|add:"-1" }}</span>
+                        {% endif %}
+                    </td>
                     <td id="desig-remote-{{ emp.id }}">
                         {% if emp.designation %}{{ emp.designation }}{% else %}<span style="color:#94a3b8">—</span>{% endif %}
                     </td>
@@ -684,7 +716,7 @@
                         {{ emp.joining_date|default:"—" }}
                     </td>
                     <td>
-                        <button class="btn-edit" onclick="openEdit('remote', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %}, '{{ emp.visa_provider|default:'' }}')">
+                        <button class="btn-edit" onclick="openEdit('remote', {{ emp.id }}, '{{ emp.name|escapejs }}', '{{ emp.designation|default:''|escapejs }}', {{ emp.salary|default:'null' }}, '{{ emp.currency }}', '{{ emp.department|default:'' }}', '{{ emp.payroll_type }}', {% if emp.is_fixed_salary %}true{% else %}false{% endif %}, '{{ emp.visa_provider|default:'' }}', {{ emp.salary_cycle_start_day }})">
                             Edit
                         </button>
                     </td>
@@ -773,14 +805,29 @@
                 </div>
             </div>
 
-            <div class="form-group" style="margin-bottom:0">
-                <label>Visa Provider</label>
-                <select id="editVisaProvider">
-                    <option value="">Own Visa</option>
-                    <option value="Jumbo">Jumbo</option>
-                    <option value="OnTime">OnTime</option>
-                    <option value="Taamul">Taamul</option>
-                </select>
+            <div class="form-row" style="margin-bottom:14px">
+                <div class="form-group">
+                    <label>Visa Provider</label>
+                    <select id="editVisaProvider">
+                        <option value="">Own Visa</option>
+                        <option value="Jumbo">Jumbo</option>
+                        <option value="OnTime">OnTime</option>
+                        <option value="Taamul">Taamul</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pay Cycle</label>
+                    <select id="editCycleDay" onchange="onCycleChange()">
+                        <option value="21">21st → 20th (default)</option>
+                        <option value="1">Full month (1st → last day)</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                    <div id="customCycleWrap" style="display:none;margin-top:8px;">
+                        <input type="number" id="editCycleCustomDay" min="2" max="28" placeholder="Start day (2–28)"
+                               style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;box-sizing:border-box;">
+                        <div style="font-size:0.72rem;color:#64748b;margin-top:4px;">Period runs from this day of the previous month to (day − 1) of the selected month.</div>
+                    </div>
+                </div>
             </div>
 
             <div class="modal-actions">
@@ -799,7 +846,7 @@
     let editCurrency = 'AED';
     let editSalaryType = 'attendance';  // 'fixed' | 'attendance' | 'performance'
 
-    function openEdit(empType, empId, name, designation, salary, currency, department, payrollType, isFixedSalary, visaProvider) {
+    function openEdit(empType, empId, name, designation, salary, currency, department, payrollType, isFixedSalary, visaProvider, cycleDay) {
         editEmpId = empId;
         editEmpType = empType;
         editCurrency = currency || 'AED';
@@ -821,6 +868,19 @@
         document.getElementById('editFeedback').className = 'save-feedback';
         document.getElementById('editFeedback').textContent = '';
         document.getElementById('editVisaProvider').value = visaProvider || '';
+
+        // Set pay cycle
+        const cycleSelect = document.getElementById('editCycleDay');
+        const day = cycleDay || 21;
+        if (day === 21) {
+            cycleSelect.value = '21';
+        } else if (day === 1) {
+            cycleSelect.value = '1';
+        } else {
+            cycleSelect.value = 'custom';
+            document.getElementById('editCycleCustomDay').value = day;
+        }
+        onCycleChange();
 
         selectSalaryType(editSalaryType);
         selectCurrency(editCurrency);
@@ -871,6 +931,15 @@
         const designation = document.getElementById('editDesig').value.trim();
         const department = document.getElementById('editDept').value;
         const visaProvider = document.getElementById('editVisaProvider').value;
+        const cycleSelectVal = document.getElementById('editCycleDay').value;
+        const cycleDay = cycleSelectVal === 'custom'
+            ? parseInt(document.getElementById('editCycleCustomDay').value)
+            : parseInt(cycleSelectVal);
+        if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 28) {
+            fb.className = 'save-feedback error';
+            fb.textContent = 'Please enter a valid start day (1–28).';
+            return;
+        }
 
         // Map the unified 3-way selector back to the two backend fields
         const isFixedSalary = (editSalaryType === 'fixed');
@@ -891,6 +960,7 @@
                     payroll_type: payrollType,
                     is_fixed_salary: isFixedSalary,
                     visa_provider: visaProvider,
+                    salary_cycle_start_day: cycleDay,
                 }),
             });
             const data = await res.json();
@@ -933,13 +1003,17 @@
                     };
                     vpEl.innerHTML = vpMap[data.visa_provider] || '<span class="badge badge-own">Own</span>';
                 }
+                const cycleEl = document.getElementById(`cycle-${editEmpType}-${editEmpId}`);
+                if (cycleEl) {
+                    cycleEl.innerHTML = cycleBadgeHtml(data.salary_cycle_start_day);
+                }
                 // Refresh the row's edit button so a re-open keeps the new value
                 const rowEl = document.getElementById(`row-${editEmpType}-${editEmpId}`);
                 if (rowEl) {
                     const btnEl = rowEl.querySelector('.btn-edit');
                     if (btnEl) {
                         btnEl.setAttribute('onclick',
-                            `openEdit('${editEmpType}', ${editEmpId}, ${JSON.stringify(document.getElementById('editEmpName').textContent)}, ${JSON.stringify(data.designation || '')}, ${data.salary !== null ? data.salary : 'null'}, '${data.currency}', '${data.department || ''}', '${data.payroll_type}', ${data.is_fixed_salary ? 'true' : 'false'}, '${data.visa_provider || ''}')`
+                            `openEdit('${editEmpType}', ${editEmpId}, ${JSON.stringify(document.getElementById('editEmpName').textContent)}, ${JSON.stringify(data.designation || '')}, ${data.salary !== null ? data.salary : 'null'}, '${data.currency}', '${data.department || ''}', '${data.payroll_type}', ${data.is_fixed_salary ? 'true' : 'false'}, '${data.visa_provider || ''}', ${data.salary_cycle_start_day})`
                         );
                     }
                 }
@@ -959,6 +1033,17 @@
             btn.disabled = false;
             btn.textContent = 'Save Changes';
         }
+    }
+
+    function onCycleChange() {
+        const val = document.getElementById('editCycleDay').value;
+        document.getElementById('customCycleWrap').style.display = val === 'custom' ? 'block' : 'none';
+    }
+
+    function cycleBadgeHtml(day) {
+        if (day === 1) return '<span class="cycle-badge">Full Month</span>';
+        if (day === 21) return '<span class="cycle-badge default">21→20</span>';
+        return `<span class="cycle-badge">${day}→${day - 1}</span>`;
     }
 
     function escapeHtml(str) {

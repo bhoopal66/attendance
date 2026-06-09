@@ -85,6 +85,11 @@ class BaseEmployee(models.Model):
         help_text="Fixed salary employees: punch-in alone counts as Present (no punch-out or duration thresholds required)"
     )
 
+    salary_cycle_start_day = models.PositiveSmallIntegerField(
+        default=21,
+        help_text="Pay period start day. 21 = 21st prev month to 20th current; 1 = calendar month (1st to last day)."
+    )
+
     VISA_PROVIDER_CHOICES = [
         ('Jumbo', 'Jumbo'),
         ('OnTime', 'OnTime'),

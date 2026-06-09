@@ -13,6 +13,7 @@ urlpatterns = [
     path('report/remote/download/', views.download_remote_report, name='download_remote_report'),
     path('report/remote/download/employee/<int:employee_id>/', views.download_remote_employee_report, name='download_remote_employee_report'),
     path('api/attendance/update/', views.update_attendance, name='update_attendance'),
+    path('api/remote/attendance/update/', views.update_remote_attendance, name='update_remote_attendance'),
     path('login/', auth_views.LoginView.as_view(redirect_authenticated_user=True), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     # Employee Portal
