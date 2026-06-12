@@ -41,6 +41,21 @@ DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py c
 DJANGO_SETTINGS_MODULE=attendance_project.settings.production gunicorn --bind 0.0.0.0:8000 attendance_project.wsgi:application
 ```
 
+## Production Server
+
+This is a **production environment** running on Gunicorn managed by systemd. Do **not** use `manage.py runserver`.
+
+```bash
+# Restart the server (required after code changes)
+sudo systemctl restart attendance
+
+# Check server status
+sudo systemctl status attendance
+
+# View live logs
+sudo journalctl -u attendance -f
+```
+
 No test suite or linting configuration exists yet. Both `attendance/tests.py` and `payroll/tests.py` are empty placeholders.
 
 ## Environment Configuration
@@ -130,6 +145,7 @@ Use these instead of the single-employee variants whenever rendering a full mont
 - `ExchangeRate` - 1 AED = N units of foreign currency, stored per currency per month; to convert foreign → AED: `amount / rate`
 - `GeneratedDocument` - Registry of every payslip/voucher; stable human-readable ref (`PS-XXXXX` / `PV-XXXXX`) via `ref` property
 - `FrozenPayrollMonth` - Immutable JSON snapshot of a fully-computed payroll month; once frozen, dashboard serves from this snapshot instead of recalculating — freeze/unfreeze via `/payroll/api/freeze/` and `/payroll/api/unfreeze/`
+- `PaidSalaryRecord` - Per-employee immutable payroll snapshot created when salary is marked as paid; stores full snapshot (attendance, deductions, commission, bank submissions, final salary) at the moment of payment — mark/unmark via `/payroll/api/mark-paid/` and `/payroll/api/unmark-paid/`
 
 ### URL Structure
 
@@ -141,7 +157,7 @@ Use these instead of the single-employee variants whenever rendering a full mont
 
 **APIs:** `/api/attendance/update/`, `/api/remote/attendance/update/`, `/api/pending-count/`, `/api/pending-requests/`, `/request/<id>/data/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
 
-**Payroll:** `/payroll/` (dashboard), `/payroll/test/` (new comprehensive dashboard — see below), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/<emp_type>/<id>/`, `/payroll/api/submissions/save/`, `/payroll/api/upload-submissions/` (bulk XLSX), `/payroll/api/deductions/add/`, `/payroll/api/deductions/autofill/`, `/payroll/api/recalculate/`, `/payroll/api/exchange-rate/save/`, `/payroll/api/freeze/`, `/payroll/api/unfreeze/`, `/payroll/api/employee/<emp_type>/<id>/update/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/voucher/advance/`
+**Payroll:** `/payroll/` (dashboard), `/payroll/test/` (new comprehensive dashboard — see below), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/<emp_type>/<id>/`, `/payroll/api/submissions/save/`, `/payroll/api/upload-submissions/` (bulk XLSX), `/payroll/api/deductions/add/`, `/payroll/api/deductions/autofill/`, `/payroll/api/recalculate/`, `/payroll/api/exchange-rate/save/`, `/payroll/api/freeze/`, `/payroll/api/unfreeze/`, `/payroll/api/mark-paid/`, `/payroll/api/unmark-paid/`, `/payroll/api/employee/<emp_type>/<id>/update/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/voucher/advance/`
 
 ### Authentication
 
@@ -331,6 +347,12 @@ Sales payroll recomputes remote attendance inline (does not rely on stored `Remo
 ### Payroll Freeze / Unfreeze
 
 Once a month's payroll is finalised, it can be frozen via `POST /payroll/api/freeze/`. This serialises the entire computed context into `FrozenPayrollMonth.snapshot` (JSONField). The dashboard then serves from that snapshot for that month — live employee/bank/attendance changes no longer affect the displayed figures. Unfreezing (`POST /payroll/api/unfreeze/`) deletes the snapshot and reverts to live recalculation. The payslip download still works against live data even when a month is frozen.
+
+### Mark as Paid / Unmark
+
+`POST /payroll/api/mark-paid/` accepts `{year, month, employees: [{id, type}]}`. It re-computes the full payroll row for each specified employee and writes an immutable `PaidSalaryRecord` (using `update_or_create`). The snapshot stores all line items at the moment of payment — attendance, deductions breakdown, commission, bank submissions, final salary — and is never recalculated. `POST /payroll/api/unmark-paid/` deletes the corresponding records.
+
+**Difference from `FrozenPayrollMonth`**: Freeze is a whole-month dashboard lock; Mark-as-Paid is per-employee and persists the computed row independently of the freeze state.
 
 ## Git Workflow
 

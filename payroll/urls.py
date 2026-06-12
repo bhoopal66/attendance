@@ -40,4 +40,7 @@ urlpatterns = [
     path('api/unfreeze/', views.unfreeze_payroll, name='unfreeze_payroll'),
     # Test / simplified payroll dashboard
     path('test/', views.payroll_test_dashboard, name='payroll_test_dashboard'),
+    # Mark as Paid / Unmark
+    path('api/mark-paid/', views.mark_paid_salary, name='mark_paid_salary'),
+    path('api/unmark-paid/', views.unmark_paid_salary, name='unmark_paid_salary'),
 ]

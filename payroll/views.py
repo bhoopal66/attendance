@@ -30,7 +30,7 @@ from attendance.views.utils import (
     get_active_special_periods_for_month, get_remote_thresholds_from_period,
     get_bridge_sunday_days,
 )
-from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, DEDUCTION_CATEGORY_CHOICES
+from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, PaidSalaryRecord, DEDUCTION_CATEGORY_CHOICES
 
 logger = logging.getLogger('payroll')
 
@@ -1098,10 +1098,11 @@ def payroll_dashboard(request):
         total_ded = d['total_deductions'] if d else 0.0
         total_add = d['total_additions'] if d else 0.0
         carryover_in = d['carryover_in'] if d else 0.0
-        final_salary = round(payroll_net - total_ded + total_add, 2)
-        if final_salary < 0:
-            overflow = Decimal(str(abs(final_salary)))
-            final_salary = 0.0
+        # Carryover tracking: use full total_ded (including carryover) to decide
+        # whether to create/delete a carryover record for next month.
+        accounting_net = round(payroll_net - total_ded + total_add, 2)
+        if accounting_net < 0:
+            overflow = Decimal(str(abs(accounting_net)))
             DeductionCarryover.objects.update_or_create(
                 employee=emp, from_year=selected_year, from_month=selected_month,
                 defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
@@ -1116,6 +1117,17 @@ def payroll_dashboard(request):
             if incoming_co:
                 incoming_co.applied_amount = Decimal(str(min(carryover_in, float(incoming_co.overflow_amount))))
                 incoming_co.save(update_fields=['applied_amount'])
+        # Displayed final salary matches the payslip:
+        # - Admin employees: payslip reconstructs attendance deductions without bridge Sunday,
+        #   so add it back here.
+        # - All employees: payslip does not deduct carryover, so exclude it.
+        if p and emp.department == 'Admin':
+            bridge_adj = (p.get('bridge_sunday_count') or 0) * (p.get('daily_rate') or 0.0)
+        else:
+            bridge_adj = 0.0
+        final_salary = round(payroll_net + bridge_adj - (total_ded - carryover_in) + total_add, 2)
+        if final_salary < 0:
+            final_salary = 0.0
         final_rows.append({
             'employee': emp,
             'employee_type': 'inhouse',
@@ -1135,10 +1147,10 @@ def payroll_dashboard(request):
         total_ded = d['total_deductions'] if d else 0.0
         total_add = d['total_additions'] if d else 0.0
         carryover_in = d['carryover_in'] if d else 0.0
-        final_salary = round(payroll_net - total_ded + total_add, 2)
-        if final_salary < 0:
-            overflow = Decimal(str(abs(final_salary)))
-            final_salary = 0.0
+        # Carryover tracking uses full total_ded.
+        accounting_net = round(payroll_net - total_ded + total_add, 2)
+        if accounting_net < 0:
+            overflow = Decimal(str(abs(accounting_net)))
             DeductionCarryover.objects.update_or_create(
                 remote_employee=emp, from_year=selected_year, from_month=selected_month,
                 defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
@@ -1153,6 +1165,10 @@ def payroll_dashboard(request):
             if incoming_co:
                 incoming_co.applied_amount = Decimal(str(min(carryover_in, float(incoming_co.overflow_amount))))
                 incoming_co.save(update_fields=['applied_amount'])
+        # Displayed final salary: exclude carryover (matches payslip).
+        final_salary = round(payroll_net - (total_ded - carryover_in) + total_add, 2)
+        if final_salary < 0:
+            final_salary = 0.0
         final_rows.append({
             'employee': emp,
             'employee_type': 'remote',
@@ -3208,6 +3224,68 @@ def payroll_test_dashboard(request):
             'carryover_in': carryover_in, 'carryover_out': carryover_out,
         })
 
+    # Load full paid salary snapshots and overlay onto all rows
+    paid_records = {}
+    for rec in PaidSalaryRecord.objects.filter(year=selected_year, month=selected_month):
+        if rec.employee_id:
+            paid_records[('inhouse', rec.employee_id)] = rec
+        elif rec.remote_employee_id:
+            paid_records[('remote', rec.remote_employee_id)] = rec
+
+    def _overlay_section_row(row):
+        key = (row['employee_type'], row['employee'].id)
+        rec = paid_records.get(key)
+        if not rec or not rec.snapshot:
+            row['is_paid'] = False
+            return
+        snap = rec.snapshot
+        row['is_paid'] = True
+        row['paid_at'] = rec.paid_at
+        row['paid_by'] = rec.paid_by
+        row['paid_snapshot'] = snap
+        # Replace every computed value with the locked snapshot value
+        row['salary'] = snap.get('salary', row.get('salary'))
+        row['net_payroll'] = snap['net_payroll']
+        row['deduction'] = snap.get('deduction', row.get('deduction', 0))
+        row['commission'] = snap.get('commission', row.get('commission', 0))
+        row['incentives'] = snap.get('incentives', row.get('incentives', 0))
+        row['reductions'] = snap.get('reductions', row.get('reductions', 0))
+        if snap.get('full_days') is not None:
+            row['full_days'] = snap['full_days']
+        if snap.get('half_days') is not None:
+            row['half_days'] = snap['half_days']
+        if snap.get('absent_days') is not None:
+            row['absent_days'] = snap['absent_days']
+        if snap.get('late_days') is not None:
+            row['late_days'] = snap['late_days']
+        row['late_half_days'] = snap.get('late_half_days', row.get('late_half_days', 0))
+        if snap.get('present_days') is not None:
+            row['present_days'] = snap['present_days']
+        if snap.get('bank_submissions'):
+            row['bank_counts_list'] = [bs['count'] for bs in snap['bank_submissions']]
+        row['combined_deductions'] = round(snap.get('deduction', 0) + snap.get('reductions', 0), 2)
+
+    for row in admin_inhouse_rows + admin_remote_rows + sales_fixed_rows + sales_perf_rows:
+        _overlay_section_row(row)
+
+    for row in final_rows:
+        key = (row['employee_type'], row['employee'].id)
+        rec = paid_records.get(key)
+        if not rec or not rec.snapshot:
+            row['is_paid'] = False
+            continue
+        snap = rec.snapshot
+        row['is_paid'] = True
+        row['paid_at'] = rec.paid_at
+        row['paid_by'] = rec.paid_by
+        row['paid_snapshot'] = snap
+        row['payroll_net'] = snap['net_payroll']
+        row['total_deductions'] = snap['total_deductions']
+        row['total_additions'] = snap['total_additions']
+        row['carryover_in'] = snap['carryover_in']
+        row['carryover_out'] = snap['carryover_out']
+        row['final_salary'] = snap['final_salary']
+
     final_total_aed = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'AED'), 2)
     final_total_inr = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'INR'), 2)
 
@@ -3317,3 +3395,226 @@ def payroll_test_dashboard(request):
         'carryover_incoming_count': carryover_incoming_count,
         'carryover_outgoing_count': carryover_outgoing_count,
     })
+
+
+@login_required
+@user_passes_test(superuser_required)
+def mark_paid_salary(request):
+    """
+    Re-compute the full payroll for the given employees and lock every value
+    into an immutable snapshot. Future changes to attendance, employee settings,
+    bank rates, or deductions will not affect the stored figures.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+        year = int(data['year'])
+        month = int(data['month'])
+        emp_list = data['employees']  # [{id, type}]
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    inhouse_ids = {int(e['id']) for e in emp_list if e['type'] == 'inhouse'}
+    remote_ids = {int(e['id']) for e in emp_list if e['type'] == 'remote'}
+
+    banks = list(Bank.objects.filter(is_active=True).order_by('name'))
+
+    _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
+    _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
+    _ALL_CATS = _DED_COLS + _ADD_COLS
+    target_idx = year * 12 + (month - 1)
+
+    _period_cache = {}
+    def _emp_period_mp(emp):
+        day = emp.salary_cycle_start_day or 21
+        if day not in _period_cache:
+            _period_cache[day] = _get_employee_pay_period(day, year, month)
+        return _period_cache[day]
+
+    # Active deduction entries for this month
+    active_by_emp = _defaultdict(list)
+    for entry in DeductionEntry.objects.select_related('employee', 'remote_employee'):
+        emp_obj = entry.employee or entry.remote_employee
+        if not emp_obj:
+            continue
+        et = 'inhouse' if entry.employee_id else 'remote'
+        start_idx = entry.start_year * 12 + (entry.start_month - 1)
+        if start_idx <= target_idx < start_idx + entry.split_months:
+            active_by_emp[(et, emp_obj.id)].append(entry)
+
+    # Incoming carryovers
+    incoming_carryovers = DeductionCarryover.objects.filter(to_year=year, to_month=month)
+    carryover_by_emp = {}
+    for co in incoming_carryovers:
+        key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
+        carryover_by_emp[key] = float(co.overflow_amount)
+
+    inhouse_summaries = {
+        s.employee_id: s for s in MonthlySummary.objects.filter(year=year, month=month)
+    }
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    count = 0
+
+    def _build_bank_submissions(row):
+        result = []
+        counts = row.get('bank_counts_list') or []
+        for i, b in enumerate(banks):
+            result.append({
+                'bank_id': b.id, 'bank_name': b.name,
+                'count': counts[i] if i < len(counts) else 0,
+                'rate_aed': float(b.per_account_charge),
+                'rate_inr': float(b.inr_per_account_charge) if b.inr_per_account_charge else None,
+            })
+        return result
+
+    def _compute_deductions(emp, emp_type, p_start, p_end, p_days):
+        cat = {c: 0.0 for c in _ALL_CATS}
+        for ded_entry in active_by_emp.get((emp_type, emp.id), []):
+            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+        carryover_in = carryover_by_emp.get((emp_type, emp.id), 0.0)
+        if emp_type == 'inhouse':
+            summary = inhouse_summaries.get(emp.id)
+            if emp.salary and emp.payroll_type != 'performance':
+                daily = float(emp.salary) / p_days
+                bridge_count = len(get_bridge_sunday_days(emp, p_start, p_end))
+                cat['leave_deduction'] = round(daily * ((summary.leave_days if summary else 0) + bridge_count), 2)
+                cat['late_deduction'] = round(daily * ((summary.late_days if summary else 0) // 3) * 0.5, 2)
+            _has_salary = emp.salary and emp.payroll_type != 'performance'
+            ded_for_total = [c for c in _DED_COLS if c not in ('leave_deduction', 'late_deduction')] if (emp.department == 'Admin' or _has_salary) else _DED_COLS
+        else:
+            ded_for_total = _DED_COLS
+        total_ded = round(sum(cat[c] for c in ded_for_total) + carryover_in, 2)
+        total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
+        return cat, carryover_in, total_ded, total_add
+
+    def _save_snapshot(emp, emp_type, row, cat, carryover_in, total_ded, total_add, p_start, p_end, p_days, p_hols):
+        payroll_net = row['net_payroll']
+        final_salary = round(payroll_net - total_ded + total_add, 2)
+        carryover_out = 0.0
+        if final_salary < 0:
+            carryover_out = round(abs(final_salary), 2)
+            final_salary = 0.0
+
+        snapshot = {
+            # Identity & settings at lock time
+            'employee_name': emp.name,
+            'employee_type': emp_type,
+            'department': emp.department or '',
+            'currency': emp.currency,
+            'designation': getattr(emp, 'designation', '') or '',
+            'salary': float(emp.salary or 0),
+            'payroll_type': emp.payroll_type or 'attendance',
+            'is_fixed_salary': emp.is_fixed_salary,
+            # Pay period
+            'pay_period_start': str(p_start),
+            'pay_period_end': str(p_end),
+            'days_in_period': p_days,
+            'total_holidays': p_hols,
+            # Attendance
+            'full_days': row.get('full_days'),
+            'half_days': row.get('half_days'),
+            'absent_days': row.get('absent_days'),
+            'late_days': row.get('late_days'),
+            'late_half_days': row.get('late_half_days', 0),
+            'present_days': row.get('present_days'),
+            'is_fixed_salary_attendance': row.get('is_fixed_salary', False),
+            'is_attendance_based': row.get('is_attendance_based', False),
+            # Payroll line items
+            'net_payroll': payroll_net,
+            'deduction': row.get('deduction', 0),
+            'commission': row.get('commission', 0),
+            'incentives': row.get('incentives', 0),
+            'reductions': row.get('reductions', 0),
+            'bank_submissions': _build_bank_submissions(row),
+            # Deductions & additions breakdown
+            'deductions_breakdown': cat,
+            'carryover_in': carryover_in,
+            'total_deductions': total_ded,
+            'total_additions': total_add,
+            # Final
+            'carryover_out': carryover_out,
+            'final_salary': final_salary,
+        }
+
+        if emp_type == 'inhouse':
+            PaidSalaryRecord.objects.update_or_create(
+                employee_id=emp.id, remote_employee=None, year=year, month=month,
+                defaults={
+                    'final_salary': Decimal(str(final_salary)),
+                    'currency': emp.currency,
+                    'paid_by': request.user.username,
+                    'paid_at': now_utc,
+                    'snapshot': snapshot,
+                },
+            )
+        else:
+            PaidSalaryRecord.objects.update_or_create(
+                remote_employee_id=emp.id, employee=None, year=year, month=month,
+                defaults={
+                    'final_salary': Decimal(str(final_salary)),
+                    'currency': emp.currency,
+                    'paid_by': request.user.username,
+                    'paid_at': now_utc,
+                    'snapshot': snapshot,
+                },
+            )
+
+    # Process inhouse employees
+    if inhouse_ids:
+        all_inhouse_tcr = set(
+            Employee.objects.filter(is_active=True)
+            .exclude(tcr_id__isnull=True).exclude(tcr_id='')
+            .values_list('tcr_id', flat=True)
+        )
+        for emp in Employee.objects.filter(id__in=inhouse_ids, is_active=True):
+            p_start, p_end, p_days, p_hols = _emp_period_mp(emp)
+            if emp.department == 'Admin':
+                row = _get_inhouse_payroll_row(emp, year, month, p_start, p_end, p_hols, days_in_period=p_days)
+            else:
+                row = _get_sales_payroll_row(emp, year, month, 'inhouse', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+            cat, carryover_in, total_ded, total_add = _compute_deductions(emp, 'inhouse', p_start, p_end, p_days)
+            _save_snapshot(emp, 'inhouse', row, cat, carryover_in, total_ded, total_add, p_start, p_end, p_days, p_hols)
+            count += 1
+
+    # Process remote employees
+    if remote_ids:
+        all_inhouse_tcr = set(
+            Employee.objects.filter(is_active=True)
+            .exclude(tcr_id__isnull=True).exclude(tcr_id='')
+            .values_list('tcr_id', flat=True)
+        )
+        for emp in RemoteEmployee.objects.filter(id__in=remote_ids, is_active=True):
+            p_start, p_end, p_days, p_hols = _emp_period_mp(emp)
+            row = _get_sales_payroll_row(emp, year, month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+            cat, carryover_in, total_ded, total_add = _compute_deductions(emp, 'remote', p_start, p_end, p_days)
+            _save_snapshot(emp, 'remote', row, cat, carryover_in, total_ded, total_add, p_start, p_end, p_days, p_hols)
+            count += 1
+
+    return JsonResponse({'success': True, 'count': count})
+
+
+@login_required
+@user_passes_test(superuser_required)
+def unmark_paid_salary(request):
+    """Remove the paid lock for selected employees for a given month."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+        year = int(data['year'])
+        month = int(data['month'])
+        employees = data['employees']
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    for emp in employees:
+        emp_id = int(emp['id'])
+        emp_type = emp['type']
+        if emp_type == 'inhouse':
+            PaidSalaryRecord.objects.filter(employee_id=emp_id, year=year, month=month).delete()
+        else:
+            PaidSalaryRecord.objects.filter(remote_employee_id=emp_id, year=year, month=month).delete()
+
+    return JsonResponse({'success': True})

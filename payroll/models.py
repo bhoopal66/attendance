@@ -400,3 +400,37 @@ class FrozenPayrollMonth(models.Model):
 
     def __str__(self):
         return f"Frozen payroll {self.month}/{self.year} (by {self.frozen_by})"
+
+
+class PaidSalaryRecord(models.Model):
+    """
+    Per-employee immutable payroll snapshot once payment is confirmed.
+    All values (attendance, deductions, commission, final salary) are locked
+    at the moment of marking as paid and never recalculated, regardless of
+    subsequent changes to attendance, employee settings, bank rates, or deductions.
+    """
+    employee = models.ForeignKey(
+        'attendance.Employee', null=True, blank=True, on_delete=models.CASCADE,
+        related_name='paid_salary_records',
+    )
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', null=True, blank=True, on_delete=models.CASCADE,
+        related_name='paid_salary_records',
+    )
+    year = models.IntegerField()
+    month = models.IntegerField(help_text="1-12")
+    final_salary = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=10, default='AED')
+    paid_at = models.DateTimeField()
+    paid_by = models.CharField(max_length=150, blank=True)
+    snapshot = models.JSONField(
+        null=True, blank=True,
+        help_text="Full payroll snapshot at time of payment: attendance, deductions, commission, bank submissions, final salary",
+    )
+
+    class Meta:
+        ordering = ['-year', '-month']
+
+    def __str__(self):
+        emp = self.employee or self.remote_employee
+        return f"Paid {self.month}/{self.year} — {emp.name if emp else '?'} ({self.final_salary} {self.currency})"
