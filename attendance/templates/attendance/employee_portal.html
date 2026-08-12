@@ -9,7 +9,7 @@
     <title>My Attendance - Taamul Employee Portal</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'attendance/css/base.css' %}?v=23">
-    <link rel="stylesheet" href="{% static 'attendance/css/employee_portal.css' %}?v=19">
+    <link rel="stylesheet" href="{% static 'attendance/css/employee_portal.css' %}?v=20">
     <link rel="icon" type="image/png" href="{% static 'attendance/img/favicon.png' %}">
 </head>
 
@@ -18,8 +18,6 @@
 
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
-
-            <!-- Logo & Collapse Toggle -->
             <div class="sidebar-logo-area">
                 <a href="{% url 'employee_portal' %}" class="sidebar-logo">
                     <span class="logo-icon">
@@ -37,7 +35,6 @@
                 </button>
             </div>
 
-            <!-- Navigation -->
             <nav class="sidebar-nav">
                 <div class="nav-section">
                     <span class="nav-section-label">My Portal</span>
@@ -66,7 +63,6 @@
                 {% endif %}
             </nav>
 
-            <!-- User Footer -->
             <div class="sidebar-footer">
                 <div class="sidebar-user-row">
                     <div class="user-avatar">{{ employee_name|slice:":1"|upper }}</div>
@@ -81,7 +77,6 @@
                     </a>
                 </div>
             </div>
-
         </aside>
 
         <!-- Main Content -->
@@ -112,179 +107,283 @@
 
             <!-- Page Content -->
             <div class="main-inner">
-
-                <!-- Main Content Card -->
                 <div class="portal-content-card">
 
-                    <!-- Filter Bar -->
-                    <div class="filters-section">
-                        <div class="filter-bar">
-                            <h2>{{ month_name }} {{ selected_year }}</h2>
+                    <!-- ① Portal Header -->
+                    <div class="portal-header">
+                        <div class="portal-heading">
+                            <h2 class="portal-month">{{ month_name }} {{ selected_year }}</h2>
+                            <span class="portal-subhead">Attendance Overview</span>
+                        </div>
+                        <div class="portal-controls">
                             <form method="get" class="filter-form">
                                 {% include 'attendance/includes/portal_month_year_selector.html' %}
                             </form>
+                            {% if employee_type == 'In-House' %}
+                            <div class="portal-actions">
+                                <button class="p-action-btn p-action-primary" onclick="openLeaveModal()">
+                                    <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    Apply Leave
+                                </button>
+                                <button class="p-action-btn p-action-secondary" onclick="openEarlyLeaveModal()">
+                                    <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                    On Duty
+                                </button>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
 
-                    <!-- Legend -->
-                    <div class="legend-actions-bar">
-                        <div class="legend">
-                            <span class="legend-item"><span class="legend-dot green"></span> On time</span>
-                            <span class="legend-item"><span class="legend-dot yellow"></span> Late/Half Day</span>
-                            <span class="legend-item"><span class="legend-dot red"></span> Leave/Absent</span>
-                            <span class="legend-item"><span class="legend-dot blue"></span> Approved Leave</span>
-                            <span class="legend-item"><span class="legend-dot purple"></span> Holiday</span>
+                    <!-- ② Stats Overview -->
+                    <div class="portal-stats">
+                        {% if employee_type == 'In-House' %}
+                        <div class="pstat pstat-danger">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.total_deductions }}</div>
+                                <div class="pstat-lbl">Deductions</div>
+                            </div>
                         </div>
+                        <div class="pstat pstat-neutral">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.leave_days }}</div>
+                                <div class="pstat-lbl">Leave Days</div>
+                            </div>
+                        </div>
+                        <div class="pstat pstat-warning">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.half_days }}</div>
+                                <div class="pstat-lbl">Half Days</div>
+                            </div>
+                        </div>
+                        <div class="pstat pstat-warning">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.late_days }}</div>
+                                <div class="pstat-lbl">Late{% if summary.late_half_days > 0 %} ({{ summary.late_half_days }}&times;&frac12;){% endif %}</div>
+                            </div>
+                        </div>
+                        <div class="pstat pstat-info">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.paid_leave_days }}</div>
+                                <div class="pstat-lbl">Paid Leave</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="pstat pstat-danger">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.total_deductions }}</div>
+                                <div class="pstat-lbl">Deductions</div>
+                            </div>
+                        </div>
+                        <div class="pstat pstat-success">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.present_days }}</div>
+                                <div class="pstat-lbl">Present</div>
+                            </div>
+                        </div>
+                        <div class="pstat pstat-neutral">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.absent_days }}</div>
+                                <div class="pstat-lbl">Absent</div>
+                            </div>
+                        </div>
+                        <div class="pstat pstat-warning">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.half_days }}</div>
+                                <div class="pstat-lbl">Half Days</div>
+                            </div>
+                        </div>
+                        <div class="pstat pstat-info">
+                            <div class="pstat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            </div>
+                            <div>
+                                <div class="pstat-val">{{ summary.total_talk_hours }}</div>
+                                <div class="pstat-lbl">Talk Hours</div>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
 
-                    <!-- Calendar + Requests Grid -->
-                    <div class="dashboard-layout">
+                    <!-- ③ Content Grid: Mini Calendar + Requests -->
+                    <div class="portal-content-grid">
 
-                        <div class="main-column">
-                            <!-- Calendar -->
-                            <div class="calendar-card">
-                                <div class="calendar-header">
-                                    {% for day in weekdays %}
-                                    <div class="weekday {% if day == 'Sun' %}holiday-header{% endif %}">{{ day }}</div>
-                                    {% endfor %}
-                                </div>
-                                <div class="calendar-grid">
-                                    {% for day in calendar_days %}
-                                    {% if day %}
-                                    {% with day_info=calendar_data|get_item:day %}
-                                    {% if day_info %}
-                                    <div class="calendar-day status-{{ day_info.status }}">
-                                        <span class="day-number">{{ day }}</span>
-                                        {% if day_info.status == 'holiday' %}
-                                        <span class="status-text holiday">Holiday</span>
-                                        {% elif day_info.status == 'absent' %}
-                                        <span class="status-text leave">Leave</span>
-                                        {% elif day_info.status == 'paid_leave' %}
-                                        <span class="status-text paid-leave">Approved Leave</span>
-                                        {% elif day_info.record %}
-                                        {% if employee_type == 'Remote' %}
-                                        <div class="work-hours">{{ day_info.talk_minutes }} min</div>
-                                        <div class="call-count">
-                                            <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                                            {{ day_info.answered_calls }} calls
-                                        </div>
-                                        <div class="status-badge status-badge-{{ day_info.status }}">
-                                            {% if day_info.status == 'green' %}Present{% elif day_info.status == 'yellow' %}Half Day{% else %}Absent{% endif %}
-                                        </div>
-                                        {% else %}
-                                        {% if day_info.record.work_duration %}
-                                        <div class="work-hours">{{ day_info.record.work_duration }}</div>
-                                        <div class="time-info">
-                                            <span>In: {{ day_info.record.first_in|time:"H:i" }}</span>
-                                            <span>Out: {{ day_info.record.last_out|time:"H:i" }}</span>
-                                        </div>
-                                        {% endif %}
-                                        {% endif %}
-                                        {% endif %}
-                                    </div>
-                                    {% else %}
-                                    <div class="calendar-day">
-                                        <span class="day-number">{{ day }}</span>
-                                    </div>
-                                    {% endif %}
-                                    {% endwith %}
-                                    {% else %}
-                                    <div class="calendar-day empty"></div>
-                                    {% endif %}
-                                    {% endfor %}
+                        <!-- Mini Calendar Panel -->
+                        <div class="mini-cal-panel">
+                            <div class="panel-label-row">
+                                <span class="panel-label">Calendar</span>
+                                <button class="cal-expand-btn" onclick="openCalendarModal()" title="Open full calendar">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="11" height="11"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                                    Full View
+                                </button>
+                            </div>
+                            <div class="mini-cal-hdr">
+                                {% for day in weekdays %}
+                                <div class="mch {% if day == 'Sun' %}mch-sun{% endif %}">{{ day|slice:":1" }}</div>
+                                {% endfor %}
+                            </div>
+                            <div class="mini-cal-grid">
+                                {% for day in calendar_days %}
+                                {% if day %}
+                                {% with day_info=calendar_data|get_item:day %}
+                                {% if day_info %}
+                                <div class="mcd mcd-{{ day_info.status }}" title="Day {{ day }}">{{ day }}</div>
+                                {% else %}
+                                <div class="mcd mcd-future" title="Day {{ day }}">{{ day }}</div>
+                                {% endif %}
+                                {% endwith %}
+                                {% else %}
+                                <div class="mcd mcd-empty"></div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                            <div class="mini-legend">
+                                <span class="ml-item"><span class="ml-dot ml-green"></span>Present</span>
+                                <span class="ml-item"><span class="ml-dot" style="background:#DB2777"></span>Partial</span>
+                                <span class="ml-item"><span class="ml-dot ml-yellow"></span>Late/Half Day</span>
+                                <span class="ml-item"><span class="ml-dot ml-red"></span>Absent</span>
+                                <span class="ml-item"><span class="ml-dot ml-blue"></span>Paid Leave</span>
+                                <span class="ml-item"><span class="ml-dot ml-purple"></span>Holiday</span>
+                            </div>
+                        </div>
+
+                        <!-- Requests Panel -->
+                        <div class="requests-panel">
+                            <div class="panel-label-row">
+                                <span class="panel-label">My Requests</span>
+                            </div>
+                            <div class="requests-tabs">
+                                <button class="tab-btn active" onclick="switchTab('onduty', event)">
+                                    <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                    </svg>
+                                    On Duty
+                                </button>
+                                <button class="tab-btn" onclick="switchTab('leave', event)">
+                                    <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Leave
+                                </button>
+                            </div>
+                            <div class="tab-content active" id="onduty-tab">
+                                <div class="requests-list" id="onduty-requests">
+                                    <div class="loading-placeholder">Loading requests...</div>
                                 </div>
                             </div>
-
-                            <!-- Monthly Summary -->
-                            <div class="metrics-section">
-                                <div class="metrics-section-header">Monthly Summary</div>
-                                <div class="metrics-row">
-                                    {% if employee_type == 'In-House' %}
-                                    <div class="metric-item danger">
-                                        <span class="metric-label">Total Deductions</span>
-                                        <span class="metric-value bad">{{ summary.total_deductions }}</span>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-label">Leave Days</span>
-                                        <span class="metric-value bad">{{ summary.leave_days }}</span>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-label">Half Days</span>
-                                        <span class="metric-value">{{ summary.half_days }}</span>
-                                    </div>
-                                    <div class="metric-item warning">
-                                        <span class="metric-label">Late{% if summary.late_half_days > 0 %} ({{ summary.late_half_days }}&times;&frac12;){% endif %}</span>
-                                        <span class="metric-value warning">{{ summary.late_days }}</span>
-                                    </div>
-                                    <div class="metric-item info">
-                                        <span class="metric-label">Paid Leave</span>
-                                        <span class="metric-value info">{{ summary.paid_leave_days }}</span>
-                                    </div>
-                                    {% else %}
-                                    <div class="metric-item danger">
-                                        <span class="metric-label">Total Deductions</span>
-                                        <span class="metric-value bad">{{ summary.total_deductions }}</span>
-                                    </div>
-                                    <div class="metric-item success">
-                                        <span class="metric-label">Present</span>
-                                        <span class="metric-value">{{ summary.present_days }}</span>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-label">Absent</span>
-                                        <span class="metric-value bad">{{ summary.absent_days }}</span>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-label">Half Days</span>
-                                        <span class="metric-value">{{ summary.half_days }}</span>
-                                    </div>
-                                    <div class="metric-item info">
-                                        <span class="metric-label">Talk Hours</span>
-                                        <span class="metric-value">{{ summary.total_talk_hours }}</span>
-                                    </div>
-                                    {% endif %}
+                            <div class="tab-content" id="leave-tab">
+                                <div class="requests-list" id="leave-requests">
+                                    <div class="loading-placeholder">Loading requests...</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- My Requests Sidebar -->
-                        <div class="side-column">
-                            <div class="requests-section">
-                                <h3>My Requests</h3>
-                                <div class="requests-tabs">
-                                    <button class="tab-btn active" onclick="switchTab('onduty', event)">
-                                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                        </svg>
-                                        On Duty
-                                    </button>
-                                    <button class="tab-btn" onclick="switchTab('leave', event)">
-                                        <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                        Leave
-                                    </button>
-                                </div>
-                                <div class="tab-content active" id="onduty-tab">
-                                    <div class="requests-list" id="onduty-requests">
-                                        <div class="loading-placeholder">Loading requests...</div>
-                                    </div>
-                                </div>
-                                <div class="tab-content" id="leave-tab">
-                                    <div class="requests-list" id="leave-requests">
-                                        <div class="loading-placeholder">Loading requests...</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div><!-- /.dashboard-layout -->
+                    </div><!-- /.portal-content-grid -->
 
                 </div><!-- /.portal-content-card -->
-
             </div><!-- /.main-inner -->
 
         </main>
     </div><!-- /.app-layout -->
+
+    <!-- Full Calendar Modal -->
+    <div class="modal-overlay" id="calendarModal">
+        <div class="modal calendar-modal-xl">
+            <div class="modal-header">
+                <h3>
+                    <svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    {{ month_name }} {{ selected_year }}
+                </h3>
+                <button class="modal-close" onclick="closeCalendarModal()">&times;</button>
+            </div>
+            <div class="modal-body cal-modal-body">
+                <div class="cal-legend-bar">
+                    <span class="legend-item"><span class="legend-dot green"></span> Present</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#DB2777"></span> Partial (Grace)</span>
+                    <span class="legend-item"><span class="legend-dot yellow"></span> Late/Half Day</span>
+                    <span class="legend-item"><span class="legend-dot red"></span> Absent</span>
+                    <span class="legend-item"><span class="legend-dot blue"></span> Paid Leave</span>
+                    <span class="legend-item"><span class="legend-dot purple"></span> Holiday</span>
+                </div>
+                <div class="full-cal-hdr">
+                    {% for day in weekdays %}
+                    <div class="weekday {% if day == 'Sun' %}holiday-header{% endif %}">{{ day }}</div>
+                    {% endfor %}
+                </div>
+                <div class="full-cal-grid">
+                    {% for day in calendar_days %}
+                    {% if day %}
+                    {% with day_info=calendar_data|get_item:day %}
+                    {% if day_info %}
+                    <div class="calendar-day status-{{ day_info.status }}">
+                        <span class="day-number">{{ day }}</span>
+                        {% if day_info.status == 'holiday' %}
+                        <span class="status-text holiday">Holiday</span>
+                        {% elif day_info.status == 'absent' %}
+                        <span class="status-text absent">Absent</span>
+                        {% elif day_info.status == 'paid_leave' %}
+                        <span class="status-text paid-leave">Paid Leave</span>
+                        {% elif day_info.record %}
+                        {% if employee_type == 'Remote' %}
+                        <div class="work-hours">{{ day_info.talk_minutes }} min</div>
+                        <div class="call-count">
+                            <svg class="icon-svg-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            {{ day_info.answered_calls }} calls
+                        </div>
+                        <div class="status-badge status-badge-{{ day_info.status }}">
+                            {% if day_info.status == 'green' %}Present{% elif day_info.status == 'partial' %}Partial{% elif day_info.status == 'yellow' %}Half Day{% else %}Absent{% endif %}
+                        </div>
+                        {% else %}
+                        {% if day_info.record.work_duration %}
+                        <div class="work-hours">{{ day_info.record.work_duration }}</div>
+                        <div class="time-info">
+                            <span>In: {{ day_info.record.first_in|time:"H:i" }}</span>
+                            <span>Out: {{ day_info.record.last_out|time:"H:i" }}</span>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="calendar-day">
+                        <span class="day-number">{{ day }}</span>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    {% else %}
+                    <div class="calendar-day empty"></div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- On Duty Request Modal -->
     <div class="modal-overlay" id="earlyLeaveModal">
@@ -403,7 +502,7 @@
             if (el) el.textContent = d.toLocaleDateString('en-US', opts);
         })();
     </script>
-    <script src="{% static 'attendance/js/employee_portal.js' %}?v=1.8"></script>
+    <script src="{% static 'attendance/js/employee_portal.js' %}?v=1.9"></script>
 </body>
 
 </html>

@@ -5,100 +5,119 @@
 
 {% block extra_css %}
 <style>
-.upload-container { max-width: 900px; margin: 0 auto; padding: 0 1rem 2rem; }
+.upload-page { width: 100%; padding: 0 0 2.5rem; }
 
-/* Page Header */
-.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
-.page-header-left { display: flex; align-items: center; gap: 0.75rem; }
-.page-header-icon { width: 40px; height: 40px; background: var(--primary-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
-.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); margin: 0; }
-.page-header p { font-size: 0.82rem; color: var(--text-secondary); margin: 0.1rem 0 0; }
+/* ── Page Header ──────────────────────────────────────────────── */
+.page-header-left { display: flex; align-items: center; gap: 0.9rem; }
+.page-header-icon {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(29,78,216,.3);
+}
+.page-header h1 { font-size: 1.35rem; font-weight: 700; color: var(--text-primary); margin: 0; letter-spacing: -0.01em; }
+.page-header p { font-size: 0.82rem; color: var(--text-secondary); margin: 0.15rem 0 0; }
 
-/* Upload grid */
-.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem; }
-@media (max-width: 700px) { .upload-grid { grid-template-columns: 1fr; } }
+/* ── Console shell: left rail + single form pane ─────────────── */
+.console { max-width: 900px; margin: 0 auto; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); display: grid; grid-template-columns: 240px 1fr; }
 
-/* Cards */
-.upload-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.rail { padding: 1.25rem 0.75rem; border-right: 1px solid var(--border-color); }
+.rail-group + .rail-group { margin-top: 1.25rem; }
+.rail-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-light); padding: 0.2rem 0.65rem 0.5rem; }
 
-.card-head { display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.2rem; border-bottom: 1px solid var(--border-color); background: #f8fafc; }
-.card-head-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.card-head-icon.checkin { background: #ede9fe; color: #6d28d9; }
-.card-head-icon.remote { background: #dbeafe; color: #1d4ed8; }
-.card-head h2 { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin: 0; flex: 1; }
-.file-type-badge { font-size: 0.68rem; font-weight: 600; padding: 0.15rem 0.55rem; border-radius: 20px; white-space: nowrap; }
-.badge-excel { background: #dcfce7; color: #166534; }
-.badge-csv { background: #fef3c7; color: #92400e; }
+.rail-item { position: relative; display: flex; align-items: center; gap: 0.7rem; width: 100%; text-align: left; padding: 0.6rem 0.7rem; border: none; background: transparent; border-radius: var(--radius-md); cursor: pointer; margin-bottom: 2px; transition: background 0.15s; }
+.rail-item:hover { background: var(--bg-light); }
+.rail-item.active { background: var(--primary-light); }
+.rail-item::before { content: ''; position: absolute; left: -0.75rem; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: transparent; }
+.rail-item.active::before { background: var(--primary-color); }
+.rail-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #fff; color: var(--text-secondary); border: 1px solid var(--border-color); }
+.rail-item.active .rail-icon { color: var(--primary-color); border-color: var(--primary-color); }
+.rail-text { min-width: 0; }
+.rail-item-title { font-size: 0.84rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.rail-item.active .rail-item-title { color: var(--primary-color); }
+.rail-item-sub { font-size: 0.71rem; color: var(--text-light); margin-top: 1px; }
 
-.card-body { padding: 1.2rem; display: flex; flex-direction: column; gap: 0.85rem; }
+/* ── Form pane ────────────────────────────────────────────────── */
+.pane { padding: 2rem 2.25rem; }
+.pane-form { display: none; max-width: 480px; }
+.pane-form.active { display: block; }
 
-.card-desc { font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5; }
+.pane-head { margin-bottom: 1.5rem; }
+.pane-head h2 { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.35rem; }
+.pane-head p { font-size: 0.83rem; color: var(--text-secondary); margin: 0; line-height: 1.55; }
 
-/* Info banner */
-.info-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #1e40af; display: flex; gap: 0.6rem; align-items: flex-start; }
-.info-banner svg { flex-shrink: 0; margin-top: 1px; }
+.field { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.1rem; }
+.field label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem; }
+.field label .hint { margin-left: auto; }
 
-/* Rules table */
-.rules-section { border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
-.rules-section-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); padding: 0.55rem 0.9rem; background: #f8fafc; border-bottom: 1px solid var(--border-color); }
-.rule-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.9rem; border-bottom: 1px solid var(--border-color); }
-.rule-row:last-child { border-bottom: none; }
-.rule-day { font-size: 0.79rem; font-weight: 600; color: var(--text-primary); min-width: 65px; }
-.rule-thresholds { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-.threshold { padding: 0.12rem 0.45rem; border-radius: 4px; font-size: 0.71rem; font-weight: 500; }
-.threshold.absent { background: #fee2e2; color: #dc2626; }
-.threshold.half { background: #fef3c7; color: #92400e; }
-.threshold.present { background: #dcfce7; color: #166534; }
+/* ── Date / Month picker ──────────────────────────────────────── */
+.date-field { position: relative; cursor: pointer; }
+.date-field .field-icon { position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); color: var(--text-light); display: flex; align-items: center; pointer-events: none; transition: color 0.15s; }
+.date-field input[type="date"], .date-field input[type="month"] { padding-left: 2.75rem; cursor: pointer; }
+.date-field:focus-within .field-icon { color: var(--primary-color); }
+.date-field input[type="date"]::-webkit-calendar-picker-indicator,
+.date-field input[type="month"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 4px;
+    border-radius: 6px;
+    margin-right: -2px;
+    transition: opacity 0.15s, background 0.15s;
+}
+.date-field input[type="date"]:hover::-webkit-calendar-picker-indicator,
+.date-field input[type="month"]:hover::-webkit-calendar-picker-indicator,
+.date-field input:focus::-webkit-calendar-picker-indicator {
+    opacity: 1;
+    background: var(--primary-light);
+}
 
-/* Form fields */
-.form-group { display: flex; flex-direction: column; gap: 0.3rem; }
-.form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem; }
-.form-group input[type="date"] { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 7px; padding: 0.5rem 0.7rem; font-size: 0.85rem; color: var(--text-primary); width: 100%; box-sizing: border-box; }
-.form-group input[type="date"]:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(79,70,229,.1); }
-.optional-note { font-size: 0.7rem; color: #059669; background: #ecfdf5; padding: 0.1rem 0.4rem; border-radius: 10px; font-weight: 500; margin-left: auto; }
+/* ── Month / Year selector ────────────────────────────────────── */
+.month-select-row { display: flex; gap: 0.6rem; }
+.month-select-row select.month-select { flex: 1.4; }
+.month-select-row select.month-select + select.month-select { flex: 1; }
 
-/* File drop zone */
-.drop-zone { position: relative; border: 1px dashed var(--border-color); border-radius: 8px; padding: 1.1rem 1rem; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
-.drop-zone:hover, .drop-zone.drag-over { border-color: var(--primary-color); background: #f5f3ff; }
-.drop-zone.has-file { border-style: solid; border-color: #10b981; background: #f0fdf4; }
-.drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-.drop-zone-content { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; pointer-events: none; }
-.drop-zone-icon { width: 36px; height: 36px; background: #ede9fe; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6d28d9; margin-bottom: 0.15rem; }
-.drop-zone-icon.remote { background: #dbeafe; color: #1d4ed8; }
-.drop-text { font-size: 0.83rem; color: var(--text-secondary); margin: 0; }
-.drop-text span { color: var(--primary-color); font-weight: 600; }
-.drop-hint { font-size: 0.73rem; color: #94a3b8; margin: 0; }
+/* ── Drop zone ────────────────────────────────────────────────── */
+.dropzone { position: relative; border: 1.5px dashed var(--border-color); border-radius: var(--radius-md); padding: 1.15rem 1rem; text-align: center; cursor: pointer; background: var(--bg-light); transition: border-color 0.15s, background 0.15s; }
+.dropzone:hover, .dropzone.drag-over { border-color: var(--primary-color); background: var(--primary-light); }
+.dropzone.has-file { border-style: solid; border-color: var(--success-color); background: var(--success-light); }
+.dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.dropzone-idle { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; pointer-events: none; }
+.dropzone-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--primary-light); color: var(--primary-color); margin-bottom: 0.1rem; }
+.dropzone-text { font-size: 0.82rem; color: var(--text-secondary); margin: 0; }
+.dropzone-text b { color: var(--primary-color); font-weight: 600; }
+.dropzone-hint { font-size: 0.72rem; color: var(--text-light); margin: 0; }
 
-.file-selected-row { display: flex; align-items: center; gap: 0.6rem; color: #059669; pointer-events: none; padding: 0 0.2rem; }
-.file-selected-row svg { flex-shrink: 0; }
-.sel-file-name { font-size: 0.85rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.remove-btn { width: 24px; height: 24px; border-radius: 50%; background: #fee2e2; color: #dc2626; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; pointer-events: auto; flex-shrink: 0; line-height: 1; }
-.remove-btn:hover { background: #dc2626; color: white; }
+.file-picked { display: flex; align-items: center; gap: 0.6rem; color: var(--success-color); pointer-events: none; padding: 0 0.15rem; }
+.file-picked svg { flex-shrink: 0; }
+.file-picked-name { font-size: 0.85rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.file-remove { width: 22px; height: 22px; border-radius: 50%; background: var(--danger-light); color: var(--danger-color); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; pointer-events: auto; flex-shrink: 0; line-height: 1; }
+.file-remove:hover { background: var(--danger-color); color: #fff; }
 
-/* Upload type toggle */
-.upload-type-toggle { display: flex; background: #f1f5f9; border-radius: 8px; padding: 3px; gap: 2px; }
-.toggle-btn { flex: 1; padding: 0.4rem 0.75rem; border: none; background: transparent; border-radius: 6px; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all .15s; text-align: center; }
-.toggle-btn.active { background: white; color: var(--primary-color); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.field-note { font-size: 0.74rem; color: var(--text-light); margin: 0.4rem 0 0; }
 
-/* Submit button */
-.btn-upload { background: var(--primary-color); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; transition: opacity .15s; }
-.btn-upload:hover { opacity: .88; }
+.btn-submit { width: 100%; margin-top: 0.4rem; }
 
-/* Bottom info row */
-.info-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-@media (max-width: 700px) { .info-row { grid-template-columns: 1fr; } }
-.info-item { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.9rem 1rem; display: flex; gap: 0.75rem; align-items: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-.info-item-icon { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.info-item-icon.purple { background: #ede9fe; color: #6d28d9; }
-.info-item-icon.green  { background: #dcfce7; color: #166534; }
-.info-item-icon.amber  { background: #fef3c7; color: #92400e; }
-.info-item h4 { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.2rem; }
-.info-item p  { font-size: 0.78rem; color: var(--text-secondary); margin: 0; line-height: 1.45; }
+/* ── Footer note ──────────────────────────────────────────────── */
+.footer-note { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; color: var(--text-light); margin-top: 1rem; padding: 0 0.25rem; }
+.footer-note svg { flex-shrink: 0; }
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 800px) {
+    .console { grid-template-columns: 1fr; }
+    .rail { border-right: none; border-bottom: 1px solid var(--border-color); display: flex; flex-wrap: wrap; gap: 4px; padding: 0.9rem; }
+    .rail-group { display: contents; }
+    .rail-label { display: none; }
+    .rail-item { width: auto; flex: 1 1 auto; }
+    .rail-item::before { display: none; }
+    .pane { padding: 1.5rem 1.25rem; }
+    .pane-form { max-width: none; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="upload-container">
+<div class="upload-page">
 
     <!-- Page Header -->
     <div class="page-header">
@@ -117,232 +136,238 @@
         </div>
     </div>
 
-    <!-- Upload Cards Grid -->
-    <div class="upload-grid">
+    <!-- Console: rail + single active form -->
+    <div class="console">
 
-        <!-- Checkin/Checkout Card -->
-        <div class="upload-card">
-            <div class="card-head">
-                <div class="card-head-icon checkin">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                        <path d="M9 16l2 2 4-4"/>
-                    </svg>
-                </div>
-                <h2>Checkin / Checkout</h2>
-                <span class="file-type-badge badge-excel">Excel</span>
+        <!-- Left Rail -->
+        <div class="rail">
+            <div class="rail-group">
+                <div class="rail-label">Checkin / Checkout</div>
+                <button type="button" class="rail-item active" data-target="pane-single" onclick="selectPane('pane-single', this)">
+                    <span class="rail-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </span>
+                    <span class="rail-text">
+                        <div class="rail-item-title">Single Day</div>
+                        <div class="rail-item-sub">.xlsx / .xls punch report</div>
+                    </span>
+                </button>
+                <button type="button" class="rail-item" data-target="pane-multiday" onclick="selectPane('pane-multiday', this)">
+                    <span class="rail-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg>
+                    </span>
+                    <span class="rail-text">
+                        <div class="rail-item-title">Multi-Day</div>
+                        <div class="rail-item-sub">.xls daily report range</div>
+                    </span>
+                </button>
             </div>
-            <div class="card-body">
-                <p class="card-desc">Upload daily employee attendance from biometric machine exports. The date is auto-extracted from <strong>.xls</strong> punch reports; override it for <strong>.xlsx</strong> files.</p>
 
+            <div class="rail-group">
+                <div class="rail-label">Remote Call Statistics</div>
+                <button type="button" class="rail-item" data-target="pane-remote-daily" onclick="selectPane('pane-remote-daily', this)">
+                    <span class="rail-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    </span>
+                    <span class="rail-text">
+                        <div class="rail-item-title">Daily</div>
+                        <div class="rail-item-sub">.csv single day</div>
+                    </span>
+                </button>
+                <button type="button" class="rail-item" data-target="pane-remote-monthly" onclick="selectPane('pane-remote-monthly', this)">
+                    <span class="rail-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </span>
+                    <span class="rail-text">
+                        <div class="rail-item-title">Monthly</div>
+                        <div class="rail-item-sub">.csv full month</div>
+                    </span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Form Pane -->
+        <div class="pane">
+
+            <!-- Single Day -->
+            <div class="pane-form active" id="pane-single">
+                <div class="pane-head">
+                    <h2>Checkin / Checkout — Single Day</h2>
+                    <p>Upload one day's biometric punch report. Re-uploading for the same date updates existing records instead of creating duplicates.</p>
+                </div>
                 <form method="post" enctype="multipart/form-data" id="checkin-form">
                     {% csrf_token %}
-
-                    <div class="form-group" style="margin-bottom:.85rem">
+                    <div class="field">
                         <label for="date">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                             Date
-                            <span class="optional-note">Optional for .xls</span>
+                            <span class="badge badge-gray hint">Optional for .xls</span>
                         </label>
-                        <input type="date" name="date" id="date">
+                        <div class="date-field" onclick="if(this.querySelector('input').showPicker){try{this.querySelector('input').showPicker()}catch(e){}}">
+                            <span class="field-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            </span>
+                            <input type="date" name="date" id="date">
+                        </div>
                     </div>
-
-                    <div class="form-group" style="margin-bottom:.85rem">
+                    <div class="field">
                         <label>
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
                             Select File
                         </label>
-                        <div class="drop-zone" id="checkin-drop">
+                        <div class="dropzone" id="checkin-drop">
                             <input type="file" name="file" id="file" accept=".xlsx,.xls" required>
-                            <div class="drop-zone-content" id="checkin-content">
-                                <div class="drop-zone-icon">
+                            <div class="dropzone-idle" id="checkin-content">
+                                <div class="dropzone-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                                 </div>
-                                <p class="drop-text">Drop file here or <span>browse</span></p>
-                                <p class="drop-hint">.xlsx and .xls supported</p>
+                                <p class="dropzone-text">Drop file here or <b>browse</b></p>
+                                <p class="dropzone-hint">.xlsx and .xls supported</p>
                             </div>
-                            <div class="file-selected-row" id="checkin-selected" style="display:none">
+                            <div class="file-picked" id="checkin-selected" style="display:none">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                                <span class="sel-file-name" id="checkin-fname"></span>
-                                <button type="button" class="remove-btn" id="checkin-remove">&times;</button>
+                                <span class="file-picked-name" id="checkin-fname"></span>
+                                <button type="button" class="file-remove" id="checkin-remove">&times;</button>
                             </div>
                         </div>
                     </div>
-
-                    <button type="submit" class="btn-upload">
+                    <button type="submit" class="btn btn-primary btn-submit">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         Upload &amp; Process
                     </button>
                 </form>
             </div>
-        </div>
 
-        <!-- Remote Call Statistics Card -->
-        <div class="upload-card">
-            <div class="card-head">
-                <div class="card-head-icon remote">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                    </svg>
+            <!-- Multi-Day -->
+            <div class="pane-form" id="pane-multiday">
+                <div class="pane-head">
+                    <h2>Checkin / Checkout — Multi-Day</h2>
+                    <p>Upload a full date-range daily report. Dates are read directly from the file, so no date selection is needed.</p>
                 </div>
-                <h2>Remote Call Statistics</h2>
-                <span class="file-type-badge badge-csv">CSV</span>
-            </div>
-            <div class="card-body">
-                <p class="card-desc">Import remote team call data. Attendance is auto-calculated from talk duration thresholds per weekday.</p>
-
-                <!-- Attendance Rules -->
-                <div class="rules-section">
-                    <div class="rules-section-title">Talk Duration Thresholds</div>
-                    <div class="rule-row">
-                        <span class="rule-day">Mon – Thu</span>
-                        <div class="rule-thresholds">
-                            <span class="threshold absent">&lt; 45 min</span>
-                            <span class="threshold half">45 – 89 min</span>
-                            <span class="threshold present">≥ 90 min</span>
-                        </div>
-                    </div>
-                    <div class="rule-row">
-                        <span class="rule-day">Friday</span>
-                        <div class="rule-thresholds">
-                            <span class="threshold absent">&lt; 30 min</span>
-                            <span class="threshold half">30 – 59 min</span>
-                            <span class="threshold present">≥ 60 min</span>
-                        </div>
-                    </div>
-                    <div class="rule-row">
-                        <span class="rule-day">Saturday</span>
-                        <div class="rule-thresholds">
-                            <span class="threshold absent">≤ 20 min</span>
-                            <span class="threshold half">21 – 44 min</span>
-                            <span class="threshold present">≥ 45 min</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Daily / Monthly Toggle -->
-                <div class="upload-type-toggle">
-                    <button type="button" class="toggle-btn active" id="toggle-daily" onclick="switchRemoteMode('daily')">Daily</button>
-                    <button type="button" class="toggle-btn" id="toggle-monthly" onclick="switchRemoteMode('monthly')">Monthly</button>
-                </div>
-
-                <!-- Daily Upload Form -->
-                <form method="post" action="{% url 'upload_remote' %}" enctype="multipart/form-data" id="remote-form">
+                <form method="post" action="{% url 'upload_multiday' %}" enctype="multipart/form-data" id="multiday-form">
                     {% csrf_token %}
-
-                    <div class="form-group" style="margin-bottom:.85rem">
-                        <label for="remote_date">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                            Date
-                        </label>
-                        <input type="date" name="remote_date" id="remote_date" required>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom:.85rem">
+                    <div class="field">
                         <label>
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
                             Select File
                         </label>
-                        <div class="drop-zone" id="remote-drop">
-                            <input type="file" name="remote_file" id="remote_file" accept=".csv" required>
-                            <div class="drop-zone-content" id="remote-content">
-                                <div class="drop-zone-icon remote">
+                        <div class="dropzone" id="multiday-drop">
+                            <input type="file" name="multiday_file" id="multiday_file" accept=".xls" required>
+                            <div class="dropzone-idle" id="multiday-content">
+                                <div class="dropzone-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                                 </div>
-                                <p class="drop-text">Drop file here or <span>browse</span></p>
-                                <p class="drop-hint">.csv only</p>
+                                <p class="dropzone-text">Drop file here or <b>browse</b></p>
+                                <p class="dropzone-hint">.xls daily report (multi-day)</p>
                             </div>
-                            <div class="file-selected-row" id="remote-selected" style="display:none">
+                            <div class="file-picked" id="multiday-selected" style="display:none">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                                <span class="sel-file-name" id="remote-fname"></span>
-                                <button type="button" class="remove-btn" id="remote-remove">&times;</button>
+                                <span class="file-picked-name" id="multiday-fname"></span>
+                                <button type="button" class="file-remove" id="multiday-remove">&times;</button>
+                            </div>
+                        </div>
+                        <p class="field-note">Only the .xls "Daily Report" export (multiple days per file) is accepted here.</p>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-submit">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Upload Multi-Day Report
+                    </button>
+                </form>
+            </div>
+
+            <!-- Remote Daily -->
+            <div class="pane-form" id="pane-remote-daily">
+                <div class="pane-head">
+                    <h2>Remote Call Statistics — Daily</h2>
+                    <p>Import one day's call stats for the remote team. Attendance status is calculated automatically from talk duration.</p>
+                </div>
+                <form method="post" action="{% url 'upload_remote' %}" enctype="multipart/form-data" id="remote-form">
+                    {% csrf_token %}
+                    <div class="field">
+                        <label for="remote_date">Date</label>
+                        <div class="date-field" onclick="if(this.querySelector('input').showPicker){try{this.querySelector('input').showPicker()}catch(e){}}">
+                            <span class="field-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            </span>
+                            <input type="date" name="remote_date" id="remote_date" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                            Select File
+                        </label>
+                        <div class="dropzone" id="remote-drop">
+                            <input type="file" name="remote_file" id="remote_file" accept=".csv" required>
+                            <div class="dropzone-idle" id="remote-content">
+                                <div class="dropzone-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                </div>
+                                <p class="dropzone-text">Drop file here or <b>browse</b></p>
+                                <p class="dropzone-hint">.csv only</p>
+                            </div>
+                            <div class="file-picked" id="remote-selected" style="display:none">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                                <span class="file-picked-name" id="remote-fname"></span>
+                                <button type="button" class="file-remove" id="remote-remove">&times;</button>
                             </div>
                         </div>
                     </div>
-
-                    <button type="submit" class="btn-upload">
+                    <button type="submit" class="btn btn-primary btn-submit">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         Upload Daily Statistics
                     </button>
                 </form>
+            </div>
 
-                <!-- Monthly Upload Form -->
-                <form method="post" action="{% url 'upload_remote_monthly' %}" enctype="multipart/form-data" id="remote-monthly-form" style="display:none">
+            <!-- Remote Monthly -->
+            <div class="pane-form" id="pane-remote-monthly">
+                <div class="pane-head">
+                    <h2>Remote Call Statistics — Monthly</h2>
+                    <p>Import a full month's call stats in one file, with a per-day breakdown.</p>
+                </div>
+                <form method="post" action="{% url 'upload_remote_monthly' %}" enctype="multipart/form-data" id="remote-monthly-form">
                     {% csrf_token %}
-
-                    <div class="form-group" style="margin-bottom:.85rem">
-                        <label for="remote_month">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                            Month
-                        </label>
-                        <input type="month" name="remote_month" id="remote_month" required>
+                    <div class="field">
+                        <label>Month</label>
+                        <div class="month-select-row">
+                            <select id="remote_month_month" class="month-select"></select>
+                            <select id="remote_month_year" class="month-select"></select>
+                        </div>
+                        <input type="hidden" name="remote_month" id="remote_month">
                     </div>
-
-                    <div class="form-group" style="margin-bottom:.85rem">
+                    <div class="field">
                         <label>
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
                             Select File
                         </label>
-                        <div class="drop-zone" id="remote-monthly-drop">
+                        <div class="dropzone" id="remote-monthly-drop">
                             <input type="file" name="remote_monthly_file" id="remote_monthly_file" accept=".csv" required>
-                            <div class="drop-zone-content" id="remote-monthly-content">
-                                <div class="drop-zone-icon remote">
+                            <div class="dropzone-idle" id="remote-monthly-content">
+                                <div class="dropzone-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                                 </div>
-                                <p class="drop-text">Drop file here or <span>browse</span></p>
-                                <p class="drop-hint">.csv with Date column (per-day breakdown)</p>
+                                <p class="dropzone-text">Drop file here or <b>browse</b></p>
+                                <p class="dropzone-hint">.csv with Date column</p>
                             </div>
-                            <div class="file-selected-row" id="remote-monthly-selected" style="display:none">
+                            <div class="file-picked" id="remote-monthly-selected" style="display:none">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                                <span class="sel-file-name" id="remote-monthly-fname"></span>
-                                <button type="button" class="remove-btn" id="remote-monthly-remove">&times;</button>
+                                <span class="file-picked-name" id="remote-monthly-fname"></span>
+                                <button type="button" class="file-remove" id="remote-monthly-remove">&times;</button>
                             </div>
                         </div>
+                        <p class="field-note">The CSV must include a per-row Date column covering the whole month.</p>
                     </div>
-
-                    <button type="submit" class="btn-upload">
+                    <button type="submit" class="btn btn-primary btn-submit">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         Upload Monthly Statistics
                     </button>
                 </form>
             </div>
-        </div>
 
-    </div><!-- /upload-grid -->
-
-    <!-- Info Row -->
-    <div class="info-row">
-        <div class="info-item">
-            <div class="info-item-icon purple">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            </div>
-            <div>
-                <h4>File Format</h4>
-                <p>Ensure files contain the required columns and follow the expected format for accurate processing.</p>
-            </div>
-        </div>
-        <div class="info-item">
-            <div class="info-item-icon green">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            </div>
-            <div>
-                <h4>Auto Processing</h4>
-                <p>Files are validated and processed automatically. Check reports after upload.</p>
-            </div>
-        </div>
-        <div class="info-item">
-            <div class="info-item-icon amber">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            </div>
-            <div>
-                <h4>Duplicate Prevention</h4>
-                <p>Re-uploading for the same date updates existing records rather than creating duplicates.</p>
-            </div>
         </div>
     </div>
 
-</div><!-- /upload-container -->
+</div><!-- /upload-page -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -384,28 +409,49 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    initDropZone('checkin-drop', 'file',        'checkin-content', 'checkin-selected', 'checkin-fname', 'checkin-remove');
-    initDropZone('remote-drop',  'remote_file', 'remote-content',  'remote-selected',  'remote-fname',  'remote-remove');
+    initDropZone('checkin-drop',  'file',             'checkin-content',  'checkin-selected',  'checkin-fname',  'checkin-remove');
+    initDropZone('multiday-drop', 'multiday_file',    'multiday-content', 'multiday-selected', 'multiday-fname', 'multiday-remove');
+    initDropZone('remote-drop',   'remote_file',      'remote-content',   'remote-selected',   'remote-fname',   'remote-remove');
     initDropZone('remote-monthly-drop', 'remote_monthly_file', 'remote-monthly-content', 'remote-monthly-selected', 'remote-monthly-fname', 'remote-monthly-remove');
+
+    (function initMonthPicker() {
+        var monthSel = document.getElementById('remote_month_month');
+        var yearSel  = document.getElementById('remote_month_year');
+        var hidden   = document.getElementById('remote_month');
+        if (!monthSel || !yearSel || !hidden) return;
+
+        var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        var now = new Date();
+
+        monthNames.forEach(function (name, idx) {
+            var opt = document.createElement('option');
+            opt.value = String(idx + 1).padStart(2, '0');
+            opt.textContent = name;
+            if (idx === now.getMonth()) opt.selected = true;
+            monthSel.appendChild(opt);
+        });
+
+        var currentYear = now.getFullYear();
+        for (var y = currentYear; y >= currentYear - 4; y--) {
+            var opt = document.createElement('option');
+            opt.value = String(y);
+            opt.textContent = String(y);
+            if (y === currentYear) opt.selected = true;
+            yearSel.appendChild(opt);
+        }
+
+        function updateHidden() { hidden.value = yearSel.value + '-' + monthSel.value; }
+        monthSel.addEventListener('change', updateHidden);
+        yearSel.addEventListener('change', updateHidden);
+        updateHidden();
+    })();
 });
 
-function switchRemoteMode(mode) {
-    var dailyForm    = document.getElementById('remote-form');
-    var monthlyForm  = document.getElementById('remote-monthly-form');
-    var toggleDaily   = document.getElementById('toggle-daily');
-    var toggleMonthly = document.getElementById('toggle-monthly');
-
-    if (mode === 'monthly') {
-        dailyForm.style.display   = 'none';
-        monthlyForm.style.display = 'block';
-        toggleDaily.classList.remove('active');
-        toggleMonthly.classList.add('active');
-    } else {
-        dailyForm.style.display   = 'block';
-        monthlyForm.style.display = 'none';
-        toggleDaily.classList.add('active');
-        toggleMonthly.classList.remove('active');
-    }
+function selectPane(paneId, railBtn) {
+    document.querySelectorAll('.pane-form').forEach(function (el) { el.classList.remove('active'); });
+    document.querySelectorAll('.rail-item').forEach(function (el) { el.classList.remove('active'); });
+    document.getElementById(paneId).classList.add('active');
+    railBtn.classList.add('active');
 }
 </script>
 {% endblock %}

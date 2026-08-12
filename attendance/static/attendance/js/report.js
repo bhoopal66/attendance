@@ -1,4 +1,41 @@
-/* Report page JavaScript - Static version */
+/* Attendance Report page JavaScript — unified in-house + remote report */
+
+// ============================================
+// Live Search (client-side, no page reload)
+// ============================================
+
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('reportSearchInput');
+    if (!searchInput) return;
+
+    const rows = document.querySelectorAll('.emp-row[data-name]');
+    const emptyState = document.getElementById('liveSearchEmpty');
+    const table = document.querySelector('.emp-table');
+
+    function applyLiveSearch() {
+        const term = searchInput.value.trim().toLowerCase();
+        let visibleCount = 0;
+
+        rows.forEach(function (row) {
+            const match = !term || row.dataset.name.indexOf(term) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+
+        const noMatches = term && visibleCount === 0;
+        if (table) table.style.display = noMatches ? 'none' : '';
+        if (emptyState) emptyState.style.display = noMatches ? 'flex' : 'none';
+    }
+
+    searchInput.addEventListener('input', applyLiveSearch);
+
+    // Filtering is live now — don't let Enter trigger a full page reload
+    searchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') e.preventDefault();
+    });
+
+    applyLiveSearch();
+});
 
 // ============================================
 // Download Functions
@@ -18,9 +55,8 @@ document.addEventListener('click', function (e) {
 });
 
 function downloadEmployeeReport(employeeId, employeeName) {
-    // Get config from data attributes
     const config = window.reportConfig || {};
-    const baseUrl = config.downloadEmployeeReportUrl || '/report/download/employee/';
+    const baseUrl = config.downloadEmployeeReportUrl || '/report/download/employee/0/';
     const month = config.selectedMonth;
     const year = config.selectedYear;
 
@@ -65,6 +101,53 @@ function downloadReport() {
         .catch(error => console.error('Download failed:', error));
 }
 
+function downloadRemoteEmployeeReport(employeeId, employeeName) {
+    const config = window.reportConfig || {};
+    const baseUrl = config.downloadRemoteEmployeeReportUrl || '/report/remote/download/employee/0/';
+    const month = config.selectedMonth;
+    const year = config.selectedYear;
+
+    const url = baseUrl.replace('/0/', '/' + employeeId + '/') + '?month=' + month + '&year=' + year;
+    const filename = employeeName.replace(/\s+/g, '_') + '_Remote_Stats_' + year + '_' + month + '.xlsx';
+
+    fetch(url)
+        .then(r => r.blob())
+        .then(blob => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        })
+        .catch(err => console.error('Download failed:', err));
+}
+
+function downloadRemoteReport() {
+    const config = window.reportConfig || {};
+    const baseUrl = config.downloadRemoteReportUrl || '/report/remote/download/';
+    const month = config.selectedMonth;
+    const year = config.selectedYear;
+    const showInactive = config.showInactive ? '&show_inactive=1' : '';
+
+    const url = baseUrl + '?month=' + month + '&year=' + year + showInactive;
+    const filename = 'Remote_Attendance_Report_' + year + '_' + month + '.xlsx';
+
+    fetch(url)
+        .then(r => r.blob())
+        .then(blob => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        })
+        .catch(err => console.error('Download failed:', err));
+}
+
 // ============================================
 // Calendar Day Classification
 // ============================================
@@ -89,10 +172,10 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ============================================
-// Edit Modal Functions
+// Edit Modal Functions (in-house)
 // ============================================
 
-function openEditModal(employeeId, employeeName, day, firstIn, lastOut, isWfh) {
+function openEditModal(employeeId, employeeName, day, firstIn, lastOut, isWfh, isPaidLeave) {
     const modal = document.getElementById('editModal');
     if (!modal) return;
 
@@ -113,6 +196,7 @@ function openEditModal(employeeId, employeeName, day, firstIn, lastOut, isWfh) {
     document.getElementById('editFirstIn').value = firstIn || '';
     document.getElementById('editLastOut').value = lastOut || '';
     document.getElementById('editWfh').checked = isWfh || false;
+    document.getElementById('editPaidLeave').checked = isPaidLeave || false;
 
     // Clear any previous messages
     const msgEl = document.getElementById('modalMessage');
@@ -148,7 +232,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 date: document.getElementById('editDate').value,
                 first_in: document.getElementById('editFirstIn').value || null,
                 last_out: document.getElementById('editLastOut').value || null,
-                is_work_from_home: document.getElementById('editWfh').checked
+                is_work_from_home: document.getElementById('editWfh').checked,
+                is_paid_leave: document.getElementById('editPaidLeave').checked
             };
 
             fetch(config.updateAttendanceUrl || '/api/attendance/update/', {
@@ -194,6 +279,119 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
+// ============================================
+// Edit Modal Functions (remote)
+// ============================================
+
+function openRemoteEditModal(employeeId, employeeName, day, talkMinutes, answeredCalls) {
+    const config = window.reportConfig || {};
+    const year = config.selectedYear;
+    const month = config.selectedMonth;
+
+    const monthStr = String(month).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const dateStr = year + '-' + monthStr + '-' + dayStr;
+
+    const dateObj = new Date(year, month - 1, day);
+    const displayDate = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    document.getElementById('remoteModalEmployeeName').textContent = employeeName;
+    document.getElementById('remoteModalDate').textContent = displayDate;
+    document.getElementById('remoteEditEmployeeId').value = employeeId;
+    document.getElementById('remoteEditDate').value = dateStr;
+    document.getElementById('remoteEditTalkMinutes').value = talkMinutes || 0;
+    document.getElementById('remoteEditAnsweredCalls').value = answeredCalls || 0;
+
+    const msg = document.getElementById('remoteModalMessage');
+    msg.style.display = 'none';
+    msg.className = 'modal-message';
+
+    document.getElementById('remoteEditModal').classList.add('show');
+}
+
+function closeRemoteEditModal() {
+    document.getElementById('remoteEditModal').classList.remove('show');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('remoteEditForm');
+    if (!form) return;
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const config = window.reportConfig || {};
+        const saveBtn = document.getElementById('remoteSaveBtn');
+        const msg = document.getElementById('remoteModalMessage');
+
+        const payload = {
+            employee_id: parseInt(document.getElementById('remoteEditEmployeeId').value),
+            date: document.getElementById('remoteEditDate').value,
+            talk_minutes: parseInt(document.getElementById('remoteEditTalkMinutes').value) || 0,
+            answered_calls: parseInt(document.getElementById('remoteEditAnsweredCalls').value) || 0,
+        };
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+
+        fetch(config.updateRemoteAttendanceUrl || '/api/remote/attendance/update/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                msg.textContent = 'Saved! Reload to see updated calendar.';
+                msg.className = 'modal-message success';
+                msg.style.display = 'block';
+                setTimeout(function() {
+                    closeRemoteEditModal();
+                    window.location.reload();
+                }, 900);
+            } else {
+                msg.textContent = data.error || 'Failed to save.';
+                msg.className = 'modal-message error';
+                msg.style.display = 'block';
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Changes';
+            }
+        })
+        .catch(function() {
+            msg.textContent = 'Network error. Please try again.';
+            msg.className = 'modal-message error';
+            msg.style.display = 'block';
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Changes';
+        });
+    });
+
+    // Close edit modal on backdrop click
+    const remoteEditModalEl = document.getElementById('remoteEditModal');
+    if (remoteEditModalEl) {
+        remoteEditModalEl.addEventListener('click', function(e) {
+            if (e.target === this) closeRemoteEditModal();
+        });
+    }
+
+    // Esc closes whichever edit modal is open first, before falling through to the
+    // calendar modal's own Esc handler
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        const remoteModal = document.getElementById('remoteEditModal');
+        const inhouseModal = document.getElementById('editModal');
+        if (remoteModal && remoteModal.classList.contains('show')) {
+            closeRemoteEditModal();
+            e.preventDefault();
+        } else if (inhouseModal && inhouseModal.classList.contains('show')) {
+            closeEditModal();
+            e.preventDefault();
+        }
+    });
+});
+
 // Request Approval Modal functions are defined in base.js
 // Do not duplicate them here to avoid overriding the instant approval logic
 
@@ -202,17 +400,8 @@ document.addEventListener('DOMContentLoaded', function () {
 // ============================================
 
 function getCsrfToken() {
-    const name = 'csrftoken';
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
+    const el = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (el) return el.value;
+    const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+    return cookie ? cookie.split('=')[1].trim() : '';
 }

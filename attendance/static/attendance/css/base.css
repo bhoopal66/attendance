@@ -182,7 +182,7 @@ a:hover {
 .logo-icon {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 60%, #1E40AF 100%);
+    background: #ffffff;
     border-radius: 9px;
     display: flex;
     align-items: center;
@@ -235,6 +235,58 @@ a:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.15);
     color: white;
+}
+
+/* Global Working Period Selector */
+.sidebar-period {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--sidebar-border);
+    flex-shrink: 0;
+}
+
+.sidebar-period-label {
+    display: block;
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.3);
+    margin-bottom: 6px;
+    white-space: nowrap;
+    transition: opacity var(--transition-sidebar);
+}
+
+.sidebar-period-row {
+    display: flex;
+    gap: 6px;
+}
+
+.sidebar-period-select {
+    flex: 1;
+    min-width: 0;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 6px 5px;
+    border-radius: 6px;
+    outline: none;
+    cursor: pointer;
+}
+
+.sidebar-period-select:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.sidebar-period-select option {
+    background: #16213a;
+    color: white;
+}
+
+body.sidebar-collapsed .sidebar-period {
+    display: none;
 }
 
 /* Navigation */

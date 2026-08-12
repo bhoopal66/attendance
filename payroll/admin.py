@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PayrollAdjustment, Bank, BankSubmission, ExchangeRate
+from .models import PayrollAdjustment, Bank, BankSubmission, ExchangeRate, CommissionTierSettings
 
 
 @admin.register(PayrollAdjustment)
@@ -20,7 +20,7 @@ class PayrollAdjustmentAdmin(admin.ModelAdmin):
 
 @admin.register(Bank)
 class BankAdmin(admin.ModelAdmin):
-    list_display = ('name', 'per_account_charge', 'is_active', 'created_at')
+    list_display = ('name', 'per_account_charge', 'inr_per_account_charge', 'npr_per_account_charge', 'is_active', 'created_at')
     list_filter = ('is_active',)
     search_fields = ('name',)
 
@@ -46,3 +46,8 @@ class ExchangeRateAdmin(admin.ModelAdmin):
     list_display = ('currency', 'year', 'month', 'rate', 'updated_at')
     list_filter = ('currency', 'year')
     ordering = ('-year', '-month')
+
+
+@admin.register(CommissionTierSettings)
+class CommissionTierSettingsAdmin(admin.ModelAdmin):
+    list_display = ('currency', 'threshold', 'overflow_rate', 'updated_at')

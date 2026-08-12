@@ -1,0 +1,434 @@
+{% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block title %}User Management - Taamul{% endblock %}
+{% block page_title %}User Management{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'attendance/css/leave_management.css' %}?v=8">
+<style>
+    .role-badge {
+        display: inline-block;
+        padding: .2rem .6rem;
+        border-radius: 20px;
+        font-size: .72rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        margin-right: .3rem;
+    }
+    .role-badge.superuser { background: #ede9fe; color: #6d28d9; }
+    .role-badge.staff     { background: #eff6ff; color: #1d4ed8; }
+    .role-badge.itadmin   { background: #fef3c7; color: #92400e; }
+    .role-badge.restricted{ background: #f1f5f9; color: #475569; }
+    .role-badge.inactive  { background: #fee2e2; color: #991b1b; }
+    .role-badge.active    { background: #dcfce7; color: #166534; }
+    .td-roles { min-width: 220px; }
+    .td-actions { white-space: nowrap; }
+
+    .um-modal-overlay {
+        display: none;
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,.45);
+        z-index: 1100;
+        align-items: center;
+        justify-content: center;
+    }
+    .um-modal-overlay.show { display: flex; }
+    .um-modal {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        width: 440px;
+        max-width: 95vw;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    }
+    .um-modal h3 { margin: 0 0 1rem; font-size: 1.05rem; }
+    .um-field { margin-bottom: .9rem; }
+    .um-field label { display: block; font-size: .8rem; font-weight: 600; color: var(--text-muted); margin-bottom: .3rem; }
+    .um-field input[type="text"],
+    .um-field input[type="email"],
+    .um-field input[type="password"] {
+        width: 100%; border: 1.5px solid var(--border-color);
+        border-radius: 8px; padding: .55rem .75rem;
+        font-size: .85rem; font-family: inherit; box-sizing: border-box;
+    }
+    .um-field-row { display: flex; gap: .75rem; }
+    .um-field-row .um-field { flex: 1; }
+    .um-checks { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }
+    .um-check { display: flex; align-items: center; gap: .5rem; font-size: .85rem; }
+    .um-check input { width: 16px; height: 16px; }
+    .um-hint { font-size: .74rem; color: var(--text-muted); margin-top: -.5rem; margin-bottom: .9rem; }
+    .um-modal-actions { display: flex; gap: .6rem; justify-content: flex-end; margin-top: .5rem; }
+    .um-modal-error {
+        background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+        border-radius: 8px; padding: .5rem .75rem; font-size: .8rem; margin-bottom: .9rem;
+        display: none;
+    }
+    .um-modal-error.show { display: block; }
+
+    .um-perms {
+        display: none;
+        border-top: 1px solid var(--border-color);
+        margin-top: .2rem;
+        padding-top: .9rem;
+    }
+    .um-perms.show { display: block; }
+    .um-perms-title { font-size: .8rem; font-weight: 600; color: var(--text-muted); margin-bottom: .6rem; }
+    .um-perms-group { margin-bottom: .7rem; }
+    .um-perms-group-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #94a3b8; margin-bottom: .35rem; }
+    .um-perms-checks { display: flex; flex-direction: column; gap: .4rem; }
+    .um-perms-check { display: flex; align-items: center; gap: .5rem; font-size: .83rem; }
+    .um-perms-check input { width: 15px; height: 15px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="leave-container">
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-content">
+            <div class="header-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+            </div>
+            <div class="header-text">
+                <h1>User Management</h1>
+                <p>Manage admin login accounts and IT Admin access</p>
+            </div>
+        </div>
+        <button class="btn-modal-approve" onclick="openCreateModal()" style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;padding:.55rem 1.1rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New User
+        </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="leave-stats-grid">
+        <div class="leave-stat-card">
+            <div class="leave-stat-icon primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            </div>
+            <div class="leave-stat-content">
+                <span class="leave-stat-value">{{ total_count }}</span>
+                <span class="leave-stat-label">Total Users</span>
+            </div>
+        </div>
+        <div class="leave-stat-card">
+            <div class="leave-stat-icon success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="leave-stat-content">
+                <span class="leave-stat-value">{{ active_count }}</span>
+                <span class="leave-stat-label">Active</span>
+            </div>
+        </div>
+        <div class="leave-stat-card">
+            <div class="leave-stat-icon warning">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+            </div>
+            <div class="leave-stat-content">
+                <span class="leave-stat-value">{{ superuser_count }}</span>
+                <span class="leave-stat-label">Superusers</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Card -->
+    <div class="leave-content-card">
+        <div class="requests-table-wrap">
+            {% if users %}
+            <table class="requests-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Roles</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr class="user-row"
+                        data-id="{{ u.id }}"
+                        data-username="{{ u.username }}"
+                        data-email="{{ u.email }}"
+                        data-first-name="{{ u.first_name }}"
+                        data-last-name="{{ u.last_name }}"
+                        data-is-active="{{ u.is_active|yesno:'1,0' }}"
+                        data-is-staff="{{ u.is_staff|yesno:'1,0' }}"
+                        data-is-superuser="{{ u.is_superuser|yesno:'1,0' }}"
+                        data-is-it-admin="{{ u.profile.is_it_admin|yesno:'1,0' }}"
+                        data-sections-restricted="{{ u.profile.sections_restricted|yesno:'1,0' }}"
+                        data-allowed-sections="{{ u.profile.allowed_sections|join:',' }}">
+                        <td>
+                            <div class="emp-cell">
+                                <div class="req-initials">{{ u.username|slice:":1"|upper }}</div>
+                                <div class="emp-cell-info">
+                                    <span class="emp-cell-name">{{ u.username }}</span>
+                                    {% if u.first_name or u.last_name %}
+                                    <span class="emp-cell-reason">{{ u.first_name }} {{ u.last_name }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ u.email|default:"—" }}</td>
+                        <td class="td-roles">
+                            {% if u.is_superuser %}<span class="role-badge superuser">Superuser</span>{% endif %}
+                            {% if u.is_staff and not u.is_superuser %}<span class="role-badge staff">Staff</span>{% endif %}
+                            {% if u.profile.is_it_admin %}<span class="role-badge itadmin">IT Admin</span>{% endif %}
+                            {% if u.profile.sections_restricted %}<span class="role-badge restricted">Restricted ({{ u.profile.allowed_sections|length }})</span>{% endif %}
+                            <span class="role-badge {% if u.is_active %}active{% else %}inactive{% endif %}">{% if u.is_active %}Active{% else %}Inactive{% endif %}</span>
+                        </td>
+                        <td class="td-actions">
+                            <div class="row-action-group">
+                                <button class="action-btn action-approve" onclick="openEditModal({{ u.id }})">Edit</button>
+                                {% if u.id != request.user.id %}
+                                <button class="action-btn action-reject" onclick="confirmDelete({{ u.id }}, '{{ u.username|escapejs }}')">Delete</button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <p>No user accounts found.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Create / Edit User Modal -->
+<div class="um-modal-overlay" id="userModal">
+    <div class="um-modal">
+        <h3 id="userModalTitle">New User</h3>
+        <div class="um-modal-error" id="userModalError"></div>
+        <form id="userForm">
+            <input type="hidden" id="userId" value="">
+            <div class="um-field">
+                <label for="userUsername">Username</label>
+                <input type="text" id="userUsername" autocomplete="off">
+            </div>
+            <div class="um-field-row">
+                <div class="um-field">
+                    <label for="userFirstName">First Name</label>
+                    <input type="text" id="userFirstName">
+                </div>
+                <div class="um-field">
+                    <label for="userLastName">Last Name</label>
+                    <input type="text" id="userLastName">
+                </div>
+            </div>
+            <div class="um-field">
+                <label for="userEmail">Email</label>
+                <input type="email" id="userEmail">
+            </div>
+            <div class="um-field">
+                <label for="userPassword">Password</label>
+                <input type="password" id="userPassword" autocomplete="new-password">
+            </div>
+            <div class="um-hint" id="userPasswordHint">Leave blank to keep the current password.</div>
+
+            <div class="um-checks">
+                <label class="um-check"><input type="checkbox" id="userIsActive"> Active</label>
+                <label class="um-check"><input type="checkbox" id="userIsStaff"> Staff (Django-level flag; does not by itself grant Django Admin access)</label>
+                <label class="um-check"><input type="checkbox" id="userIsSuperuser"> Superuser (required to log into the admin panel at all)</label>
+                <label class="um-check"><input type="checkbox" id="userIsItAdmin"> IT Admin (access to Django Admin and this User Management page)</label>
+                <label class="um-check"><input type="checkbox" id="userSectionsRestricted" onchange="togglePermsPanel()"> Restrict sidebar access to specific pages</label>
+            </div>
+
+            <div class="um-perms" id="userPermsPanel">
+                <div class="um-perms-title">Allowed Pages</div>
+                {% for group, perms in nav_permission_groups.items %}
+                <div class="um-perms-group">
+                    <div class="um-perms-group-label">{{ group }}</div>
+                    <div class="um-perms-checks">
+                        {% for key, label in perms %}
+                        <label class="um-perms-check"><input type="checkbox" class="userSectionCheck" value="{{ key }}"> {{ label }}</label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="um-modal-actions">
+                <button type="button" class="btn-modal-cancel" onclick="closeUserModal()">Cancel</button>
+                <button type="button" class="btn-modal-approve" id="userSaveBtn" onclick="submitUserForm()">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const usersData = {};
+    document.querySelectorAll('.user-row').forEach(function(row) {
+        usersData[row.dataset.id] = {
+            id: row.dataset.id,
+            username: row.dataset.username,
+            email: row.dataset.email,
+            first_name: row.dataset.firstName,
+            last_name: row.dataset.lastName,
+            is_active: row.dataset.isActive === '1',
+            is_staff: row.dataset.isStaff === '1',
+            is_superuser: row.dataset.isSuperuser === '1',
+            is_it_admin: row.dataset.isItAdmin === '1',
+            sections_restricted: row.dataset.sectionsRestricted === '1',
+            allowed_sections: row.dataset.allowedSections ? row.dataset.allowedSections.split(',') : [],
+        };
+    });
+
+    function togglePermsPanel() {
+        const restricted = document.getElementById('userSectionsRestricted').checked;
+        document.getElementById('userPermsPanel').classList.toggle('show', restricted);
+    }
+
+    function setAllowedSectionChecks(keys) {
+        document.querySelectorAll('.userSectionCheck').forEach(function(cb) {
+            cb.checked = keys.includes(cb.value);
+        });
+    }
+
+    function getAllowedSectionChecks() {
+        return Array.from(document.querySelectorAll('.userSectionCheck:checked')).map(cb => cb.value);
+    }
+
+    function showModalError(msg) {
+        const el = document.getElementById('userModalError');
+        el.textContent = msg;
+        el.classList.add('show');
+    }
+
+    function resetModalError() {
+        const el = document.getElementById('userModalError');
+        el.textContent = '';
+        el.classList.remove('show');
+    }
+
+    function openCreateModal() {
+        resetModalError();
+        document.getElementById('userModalTitle').textContent = 'New User';
+        document.getElementById('userId').value = '';
+        document.getElementById('userUsername').value = '';
+        document.getElementById('userUsername').disabled = false;
+        document.getElementById('userFirstName').value = '';
+        document.getElementById('userLastName').value = '';
+        document.getElementById('userEmail').value = '';
+        document.getElementById('userPassword').value = '';
+        document.getElementById('userPasswordHint').style.display = 'none';
+        document.getElementById('userIsActive').checked = true;
+        document.getElementById('userIsStaff').checked = false;
+        document.getElementById('userIsSuperuser').checked = false;
+        document.getElementById('userIsItAdmin').checked = false;
+        document.getElementById('userSectionsRestricted').checked = false;
+        setAllowedSectionChecks([]);
+        togglePermsPanel();
+        document.getElementById('userModal').classList.add('show');
+    }
+
+    function openEditModal(userId) {
+        resetModalError();
+        const u = usersData[userId];
+        if (!u) return;
+        document.getElementById('userModalTitle').textContent = 'Edit User: ' + u.username;
+        document.getElementById('userId').value = u.id;
+        document.getElementById('userUsername').value = u.username;
+        document.getElementById('userUsername').disabled = true;
+        document.getElementById('userFirstName').value = u.first_name;
+        document.getElementById('userLastName').value = u.last_name;
+        document.getElementById('userEmail').value = u.email;
+        document.getElementById('userPassword').value = '';
+        document.getElementById('userPasswordHint').style.display = 'block';
+        document.getElementById('userIsActive').checked = u.is_active;
+        document.getElementById('userIsStaff').checked = u.is_staff;
+        document.getElementById('userIsSuperuser').checked = u.is_superuser;
+        document.getElementById('userIsItAdmin').checked = u.is_it_admin;
+        document.getElementById('userSectionsRestricted').checked = u.sections_restricted;
+        setAllowedSectionChecks(u.allowed_sections);
+        togglePermsPanel();
+        document.getElementById('userModal').classList.add('show');
+    }
+
+    function closeUserModal() {
+        document.getElementById('userModal').classList.remove('show');
+    }
+
+    async function submitUserForm() {
+        resetModalError();
+        const userId = document.getElementById('userId').value;
+        const payload = {
+            email: document.getElementById('userEmail').value.trim(),
+            first_name: document.getElementById('userFirstName').value.trim(),
+            last_name: document.getElementById('userLastName').value.trim(),
+            is_active: document.getElementById('userIsActive').checked,
+            is_staff: document.getElementById('userIsStaff').checked,
+            is_superuser: document.getElementById('userIsSuperuser').checked,
+            is_it_admin: document.getElementById('userIsItAdmin').checked,
+            sections_restricted: document.getElementById('userSectionsRestricted').checked,
+            allowed_sections: getAllowedSectionChecks(),
+        };
+        const password = document.getElementById('userPassword').value;
+        if (password) payload.password = password;
+
+        let url;
+        if (userId) {
+            url = `/user-management/${userId}/update/`;
+        } else {
+            payload.username = document.getElementById('userUsername').value.trim();
+            if (!payload.username) { showModalError('Username is required.'); return; }
+            if (!password) { showModalError('Password is required for a new user.'); return; }
+            url = '{% url "create_user" %}';
+        }
+
+        const btn = document.getElementById('userSaveBtn');
+        btn.disabled = true;
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                showModalError(data.error || 'Something went wrong.');
+            }
+        } catch (e) {
+            showModalError('Network error. Please try again.');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function confirmDelete(userId, username) {
+        if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+        try {
+            const resp = await fetch(`/user-management/${userId}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            });
+            const data = await resp.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.error || 'Failed to delete user.');
+            }
+        } catch (e) {
+            alert('Network error. Please try again.');
+        }
+    }
+
+    document.getElementById('userModal').addEventListener('click', function(e) {
+        if (e.target === this) closeUserModal();
+    });
+</script>
+{% endblock %}

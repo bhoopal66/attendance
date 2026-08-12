@@ -46,6 +46,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'attendance.context_processors.pending_requests_processor',
+                'attendance.context_processors.nav_sections_processor',
+                'attendance.context_processors.global_period_processor',
             ],
         },
     },

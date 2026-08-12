@@ -1,0 +1,343 @@
+{% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block title %}Payslip History — Taamul{% endblock %}
+{% block page_title %}Payslip History{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ph-container {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .ph-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .ph-title { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+    .ph-subtitle { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+
+    .btn-back {
+        padding: 9px 16px;
+        background: #f1f5f9;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+    .btn-back:hover { background: #e2e8f0; }
+
+    .ph-filters {
+        display: grid;
+        grid-template-columns: minmax(180px, 1.6fr) repeat(3, minmax(120px, 1fr)) auto;
+        gap: 10px;
+        align-items: center;
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+    }
+    .ph-filters input[type="text"],
+    .ph-filters select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 9px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        background: #fff;
+        color: var(--text-primary);
+    }
+    .ph-filters button {
+        padding: 9px 18px;
+        background: #1D4ED8;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .ph-filters button:hover { background: #1E40AF; }
+    .ph-filters .clear-link {
+        grid-column: 1 / -1;
+        justify-self: start;
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+        text-decoration: none;
+    }
+    .ph-filters .clear-link:hover { text-decoration: underline; }
+
+    .ph-count { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 10px; }
+
+    .ph-table-wrap {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    table.ph-table {
+        width: 100%;
+        table-layout: auto;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+    table.ph-table th {
+        text-align: left;
+        padding: 12px 14px;
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 600;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+    table.ph-table td {
+        padding: 12px 14px;
+        border-bottom: 1px solid #f1f5f9;
+        color: var(--text-primary);
+        vertical-align: middle;
+    }
+    /* Only columns that genuinely need one line stay non-wrapping; text
+       columns (department/designation/paid-by) wrap instead of forcing the
+       table wider than the viewport. */
+    table.ph-table td:nth-child(1),
+    table.ph-table td:nth-child(2),
+    table.ph-table td:nth-child(5),
+    table.ph-table td:nth-child(6) {
+        white-space: nowrap;
+    }
+    table.ph-table tr:last-child td { border-bottom: none; }
+    table.ph-table tr:hover td { background: #f8fafc; }
+
+    table.ph-table th.text-right,
+    table.ph-table td.text-right { text-align: right; }
+    table.ph-table th.text-center,
+    table.ph-table td.text-center { text-align: center; }
+
+    /* Keep the employee name visible while scrolling a wide table sideways */
+    table.ph-table th:first-child,
+    table.ph-table td:first-child {
+        position: sticky;
+        left: 0;
+        background: inherit;
+        z-index: 2;
+    }
+    table.ph-table th:first-child { background: #f8fafc; }
+    table.ph-table td:first-child { background: var(--surface-color); }
+    table.ph-table tr:hover td:first-child { background: #f8fafc; }
+
+    /* Pin the action button to the right edge so it's always reachable
+       without scrolling, even when the table is wider than the viewport. */
+    table.ph-table th:last-child,
+    table.ph-table td:last-child {
+        position: sticky;
+        right: 0;
+        background: inherit;
+        z-index: 2;
+        white-space: nowrap;
+    }
+    table.ph-table th:last-child { background: #f8fafc; }
+    table.ph-table td:last-child { background: var(--surface-color); box-shadow: -6px 0 6px -6px rgba(0,0,0,0.08); }
+    table.ph-table tr:hover td:last-child { background: #f8fafc; }
+
+    .badge-type {
+        display: inline-block;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .badge-inhouse { background: #eff6ff; color: #1d4ed8; }
+    .badge-remote { background: #ecfdf5; color: #059669; }
+
+    .amt-cell { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .btn-view {
+        padding: 6px 14px;
+        background: #1D4ED8;
+        color: #fff;
+        border-radius: 7px;
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    .btn-view:hover { background: #1E40AF; }
+
+    .ph-empty {
+        padding: 60px 20px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .ph-pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 18px;
+        flex-wrap: wrap;
+    }
+    .ph-pagination a, .ph-pagination span {
+        padding: 7px 13px;
+        border-radius: 7px;
+        font-size: 0.82rem;
+        text-decoration: none;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+    .ph-pagination a:hover { background: #f1f5f9; }
+    .ph-pagination .current { background: #1D4ED8; color: #fff; border-color: #1D4ED8; }
+
+    @media (max-width: 1024px) {
+        .ph-filters {
+            grid-template-columns: 1fr 1fr;
+        }
+        .ph-filters input[type="text"] { grid-column: 1 / -1; }
+        .ph-filters button { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 768px) {
+        .ph-container { padding: 12px; }
+        .ph-header { flex-direction: column; align-items: stretch; }
+        .btn-back { align-self: flex-start; }
+        .ph-filters { grid-template-columns: 1fr; padding: 12px; }
+        .ph-filters input[type="text"],
+        .ph-filters select,
+        .ph-filters button { grid-column: 1 / -1; }
+        table.ph-table th, table.ph-table td { padding: 10px 12px; font-size: 0.8rem; }
+    }
+
+    @media (max-width: 480px) {
+        .ph-title { font-size: 1.2rem; }
+        .ph-subtitle { font-size: 0.8rem; }
+        .ph-pagination a, .ph-pagination span { padding: 6px 10px; font-size: 0.78rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ph-container">
+    <div class="ph-header">
+        <div>
+            <div class="ph-title">Payslip History</div>
+            <div class="ph-subtitle">Search and view every payslip ever locked via Mark as Paid, for any employee — in-house or remote, active or since left.</div>
+        </div>
+        <a href="{% url 'payroll_dashboard' %}" class="btn-back">&larr; Back to Dashboard</a>
+    </div>
+
+    <form method="get" class="ph-filters">
+        <input type="text" name="q" value="{{ search }}" placeholder="Search employee name…">
+        <select name="type">
+            <option value="" {% if not type_filter %}selected{% endif %}>All types</option>
+            <option value="inhouse" {% if type_filter == 'inhouse' %}selected{% endif %}>In-House</option>
+            <option value="remote" {% if type_filter == 'remote' %}selected{% endif %}>Remote</option>
+        </select>
+        <select name="month">
+            <option value="">All months</option>
+            {% for val, label in months %}
+            <option value="{{ val }}" {% if month_filter == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <select name="year">
+            <option value="">All years</option>
+            {% for yr in available_years %}
+            <option value="{{ yr }}" {% if year_filter == yr|stringformat:"s" %}selected{% endif %}>{{ yr }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Search</button>
+        {% if search or year_filter or month_filter or type_filter %}
+        <a href="{% url 'payslip_history' %}" class="clear-link">Clear filters</a>
+        {% endif %}
+    </form>
+
+    <div class="ph-count">{{ total_count }} payslip{{ total_count|pluralize }} found</div>
+
+    <div class="ph-table-wrap">
+        {% if rows %}
+        <table class="ph-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Type</th>
+                    <th>Department</th>
+                    <th>Designation</th>
+                    <th>Period</th>
+                    <th class="text-right">Final Salary</th>
+                    <th>Paid At</th>
+                    <th>Paid By</th>
+                    <th class="text-center">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.employee.name }}</td>
+                    <td>
+                        {% if row.employee_type == 'inhouse' %}
+                        <span class="badge-type badge-inhouse">In-House</span>
+                        {% else %}
+                        <span class="badge-type badge-remote">Remote</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ row.department|default:"—" }}</td>
+                    <td>{{ row.designation|default:"—" }}</td>
+                    <td>{{ row.month_name }} {{ row.record.year }}</td>
+                    <td class="amt-cell text-right">{{ row.currency }} {{ row.final_salary|floatformat:2 }}</td>
+                    <td>{{ row.paid_at|date:"d M Y, H:i" }}</td>
+                    <td>{{ row.paid_by|default:"—" }}</td>
+                    <td class="text-center">
+                        <a class="btn-view" target="_blank"
+                           href="{% url 'download_payslip' row.employee_type row.employee.id %}?year={{ row.record.year }}&month={{ row.record.month }}">
+                            View Payslip
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="ph-empty">No payslips found for the selected filters.</div>
+        {% endif %}
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="ph-pagination">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search|urlencode }}&year={{ year_filter }}&month={{ month_filter }}&type={{ type_filter }}">&laquo; Prev</a>
+        {% endif %}
+        <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search|urlencode }}&year={{ year_filter }}&month={{ month_filter }}&type={{ type_filter }}">Next &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

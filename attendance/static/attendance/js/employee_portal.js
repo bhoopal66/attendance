@@ -17,6 +17,31 @@ function toggleSidebar() {
 })();
 
 // ====================================
+// Calendar Modal
+// ====================================
+
+function openCalendarModal() {
+    document.getElementById('calendarModal').classList.add('show');
+}
+
+function closeCalendarModal() {
+    document.getElementById('calendarModal').classList.remove('show');
+}
+
+// Clicking any non-empty mini-cal cell opens the full calendar
+document.addEventListener('DOMContentLoaded', function () {
+    const grid = document.querySelector('.mini-cal-grid');
+    if (grid) {
+        grid.addEventListener('click', function (e) {
+            const cell = e.target.closest('.mcd');
+            if (cell && !cell.classList.contains('mcd-empty')) {
+                openCalendarModal();
+            }
+        });
+    }
+});
+
+// ====================================
 // Early Leave Request Form
 // ====================================
 

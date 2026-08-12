@@ -430,13 +430,15 @@
             {% if other_ded %}{{ other_ded|floatformat:2|intcomma }}{% else %}—{% endif %}
           </td>
         </tr>
-        <!-- Row 5: Salary Advance / (empty) -->
+        <!-- Row 5: Salary Advance / Prior-month balance -->
         <tr>
           <td>Salary Advance</td>
           <td class="amt zero">—</td>
           <td class="divider"></td>
-          <td></td>
-          <td class="amt zero">—</td>
+          <td>Prior Month Balance</td>
+          <td class="amt {% if not carryover_ded %}zero{% endif %}">
+            {% if carryover_ded %}{{ carryover_ded|floatformat:2|intcomma }}{% else %}—{% endif %}
+          </td>
         </tr>
         <!-- Row 6: Leave Salary / (empty) -->
         <tr>

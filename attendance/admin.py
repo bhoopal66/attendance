@@ -1,11 +1,51 @@
 from django.contrib import admin
-from .models import Employee, AttendanceRecord, MonthlySummary, ShiftHistory, RemoteEmployee, RemoteCallRecord, RemoteMonthlySummary, Holiday, EarlyLeaveRequest, LeaveRequest
+from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import User
+from .models import Employee, AttendanceRecord, MonthlySummary, ShiftHistory, RemoteEmployee, RemoteCallRecord, RemoteMonthlySummary, Holiday, EarlyLeaveRequest, LeaveRequest, UserProfile
 
 
 class ShiftHistoryInline(admin.TabularInline):
     model = ShiftHistory
     extra = 1
     ordering = ['-effective_from']
+
+
+class UserProfileInline(admin.StackedInline):
+    model = UserProfile
+    can_delete = False
+    verbose_name_plural = 'IT Admin Settings'
+
+
+class CustomUserAdmin(UserAdmin):
+    inlines = (UserProfileInline,)
+    list_display = UserAdmin.list_display + ('is_it_admin_flag',)
+
+    def is_it_admin_flag(self, obj):
+        return getattr(obj, 'profile', None) and obj.profile.is_it_admin
+    is_it_admin_flag.boolean = True
+    is_it_admin_flag.short_description = 'IT Admin'
+
+
+admin.site.unregister(User)
+admin.site.register(User, CustomUserAdmin)
+
+
+def _it_admin_only_has_permission(request):
+    """Restrict Django Admin access to IT Admins only.
+
+    Overrides AdminSite.has_permission (normally is_active + is_staff) so that
+    superuser status alone no longer grants Django Admin login — only the
+    is_it_admin flag does. Mirrors the gate used for the custom User
+    Management page (see views/utils.py:it_admin_required).
+    """
+    user = request.user
+    if not (user.is_active and user.is_staff):
+        return False
+    profile = getattr(user, 'profile', None)
+    return bool(profile and profile.is_it_admin)
+
+
+admin.site.has_permission = _it_admin_only_has_permission
 
 
 @admin.register(Employee)

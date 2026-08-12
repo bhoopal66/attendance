@@ -9,6 +9,7 @@ import logging
 from datetime import time
 from io import BytesIO
 
+from django.db.models import Prefetch
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -17,14 +18,16 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 from ..models import (
     AttendanceRecord, Employee, Holiday, LeaveRequest, MonthlySummary,
-    RemoteCallRecord, RemoteEmployee, RemoteMonthlySummary,
+    RemoteCallRecord, RemoteEmployee,
 )
 from .utils import (
     MONTH_NAMES, get_active_special_periods_for_month,
     get_employee_shift_for_date, get_holiday_data,
     get_remote_thresholds_from_period, get_saturday_shift,
     get_selected_month_year,
+    remote_employee_uses_performance_v2, compute_sales_performance_v2_days,
 )
+from .reports import _compute_remote_calendar
 
 logger = logging.getLogger('attendance')
 
@@ -42,6 +45,7 @@ YELLOW_FILL = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="s
 RED_FILL = PatternFill(start_color="FECACA", end_color="FECACA", fill_type="solid")
 HOLIDAY_FILL = PatternFill(start_color="E9D5FF", end_color="E9D5FF", fill_type="solid")
 BLUE_FILL = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+PARTIAL_FILL = PatternFill(start_color="C7D2FE", end_color="C7D2FE", fill_type="solid")
 
 
 def _safe_filename(name):
@@ -356,44 +360,69 @@ def download_employee_report(request, employee_id):
 
 @login_required
 def download_remote_report(request):
-    """Generate and download XLSX report for remote team."""
+    """Generate and download XLSX report for remote team.
+
+    Computed live via _compute_remote_calendar (the same function backing the
+    on-screen report), rather than the RemoteMonthlySummary table, which is
+    only refreshed by the manually-run recalculate_summaries command and
+    never applies special-shift-period thresholds or the Sales:Performance
+    "Method 2" model — so it can silently disagree with both the calendar and
+    payroll. Computing live keeps this download exactly in sync with both.
+    """
     selected_month, selected_year = get_selected_month_year(request)
     month_name = MONTH_NAMES[selected_month]
 
     show_inactive = request.GET.get('show_inactive', '') == '1'
 
-    summaries = RemoteMonthlySummary.objects.filter(
-        year=selected_year, month=selected_month
-    ).select_related('employee')
+    _, days_in_month = calendar.monthrange(selected_year, selected_month)
+    month_start = datetime.date(selected_year, selected_month, 1)
+    month_end = datetime.date(selected_year, selected_month, days_in_month)
+    holiday_dates, _, _ = get_holiday_data(month_start, month_end)
+    special_periods = get_active_special_periods_for_month(month_start, month_end)
 
+    today = datetime.date.today()
+    is_current_month = selected_year == today.year and selected_month == today.month
+    current_day = today.day if is_current_month else 32
+
+    records_qs = RemoteCallRecord.objects.filter(
+        date__year=selected_year, date__month=selected_month
+    ).order_by('date')
+    remote_qs = RemoteEmployee.objects.prefetch_related(
+        Prefetch('remotecallrecord_set', queryset=records_qs, to_attr='filtered_records')
+    )
     if not show_inactive:
-        summaries = summaries.filter(employee__is_active=True)
-    summaries = summaries.order_by('employee__name')
+        remote_qs = remote_qs.filter(is_active=True)
+    employees = list(remote_qs.order_by('name'))
 
     wb = Workbook()
     ws = wb.active
     ws.title = f"{month_name} {selected_year}"
 
-    ws.merge_cells('A1:E1')
+    ws.merge_cells('A1:F1')
     ws['A1'] = f"Remote Team Attendance Report - {month_name} {selected_year}"
     ws['A1'].font = TITLE_FONT
     ws['A1'].alignment = Alignment(horizontal='center')
     ws.append([])
 
-    headers = ['Employee Name', 'Present Days', 'Half Days', 'Absent Days', 'Total Deductions']
+    headers = ['Employee Name', 'Present Days', 'Partial Days', 'Half Days', 'Absent Days', 'Total Deductions']
     ws.append(headers)
     _style_header_row(ws, 3, len(headers), fill=HEADER_FILL_PURPLE)
 
-    for summary in summaries:
-        half_days = summary.half_days
-        present_days = summary.present_days
-        absent_days = summary.absent_days
-        total_deductions = absent_days + (half_days * 0.5)
+    for emp in employees:
+        _, stats = _compute_remote_calendar(
+            emp, days_in_month, selected_year, selected_month,
+            holiday_dates, current_day, special_periods=special_periods,
+        )
+        present_days = stats['present_days']
+        proportional_days = stats.get('proportional_days', 0)
+        half_days = stats['half_days']
+        absent_days = stats['absent_days']
+        total_deductions = absent_days + (half_days * 0.5) + (proportional_days * 0.5)
 
-        ws.append([summary.employee.name, present_days, half_days, absent_days, total_deductions])
-        _style_data_row(ws, ws.max_row, 5)
+        ws.append([emp.name, present_days, proportional_days, half_days, absent_days, total_deductions])
+        _style_data_row(ws, ws.max_row, 6)
 
-    for col, width in [('A', 30), ('B', 14), ('C', 12), ('D', 14), ('E', 18)]:
+    for col, width in [('A', 30), ('B', 14), ('C', 13), ('D', 12), ('E', 14), ('F', 18)]:
         ws.column_dimensions[col].width = width
 
     filename = f"Remote_Attendance_Report_{selected_year}_{selected_month:02d}.xlsx"
@@ -440,8 +469,16 @@ def download_remote_employee_report(request, employee_id):
     ws.append(headers)
     _style_header_row(ws, 4, len(headers))
 
-    present_days = half_days = absent_days = holidays_count = total_calls = total_talk_minutes = 0
+    present_days = half_days = proportional_days = absent_days = holidays_count = total_calls = total_talk_minutes = 0
     day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+    # Sales:Performance remote employees (attendance-based, not fixed-salary,
+    # salaried) whose pay is governed by the "Method 2" talktime-proportional
+    # model use the same shared classifier as the calendar/payroll, so this
+    # download never disagrees with what the employee was actually paid.
+    v2_days = None
+    if remote_employee_uses_performance_v2(employee, selected_year, selected_month):
+        v2_days = compute_sales_performance_v2_days(employee, month_start, month_end, holiday_dates)['days']
 
     for day in range(1, days_in_month + 1):
         date = datetime.date(selected_year, selected_month, day)
@@ -451,6 +488,45 @@ def download_remote_employee_report(request, employee_id):
         is_holiday = date in holiday_dates
 
         record = records_dict.get(date)
+
+        if v2_days is not None:
+            day_info = v2_days.get(date)
+            answered_calls = record.answered_calls or 0 if record else "-"
+            talk_min = int(record.total_talk_duration.total_seconds() / 60) if (record and record.total_talk_duration) else 0
+            talk_duration = f"{talk_min} min" if record else "-"
+            if record and record.total_talk_duration:
+                total_calls += answered_calls
+                total_talk_minutes += talk_min
+
+            if day_info and day_info['classification'] == 'non_working':
+                holidays_count += 1
+                status = "Holiday"
+                fill = HOLIDAY_FILL
+            elif day_info and (record or date <= datetime.date.today()):
+                classification = day_info['classification']
+                if classification == 'full':
+                    status = "Present"
+                    fill = GREEN_FILL
+                    present_days += 1
+                elif classification == 'proportional':
+                    status = "Partial"
+                    fill = PARTIAL_FILL
+                    proportional_days += 1
+                elif classification == 'half':
+                    status = "Half Day"
+                    fill = YELLOW_FILL
+                    half_days += 1
+                else:
+                    status = "Absent" if record else "No Data"
+                    fill = RED_FILL
+                    absent_days += 1
+            else:
+                status = "-"
+                fill = None
+
+            ws.append([date.strftime("%Y-%m-%d"), day_name, answered_calls, talk_duration, status])
+            _style_data_row(ws, ws.max_row, 5, fill=fill, center_from=1)
+            continue
 
         if is_sunday or is_holiday:
             holidays_count += 1
@@ -509,17 +585,20 @@ def download_remote_employee_report(request, employee_id):
     ws.cell(row=summary_row, column=1).font = TITLE_FONT
     ws.cell(row=summary_row, column=1).alignment = Alignment(horizontal='center')
 
-    total_deductions = absent_days + (half_days * 0.5)
+    total_deductions = absent_days + (half_days * 0.5) + (proportional_days * 0.5)
 
-    for label, value in [
-        ("Absent Days", absent_days),
-        ("Half Days", half_days),
+    summary_rows = [("Absent Days", absent_days), ("Half Days", half_days)]
+    if v2_days is not None:
+        summary_rows.append(("Partial Days", proportional_days))
+    summary_rows += [
         ("Present Days", present_days),
         ("Holidays/Sundays", holidays_count),
         ("Total Calls Answered", total_calls),
         ("Total Talk Time", f"{total_talk_minutes} min"),
         ("Total Deductions", total_deductions),
-    ]:
+    ]
+
+    for label, value in summary_rows:
         ws.append([label, value])
         row = ws.max_row
         ws.cell(row=row, column=1).font = Font(bold=True)

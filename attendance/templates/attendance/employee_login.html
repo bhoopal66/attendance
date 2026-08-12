@@ -84,6 +84,11 @@
                             </svg>
                         </span>
                         <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                        <button type="button" class="password-toggle-btn" id="passwordToggleBtn" onclick="togglePasswordVisibility()" title="Show password" aria-label="Show password">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
@@ -106,5 +111,16 @@
         </div>
     </div>
 
+    <script>
+        function togglePasswordVisibility() {
+            const input = document.getElementById('password');
+            const btn = document.getElementById('passwordToggleBtn');
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            btn.classList.toggle('active', isHidden);
+            btn.title = isHidden ? 'Hide password' : 'Show password';
+            btn.setAttribute('aria-label', btn.title);
+        }
+    </script>
 </body>
 </html>

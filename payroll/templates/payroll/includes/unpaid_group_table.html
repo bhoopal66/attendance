@@ -1,0 +1,51 @@
+{% load attendance_extras %}
+{% for grp in groups %}
+<div class="unpaid-group">
+    <div class="unpaid-group-header">
+        <span>{{ grp.label }}</span>
+        <span class="unpaid-group-meta">
+            <span>{{ grp.emp_count }} employee{{ grp.emp_count|pluralize }}</span>
+            {% if grp.total_aed %}<span style="color:#ef4444;"><span class="csym csym-aed">AED</span> {{ grp.total_aed|floatformat:2 }}</span>{% endif %}
+            {% if grp.total_inr %}<span class="val-inr"><span class="csym csym-inr">₹</span> {{ grp.total_inr|floatformat:2 }}</span>{% endif %}
+            {% if grp.total_npr %}<span class="val-npr"><span class="csym csym-npr">Rs.</span> {{ grp.total_npr|floatformat:2 }}</span>{% endif %}
+        </span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Type</th>
+                    <th>Department</th>
+                    <th>Visa</th>
+                    <th>Location</th>
+                    <th>Pending Months</th>
+                    <th class="text-right">AED</th>
+                    <th class="text-right">INR / NPR</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in grp.rows %}
+                <tr>
+                    <td><strong>{{ row.employee_name }}</strong></td>
+                    <td class="muted">{% if row.employee_type == 'inhouse' %}In-House{% else %}Remote{% endif %}</td>
+                    <td class="muted">{{ row.department }}</td>
+                    <td class="muted">{{ row.visa_label }}</td>
+                    <td class="muted">{{ row.location }}</td>
+                    <td class="muted" style="font-size:0.8rem;">{{ row.months|join:", " }}</td>
+                    <td class="text-right num" style="color:#ef4444;">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.total_aed|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                    <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.total_inr|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.total_npr|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="6"><strong>Subtotal</strong></td>
+                    <td class="text-right num" style="color:#ef4444;">{% if grp.total_aed %}<span class="csym csym-aed">AED</span> {{ grp.total_aed|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                    <td class="text-right num val-inr">{% if grp.total_inr %}<span class="csym csym-inr">₹</span> {{ grp.total_inr|floatformat:2 }}{% endif %}{% if grp.total_npr %} <span class="csym csym-npr">Rs.</span> {{ grp.total_npr|floatformat:2 }}{% endif %}{% if not grp.total_inr and not grp.total_npr %}<span class="muted">—</span>{% endif %}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endfor %}

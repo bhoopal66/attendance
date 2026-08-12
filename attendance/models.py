@@ -1,4 +1,5 @@
 import logging
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -61,6 +62,7 @@ class BaseEmployee(models.Model):
     CURRENCY_CHOICES = [
         ('AED', 'AED'),
         ('INR', 'INR'),
+        ('NPR', 'NPR'),
     ]
     currency = models.CharField(
         max_length=3,
@@ -247,6 +249,10 @@ class AttendanceRecord(models.Model):
         default=False,
         help_text="Mark this day as Work From Home (counts as full day present)"
     )
+    is_paid_leave = models.BooleanField(
+        default=False,
+        help_text="Mark this day as Paid Leave (shows as blue, not deducted from salary)"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -328,6 +334,21 @@ class RemoteEmployee(BaseEmployee):
 
     salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     designation = models.CharField(max_length=100, null=True, blank=True)
+
+    WARNING_COUNT_CHOICES = [
+        (0, 'Good Standing'),
+        (1, 'First Warning'),
+        (2, 'Final Warning'),
+    ]
+    warning_count = models.PositiveSmallIntegerField(
+        default=0,
+        choices=WARNING_COUNT_CHOICES,
+        help_text="Remote Sales target warning stage (Employee Onboarding Policy §4). Resets to 0 once target is met again."
+    )
+    last_warning_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date the current warning was issued"
+    )
 
     class Meta:
         unique_together = ('extension_id', 'name')
@@ -728,3 +749,28 @@ class AnnualLeave(models.Model):
 
     def get_days_count(self):
         return (self.end_date - self.start_date).days + 1
+
+
+class UserProfile(models.Model):
+    """Extends the built-in Django User with app-specific flags.
+
+    is_it_admin gates access to the custom User Management page — separate
+    from is_superuser, which only grants Django Admin access.
+    """
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
+    is_it_admin = models.BooleanField(
+        default=False,
+        help_text="Grants access to the custom User Management page (in addition to Django Admin)."
+    )
+    sections_restricted = models.BooleanField(
+        default=False,
+        help_text="When enabled, this user only sees the sidebar pages listed in Allowed Sections, "
+                   "regardless of their superuser status. When disabled, they have full access."
+    )
+    allowed_sections = models.JSONField(
+        default=list, blank=True,
+        help_text="Sidebar page keys this user may access. Only enforced when Sections Restricted is checked."
+    )
+
+    def __str__(self):
+        return f"{self.user.username} profile"

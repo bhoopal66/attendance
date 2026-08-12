@@ -13,13 +13,13 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required, user_passes_test
 
 from ..models import AnnualLeave, Employee, RemoteEmployee
-from .utils import superuser_required, MONTH_CHOICES, YEAR_RANGE
+from .utils import section_required, MONTH_CHOICES, YEAR_RANGE
 
 logger = logging.getLogger('attendance')
 
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('annual_leave'))
 def annual_leave_management(request):
     """Admin page to view and manage annual leaves."""
     today = date.today()
@@ -69,7 +69,7 @@ def annual_leave_management(request):
 
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('annual_leave'))
 @require_http_methods(["POST"])
 def add_annual_leave(request):
     """Add a new annual leave entry."""
@@ -145,7 +145,7 @@ def add_annual_leave(request):
 
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('annual_leave'))
 @require_http_methods(["POST"])
 def delete_annual_leave(request, leave_id):
     """Delete an annual leave entry."""

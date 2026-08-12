@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('', views.upload_file, name='upload'),
+    path('upload/multiday/', views.upload_file_multiday, name='upload_multiday'),
     path('upload/remote/', views.upload_remote_call_stats, name='upload_remote'),
     path('upload/remote/monthly/', views.upload_remote_monthly, name='upload_remote_monthly'),
     path('report/', views.attendance_report, name='report'),
@@ -30,6 +31,7 @@ urlpatterns = [
     path('request/<int:request_id>/decline/', views.decline_early_leave, name='decline_request'),
     path('api/pending-count/', views.get_pending_count, name='get_pending_count'),
     path('api/pending-requests/', views.get_pending_requests, name='get_pending_requests'),
+    path('set-period/', views.set_period, name='set_period'),
     # Employee Management (Admin)
     path('employees/', views.employee_management, name='employee_management'),
     path('employees/update/', views.update_employee, name='update_employee'),
@@ -39,6 +41,8 @@ urlpatterns = [
     path('employees/link/', views.link_employees, name='link_employees'),
     path('employees/unlink/', views.unlink_employees, name='unlink_employees'),
     # Leave Management (Admin)
+    path('on-duty-requests/', views.on_duty_requests, name='on_duty_requests'),
+    path('on-duty-requests/approve-all/', views.approve_all_on_duty, name='approve_all_on_duty'),
     path('leave-requests/', views.leave_management, name='leave_management'),
     path('leave/<int:leave_id>/approve/', views.approve_leave_request, name='approve_leave'),
     path('leave/<int:leave_id>/reject/', views.reject_leave_request, name='reject_leave'),
@@ -51,5 +55,10 @@ urlpatterns = [
     path('special-shifts/add/', views.add_special_shift_period, name='add_special_shift_period'),
     path('special-shifts/<int:period_id>/update/', views.update_special_shift_period, name='update_special_shift_period'),
     path('special-shifts/<int:period_id>/delete/', views.delete_special_shift_period, name='delete_special_shift_period'),
+    # User Management (IT Admin only)
+    path('user-management/', views.user_management, name='user_management'),
+    path('user-management/create/', views.create_user, name='create_user'),
+    path('user-management/<int:user_id>/update/', views.update_user, name='update_user'),
+    path('user-management/<int:user_id>/delete/', views.delete_user, name='delete_user'),
 ]
 

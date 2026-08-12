@@ -21,6 +21,7 @@ from .utils import (
     get_employee_shift_for_date, get_holiday_data,
     get_remote_thresholds_from_period, get_saturday_shift,
     get_selected_month_year,
+    remote_employee_uses_performance_v2, compute_sales_performance_v2_days,
 )
 
 logger = logging.getLogger('attendance')
@@ -243,7 +244,14 @@ def _build_inhouse_portal_data(employee, selected_year, selected_month, cal_data
 
 def _build_remote_portal_data(employee, selected_year, selected_month, cal_data,
                               holiday_dates, current_day, special_periods=None):
-    """Build calendar and summary data for a remote employee portal view."""
+    """Build calendar and summary data for a remote employee portal view.
+
+    Sales:Performance remote employees (attendance-based, not fixed-salary,
+    salaried) whose pay for this month is governed by the "Method 2"
+    talktime-proportional model use compute_sales_performance_v2_days for
+    day classification, so the portal calendar always matches what payroll
+    actually paid — see payroll._get_sales_performance_test_row for the rules.
+    """
     days_in_month = cal_data['days_in_month']
 
     records = RemoteCallRecord.objects.filter(
@@ -254,8 +262,14 @@ def _build_remote_portal_data(employee, selected_year, selected_month, cal_data,
     records_dict = {r.date.day: r for r in records}
 
     calendar_data = {}
-    summary = {'present_days': 0, 'half_days': 0, 'absent_days': 0, 'total_talk_hours': 0, 'holidays': 0}
+    summary = {'present_days': 0, 'half_days': 0, 'proportional_days': 0, 'absent_days': 0, 'total_talk_hours': 0, 'holidays': 0}
     total_talk_seconds = 0
+
+    v2_days = None
+    if remote_employee_uses_performance_v2(employee, selected_year, selected_month):
+        month_start = datetime.date(selected_year, selected_month, 1)
+        month_end = datetime.date(selected_year, selected_month, days_in_month)
+        v2_days = compute_sales_performance_v2_days(employee, month_start, month_end, holiday_dates)['days']
 
     for day in range(1, days_in_month + 1):
         date = datetime.date(selected_year, selected_month, day)
@@ -267,6 +281,38 @@ def _build_remote_portal_data(employee, selected_year, selected_month, cal_data,
             summary['holidays'] += 1
 
         record = records_dict.get(day)
+
+        if v2_days is not None:
+            day_info = v2_days.get(date)
+            if day_info and day_info['classification'] == 'non_working':
+                calendar_data[day] = {
+                    'record': None, 'status': 'holiday',
+                    'is_sunday': is_sunday, 'is_holiday': is_holiday
+                }
+            elif day_info and (record or day < current_day):
+                talk_minutes = int(record.total_talk_duration.total_seconds() / 60) if (record and record.total_talk_duration) else 0
+                if record and record.total_talk_duration:
+                    total_talk_seconds += record.total_talk_duration.total_seconds()
+                classification = day_info['classification']
+                if classification == 'full':
+                    status = 'green'
+                    summary['present_days'] += 1
+                elif classification == 'proportional':
+                    status = 'partial'
+                    summary['proportional_days'] += 1
+                elif classification == 'half':
+                    status = 'yellow'
+                    summary['half_days'] += 1
+                else:
+                    status = 'absent'
+                    summary['absent_days'] += 1
+                calendar_data[day] = {
+                    'record': record, 'status': status,
+                    'is_sunday': False, 'is_holiday': False,
+                    'talk_minutes': talk_minutes,
+                    'answered_calls': record.answered_calls if record else 0,
+                }
+            continue
 
         if is_sunday or is_holiday:
             calendar_data[day] = {
@@ -315,7 +361,7 @@ def _build_remote_portal_data(employee, selected_year, selected_month, cal_data,
             summary['absent_days'] += 1
 
     summary['total_talk_hours'] = round(total_talk_seconds / 3600, 1)
-    summary['total_deductions'] = summary['absent_days'] + (summary['half_days'] * 0.5)
+    summary['total_deductions'] = summary['absent_days'] + (summary['half_days'] * 0.5) + (summary['proportional_days'] * 0.5)
     return calendar_data, summary
 
 

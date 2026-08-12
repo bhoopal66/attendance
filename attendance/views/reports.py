@@ -1,6 +1,6 @@
 """
 Report views for attendance data visualization.
-Handles both in-house and remote employee attendance reports.
+Handles both in-house and remote employee attendance in a single unified report.
 """
 
 import datetime
@@ -8,7 +8,8 @@ import logging
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from ..models import (
     AttendanceRecord, EarlyLeaveRequest, Employee, RemoteCallRecord, RemoteEmployee,
@@ -21,6 +22,7 @@ from .utils import (
     get_active_special_periods_for_month, get_common_report_context,
     get_holiday_data, get_remote_thresholds_from_period, get_saturday_shift,
     get_selected_month_year,
+    remote_employee_uses_performance_v2, compute_sales_performance_v2_days,
 )
 
 logger = logging.getLogger('attendance')
@@ -51,7 +53,8 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
         is_sunday = weekday == 6
         is_saturday = weekday == 5
         is_holiday_date = date_obj in holiday_dates
-        is_paid_leave = day in approved_leave_days
+        record = records_dict.get(day)
+        is_paid_leave = day in approved_leave_days or bool(record and record.is_paid_leave)
 
         # Determine if a special shift period covers this day
         active_period = None
@@ -83,8 +86,6 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
             (day_shift_end.hour * 60 + day_shift_end.minute) -
             (day_shift_start.hour * 60 + day_shift_start.minute)
         ) * 60 if day_shift_start and day_shift_end else 0
-
-        record = records_dict.get(day)
 
         status = ''
         is_half_day = False
@@ -229,29 +230,136 @@ def _compute_inhouse_calendar(employee, days_in_month, selected_year, selected_m
     }
 
 
+def _compute_remote_calendar(employee, days_in_month, selected_year, selected_month,
+                             holiday_dates, current_day, special_periods=None):
+    """Compute calendar data and summary for a remote employee.
+
+    Sales:Performance remote employees (attendance-based, not fixed-salary,
+    salaried) whose pay for this month is governed by the "Method 2"
+    talktime-proportional model use compute_sales_performance_v2_days for
+    day classification, so the calendar always matches what payroll actually
+    paid — see payroll._get_sales_performance_test_row for the full rule spec.
+    """
+    records_dict = {r.date.day: r for r in employee.filtered_records}
+
+    calendar_data = {}
+    present_count = 0
+    half_day_count = 0
+    proportional_count = 0
+    absent_count = 0
+    total_talk_seconds = 0
+
+    v2_days = None
+    if remote_employee_uses_performance_v2(employee, selected_year, selected_month):
+        month_start = datetime.date(selected_year, selected_month, 1)
+        month_end = datetime.date(selected_year, selected_month, days_in_month)
+        v2_days = compute_sales_performance_v2_days(employee, month_start, month_end, holiday_dates)['days']
+
+    for day in range(1, days_in_month + 1):
+        date_obj = datetime.date(selected_year, selected_month, day)
+        weekday = date_obj.weekday()
+        is_sunday = weekday == 6
+        is_saturday = weekday == 5
+        is_holiday_date = date_obj in holiday_dates
+
+        record = records_dict.get(day)
+
+        status = ''
+        talk_minutes = 0
+        answered_calls = 0
+        grace_denial_reason = None
+
+        if record:
+            if record.total_talk_duration:
+                talk_minutes = int(record.total_talk_duration.total_seconds() / 60)
+                total_talk_seconds += record.total_talk_duration.total_seconds()
+            answered_calls = record.answered_calls
+
+        if v2_days is not None:
+            day_info = v2_days.get(date_obj)
+            if day_info and day_info['classification'] == 'non_working':
+                status = 'holiday'
+            elif day_info and (record or day < current_day):
+                classification = day_info['classification']
+                grace_denial_reason = day_info['grace_denial_reason']
+                if classification == 'full':
+                    status = 'present'
+                    present_count += 1
+                elif classification == 'proportional':
+                    status = 'partial'
+                    proportional_count += 1
+                elif classification == 'half':
+                    status = 'half_day'
+                    half_day_count += 1
+                else:
+                    status = 'absent'
+                    absent_count += 1
+        elif is_sunday or is_holiday_date:
+            status = 'holiday'
+        elif record:
+            # Check if a special shift period applies and has remote thresholds
+            active_period = None
+            if special_periods:
+                active_period = next(
+                    (p for p in special_periods if p.start_date <= date_obj <= p.end_date),
+                    None
+                )
+            remote_thresholds = get_remote_thresholds_from_period(active_period) if active_period else None
+
+            if remote_thresholds:
+                status = record.calculate_attendance_status(thresholds=remote_thresholds)
+            else:
+                status = record.attendance_status
+
+            if not is_sunday:
+                if status == 'present':
+                    present_count += 1
+                elif status == 'half_day':
+                    half_day_count += 1
+                elif status == 'absent':
+                    absent_count += 1
+
+        elif day < current_day:
+            # No record for this past working day — count as absent
+            status = 'absent'
+            absent_count += 1
+
+        calendar_data[day] = {
+            'record': record,
+            'status': status,
+            'is_sunday': is_sunday,
+            'is_saturday': is_saturday,
+            'is_holiday': is_holiday_date,
+            'talk_minutes': talk_minutes,
+            'answered_calls': answered_calls,
+            'grace_denial_reason': grace_denial_reason,
+        }
+
+    return calendar_data, {
+        'present_days': present_count,
+        'half_days': half_day_count,
+        'proportional_days': proportional_count,
+        'absent_days': absent_count,
+        'total_talk_hours': round(total_talk_seconds / 3600, 1),
+    }
+
+
 @login_required
 def attendance_report(request):
-    """Display attendance report for in-house employees."""
-    selected_month, selected_year = get_selected_month_year(request)
+    """
+    Unified attendance report for in-house + remote employees.
 
-    records_qs = AttendanceRecord.objects.filter(
-        date__year=selected_year,
-        date__month=selected_month
-    ).order_by('date')
+    Employees linked via tcr_id appear once, using their in-house (fingerprint) calendar —
+    the linked remote record is not shown separately since its call data is redundant once
+    fingerprint attendance exists for that person.
+    """
+    selected_month, selected_year = get_selected_month_year(request)
 
     show_inactive = request.GET.get('show_inactive', '') == '1'
     search_query = request.GET.get('search', '').strip()
-
-    employees_qs = Employee.objects.prefetch_related(
-        Prefetch('attendancerecord_set', queryset=records_qs, to_attr='filtered_records')
-    )
-
-    if not show_inactive:
-        employees_qs = employees_qs.filter(is_active=True)
-    if search_query:
-        employees_qs = employees_qs.filter(name__icontains=search_query)
-
-    employees = employees_qs.order_by('name')
+    type_filter = request.GET.get('type', '').strip().lower()
+    if type_filter not in ('inhouse', 'remote'):
+        type_filter = ''
 
     cal_data = build_calendar_grid(selected_year, selected_month)
     days_in_month = cal_data['days_in_month']
@@ -259,11 +367,12 @@ def attendance_report(request):
     month_end = cal_data['month_end']
 
     holiday_dates, holiday_names, holidays_qs = get_holiday_data(month_start, month_end)
+    special_periods = get_active_special_periods_for_month(month_start, month_end)
 
     today = datetime.date.today()
     is_current_month = selected_year == today.year and selected_month == today.month
     if is_current_month:
-        # Exclude today: biometric data is only uploaded the following day
+        # Exclude today: biometric/call data is only uploaded the following day
         calculation_end_day = today.day - 1
     elif (selected_year < today.year) or (selected_year == today.year and selected_month < today.month):
         calculation_end_day = days_in_month
@@ -275,30 +384,56 @@ def attendance_report(request):
 
     current_day = today.day if is_current_month else 32
 
-    sat_shift_start, sat_shift_end = get_saturday_shift()
-    special_periods = get_active_special_periods_for_month(month_start, month_end)
+    # ── In-house employees ──────────────────────────────────────────────
+    inhouse_records_qs = AttendanceRecord.objects.filter(
+        date__year=selected_year,
+        date__month=selected_month
+    ).order_by('date')
 
-    employees = list(employees)
-    bulk_shifts = get_bulk_employee_shifts(employees, month_start)
-    bulk_leave_days = get_bulk_approved_leave_days(employees, month_start, month_end)
+    inhouse_qs = Employee.objects.prefetch_related(
+        Prefetch('attendancerecord_set', queryset=inhouse_records_qs, to_attr='filtered_records')
+    )
+    if not show_inactive:
+        inhouse_qs = inhouse_qs.filter(is_active=True)
+    if search_query:
+        inhouse_qs = inhouse_qs.filter(name__icontains=search_query)
+
+    inhouse_employees = list(inhouse_qs.order_by('name'))
+
+    sat_shift_start, sat_shift_end = get_saturday_shift()
+
+    bulk_shifts = get_bulk_employee_shifts(inhouse_employees, month_start)
+    bulk_leave_days = get_bulk_approved_leave_days(inhouse_employees, month_start, month_end)
     bulk_annual_leave_non_working = get_bulk_annual_leave_non_working_days(
-        employees, month_start, month_end, holiday_dates
+        inhouse_employees, month_start, month_end, holiday_dates
     )
 
     # Fetch today's approved on-duty requests (for preview when no biometric data yet)
     today_on_duty_map = {}
     if is_current_month:
         on_duty_qs = EarlyLeaveRequest.objects.filter(
-            employee_id__in=[e.id for e in employees],
+            employee_id__in=[e.id for e in inhouse_employees],
             request_date=today,
             status='approved',
             approved_first_in__isnull=False,
         )
         today_on_duty_map = {r.employee_id: r for r in on_duty_qs}
 
-    for employee in employees:
+    # tcr_id links to dedupe remote employees who are already represented in-house
+    linked_tcr_ids = {e.tcr_id for e in inhouse_employees if e.tcr_id}
+    remote_name_by_tcr = {}
+    if linked_tcr_ids:
+        remote_name_by_tcr = dict(
+            RemoteEmployee.objects.filter(tcr_id__in=linked_tcr_ids).values_list('tcr_id', 'name')
+        )
+
+    for employee in inhouse_employees:
         emp_shift_start, emp_shift_end = bulk_shifts[employee.id]
         approved_leave_days = bulk_leave_days[employee.id]
+
+        employee.type = 'inhouse'
+        employee.is_linked = bool(employee.tcr_id and employee.tcr_id in remote_name_by_tcr)
+        employee.linked_remote_name = remote_name_by_tcr.get(employee.tcr_id)
 
         employee.calendar_data, stats = _compute_inhouse_calendar(
             employee, days_in_month, selected_year, selected_month,
@@ -329,13 +464,44 @@ def attendance_report(request):
             'total_deductions': total_deductions,
         }
 
-    # Team-level summary for KPI cards
-    team_summary = {
-        'total_employees': len(employees),
-        'total_deductions': sum(e.summary['total_deductions'] for e in employees),
-        'total_leave_days': sum(e.summary['leave_days'] for e in employees),
-        'total_late_days': sum(e.summary['late_days'] for e in employees),
-    } if employees else {}
+    # ── Remote employees ────────────────────────────────────────────────
+    remote_records_qs = RemoteCallRecord.objects.filter(
+        date__year=selected_year,
+        date__month=selected_month
+    ).order_by('date')
+
+    remote_qs = RemoteEmployee.objects.prefetch_related(
+        Prefetch('remotecallrecord_set', queryset=remote_records_qs, to_attr='filtered_records')
+    )
+    if not show_inactive:
+        remote_qs = remote_qs.filter(is_active=True)
+    if search_query:
+        remote_qs = remote_qs.filter(name__icontains=search_query)
+
+    remote_employees = []
+    for employee in remote_qs.order_by('name'):
+        if employee.tcr_id and employee.tcr_id in linked_tcr_ids:
+            # Represented by the linked in-house row instead — its fingerprint calendar
+            # takes priority over the (now redundant) call-data calendar.
+            continue
+
+        employee.type = 'remote'
+        employee.calendar_data, stats = _compute_remote_calendar(
+            employee, days_in_month, selected_year, selected_month,
+            holiday_dates, current_day, special_periods=special_periods,
+        )
+        employee.summary = stats
+        remote_employees.append(employee)
+
+    # ── Combine ──────────────────────────────────────────────────────────
+    if type_filter == 'inhouse':
+        employees = inhouse_employees
+    elif type_filter == 'remote':
+        employees = remote_employees
+    else:
+        employees = inhouse_employees + remote_employees
+
+    employees.sort(key=lambda e: e.name.lower())
 
     pending_requests = EarlyLeaveRequest.objects.filter(
         status='pending'
@@ -343,13 +509,12 @@ def attendance_report(request):
 
     context = get_common_report_context(
         selected_month, selected_year, cal_data, holidays_qs,
-        show_inactive, search_query
+        show_inactive, search_query, type_filter=type_filter,
     )
     context.update({
         'employees': employees,
         'pending_requests': pending_requests,
         'pending_count': pending_requests.count(),
-        'team_summary': team_summary,
         'month_name': MONTH_NAMES[selected_month],
     })
     return render(request, 'attendance/report.html', context)
@@ -357,140 +522,8 @@ def attendance_report(request):
 
 @login_required
 def remote_attendance_report(request):
-    """Display attendance report for remote team."""
-    selected_month, selected_year = get_selected_month_year(request)
-
-    records_qs = RemoteCallRecord.objects.filter(
-        date__year=selected_year,
-        date__month=selected_month
-    ).order_by('date')
-
-    show_inactive = request.GET.get('show_inactive', '') == '1'
-    search_query = request.GET.get('search', '').strip()
-
-    employees_qs = RemoteEmployee.objects.prefetch_related(
-        Prefetch('remotecallrecord_set', queryset=records_qs, to_attr='filtered_records')
-    )
-
-    if not show_inactive:
-        employees_qs = employees_qs.filter(is_active=True)
-    if search_query:
-        employees_qs = employees_qs.filter(name__icontains=search_query)
-
-    employees = employees_qs.order_by('name')
-
-    cal_data = build_calendar_grid(selected_year, selected_month)
-    days_in_month = cal_data['days_in_month']
-    month_start = cal_data['month_start']
-    month_end = cal_data['month_end']
-
-    holiday_dates, holiday_names, holidays_qs = get_holiday_data(month_start, month_end)
-    special_periods = get_active_special_periods_for_month(month_start, month_end)
-
-    today = datetime.date.today()
-    is_current_month = selected_year == today.year and selected_month == today.month
-    if is_current_month:
-        # Exclude today: call data is only uploaded the following day
-        calculation_end_day = today.day - 1
-    elif (selected_year < today.year) or (selected_year == today.year and selected_month < today.month):
-        calculation_end_day = days_in_month
-    else:
-        calculation_end_day = 0
-
-    sundays_until_now, holidays_until_now, total_holidays_until_now, expected_working_days = \
-        count_holidays_in_range(selected_year, selected_month, calculation_end_day, holiday_dates)
-
-    current_day = today.day if is_current_month else 32
-
-    for employee in employees:
-        employee.calendar_data = {}
-        present_count = 0
-        half_day_count = 0
-        absent_count = 0
-        total_talk_seconds = 0
-
-        records_dict = {r.date.day: r for r in employee.filtered_records}
-
-        for day in range(1, days_in_month + 1):
-            date_obj = datetime.date(selected_year, selected_month, day)
-            weekday = date_obj.weekday()
-            is_sunday = weekday == 6
-            is_saturday = weekday == 5
-            is_holiday_date = date_obj in holiday_dates
-
-            record = records_dict.get(day)
-
-            status = ''
-            talk_minutes = 0
-            answered_calls = 0
-
-            if is_sunday or is_holiday_date:
-                status = 'holiday'
-            elif record:
-                if record.total_talk_duration:
-                    talk_minutes = int(record.total_talk_duration.total_seconds() / 60)
-                    total_talk_seconds += record.total_talk_duration.total_seconds()
-
-                answered_calls = record.answered_calls
-
-                # Check if a special shift period applies and has remote thresholds
-                active_period = None
-                if special_periods:
-                    active_period = next(
-                        (p for p in special_periods if p.start_date <= date_obj <= p.end_date),
-                        None
-                    )
-                remote_thresholds = get_remote_thresholds_from_period(active_period) if active_period else None
-
-                if remote_thresholds:
-                    status = record.calculate_attendance_status(thresholds=remote_thresholds)
-                else:
-                    status = record.attendance_status
-
-                if not is_sunday:
-                    if status == 'present':
-                        present_count += 1
-                    elif status == 'half_day':
-                        half_day_count += 1
-                    elif status == 'absent':
-                        absent_count += 1
-
-            elif day < current_day:
-                # No record for this past working day — count as absent
-                status = 'absent'
-                absent_count += 1
-
-            employee.calendar_data[day] = {
-                'record': record,
-                'status': status,
-                'is_sunday': is_sunday,
-                'is_saturday': is_saturday,
-                'is_holiday': is_holiday_date,
-                'talk_minutes': talk_minutes,
-                'answered_calls': answered_calls,
-            }
-
-        employee.summary = {
-            'present_days': present_count,
-            'half_days': half_day_count,
-            'absent_days': absent_count,
-            'total_talk_hours': round(total_talk_seconds / 3600, 1),
-        }
-
-    employees = list(employees)
-
-    team_summary = {
-        'total_employees': len(employees),
-        'total_present': sum(e.summary['present_days'] for e in employees),
-        'total_half': sum(e.summary['half_days'] for e in employees),
-        'total_absent': sum(e.summary['absent_days'] for e in employees),
-    } if employees else {}
-
-    context = get_common_report_context(
-        selected_month, selected_year, cal_data, holidays_qs,
-        show_inactive, search_query
-    )
-    context['employees'] = employees
-    context['team_summary'] = team_summary
-    context['month_name'] = MONTH_NAMES[selected_month]
-    return render(request, 'attendance/remote_report.html', context)
+    """Deprecated: the remote report is now merged into attendance_report. Redirect there,
+    preserving the query string, so existing bookmarks/links keep working."""
+    url = reverse('report')
+    query = request.GET.urlencode()
+    return redirect(f'{url}?{query}' if query else url)

@@ -11,10 +11,16 @@ from collections import defaultdict
 from decimal import Decimal
 from types import SimpleNamespace
 
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter as _get_col_letter
+
 from django.core.management import call_command
+from django.core.paginator import Paginator
 from django.db.models import Q, Sum
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required, user_passes_test
 
@@ -26,11 +32,15 @@ from attendance.models import (
 from collections import defaultdict as _defaultdict
 from attendance.views.utils import (
     MONTH_CHOICES, MONTH_NAMES, YEAR_RANGE,
-    get_selected_month_year, superuser_required,
+    get_selected_month_year, section_required,
     get_active_special_periods_for_month, get_remote_thresholds_from_period,
     get_bridge_sunday_days,
+    SALES_PERFORMANCE_V2_START, compute_sales_performance_v2_days,
 )
-from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, PaidSalaryRecord, DEDUCTION_CATEGORY_CHOICES
+from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, PaidSalaryRecord, CommissionTierSettings, DEDUCTION_CATEGORY_CHOICES
+from .services import convert_employee_deduction_currency
+
+FOREIGN_CURRENCIES = ('INR', 'NPR')  # non-AED currencies with dashboard-level differentiation
 
 logger = logging.getLogger('payroll')
 
@@ -157,16 +167,26 @@ def _sales_annual_leave_compensation(emp, emp_type, year, month, month_start, mo
     return round(compensation, 2), leave_working_days
 
 
-INR_COMMISSION_THRESHOLD = 4   # first N accounts use the bank's INR rate
-INR_OVERFLOW_RATE = Decimal('3000')  # INR per account beyond the threshold
+# Legacy fallback if a foreign currency has no CommissionTierSettings row yet.
+DEFAULT_TIER_THRESHOLD = 4
+DEFAULT_TIER_OVERFLOW_RATE = Decimal('3000')
 
 
-def _calc_inr_tiered_commission(pairs):
-    """Tiered INR commission.
+def _get_tier_settings(currency):
+    """Return (threshold, overflow_rate) for a foreign currency's tiered commission.
+    Falls back to the legacy hardcoded INR default if nothing is configured yet."""
+    setting = CommissionTierSettings.objects.filter(currency=currency).first()
+    if setting:
+        return setting.threshold, setting.overflow_rate
+    return DEFAULT_TIER_THRESHOLD, DEFAULT_TIER_OVERFLOW_RATE
 
-    pairs: list of (count, bank_inr_rate) in processing order (alphabetical by bank).
-    - Accounts 1-INR_COMMISSION_THRESHOLD: bank's INR per-account charge.
-    - Each account beyond threshold: INR_OVERFLOW_RATE flat.
+
+def _calc_tiered_commission(pairs, threshold, overflow_rate):
+    """Tiered commission for a foreign currency (INR, NPR, ...).
+
+    pairs: list of (count, bank_rate) in processing order (alphabetical by bank).
+    - Accounts 1-threshold: bank's per-account charge in that currency.
+    - Each account beyond threshold: overflow_rate flat.
 
     Returns (total_commission_float, per_pair_commission_list).
     """
@@ -175,16 +195,16 @@ def _calc_inr_tiered_commission(pairs):
     per_pair = []
     for count, rate in pairs:
         rate = Decimal(str(rate))
-        if used >= INR_COMMISSION_THRESHOLD:
-            commission = count * INR_OVERFLOW_RATE
-        elif used + count <= INR_COMMISSION_THRESHOLD:
+        if used >= threshold:
+            commission = count * overflow_rate
+        elif used + count <= threshold:
             commission = count * rate
             used += count
         else:
-            within = INR_COMMISSION_THRESHOLD - used
+            within = threshold - used
             overflow = count - within
-            commission = within * rate + overflow * INR_OVERFLOW_RATE
-            used = INR_COMMISSION_THRESHOLD
+            commission = within * rate + overflow * overflow_rate
+            used = threshold
         per_pair.append(float(commission))
         total += commission
     return float(total), per_pair
@@ -192,8 +212,8 @@ def _calc_inr_tiered_commission(pairs):
 
 def _get_commission(year, month, employee=None, remote_employee=None, currency='AED'):
     """Calculate total commission from bank submissions for the period.
-    INR employees use tiered pricing: first INR_COMMISSION_THRESHOLD accounts at the
-    bank's INR rate, then INR_OVERFLOW_RATE per account."""
+    Foreign-currency employees (INR, NPR, ...) use tiered pricing per CommissionTierSettings:
+    first `threshold` accounts at the bank's rate for that currency, then a flat overflow rate."""
     if employee:
         submissions = list(BankSubmission.objects.filter(
             employee=employee, year=year, month=month
@@ -203,9 +223,10 @@ def _get_commission(year, month, employee=None, remote_employee=None, currency='
             remote_employee=remote_employee, year=year, month=month
         ).select_related('bank').order_by('bank__name'))
 
-    if currency == 'INR':
-        pairs = [(s.submission_count, s.bank.charge_for_currency('INR')) for s in submissions]
-        total, _ = _calc_inr_tiered_commission(pairs)
+    if currency != 'AED':
+        threshold, overflow_rate = _get_tier_settings(currency)
+        pairs = [(s.submission_count, s.bank.charge_for_currency(currency)) for s in submissions]
+        total, _ = _calc_tiered_commission(pairs, threshold, overflow_rate)
         return total
 
     return float(sum(
@@ -217,6 +238,7 @@ def _get_commission(year, month, employee=None, remote_employee=None, currency='
 def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_holidays, days_in_period=None):
     """Build a payroll data row for one in-house employee."""
     _cross_month = (month_start.month != month_end.month or month_start.year != month_end.year)
+    _holiday_dates = set()
 
     if _cross_month and days_in_period is not None:
         # Cross-month period (e.g. 21st–20th): MonthlySummary is calendar-month only,
@@ -252,20 +274,14 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
                     half_days += 1
                 else:
                     full_days += 1
+            elif _r and _r.is_paid_leave:
+                pass  # admin-marked paid leave — not deducted
             elif _c not in _approved_leave_dates:
                 absent_days += 1
             _c += datetime.timedelta(days=1)
-        # Sundays/holidays inside AnnualLeave spans add to absent_days,
-        # mirroring recalculate_summaries which adds them to MonthlySummary.leave_days.
-        for _al in AnnualLeave.objects.filter(
-            employee=emp, start_date__lte=month_end, end_date__gte=month_start
-        ):
-            _c = max(_al.start_date, month_start)
-            _ae = min(_al.end_date, month_end)
-            while _c <= _ae:
-                if _c.weekday() == 6 or _c in _holiday_dates:
-                    absent_days += 1
-                _c += datetime.timedelta(days=1)
+        # Sundays/holidays inside AnnualLeave spans are handled exclusively by
+        # annual_leave_extra_deduction below (charges (100 − salary_pct)% per day).
+        # They are intentionally NOT added to absent_days here to avoid double-counting.
         effective_work_days = full_days + half_days * 0.5
         days_in_month = days_in_period
     else:
@@ -343,7 +359,25 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     annual_leave_extra_deduction = 0.0
     annual_leave_days = 0
     for al in annual_leaves:
-        working_days, non_working_days = _annual_leave_day_counts(al, month_start, month_end)
+        if _cross_month:
+            # Cross-month path: MonthlySummary is not used, so manually count
+            # working vs non-working days within the leave overlap.
+            # _holiday_dates is already populated from the attendance loop above.
+            al_overlap_start = max(al.start_date, month_start)
+            al_overlap_end = min(al.end_date, month_end)
+            al_working = 0
+            al_non_working = 0
+            if al_overlap_end >= al_overlap_start:
+                _d = al_overlap_start
+                while _d <= al_overlap_end:
+                    if _d.weekday() == 6 or _d in _holiday_dates:
+                        al_non_working += 1
+                    else:
+                        al_working += 1
+                    _d += datetime.timedelta(days=1)
+            working_days, non_working_days = al_working, al_non_working
+        else:
+            working_days, non_working_days = _annual_leave_day_counts(al, month_start, month_end)
         annual_leave_days += working_days
         salary_pct = float(al.salary_percentage) if al.is_paid else 0.0
         # Working days: compensate salary_pct% of daily rate (offsets absent-day deduction)
@@ -398,9 +432,10 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
     bank_counts = {s.bank_id: s.submission_count for s in submissions_qs}
     bank_counts_list = [bank_counts.get(b.id, 0) for b in banks]
 
-    if emp_currency == 'INR':
-        pairs = [(bank_counts.get(b.id, 0), b.charge_for_currency('INR')) for b in banks]
-        commission, _ = _calc_inr_tiered_commission(pairs)
+    if emp_currency != 'AED':
+        threshold, overflow_rate = _get_tier_settings(emp_currency)
+        pairs = [(bank_counts.get(b.id, 0), b.charge_for_currency(emp_currency)) for b in banks]
+        commission, _ = _calc_tiered_commission(pairs, threshold, overflow_rate)
     else:
         commission = sum(
             bank_counts.get(b.id, 0) * float(b.per_account_charge)
@@ -438,7 +473,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             present_days = AttendanceRecord.objects.filter(
                 employee=emp, date__gte=_ms, date__lte=_me,
             ).filter(
-                Q(first_in__isnull=False) | Q(is_work_from_home=True)
+                Q(first_in__isnull=False) | Q(is_work_from_home=True) | Q(is_paid_leave=True)
             ).count()
         else:
             call_records = RemoteCallRecord.objects.filter(
@@ -494,6 +529,42 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
     # Sundays + custom holidays are excluded from both the count and the
     # working-day denominator.
     if getattr(emp, 'payroll_type', 'attendance') == 'attendance' and emp.salary:
+        if emp_type == 'remote' and (year, month) >= SALES_PERFORMANCE_V2_START:
+            _ms = period_start or datetime.date(year, month, 1)
+            _me = period_end or datetime.date(year, month, calendar.monthrange(year, month)[1])
+            _days = days_in_month if days_in_month is not None else (_me - _ms).days + 1
+            v2 = _get_sales_performance_test_row(emp, _ms, _me, _days, total_holidays, year=year, month=month)
+            base_salary = v2['net_payroll_test']
+            deduction = round(v2['salary'] - base_salary, 2)
+            net_payroll = round(base_salary + incentives - reductions, 2)
+            return {
+                'employee': emp,
+                'employee_type': emp_type,
+                'display_type': display_type,
+                'currency': emp.currency,
+                'is_fixed_salary': False,
+                'is_attendance_based': True,
+                'payroll_method': 'v2',
+                'salary': v2['salary'],
+                'daily_rate': v2['daily_rate'],
+                'present_days': v2['full_days'],
+                'half_days': v2['half_days'],
+                'proportional_days': v2['proportional_days'],
+                'non_working_days': v2['non_working_days'],
+                'new_joiner_days': v2['new_joiner_days'],
+                'grace_denials': v2['grace_denials'],
+                'target_achieved': v2['target_achieved'],
+                'absent_days': v2['leave_days'],
+                'deduction': deduction,
+                'annual_leave_compensation': 0.0,
+                'annual_leave_days': 0,
+                'base_salary': base_salary,
+                'bank_counts_list': bank_counts_list,
+                'commission': round(commission, 2),
+                'incentives': round(incentives, 2),
+                'reductions': round(reductions, 2),
+                'net_payroll': net_payroll,
+            }
         if days_in_month is None:
             days_in_month = calendar.monthrange(year, month)[1]
         salary = float(emp.salary)
@@ -599,6 +670,217 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         'reductions': round(reductions, 2),
         'net_payroll': round(net_payroll, 2),
     }
+
+
+def _get_sales_performance_test_row(emp, period_start, period_end, days_in_period, total_holidays, year=None, month=None):
+    """EXPERIMENTAL — "Method 2" daily pay for remote Sales:Performance employees.
+    Not used anywhere outside the /payroll/test/ 'Sales: Performance Test' section.
+
+    Implements a per-day regime + grace-day gate model:
+
+      DAILY_WAGE = ROUND(salary / days_in_period)   # days_in_period = total
+                   calendar days in the pay period (Sundays/holidays included)
+      HALF_DAY_PAY = ROUND(DAILY_WAGE / 2)
+
+    Regime routing (Step 0 of the spec):
+      - Friday/Saturday -> FRIDAY_SATURDAY regime (always, overrides everything else)
+      - Monday-Thursday, the day falls within a rolling 30-day window starting
+        on the employee's `joining_date` (day 0 through day 29 inclusive) ->
+        NEW_JOINER_MONTH_1 regime. A calendar-month window would shortchange
+        someone who joins near month-end (e.g. the 29th) to just a couple of
+        lenient days.
+      - Monday-Thursday otherwise -> STANDARD regime
+    Sundays and custom holidays are outside all regimes and paid at the full
+    daily wage, same as the live payroll sections, so the two figures stay
+    comparable — except when the day falls inside an AnnualLeave span, in
+    which case it's paid at the leave's own salary_percentage instead (0%
+    for unpaid leave), matching the in-house annual_leave_extra_deduction
+    behavior.
+
+    FRIDAY_SATURDAY regime — binary, no half/proportional zone:
+      <30 min talktime  -> absent (0 pay)
+      >=30 min talktime -> full day (100% of daily wage)
+
+    NEW_JOINER_MONTH_1 regime (Mon-Thu only, no grace band):
+      <45 min           -> absent (0 pay)
+      45-59 min (incl.)  -> half day (50% of daily wage)
+      >=60 min           -> full day (100% of daily wage)
+
+    STANDARD regime (Mon-Thu, Month 2+):
+      <45 min             -> absent (0 pay)
+      45-54 min (incl.)   -> half day (50% of daily wage)
+      55-89 min (incl.)   -> grace-band: subject to the three gates below
+      >=90 min             -> full day (100% of daily wage)
+
+    Grace-band (55-89 min) gates, checked in order — any failure downgrades
+    the day to a half day instead of prorata pay, and does not consume a
+    grace slot:
+      1. Monthly cap: employee has already used 7 grace days in this
+         calendar month
+      2. Weekly cap: employee has already used 2 grace days in this
+         Mon-Sun work-week
+      3. Consecutive cap: the employee's last 2 STANDARD-regime workdays
+         were both grace/prorata days
+    If all three gates pass: PRORATA pay = ROUND((minutes/90) * daily_wage),
+    and the monthly/weekly/consecutive counters all increment. The
+    consecutive-day counter resets to 0 on any STANDARD full/half/absent day,
+    and is left untouched by Friday/Saturday and NEW_JOINER_MONTH_1 days.
+
+    DATA LIMITATION: the source spec expects per-call records (call_id,
+    called_number, duration_seconds, is_internal, crm_disposition_entered)
+    to derive a filtered "TVM" (total valid minutes) before classification —
+    excluding short calls, internal calls, calls beyond 1 re-dial per number,
+    and calls missing CRM disposition. This system only stores daily
+    aggregates (`RemoteCallRecord.total_talk_duration`), not individual call
+    legs, so that filtering step cannot be reproduced here: TVM is taken
+    directly from the stored total talk duration, same as it was in the
+    original Method 2. Likewise, there is no stored per-day incentive field,
+    so the spec's incentive step is not modeled (always 0).
+
+    TARGET OVERRIDE (foreign-currency employees only): if the employee's total
+    BankSubmission count across all banks for `year`/`month` reaches their
+    currency's CommissionTierSettings threshold (4 by default),
+    they've hit the account target and are paid full salary for the period
+    regardless of attendance — the day-by-day breakdown is still computed and
+    returned for informational purposes, but net_payroll_test is overridden
+    to the full salary amount.
+    """
+    STANDARD_FULL_DAY_THRESHOLD = 90
+
+    salary = float(emp.salary) if emp.salary else 0.0
+    # Kept at full decimal precision (not rounded to a whole rupee) so a day's
+    # pay never drifts from salary / days_in_period — rounding only happens
+    # once, on the final total below.
+    daily_wage = (salary / days_in_period) if (salary > 0 and days_in_period) else 0
+    half_day_pay = daily_wage / 2
+
+    holiday_dates = set(
+        Holiday.objects.filter(date__gte=period_start, date__lte=period_end)
+        .values_list('date', flat=True)
+    )
+    # Day classification (regime + full/half/proportional/leave) lives in
+    # attendance.views.utils.compute_sales_performance_v2_days, shared with
+    # the calendar/report/portal views so pay and displayed attendance status
+    # never drift apart.
+    result = compute_sales_performance_v2_days(emp, period_start, period_end, holiday_dates)
+
+    total_pay = 0.0
+    for day, info in result['days'].items():
+        regime = info['regime']
+        classification = info['classification']
+        tvm = info['tvm']
+        if regime == 'non_working':
+            # Sundays/holidays are only paid if they fall on or after the
+            # employee's joining date — otherwise the employee wasn't on
+            # payroll yet and the day shouldn't be compensated, mirroring how
+            # pre-joining weekdays already fall through to unpaid 'leave'.
+            if not emp.joining_date or day >= emp.joining_date:
+                al_pct = info.get('annual_leave_salary_pct')
+                if al_pct is not None:
+                    # Sunday/holiday inside an AnnualLeave span: follow the
+                    # leave's own pay rate instead of the normal full wage —
+                    # otherwise an unpaid leave still pays its Sundays in full.
+                    total_pay += daily_wage * al_pct / 100.0
+                else:
+                    total_pay += daily_wage
+        elif regime == 'friday_saturday':
+            if classification == 'full':
+                total_pay += daily_wage
+        elif regime == 'new_joiner':
+            if classification == 'full':
+                total_pay += daily_wage
+            elif classification == 'half':
+                total_pay += half_day_pay
+        else:  # standard
+            if classification == 'full':
+                total_pay += daily_wage
+            elif classification == 'proportional':
+                total_pay += (tvm / STANDARD_FULL_DAY_THRESHOLD) * daily_wage
+            elif classification == 'half':
+                total_pay += half_day_pay
+
+    # Target override: foreign-currency employees (INR, NPR, ...) who hit their
+    # currency's account target for the month get full salary regardless of attendance.
+    target_achieved = False
+    if emp.currency != 'AED' and year is not None and month is not None:
+        threshold, _overflow_rate = _get_tier_settings(emp.currency)
+        total_submissions = BankSubmission.objects.filter(
+            remote_employee=emp, year=year, month=month,
+        ).aggregate(total=Sum('submission_count'))['total'] or 0
+        if total_submissions >= threshold:
+            target_achieved = True
+            total_pay = salary
+
+    return {
+        'employee': emp,
+        'employee_type': 'remote',
+        'currency': emp.currency,
+        'salary': round(salary, 2),
+        'daily_rate': round(daily_wage, 2),
+        'leave_days': result['leave_days'],
+        'half_days': result['half_days'],
+        'proportional_days': result['proportional_days'],
+        'full_days': result['full_days'],
+        'non_working_days': result['non_working_days'],
+        'new_joiner_days': result['new_joiner_days'],
+        'grace_denials': result['grace_denials'],
+        'target_achieved': target_achieved,
+        'net_payroll_test': round(total_pay, 2),
+    }
+
+
+def _build_deduction_recovery_map():
+    """Per-employee open-carryover-chain map, used to decide whether a past
+    DeductionEntry has actually been recovered or is still tangled up in an
+    unresolved carryover chain.
+
+    A month M going into carryover means that month's payroll came out
+    negative. That debt is proven "resolved" once month M+1 has actually
+    been marked paid *and* did not itself spawn a new carryover row (if it
+    had gone negative too, a "from M+1" row would exist). So for each
+    employee we look at their most recent carryover month, and check whether
+    the following month has been marked paid — if so, the debt was cleanly
+    absorbed there (it can't be in the open set, since we already took the
+    max). If that following month hasn't been processed yet, the balance is
+    still open and pending.
+
+    Returns {(emp_type, emp_id): (is_open, chain_start_idx)} — chain_start_idx
+    is the earliest month (as year*12+(month-1)) in the unbroken run of
+    negative months ending at the open balance, only meaningful when is_open.
+    """
+    from_idxs_by_emp = _defaultdict(set)
+    for co in DeductionCarryover.objects.filter(is_skipped=False):
+        key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
+        from_idxs_by_emp[key].add(co.from_year * 12 + (co.from_month - 1))
+
+    paid_idx_by_emp = _defaultdict(set)
+    for pr in PaidSalaryRecord.objects.all():
+        key = ('inhouse', pr.employee_id) if pr.employee_id else ('remote', pr.remote_employee_id)
+        paid_idx_by_emp[key].add(pr.year * 12 + (pr.month - 1))
+
+    recovery_map = {}
+    for key, idx_set in from_idxs_by_emp.items():
+        max_from = max(idx_set)
+        next_idx = max_from + 1
+        if next_idx in paid_idx_by_emp.get(key, set()):
+            recovery_map[key] = (False, None)
+            continue
+        chain_start = max_from
+        while (chain_start - 1) in idx_set:
+            chain_start -= 1
+        recovery_map[key] = (True, chain_start)
+    return recovery_map
+
+
+def _entry_is_recovered(entry_end_idx, key, recovery_map, today_idx):
+    """True if a DeductionEntry (identified by its last installment month
+    index and (emp_type, emp_id) key) has been fully recovered."""
+    if entry_end_idx >= today_idx:
+        return False
+    is_open, chain_start = recovery_map.get(key, (False, None))
+    if is_open and entry_end_idx >= chain_start:
+        return False
+    return True
 
 
 def _build_section_totals(rows):
@@ -774,8 +1056,8 @@ def _deserialize_payroll_context(snapshot, selected_month, selected_year):
         'month_name': MONTH_NAMES[selected_month],
         'months': MONTH_CHOICES,
         'years': YEAR_RANGE,
-        'INR_COMMISSION_THRESHOLD': INR_COMMISSION_THRESHOLD,
-        'INR_OVERFLOW_RATE': int(INR_OVERFLOW_RATE),
+        'INR_COMMISSION_THRESHOLD': _get_tier_settings('INR')[0],
+        'INR_OVERFLOW_RATE': int(_get_tier_settings('INR')[1]),
         'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
         'is_frozen': True,
     }
@@ -786,7 +1068,7 @@ def _deserialize_payroll_context(snapshot, selected_month, selected_year):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 def payroll_dashboard(request):
     """Payroll dashboard showing Admin and Sales sections."""
     selected_month, selected_year = get_selected_month_year(request)
@@ -965,7 +1247,7 @@ def payroll_dashboard(request):
     # Load incoming carryovers for the selected month (overflow from previous month)
     incoming_carryovers = DeductionCarryover.objects.filter(
         to_year=selected_year, to_month=selected_month
-    )
+    ).exclude(is_skipped=True)
     carryover_by_emp = {}
     for co in incoming_carryovers:
         key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
@@ -1089,6 +1371,20 @@ def payroll_dashboard(request):
     else:
         _co_to_month, _co_to_year = selected_month + 1, selected_year
 
+    # Employees already marked paid for this month have a locked PaidSalaryRecord
+    # snapshot (including its own carryover_out at the time of payment). Don't
+    # recompute/delete their carryover rows using whatever the employee's *current*
+    # settings (salary, currency, cycle) are — that silently destroys real debt
+    # when those settings change after payment.
+    _paid_keys_this_month = set(
+        PaidSalaryRecord.objects.filter(year=selected_year, month=selected_month).values_list(
+            'employee_id', 'remote_employee_id'
+        )
+    )
+    _paid_emp_keys = {('inhouse', e) for e, r in _paid_keys_this_month if e} | {
+        ('remote', r) for e, r in _paid_keys_this_month if r
+    }
+
     final_rows = []
     for emp in _payroll_inhouse:
         key = ('inhouse', emp.id)
@@ -1101,22 +1397,23 @@ def payroll_dashboard(request):
         # Carryover tracking: use full total_ded (including carryover) to decide
         # whether to create/delete a carryover record for next month.
         accounting_net = round(payroll_net - total_ded + total_add, 2)
-        if accounting_net < 0:
-            overflow = Decimal(str(abs(accounting_net)))
-            DeductionCarryover.objects.update_or_create(
-                employee=emp, from_year=selected_year, from_month=selected_month,
-                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
-                          'remote_employee': None},
-            )
-        else:
-            DeductionCarryover.objects.filter(
-                employee=emp, from_year=selected_year, from_month=selected_month
-            ).delete()
-        if carryover_in > 0:
-            incoming_co = incoming_carryovers.filter(employee=emp).first()
-            if incoming_co:
-                incoming_co.applied_amount = Decimal(str(min(carryover_in, float(incoming_co.overflow_amount))))
-                incoming_co.save(update_fields=['applied_amount'])
+        if key not in _paid_emp_keys:
+            if accounting_net < 0:
+                overflow = Decimal(str(abs(accounting_net)))
+                DeductionCarryover.objects.update_or_create(
+                    employee=emp, from_year=selected_year, from_month=selected_month,
+                    defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
+                              'remote_employee': None, 'currency': emp.currency},
+                )
+            else:
+                DeductionCarryover.objects.filter(
+                    employee=emp, from_year=selected_year, from_month=selected_month
+                ).delete()
+            if carryover_in > 0:
+                incoming_co = incoming_carryovers.filter(employee=emp).first()
+                if incoming_co:
+                    incoming_co.applied_amount = Decimal(str(min(carryover_in, float(incoming_co.overflow_amount))))
+                    incoming_co.save(update_fields=['applied_amount'])
         # Displayed final salary matches the payslip:
         # - Admin employees: payslip reconstructs attendance deductions without bridge Sunday,
         #   so add it back here.
@@ -1149,22 +1446,23 @@ def payroll_dashboard(request):
         carryover_in = d['carryover_in'] if d else 0.0
         # Carryover tracking uses full total_ded.
         accounting_net = round(payroll_net - total_ded + total_add, 2)
-        if accounting_net < 0:
-            overflow = Decimal(str(abs(accounting_net)))
-            DeductionCarryover.objects.update_or_create(
-                remote_employee=emp, from_year=selected_year, from_month=selected_month,
-                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
-                          'employee': None},
-            )
-        else:
-            DeductionCarryover.objects.filter(
-                remote_employee=emp, from_year=selected_year, from_month=selected_month
-            ).delete()
-        if carryover_in > 0:
-            incoming_co = incoming_carryovers.filter(remote_employee=emp).first()
-            if incoming_co:
-                incoming_co.applied_amount = Decimal(str(min(carryover_in, float(incoming_co.overflow_amount))))
-                incoming_co.save(update_fields=['applied_amount'])
+        if key not in _paid_emp_keys:
+            if accounting_net < 0:
+                overflow = Decimal(str(abs(accounting_net)))
+                DeductionCarryover.objects.update_or_create(
+                    remote_employee=emp, from_year=selected_year, from_month=selected_month,
+                    defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
+                              'employee': None, 'currency': emp.currency},
+                )
+            else:
+                DeductionCarryover.objects.filter(
+                    remote_employee=emp, from_year=selected_year, from_month=selected_month
+                ).delete()
+            if carryover_in > 0:
+                incoming_co = incoming_carryovers.filter(remote_employee=emp).first()
+                if incoming_co:
+                    incoming_co.applied_amount = Decimal(str(min(carryover_in, float(incoming_co.overflow_amount))))
+                    incoming_co.save(update_fields=['applied_amount'])
         # Displayed final salary: exclude carryover (matches payslip).
         final_salary = round(payroll_net - (total_ded - carryover_in) + total_add, 2)
         if final_salary < 0:
@@ -1388,8 +1686,8 @@ def payroll_dashboard(request):
         # Sales (spreadsheet)
         'banks': banks,
         'banks_json': banks_json,
-        'INR_COMMISSION_THRESHOLD': INR_COMMISSION_THRESHOLD,
-        'INR_OVERFLOW_RATE': int(INR_OVERFLOW_RATE),
+        'INR_COMMISSION_THRESHOLD': _get_tier_settings('INR')[0],
+        'INR_OVERFLOW_RATE': int(_get_tier_settings('INR')[1]),
         'all_sales_data': all_sales_data,
         'total_sales_inhouse': total_sales_inhouse,
         'total_remote': total_remote,
@@ -1443,7 +1741,7 @@ def payroll_dashboard(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def freeze_payroll(request):
     """Compute and store an immutable snapshot of payroll for the given month."""
@@ -1560,7 +1858,7 @@ def freeze_payroll(request):
         s.employee_id: s
         for s in MonthlySummary.objects.filter(year=year, month=month)
     }
-    incoming_carryovers = DeductionCarryover.objects.filter(to_year=year, to_month=month)
+    incoming_carryovers = DeductionCarryover.objects.filter(to_year=year, to_month=month).exclude(is_skipped=True)
     carryover_by_emp = {}
     for co in incoming_carryovers:
         key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
@@ -1677,7 +1975,8 @@ def freeze_payroll(request):
             final_salary = 0.0
             DeductionCarryover.objects.update_or_create(
                 employee=emp, from_year=year, from_month=month,
-                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month, 'remote_employee': None},
+                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
+                          'remote_employee': None, 'currency': emp.currency},
             )
         else:
             DeductionCarryover.objects.filter(employee=emp, from_year=year, from_month=month).delete()
@@ -1711,7 +2010,8 @@ def freeze_payroll(request):
             final_salary = 0.0
             DeductionCarryover.objects.update_or_create(
                 remote_employee=emp, from_year=year, from_month=month,
-                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month, 'employee': None},
+                defaults={'overflow_amount': overflow, 'to_year': _co_to_year, 'to_month': _co_to_month,
+                          'employee': None, 'currency': emp.currency},
             )
         else:
             DeductionCarryover.objects.filter(remote_employee=emp, from_year=year, from_month=month).delete()
@@ -1797,7 +2097,7 @@ def freeze_payroll(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def unfreeze_payroll(request):
     """Delete the frozen snapshot for a month, reverting to live calculation."""
@@ -1825,15 +2125,24 @@ def unfreeze_payroll(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('banks'), login_url='/report/')
 def manage_banks(request):
     """Bank management page — list/add/edit/deactivate banks."""
     banks = Bank.objects.all().order_by('name')
-    return render(request, 'payroll/banks.html', {'banks': banks})
+    existing_tiers = {t.currency: t for t in CommissionTierSettings.objects.filter(currency__in=FOREIGN_CURRENCIES)}
+    tier_rows = []
+    for currency in FOREIGN_CURRENCIES:
+        t = existing_tiers.get(currency)
+        tier_rows.append({
+            'currency': currency,
+            'threshold': t.threshold if t else DEFAULT_TIER_THRESHOLD,
+            'overflow_rate': t.overflow_rate if t else None,
+        })
+    return render(request, 'payroll/banks.html', {'banks': banks, 'tier_rows': tier_rows})
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('banks'), login_url='/report/')
 @require_http_methods(["GET", "POST"])
 def banks_api(request):
     """GET: list active banks. POST: add a new bank."""
@@ -1850,6 +2159,7 @@ def banks_api(request):
     name = data.get('name', '').strip()
     per_account_charge = data.get('per_account_charge')
     inr_per_account_charge = data.get('inr_per_account_charge')
+    npr_per_account_charge = data.get('npr_per_account_charge')
 
     if not name or per_account_charge is None:
         return JsonResponse({'success': False, 'error': 'Name and per_account_charge are required'}, status=400)
@@ -1859,10 +2169,12 @@ def banks_api(request):
 
     try:
         inr_charge = Decimal(str(inr_per_account_charge)) if inr_per_account_charge not in (None, '', 0, '0') else None
+        npr_charge = Decimal(str(npr_per_account_charge)) if npr_per_account_charge not in (None, '', 0, '0') else None
         bank = Bank.objects.create(
             name=name,
             per_account_charge=Decimal(str(per_account_charge)),
             inr_per_account_charge=inr_charge,
+            npr_per_account_charge=npr_charge,
         )
     except (ValueError, TypeError) as e:
         return JsonResponse({'success': False, 'error': f'Invalid data: {e}'}, status=400)
@@ -1872,12 +2184,13 @@ def banks_api(request):
         'id': bank.id, 'name': bank.name,
         'per_account_charge': float(bank.per_account_charge),
         'inr_per_account_charge': float(bank.inr_per_account_charge) if bank.inr_per_account_charge else None,
+        'npr_per_account_charge': float(bank.npr_per_account_charge) if bank.npr_per_account_charge else None,
         'is_active': bank.is_active,
     }})
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('banks'), login_url='/report/')
 @require_http_methods(["POST"])
 def bank_detail_api(request, bank_id):
     """Update or toggle a bank."""
@@ -1897,6 +2210,7 @@ def bank_detail_api(request, bank_id):
         name = data.get('name', '').strip()
         per_account_charge = data.get('per_account_charge')
         inr_per_account_charge = data.get('inr_per_account_charge')
+        npr_per_account_charge = data.get('npr_per_account_charge')
         if not name or per_account_charge is None:
             return JsonResponse({'success': False, 'error': 'Name and charge are required'}, status=400)
         # Check uniqueness excluding self
@@ -1910,6 +2224,11 @@ def bank_detail_api(request, bank_id):
                 if inr_per_account_charge not in (None, '', 0, '0')
                 else None
             )
+            bank.npr_per_account_charge = (
+                Decimal(str(npr_per_account_charge))
+                if npr_per_account_charge not in (None, '', 0, '0')
+                else None
+            )
             bank.save()
         except (ValueError, TypeError) as e:
             return JsonResponse({'success': False, 'error': f'Invalid data: {e}'}, status=400)
@@ -1918,6 +2237,7 @@ def bank_detail_api(request, bank_id):
             'id': bank.id, 'name': bank.name,
             'per_account_charge': float(bank.per_account_charge),
             'inr_per_account_charge': float(bank.inr_per_account_charge) if bank.inr_per_account_charge else None,
+            'npr_per_account_charge': float(bank.npr_per_account_charge) if bank.npr_per_account_charge else None,
             'is_active': bank.is_active,
         }})
 
@@ -1930,12 +2250,53 @@ def bank_detail_api(request, bank_id):
     return JsonResponse({'success': False, 'error': 'Unknown action'}, status=400)
 
 
+@login_required
+@user_passes_test(section_required('banks'), login_url='/report/')
+@require_http_methods(["POST"])
+def save_commission_tier(request):
+    """Save/update the tiered-commission threshold + flat overflow rate for a foreign currency (INR, NPR, ...)."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    currency = (data.get('currency') or '').strip().upper()
+    threshold = data.get('threshold')
+    overflow_rate = data.get('overflow_rate')
+
+    if currency not in FOREIGN_CURRENCIES:
+        return JsonResponse({'success': False, 'error': 'Currency must be one of: ' + ', '.join(FOREIGN_CURRENCIES)}, status=400)
+    if threshold is None or overflow_rate is None:
+        return JsonResponse({'success': False, 'error': 'threshold and overflow_rate are required'}, status=400)
+
+    try:
+        threshold_val = int(threshold)
+        overflow_val = Decimal(str(overflow_rate))
+        if threshold_val < 0 or overflow_val < 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'error': 'threshold must be a non-negative integer and overflow_rate a non-negative number'}, status=400)
+
+    obj, created = CommissionTierSettings.objects.update_or_create(
+        currency=currency,
+        defaults={'threshold': threshold_val, 'overflow_rate': overflow_val},
+    )
+    logger.info(
+        "Commission tier settings saved for %s: threshold=%s overflow_rate=%s by %s",
+        currency, threshold_val, overflow_val, request.user.username,
+    )
+    return JsonResponse({
+        'success': True, 'currency': currency,
+        'threshold': obj.threshold, 'overflow_rate': float(obj.overflow_rate), 'created': created,
+    })
+
+
 # ============================================
 # API: Bank Submissions
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 def get_submissions(request, emp_type, employee_id):
     """Get bank submissions for an employee for a specific month."""
     try:
@@ -1965,15 +2326,16 @@ def get_submissions(request, emp_type, employee_id):
     banks = list(Bank.objects.filter(is_active=True).order_by('name'))
     emp_currency = employee.currency if hasattr(employee, 'currency') else 'AED'
 
-    if emp_currency == 'INR':
-        pairs = [(submission_map.get(b.id, 0), b.charge_for_currency('INR')) for b in banks]
-        total_commission, per_bank_commissions = _calc_inr_tiered_commission(pairs)
+    if emp_currency != 'AED':
+        threshold, overflow_rate = _get_tier_settings(emp_currency)
+        pairs = [(submission_map.get(b.id, 0), b.charge_for_currency(emp_currency)) for b in banks]
+        total_commission, per_bank_commissions = _calc_tiered_commission(pairs, threshold, overflow_rate)
         data = [
             {
                 'bank_id': b.id,
                 'bank_name': b.name,
-                'per_account_charge': float(b.charge_for_currency('INR')),
-                'currency': 'INR',
+                'per_account_charge': float(b.charge_for_currency(emp_currency)),
+                'currency': emp_currency,
                 'submission_count': submission_map.get(b.id, 0),
                 'commission': round(per_bank_commissions[i], 2),
             }
@@ -2006,7 +2368,7 @@ def get_submissions(request, emp_type, employee_id):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def save_submissions(request):
     """Save bank submission counts for an employee for a month."""
@@ -2015,11 +2377,16 @@ def save_submissions(request):
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
 
-    emp_type = data.get('emp_type')
+    emp_type = data.get('emp_type') or data.get('employee_type')
     employee_id = data.get('employee_id')
     year = data.get('year')
     month = data.get('month')
-    submissions = data.get('submissions', {})  # {bank_id: count}
+    submissions_raw = data.get('submissions', [])
+    # Accept both list [{bank_id, count}] and dict {bank_id: count} formats
+    if isinstance(submissions_raw, list):
+        submissions = {str(s['bank_id']): s['count'] for s in submissions_raw if 'bank_id' in s}
+    else:
+        submissions = submissions_raw
 
     if not all([emp_type, employee_id, year, month]):
         return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
@@ -2075,7 +2442,7 @@ def save_submissions(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 def get_adjustments(request, employee_id):
     """Get adjustments for an in-house employee for a specific month."""
     try:
@@ -2108,7 +2475,7 @@ def get_adjustments(request, employee_id):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def add_adjustment(request):
     """Add a new adjustment for an in-house employee."""
@@ -2168,7 +2535,7 @@ def add_adjustment(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 def get_remote_adjustments(request, employee_id):
     """Get adjustments for a remote employee for a specific month."""
     try:
@@ -2201,7 +2568,7 @@ def get_remote_adjustments(request, employee_id):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def add_remote_adjustment(request):
     """Add a new adjustment for a remote employee."""
@@ -2261,7 +2628,7 @@ def add_remote_adjustment(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def recalculate_summaries(request):
     """Trigger recalculation of monthly summaries for the selected month/year."""
@@ -2289,7 +2656,7 @@ def recalculate_summaries(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def upload_submissions(request):
     """
@@ -2431,14 +2798,14 @@ def upload_submissions(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 def payroll_employees(request):
     """Redirects to the unified employee management page."""
     return redirect('employee_management')
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def payroll_employee_update(request, emp_type, employee_id):
     """Update payroll-relevant fields (salary, currency, designation, department) for an employee."""
@@ -2467,9 +2834,10 @@ def payroll_employee_update(request, emp_type, employee_id):
         except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'Invalid salary value'}, status=400)
 
+    old_currency = emp.currency
     if 'currency' in data:
-        if data['currency'] not in ('AED', 'INR'):
-            return JsonResponse({'success': False, 'error': 'Currency must be AED or INR'}, status=400)
+        if data['currency'] not in ('AED', 'INR', 'NPR'):
+            return JsonResponse({'success': False, 'error': 'Currency must be AED, INR, or NPR'}, status=400)
         emp.currency = data['currency']
 
     if 'designation' in data:
@@ -2506,6 +2874,12 @@ def payroll_employee_update(request, emp_type, employee_id):
         emp.visa_provider = vp or None
 
     emp.save()
+    if old_currency != emp.currency:
+        convert_employee_deduction_currency(emp_type, emp.id, old_currency, emp.currency)
+        logger.info(
+            "Currency changed for %s (%s): %s -> %s, outstanding deductions converted by %s",
+            emp.name, emp_type, old_currency, emp.currency, request.user.username,
+        )
     logger.info("Payroll employee updated: %s (%s) by %s", emp.name, emp_type, request.user.username)
     return JsonResponse({
         'success': True,
@@ -2521,7 +2895,7 @@ def payroll_employee_update(request, emp_type, employee_id):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def delete_adjustment(request, adjustment_id):
     """Delete an adjustment (works for both in-house and remote)."""
@@ -2543,7 +2917,7 @@ def delete_adjustment(request, adjustment_id):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def add_deduction(request):
     """Create a new DeductionEntry (deduction or addition) for an employee."""
@@ -2588,6 +2962,7 @@ def add_deduction(request):
             **fk_kwargs,
             category=category,
             total_amount=Decimal(str(total_amount)),
+            currency=employee.currency,
             split_months=max(1, int(split_months)),
             start_year=int(start_year),
             start_month=int(start_month),
@@ -2604,7 +2979,7 @@ def add_deduction(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def delete_deduction_entry(request, deduction_id):
     """Delete a DeductionEntry."""
@@ -2619,7 +2994,48 @@ def delete_deduction_entry(request, deduction_id):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
+@require_http_methods(["POST"])
+def toggle_carryover_skip(request, carryover_id):
+    """Waive (or restore) a single carried-over deduction month.
+
+    Skipping excludes the record from live deduction totals (it is treated as
+    forgiven, not recovered) without deleting its history. Toggling back
+    un-skips it, restoring normal recovery.
+    """
+    try:
+        co = DeductionCarryover.objects.get(id=carryover_id)
+    except DeductionCarryover.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Carryover record not found'}, status=404)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        data = {}
+    skip = data.get('skip', not co.is_skipped)
+
+    co.is_skipped = bool(skip)
+    if co.is_skipped:
+        co.skipped_at = timezone.now()
+        co.skipped_by = request.user.username
+        co.skip_reason = (data.get('reason') or '')[:255]
+    else:
+        co.skipped_at = None
+        co.skipped_by = ''
+        co.skip_reason = ''
+    co.save(update_fields=['is_skipped', 'skipped_at', 'skipped_by', 'skip_reason'])
+
+    emp = co.employee or co.remote_employee
+    logger.info(
+        "DeductionCarryover %s: id=%s employee=%s %s/%s by %s",
+        'skipped' if co.is_skipped else 'unskipped',
+        carryover_id, emp.name if emp else '?', co.from_month, co.from_year, request.user.username,
+    )
+    return JsonResponse({'success': True, 'is_skipped': co.is_skipped})
+
+
+@login_required
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["GET"])
 def autofill_deduction(request):
     """Return auto-computed leave/late deduction amounts for an in-house employee."""
@@ -2699,27 +3115,81 @@ def _amount_in_words(amount):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 def download_payslip(request, emp_type, emp_id):
     """Render a printable HTML payslip for one employee for the selected month."""
     selected_month, selected_year = get_selected_month_year(request)
-    days_in_month = calendar.monthrange(selected_year, selected_month)[1]
-    month_start = datetime.date(selected_year, selected_month, 1)
-    month_end = datetime.date(selected_year, selected_month, days_in_month)
     month_name = MONTH_NAMES[selected_month]
 
     if emp_type == 'inhouse':
         emp = get_object_or_404(Employee, id=emp_id)
+        paid_record = PaidSalaryRecord.objects.filter(
+            employee=emp, year=selected_year, month=selected_month
+        ).first()
     else:
         emp = get_object_or_404(RemoteEmployee, id=emp_id)
+        paid_record = PaidSalaryRecord.objects.filter(
+            remote_employee=emp, year=selected_year, month=selected_month
+        ).first()
+
+    if paid_record and paid_record.snapshot:
+        # Employee's salary for this month is locked via "Mark as Paid" — render
+        # from that immutable snapshot instead of recomputing live, so the payslip
+        # always matches the locked Payroll Summary figure even if attendance,
+        # deductions, salary, or the payroll formula change afterward.
+        snap = paid_record.snapshot
+        salary = float(snap.get('salary') or 0)
+        days_in_month = snap.get('days_in_period') or 0
+        absent_days_display = snap.get('absent_days') or 0
+        if salary:
+            basic_full = round(salary * 0.40, 2)
+            allowance_full = round(salary * 0.60, 2)
+        else:
+            basic_full = 0.0
+            allowance_full = 0.0
+        commission = 0.0 if snap.get('is_fixed_salary') else snap.get('commission', 0.0)
+        incentives = snap.get('incentives', 0.0)
+        cat = snap.get('deductions_breakdown', {})
+        advance_ded = round(cat.get('advance', 0.0), 2)
+        leave_deduction = round(cat.get('leave_deduction', 0.0), 2)
+        late_deduction = round(cat.get('late_deduction', 0.0), 2)
+        other_ded = round(
+            cat.get('other_deduction', 0.0) + cat.get('visa_status_change', 0.0)
+            + cat.get('clawback', 0.0) + snap.get('reductions', 0.0), 2
+        )
+        additions = round(
+            cat.get('paid_leave', 0.0) + cat.get('last_month_balance', 0.0)
+            + cat.get('other_addition', 0.0), 2
+        )
+        carryover_ded = round(snap.get('carryover_in', 0.0), 2)
+        incentives_commission = round(incentives + commission, 2)
+        total_earnings = round(basic_full + allowance_full + incentives_commission + additions, 2)
+        net_salary = round(snap.get('final_salary', 0.0), 2)
+        total_deductions = round(total_earnings - net_salary, 2)
+        salary_words = _amount_in_words(net_salary) if net_salary > 0 else 'Zero Only'
+        return _render_payslip_response(
+            request, emp, emp_type, selected_year, selected_month, month_name,
+            days_in_month, absent_days_display, salary, basic_full, allowance_full,
+            incentives_commission, additions, leave_deduction, late_deduction,
+            advance_ded, other_ded, carryover_ded, total_earnings, total_deductions,
+            net_salary, salary_words,
+        )
 
     salary = float(emp.salary) if emp.salary else 0.0
 
-    # --- Payroll figures ---
+    # Use the employee's salary cycle — same logic as the payroll dashboard.
+    cycle_day = getattr(emp, 'salary_cycle_start_day', None) or 21
+    period_start, period_end, days_in_period, total_holidays = _get_employee_pay_period(
+        cycle_day, selected_year, selected_month
+    )
+    days_in_month = days_in_period  # "Total No. of days" on the payslip
+
+    # --- Payroll figures (identical path to the dashboard) ---
     if emp_type == 'inhouse' and emp.department == 'Admin':
-        total_holidays = _count_holidays(selected_year, selected_month, days_in_month)
         payroll = _get_inhouse_payroll_row(
-            emp, selected_year, selected_month, month_start, month_end, total_holidays
+            emp, selected_year, selected_month,
+            period_start, period_end, total_holidays,
+            days_in_period=days_in_period,
         )
         daily_rate = payroll['daily_rate']
         absent_days = payroll['absent_days']
@@ -2741,10 +3211,10 @@ def download_payslip(request, emp_type, emp_id):
         att_late_ded = round(daily_rate * (late_half_days * 0.5), 2)
     else:
         banks = list(Bank.objects.filter(is_active=True).order_by('name'))
-        total_holidays = _count_holidays(selected_year, selected_month, days_in_month)
         payroll = _get_sales_payroll_row(
             emp, selected_year, selected_month, emp_type, banks,
-            days_in_month, total_holidays,
+            days_in_period, total_holidays,
+            period_start=period_start, period_end=period_end,
         )
         incentives = payroll['incentives']
         commission = 0.0 if payroll.get('is_fixed_salary') else payroll['commission']
@@ -2797,12 +3267,48 @@ def download_payslip(request, emp_type, emp_id):
 
     incentives_commission = round(incentives + commission, 2)
     total_earnings = round(basic_full + allowance_full + incentives_commission + additions, 2)
-    total_deductions = round(leave_deduction + late_deduction + advance_ded + other_ded, 2)
-    net_salary = round(total_earnings - total_deductions, 2)
+
+    # Carryover deduction (overflow from prior month that went negative)
+    if emp_type == 'inhouse':
+        _co = DeductionCarryover.objects.filter(employee=emp, to_year=selected_year, to_month=selected_month).first()
+    else:
+        _co = DeductionCarryover.objects.filter(remote_employee=emp, to_year=selected_year, to_month=selected_month).first()
+    carryover_ded = round(float(_co.overflow_amount), 2) if _co else 0.0
+
+    # Derive net from payroll['net_payroll'] — avoids rounding drift that accumulates
+    # when daily_rate (already rounded to 2dp in the dict) is multiplied per-component.
+    # Formula mirrors the dashboard's final_salary: net_payroll + bridge_adj - ded_entries - carryover + add_entries.
+    # bridge_adj is added back for Admin employees because the payslip excludes bridge Sundays
+    # (the dashboard compensates the same way in its final_salary calculation).
+    # payroll['net_payroll'] already deducted reductions, so only DeductionEntry items and carryover are subtracted here.
+    _ded_entries = advance_ded + leave_ded_manual + late_ded_manual + other_ded_manual
+    if emp_type == 'inhouse' and emp.department == 'Admin':
+        _bridge_adj = payroll.get('bridge_sunday_count', 0) * payroll['daily_rate']
+        net_salary = round(payroll['net_payroll'] + _bridge_adj + additions - _ded_entries - carryover_ded, 2)
+    else:
+        net_salary = round(payroll['net_payroll'] + additions - _ded_entries - carryover_ded, 2)
+    total_deductions = round(total_earnings - net_salary, 2)
 
     salary_words = _amount_in_words(net_salary) if net_salary > 0 else 'Zero Only'
 
-    # --- Register document and get stable reference ID ---
+    return _render_payslip_response(
+        request, emp, emp_type, selected_year, selected_month, month_name,
+        days_in_month, absent_days_display, salary, basic_full, allowance_full,
+        incentives_commission, additions, leave_deduction, late_deduction,
+        advance_ded, other_ded, carryover_ded, total_earnings, total_deductions,
+        net_salary, salary_words,
+    )
+
+
+def _render_payslip_response(
+    request, emp, emp_type, selected_year, selected_month, month_name,
+    days_in_month, absent_days_display, salary, basic_full, allowance_full,
+    incentives_commission, additions, leave_deduction, late_deduction,
+    advance_ded, other_ded, carryover_ded, total_earnings, total_deductions,
+    net_salary, salary_words,
+):
+    """Register the GeneratedDocument entry and render the payslip HTML.
+    Shared by the live-computed path and the locked-snapshot (Mark as Paid) path."""
     if emp_type == 'inhouse':
         _gdoc, _ = GeneratedDocument.objects.get_or_create(
             doc_type='payslip', employee=emp, year=selected_year, month=selected_month,
@@ -2814,7 +3320,6 @@ def download_payslip(request, emp_type, emp_id):
             defaults={'employee': None},
         )
 
-    # --- Render HTML payslip ---
     logger.info("Payslip viewed for %s %s/%s by %s", emp.name, selected_month, selected_year, request.user.username)
     return render(request, 'payroll/payslip.html', {
         'emp': emp,
@@ -2832,6 +3337,7 @@ def download_payslip(request, emp_type, emp_id):
         'late_deduction': late_deduction,
         'advance_ded': advance_ded,
         'other_ded': other_ded,
+        'carryover_ded': carryover_ded,
         'total_earnings': total_earnings,
         'total_deductions': total_deductions,
         'net_salary': net_salary,
@@ -2841,11 +3347,85 @@ def download_payslip(request, emp_type, emp_id):
 
 
 # ============================================
+# Payslip History (searchable archive of Mark-as-Paid records)
+# ============================================
+
+@login_required
+@user_passes_test(section_required('payroll'), login_url='/report/')
+def payslip_history(request):
+    """Searchable archive of every payslip ever locked via Mark as Paid, for
+    any employee — in-house or remote, active or since left — across all months.
+    Each row links to the existing payslip view, which already renders from the
+    locked PaidSalaryRecord snapshot when one exists for that employee/month."""
+    search = request.GET.get('q', '').strip()
+    year_filter = request.GET.get('year', '').strip()
+    month_filter = request.GET.get('month', '').strip()
+    type_filter = request.GET.get('type', '').strip()
+
+    records = PaidSalaryRecord.objects.select_related('employee', 'remote_employee').filter(
+        snapshot__isnull=False
+    )
+
+    if search:
+        records = records.filter(
+            Q(employee__name__icontains=search) | Q(remote_employee__name__icontains=search)
+        )
+    if year_filter.isdigit():
+        records = records.filter(year=int(year_filter))
+    if month_filter.isdigit():
+        records = records.filter(month=int(month_filter))
+    if type_filter == 'inhouse':
+        records = records.filter(employee__isnull=False)
+    elif type_filter == 'remote':
+        records = records.filter(remote_employee__isnull=False)
+
+    records = records.order_by('-year', '-month', 'employee__name', 'remote_employee__name')
+    total_count = records.count()
+
+    paginator = Paginator(records, 50)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+
+    rows = []
+    for rec in page_obj:
+        emp = rec.employee or rec.remote_employee
+        emp_type = 'inhouse' if rec.employee_id else 'remote'
+        snap = rec.snapshot or {}
+        rows.append({
+            'record': rec,
+            'employee': emp,
+            'employee_type': emp_type,
+            'department': snap.get('department') or getattr(emp, 'department', '') or '',
+            'designation': snap.get('designation', ''),
+            'month_name': MONTH_NAMES[rec.month] if 1 <= rec.month <= 12 else rec.month,
+            'final_salary': rec.final_salary,
+            'currency': rec.currency,
+            'paid_at': rec.paid_at,
+            'paid_by': rec.paid_by,
+        })
+
+    available_years = list(
+        PaidSalaryRecord.objects.order_by().values_list('year', flat=True).distinct().order_by('-year')
+    )
+
+    return render(request, 'payroll/payslip_history.html', {
+        'rows': rows,
+        'page_obj': page_obj,
+        'search': search,
+        'year_filter': year_filter,
+        'month_filter': month_filter,
+        'type_filter': type_filter,
+        'available_years': available_years,
+        'months': MONTH_CHOICES,
+        'total_count': total_count,
+    })
+
+
+# ============================================
 # Advance Payment Voucher (print view)
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('payroll'))
 def advance_voucher_download(request):
     """Render a printable payment voucher page for an advance deduction."""
     entry_id = request.GET.get('entry_id')
@@ -2906,19 +3486,22 @@ def advance_voucher_download(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(["POST"])
 def save_exchange_rate(request):
-    """Save or update the exchange rate for INR on the 10th of a given month."""
+    """Save or update the exchange rate for a foreign currency (INR, NPR, ...) for a given month."""
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
 
+    currency = (data.get('currency') or 'INR').strip().upper()
     year = data.get('year')
     month = data.get('month')
     rate = data.get('rate')
 
+    if currency not in FOREIGN_CURRENCIES:
+        return JsonResponse({'success': False, 'error': 'Currency must be one of: ' + ', '.join(FOREIGN_CURRENCIES)}, status=400)
     if not all([year, month, rate]):
         return JsonResponse({'success': False, 'error': 'year, month, and rate are required'}, status=400)
 
@@ -2930,10 +3513,10 @@ def save_exchange_rate(request):
         return JsonResponse({'success': False, 'error': 'Rate must be a positive number'}, status=400)
 
     obj, created = ExchangeRate.objects.update_or_create(
-        currency='INR', year=int(year), month=int(month),
+        currency=currency, year=int(year), month=int(month),
         defaults={'rate': rate_val},
     )
-    return JsonResponse({'success': True, 'rate': float(obj.rate), 'created': created})
+    return JsonResponse({'success': True, 'currency': currency, 'rate': float(obj.rate), 'created': created})
 
 
 # ============================================
@@ -2941,10 +3524,19 @@ def save_exchange_rate(request):
 # ============================================
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('payroll'), login_url='/report/')
 def payroll_test_dashboard(request):
-    """Simplified payroll dashboard with 4 tables by employee category."""
+    """Payroll dashboard with 4 tables by employee category."""
     selected_month, selected_year = get_selected_month_year(request)
+
+    # Legacy frozen-month protection: if this month was previously frozen with the
+    # old payroll system, skip carryover mutations so the historical DB state is
+    # not overwritten.  PaidSalaryRecord overlay (populated by convert_frozen_to_paid)
+    # will display the locked values instead.
+    frozen_obj = FrozenPayrollMonth.objects.filter(
+        year=selected_year, month=selected_month
+    ).first()
+    is_frozen = frozen_obj is not None
 
     # Default pay period (21st prev → 20th current) used for header display
     if selected_month == 1:
@@ -3043,6 +3635,27 @@ def payroll_test_dashboard(request):
             _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
         )
 
+    # Table 4 (reference): Sales - Performance TEST — talktime-proportional daily
+    # pay ("Method 2"), remote employees only. sales_perf_rows above already uses
+    # this same formula (via _get_sales_payroll_row) for months >= July 2026, so
+    # for those months this tab is redundant with the live one; it's kept so
+    # pre-cutoff months can still be compared against what Method 2 would have paid.
+    sales_perf_test_rows = []
+    for emp in sales_perf_remote_emps:
+        p_start, p_end, p_days, p_hols = _emp_period(emp)
+        test_row = _get_sales_performance_test_row(emp, p_start, p_end, p_days, p_hols, year=selected_year, month=selected_month)
+        live_row = _get_sales_payroll_row(
+            emp, selected_year, selected_month, 'remote', banks, p_days, p_hols,
+            period_start=p_start, period_end=p_end,
+        )
+        test_row['live_net_payroll'] = live_row['net_payroll']
+        test_row['live_commission'] = live_row.get('commission', 0)
+        test_row['diff'] = round(test_row['net_payroll_test'] - live_row['net_payroll'], 2)
+        sales_perf_test_rows.append(test_row)
+    # Totals/diff are finalized below (after the paid-snapshot overlay), since
+    # already-paid employees need their "Live Net Payroll" replaced with the
+    # locked snapshot value to stay consistent with the real Sales: Performance tab.
+
     # ---- Deductions & Additions ----
     _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
     _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
@@ -3052,18 +3665,29 @@ def payroll_test_dashboard(request):
 
     active_by_emp = _defaultdict(list)
     all_deductions_list = []
+    _recovery_map = _build_deduction_recovery_map()
+    _today = timezone.localdate()
+    _today_idx = _today.year * 12 + (_today.month - 1)
     for entry in DeductionEntry.objects.select_related('employee', 'remote_employee').order_by('-created_at'):
         emp_obj = entry.employee or entry.remote_employee
         emp_type_str = 'inhouse' if entry.employee else 'remote'
         start_idx = entry.start_year * 12 + (entry.start_month - 1)
-        if start_idx <= target_idx < start_idx + entry.split_months:
+        is_active_this_month = start_idx <= target_idx < start_idx + entry.split_months
+        if is_active_this_month:
             active_by_emp[(emp_type_str, emp_obj.id)].append(entry)
         end_y, end_m = entry.end_month_year()
+        end_idx = end_y * 12 + (end_m - 1)
+        # "Recovered" only means something once the entry's own installment
+        # schedule has actually finished (relative to *today*, not the
+        # month being viewed) — an entry still mid-schedule or not yet
+        # started is neither recovered nor "pending", it just hasn't run yet.
+        is_upcoming = start_idx > _today_idx
+        is_finished = end_idx < _today_idx
         all_deductions_list.append({
             'id': entry.id,
             'employee': emp_obj,
             'employee_type': emp_type_str,
-            'currency': emp_obj.currency,
+            'currency': entry.currency,
             'category_display': entry.get_category_display(),
             'entry_type': entry.entry_type,
             'total_amount': float(entry.total_amount),
@@ -3075,7 +3699,10 @@ def payroll_test_dashboard(request):
             'end_year': end_y,
             'note': entry.note,
             'created_at': entry.created_at.strftime('%d %b %Y'),
-            'is_active_this_month': start_idx <= target_idx < start_idx + entry.split_months,
+            'is_recovered': is_finished and _entry_is_recovered(end_idx, (emp_type_str, emp_obj.id), _recovery_map, _today_idx),
+            'is_active_this_month': is_active_this_month,
+            'is_upcoming': is_upcoming,
+            'is_finished': is_finished,
         })
 
     all_payroll_inhouse = list(Employee.objects.filter(
@@ -3086,30 +3713,85 @@ def payroll_test_dashboard(request):
         all_payroll_remote_qs = all_payroll_remote_qs.exclude(tcr_id__in=all_inhouse_tcr_ids)
     all_payroll_remote = list(all_payroll_remote_qs.order_by('name'))
 
-    incoming_carryovers = DeductionCarryover.objects.filter(to_year=selected_year, to_month=selected_month)
+    incoming_carryovers = DeductionCarryover.objects.filter(
+        to_year=selected_year, to_month=selected_month
+    ).exclude(is_skipped=True)
     carryover_by_emp = {}
     for co in incoming_carryovers:
         key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
         carryover_by_emp[key] = float(co.overflow_amount)
 
-    inhouse_summaries = {
-        s.employee_id: s
-        for s in MonthlySummary.objects.filter(year=selected_year, month=selected_month)
-    }
+    # ---- Employee-wise deduction/addition history (Deductions tab) ----
+    # Groups the same entries from all_deductions_list (already ordered newest-first
+    # by created_at) under each employee, so the tab can show one row per employee
+    # with a complete, drill-down history instead of one giant flat table.
+    _ded_group_map = {}
+    deduction_groups = []
+    for entry_dict in all_deductions_list:
+        key = (entry_dict['employee_type'], entry_dict['employee'].id)
+        group = _ded_group_map.get(key)
+        if group is None:
+            group = {
+                'employee': entry_dict['employee'],
+                'employee_type': entry_dict['employee_type'],
+                'currency': entry_dict['currency'],
+                'entries': [],
+                'lifetime_deduction': 0.0,
+                'lifetime_addition': 0.0,
+                'active_deduction': 0.0,
+                'active_addition': 0.0,
+                'active_count': 0,
+                'pending_count': 0,
+            }
+            _ded_group_map[key] = group
+            deduction_groups.append(group)
+        group['entries'].append(entry_dict)
+        if entry_dict['entry_type'] == 'deduction':
+            group['lifetime_deduction'] = round(group['lifetime_deduction'] + entry_dict['total_amount'], 2)
+        else:
+            group['lifetime_addition'] = round(group['lifetime_addition'] + entry_dict['total_amount'], 2)
+        if entry_dict['is_active_this_month']:
+            group['active_count'] += 1
+            if entry_dict['entry_type'] == 'deduction':
+                group['active_deduction'] = round(group['active_deduction'] + entry_dict['installment_amount'], 2)
+            else:
+                group['active_addition'] = round(group['active_addition'] + entry_dict['installment_amount'], 2)
+        if entry_dict['entry_type'] == 'deduction' and entry_dict['is_finished'] and not entry_dict['is_recovered']:
+            group['pending_count'] += 1
+
+    for group in deduction_groups:
+        group['lifetime_net'] = round(group['lifetime_addition'] - group['lifetime_deduction'], 2)
+        group['active_net'] = round(group['active_addition'] - group['active_deduction'], 2)
+        group['entry_count'] = len(group['entries'])
+        group['carryover_in'] = carryover_by_emp.get(
+            (group['employee_type'], group['employee'].id), 0.0
+        )
+    deduction_groups.sort(key=lambda g: g['employee'].name.lower())
+
+    # Build lookup from pre-computed payroll rows so leave/late deduction display
+    # uses the employee's actual salary-cycle period instead of the calendar month summary.
+    _payroll_row_lookup = {}
+    for _pr in admin_inhouse_rows + sales_fixed_rows + sales_perf_rows:
+        _payroll_row_lookup[('inhouse', _pr['employee'].id)] = _pr
 
     deduction_rows = []
     for emp in all_payroll_inhouse:
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
             cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
-        # Auto-fill leave/late for attendance-based employees
-        summary = inhouse_summaries.get(emp.id)
+        # Auto-fill leave/late for attendance-based employees using pre-computed payroll row
         if emp.salary and emp.payroll_type != 'performance':
             emp_p_start, emp_p_end, emp_p_days, _ = _emp_period(emp)
             daily = float(emp.salary) / emp_p_days
-            bridge_count = len(get_bridge_sunday_days(emp, emp_p_start, emp_p_end))
-            cat['leave_deduction'] = round(daily * ((summary.leave_days if summary else 0) + bridge_count), 2)
-            cat['late_deduction'] = round(daily * ((summary.late_days if summary else 0) // 3) * 0.5, 2)
+            pr = _payroll_row_lookup.get(('inhouse', emp.id))
+            if pr:
+                absent_d = pr.get('absent_days', 0) + pr.get('half_days', 0) * 0.5 + pr.get('bridge_sunday_count', 0)
+                late_d = pr.get('late_days', 0)
+            else:
+                absent_d = 0
+                late_d = 0
+            cat['leave_deduction'] = round(daily * absent_d, 2)
+            cat['late_deduction'] = round(daily * (late_d // 3) * 0.5, 2)
         carryover_in = carryover_by_emp.get(('inhouse', emp.id), 0.0)
         _has_salary = emp.salary and emp.payroll_type != 'performance'
         ded_for_total = [c for c in _DED_COLS if c not in ('leave_deduction', 'late_deduction')] if (emp.department == 'Admin' or _has_salary) else _DED_COLS
@@ -3151,6 +3833,20 @@ def payroll_test_dashboard(request):
     else:
         _co_to_month, _co_to_year = selected_month + 1, selected_year
 
+    # Employees already marked paid for this month have a locked PaidSalaryRecord
+    # snapshot (including its own carryover_out at the time of payment). Their
+    # carryover rows must not be recomputed/deleted on later page loads using
+    # whatever the employee's *current* settings (salary, currency, cycle) are —
+    # that silently destroys real debt when those settings change after payment.
+    _paid_keys_this_month = set(
+        PaidSalaryRecord.objects.filter(year=selected_year, month=selected_month).values_list(
+            'employee_id', 'remote_employee_id'
+        )
+    )
+    _paid_emp_keys = {('inhouse', e) for e, r in _paid_keys_this_month if e} | {
+        ('remote', r) for e, r in _paid_keys_this_month if r
+    }
+
     final_rows = []
     for emp in all_payroll_inhouse:
         key = ('inhouse', emp.id)
@@ -3161,25 +3857,28 @@ def payroll_test_dashboard(request):
         total_add = d['total_additions'] if d else 0.0
         carryover_in = d['carryover_in'] if d else 0.0
         final_salary = round(payroll_net - total_ded + total_add, 2)
+        if not is_frozen and key not in _paid_emp_keys:
+            if final_salary < 0:
+                DeductionCarryover.objects.update_or_create(
+                    employee=emp, from_year=selected_year, from_month=selected_month,
+                    defaults={'overflow_amount': Decimal(str(abs(final_salary))),
+                              'to_year': _co_to_year, 'to_month': _co_to_month, 'remote_employee': None,
+                              'currency': emp.currency},
+                )
+            else:
+                DeductionCarryover.objects.filter(
+                    employee=emp, from_year=selected_year, from_month=selected_month
+                ).delete()
+            if carryover_in > 0:
+                inc_co = incoming_carryovers.filter(employee=emp).first()
+                if inc_co:
+                    inc_co.applied_amount = Decimal(str(min(carryover_in, float(inc_co.overflow_amount))))
+                    inc_co.save(update_fields=['applied_amount'])
         if final_salary < 0:
-            DeductionCarryover.objects.update_or_create(
-                employee=emp, from_year=selected_year, from_month=selected_month,
-                defaults={'overflow_amount': Decimal(str(abs(final_salary))),
-                          'to_year': _co_to_year, 'to_month': _co_to_month, 'remote_employee': None},
-            )
             final_salary = 0.0
-        else:
-            DeductionCarryover.objects.filter(
-                employee=emp, from_year=selected_year, from_month=selected_month
-            ).delete()
         carryover_out = 0.0
         if final_salary == 0.0 and round(payroll_net - total_ded + total_add, 2) < 0:
             carryover_out = round(abs(payroll_net - total_ded + total_add), 2)
-        if carryover_in > 0:
-            inc_co = incoming_carryovers.filter(employee=emp).first()
-            if inc_co:
-                inc_co.applied_amount = Decimal(str(min(carryover_in, float(inc_co.overflow_amount))))
-                inc_co.save(update_fields=['applied_amount'])
         final_rows.append({
             'employee': emp, 'employee_type': 'inhouse',
             'department': emp.department or 'In-House', 'currency': emp.currency,
@@ -3197,25 +3896,28 @@ def payroll_test_dashboard(request):
         total_add = d['total_additions'] if d else 0.0
         carryover_in = d['carryover_in'] if d else 0.0
         final_salary = round(payroll_net - total_ded + total_add, 2)
+        if not is_frozen and key not in _paid_emp_keys:
+            if final_salary < 0:
+                DeductionCarryover.objects.update_or_create(
+                    remote_employee=emp, from_year=selected_year, from_month=selected_month,
+                    defaults={'overflow_amount': Decimal(str(abs(final_salary))),
+                              'to_year': _co_to_year, 'to_month': _co_to_month, 'employee': None,
+                              'currency': emp.currency},
+                )
+            else:
+                DeductionCarryover.objects.filter(
+                    remote_employee=emp, from_year=selected_year, from_month=selected_month
+                ).delete()
+            if carryover_in > 0:
+                inc_co = incoming_carryovers.filter(remote_employee=emp).first()
+                if inc_co:
+                    inc_co.applied_amount = Decimal(str(min(carryover_in, float(inc_co.overflow_amount))))
+                    inc_co.save(update_fields=['applied_amount'])
         if final_salary < 0:
-            DeductionCarryover.objects.update_or_create(
-                remote_employee=emp, from_year=selected_year, from_month=selected_month,
-                defaults={'overflow_amount': Decimal(str(abs(final_salary))),
-                          'to_year': _co_to_year, 'to_month': _co_to_month, 'employee': None},
-            )
             final_salary = 0.0
-        else:
-            DeductionCarryover.objects.filter(
-                remote_employee=emp, from_year=selected_year, from_month=selected_month
-            ).delete()
         carryover_out = 0.0
         if final_salary == 0.0 and round(payroll_net - total_ded + total_add, 2) < 0:
             carryover_out = round(abs(payroll_net - total_ded + total_add), 2)
-        if carryover_in > 0:
-            inc_co = incoming_carryovers.filter(remote_employee=emp).first()
-            if inc_co:
-                inc_co.applied_amount = Decimal(str(min(carryover_in, float(inc_co.overflow_amount))))
-                inc_co.save(update_fields=['applied_amount'])
         final_rows.append({
             'employee': emp, 'employee_type': 'remote',
             'department': getattr(emp, 'department', 'Remote') or 'Remote', 'currency': emp.currency,
@@ -3243,9 +3945,10 @@ def payroll_test_dashboard(request):
         row['paid_at'] = rec.paid_at
         row['paid_by'] = rec.paid_by
         row['paid_snapshot'] = snap
+        row['paid_snapshot_json'] = json.dumps(snap)
         # Replace every computed value with the locked snapshot value
         row['salary'] = snap.get('salary', row.get('salary'))
-        row['net_payroll'] = snap['net_payroll']
+        row['net_payroll'] = snap.get('net_payroll', row.get('net_payroll', 0))
         row['deduction'] = snap.get('deduction', row.get('deduction', 0))
         row['commission'] = snap.get('commission', row.get('commission', 0))
         row['incentives'] = snap.get('incentives', row.get('incentives', 0))
@@ -3279,25 +3982,76 @@ def payroll_test_dashboard(request):
         row['paid_at'] = rec.paid_at
         row['paid_by'] = rec.paid_by
         row['paid_snapshot'] = snap
-        row['payroll_net'] = snap['net_payroll']
-        row['total_deductions'] = snap['total_deductions']
-        row['total_additions'] = snap['total_additions']
-        row['carryover_in'] = snap['carryover_in']
-        row['carryover_out'] = snap['carryover_out']
-        row['final_salary'] = snap['final_salary']
+        row['paid_snapshot_json'] = json.dumps(snap)
+        row['payroll_net'] = snap.get('net_payroll', row.get('payroll_net', 0))
+        row['total_deductions'] = snap.get('total_deductions', row.get('total_deductions', 0))
+        row['total_additions'] = snap.get('total_additions', row.get('total_additions', 0))
+        row['carryover_in'] = snap.get('carryover_in', row.get('carryover_in', 0))
+        row['carryover_out'] = snap.get('carryover_out', row.get('carryover_out', 0))
+        row['final_salary'] = snap.get('final_salary', row.get('final_salary', 0))
 
     final_total_aed = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'AED'), 2)
     final_total_inr = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'INR'), 2)
+    final_total_npr = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'NPR'), 2)
+
+    # Sales Performance Method 2 tab: "Live Net Payroll" shows the Payroll
+    # Summary value (final_salary — net payroll plus/minus all deductions and
+    # additions, and the locked paid figure if already marked as paid) for
+    # each employee, so it's directly comparable to what admins actually see
+    # in the Final Summary tab, not just the pre-deductions commission figure.
+    final_salary_by_emp = {(row['employee_type'], row['employee'].id): row['final_salary'] for row in final_rows}
+    for test_row in sales_perf_test_rows:
+        key = (test_row['employee_type'], test_row['employee'].id)
+        if key in final_salary_by_emp:
+            test_row['live_net_payroll'] = final_salary_by_emp[key]
+        test_row['diff'] = round(test_row['net_payroll_test'] - test_row['live_net_payroll'], 2)
+    sales_perf_test_totals = {
+        'test_net_aed': round(sum(r['net_payroll_test'] for r in sales_perf_test_rows if r.get('currency', 'AED') == 'AED'), 2),
+        'test_net_inr': round(sum(r['net_payroll_test'] for r in sales_perf_test_rows if r.get('currency') == 'INR'), 2),
+        'test_net_npr': round(sum(r['net_payroll_test'] for r in sales_perf_test_rows if r.get('currency') == 'NPR'), 2),
+        'live_net_aed': round(sum(r['live_net_payroll'] for r in sales_perf_test_rows if r.get('currency', 'AED') == 'AED'), 2),
+        'live_net_inr': round(sum(r['live_net_payroll'] for r in sales_perf_test_rows if r.get('currency') == 'INR'), 2),
+        'live_net_npr': round(sum(r['live_net_payroll'] for r in sales_perf_test_rows if r.get('currency') == 'NPR'), 2),
+    }
+
+    # Visa provider breakdown
+    _visa_order = ['Jumbo', 'OnTime', 'Taamul', 'own']
+    _visa_labels = {'Jumbo': 'Jumbo', 'OnTime': 'OnTime', 'Taamul': 'Taamul', 'own': 'Own Visa'}
+    _visa_groups = {}
+    for _row in final_rows:
+        _vp = _row['employee'].visa_provider or 'own'
+        if _vp not in _visa_groups:
+            _visa_groups[_vp] = {'key': _vp, 'label': _visa_labels.get(_vp, _vp), 'count': 0, 'total_aed': 0.0, 'total_inr': 0.0, 'total_npr': 0.0}
+        _visa_groups[_vp]['count'] += 1
+        _cur = _row['currency']
+        if _cur == 'AED':
+            _visa_groups[_vp]['total_aed'] = round(_visa_groups[_vp]['total_aed'] + _row['final_salary'], 2)
+        elif _cur == 'NPR':
+            _visa_groups[_vp]['total_npr'] = round(_visa_groups[_vp]['total_npr'] + _row['final_salary'], 2)
+        else:
+            _visa_groups[_vp]['total_inr'] = round(_visa_groups[_vp]['total_inr'] + _row['final_salary'], 2)
+    visa_breakdown = [_visa_groups[k] for k in _visa_order if k in _visa_groups]
+    visa_breakdown += [v for k, v in _visa_groups.items() if k not in _visa_order]
 
     inr_exchange_rate = None
     inr_rate_obj = ExchangeRate.objects.filter(currency='INR', year=selected_year, month=selected_month).first()
     if inr_rate_obj:
         inr_exchange_rate = float(inr_rate_obj.rate)
 
-    if inr_exchange_rate and inr_exchange_rate > 0 and final_total_inr > 0:
-        final_total_combined_aed = round(final_total_aed + (final_total_inr / inr_exchange_rate), 2)
-    else:
-        final_total_combined_aed = final_total_aed
+    npr_exchange_rate = None
+    npr_rate_obj = ExchangeRate.objects.filter(currency='NPR', year=selected_year, month=selected_month).first()
+    if npr_rate_obj:
+        npr_exchange_rate = float(npr_rate_obj.rate)
+
+    final_total_inr_aed = round(final_total_inr / inr_exchange_rate, 2) if (inr_exchange_rate and inr_exchange_rate > 0) else None
+    final_total_npr_aed = round(final_total_npr / npr_exchange_rate, 2) if (npr_exchange_rate and npr_exchange_rate > 0) else None
+
+    final_total_combined_aed = final_total_aed
+    if final_total_inr_aed and final_total_inr > 0:
+        final_total_combined_aed += final_total_inr_aed
+    if final_total_npr_aed and final_total_npr > 0:
+        final_total_combined_aed += final_total_npr_aed
+    final_total_combined_aed = round(final_total_combined_aed, 2)
 
     all_employees_json = json.dumps(
         [{'id': e.id, 'name': e.name, 'type': 'inhouse', 'dept': e.department or '', 'currency': e.currency}
@@ -3310,10 +4064,139 @@ def payroll_test_dashboard(request):
         return {
             'aed': round(sum(r['net_payroll'] for r in rows if r.get('currency', 'AED') == 'AED'), 2),
             'inr': round(sum(r['net_payroll'] for r in rows if r.get('currency', 'AED') == 'INR'), 2),
+            'npr': round(sum(r['net_payroll'] for r in rows if r.get('currency', 'AED') == 'NPR'), 2),
         }
 
     _pmonth_abbr = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     period_label = f"21 {_pmonth_abbr[prev_month]} – 20 {_pmonth_abbr[selected_month]} {selected_year}"
+
+    # Cumulative unpaid salary report — all months up to and including selected
+    _frozen_months_qs = FrozenPayrollMonth.objects.filter(
+        Q(year__lt=selected_year) | Q(year=selected_year, month__lte=selected_month)
+    ).order_by('year', 'month')
+
+    _paid_keys_all = set()
+    for _rec in PaidSalaryRecord.objects.filter(
+        Q(year__lt=selected_year) | Q(year=selected_year, month__lte=selected_month)
+    ):
+        if _rec.employee_id:
+            _paid_keys_all.add((_rec.year, _rec.month, 'inhouse', _rec.employee_id))
+        elif _rec.remote_employee_id:
+            _paid_keys_all.add((_rec.year, _rec.month, 'remote', _rec.remote_employee_id))
+
+    _unpaid_entries = []
+    _frozen_ym = set()
+
+    for _frozen in _frozen_months_qs:
+        _fy, _fm = _frozen.year, _frozen.month
+        _frozen_ym.add((_fy, _fm))
+        for _fr in _frozen.snapshot.get('final_rows', []):
+            _eid = _fr.get('employee_id')
+            _etype = _fr.get('employee_type')
+            if not _eid or not _etype:
+                continue
+            if (_fy, _fm, _etype, _eid) not in _paid_keys_all:
+                _unpaid_entries.append({
+                    'year': _fy,
+                    'month': _fm,
+                    'month_label': f"{_pmonth_abbr[_fm]} {_fy}",
+                    'employee_id': _eid,
+                    'employee_type': _etype,
+                    'employee_name': _fr.get('employee_name', ''),
+                    'department': _fr.get('employee_department', '') or 'Unknown',
+                    'location': _fr.get('employee_location', '') or 'Other',
+                    'currency': _fr.get('currency', 'AED'),
+                    'final_salary': float(_fr.get('final_salary', 0)),
+                })
+
+    # Current month if not yet frozen
+    if (selected_year, selected_month) not in _frozen_ym:
+        for _fr in final_rows:
+            if not _fr.get('is_paid'):
+                _emp = _fr['employee']
+                _unpaid_entries.append({
+                    'year': selected_year,
+                    'month': selected_month,
+                    'month_label': f"{_pmonth_abbr[selected_month]} {selected_year}",
+                    'employee_id': _emp.id,
+                    'employee_type': _fr['employee_type'],
+                    'employee_name': _emp.name,
+                    'department': getattr(_emp, 'department', '') or 'Unknown',
+                    'location': getattr(_emp, 'location', '') or 'Other',
+                    'currency': _fr['currency'],
+                    'final_salary': float(_fr.get('final_salary', 0)),
+                })
+
+    # Enrich with visa_provider from current DB state (snapshot doesn't store it)
+    _up_inhouse_ids = {e['employee_id'] for e in _unpaid_entries if e['employee_type'] == 'inhouse'}
+    _up_remote_ids = {e['employee_id'] for e in _unpaid_entries if e['employee_type'] == 'remote'}
+    _inhouse_visa_map = (
+        {e.id: e.visa_provider or 'own' for e in Employee.objects.filter(id__in=_up_inhouse_ids).only('id', 'visa_provider')}
+        if _up_inhouse_ids else {}
+    )
+    _remote_visa_map = (
+        {e.id: e.visa_provider or 'own' for e in RemoteEmployee.objects.filter(id__in=_up_remote_ids).only('id', 'visa_provider')}
+        if _up_remote_ids else {}
+    )
+    for _ue in _unpaid_entries:
+        _vp = (_inhouse_visa_map if _ue['employee_type'] == 'inhouse' else _remote_visa_map).get(_ue['employee_id'], 'own')
+        _ue['visa_provider'] = _vp
+        _ue['visa_label'] = _visa_labels.get(_vp, 'Own Visa')
+
+    # Aggregate per employee across all their unpaid months
+    _emp_agg = {}
+    for _ue in _unpaid_entries:
+        _ekey = (_ue['employee_type'], _ue['employee_id'])
+        if _ekey not in _emp_agg:
+            _emp_agg[_ekey] = {
+                'employee_type': _ue['employee_type'],
+                'employee_id': _ue['employee_id'],
+                'employee_name': _ue['employee_name'],
+                'department': _ue['department'],
+                'location': _ue['location'],
+                'visa_provider': _ue['visa_provider'],
+                'visa_label': _ue['visa_label'],
+                'currency': _ue['currency'],
+                'months': [],
+                'total_aed': 0.0,
+                'total_inr': 0.0,
+                'total_npr': 0.0,
+            }
+        _emp_agg[_ekey]['months'].append(_ue['month_label'])
+        if _ue['currency'] == 'AED':
+            _emp_agg[_ekey]['total_aed'] = round(_emp_agg[_ekey]['total_aed'] + _ue['final_salary'], 2)
+        elif _ue['currency'] == 'NPR':
+            _emp_agg[_ekey]['total_npr'] = round(_emp_agg[_ekey]['total_npr'] + _ue['final_salary'], 2)
+        else:
+            _emp_agg[_ekey]['total_inr'] = round(_emp_agg[_ekey]['total_inr'] + _ue['final_salary'], 2)
+
+    # Sort: department → name
+    unpaid_employees = sorted(_emp_agg.values(), key=lambda r: (r['department'], r['employee_name']))
+
+    def _grp_breakdown(entries, key_field, label_field=None):
+        grps = {}
+        for e in entries:
+            k = e.get(key_field) or 'Unknown'
+            lbl = e.get(label_field, k) if label_field else k
+            if k not in grps:
+                grps[k] = {'key': k, 'label': lbl, 'emp_count': 0, 'total_aed': 0.0, 'total_inr': 0.0, 'total_npr': 0.0, 'rows': []}
+            grps[k]['emp_count'] += 1
+            grps[k]['total_aed'] = round(grps[k]['total_aed'] + e['total_aed'], 2)
+            grps[k]['total_inr'] = round(grps[k]['total_inr'] + e['total_inr'], 2)
+            grps[k]['total_npr'] = round(grps[k]['total_npr'] + e.get('total_npr', 0), 2)
+            grps[k]['rows'].append(e)
+        return sorted(grps.values(), key=lambda g: g['label'])
+
+    unpaid_by_dept = _grp_breakdown(unpaid_employees, 'department')
+    unpaid_by_visa = _grp_breakdown(unpaid_employees, 'visa_provider', 'visa_label')
+    _visa_sort_idx = {k: i for i, k in enumerate(['Jumbo', 'OnTime', 'Taamul', 'own'])}
+    unpaid_by_visa.sort(key=lambda g: _visa_sort_idx.get(g['key'], 99))
+    unpaid_by_location = _grp_breakdown(unpaid_employees, 'location')
+    unpaid_total_aed = round(sum(e['total_aed'] for e in unpaid_employees), 2)
+    unpaid_total_inr = round(sum(e['total_inr'] for e in unpaid_employees), 2)
+    unpaid_total_npr = round(sum(e['total_npr'] for e in unpaid_employees), 2)
+    unpaid_unique_employees = len(unpaid_employees)
+    unpaid_entry_count = len(_unpaid_entries)
 
     # Carryover schedule — all records, ordered newest-first
     carryover_schedule = []
@@ -3323,16 +4206,19 @@ def payroll_test_dashboard(request):
             continue
         emp_type = 'inhouse' if co.employee else 'remote'
         remaining = round(float(co.overflow_amount) - float(co.applied_amount), 2)
-        if remaining <= 0:
+        if co.is_skipped:
+            status = 'skipped'
+        elif remaining <= 0:
             status = 'cleared'
         elif float(co.applied_amount) > 0:
             status = 'partial'
         else:
             status = 'pending'
         carryover_schedule.append({
+            'id': co.id,
             'employee': emp,
             'employee_type': emp_type,
-            'currency': emp.currency,
+            'currency': co.currency,
             'from_month': co.from_month,
             'from_year': co.from_year,
             'from_label': f"{_pmonth_abbr[co.from_month]} {co.from_year}",
@@ -3343,15 +4229,510 @@ def payroll_test_dashboard(request):
             'applied_amount': float(co.applied_amount),
             'remaining': remaining,
             'status': status,
+            'is_skipped': co.is_skipped,
+            'skipped_by': co.skipped_by,
+            'skip_reason': co.skip_reason,
             'is_incoming': (co.to_year == selected_year and co.to_month == selected_month),
             'is_outgoing': (co.from_year == selected_year and co.from_month == selected_month),
         })
 
-    carryover_pending_count = sum(1 for c in carryover_schedule if c['status'] != 'cleared')
-    carryover_pending_aed = round(sum(c['remaining'] for c in carryover_schedule if c['currency'] == 'AED' and c['status'] != 'cleared'), 2)
-    carryover_pending_inr = round(sum(c['remaining'] for c in carryover_schedule if c['currency'] == 'INR' and c['status'] != 'cleared'), 2)
+    carryover_pending_count = sum(1 for c in carryover_schedule if c['status'] not in ('cleared', 'skipped'))
+    carryover_pending_aed = round(sum(c['remaining'] for c in carryover_schedule if c['currency'] == 'AED' and c['status'] not in ('cleared', 'skipped')), 2)
+    carryover_pending_inr = round(sum(c['remaining'] for c in carryover_schedule if c['currency'] == 'INR' and c['status'] not in ('cleared', 'skipped')), 2)
+    carryover_pending_npr = round(sum(c['remaining'] for c in carryover_schedule if c['currency'] == 'NPR' and c['status'] not in ('cleared', 'skipped')), 2)
     carryover_incoming_count = sum(1 for c in carryover_schedule if c['is_incoming'])
     carryover_outgoing_count = sum(1 for c in carryover_schedule if c['is_outgoing'])
+
+    admin_inhouse_totals = _section_totals(admin_inhouse_rows)
+    admin_remote_totals = _section_totals(admin_remote_rows)
+    sales_fixed_totals = _section_totals(sales_fixed_rows)
+    sales_perf_totals = _section_totals(sales_perf_rows)
+
+    # Old-method Sales: Performance rows split by employee type: in-house gets its
+    # own tab (no talktime data, so it was never part of Method 2), remote is kept
+    # for reference against the live Method 2 tab.
+    sales_perf_inhouse_rows = [r for r in sales_perf_rows if r['employee_type'] == 'inhouse']
+    sales_perf_remote_rows = [r for r in sales_perf_rows if r['employee_type'] == 'remote']
+    sales_perf_inhouse_totals = _section_totals(sales_perf_inhouse_rows)
+    sales_perf_remote_totals = _section_totals(sales_perf_remote_rows)
+
+    # ---- XLSX download ----
+    if request.GET.get('format') == 'xlsx':
+        tab = request.GET.get('tab', 'summary')
+        month_label = MONTH_NAMES[selected_month]
+
+        # Shared styles
+        _TITLE_FONT = Font(bold=True, size=13)
+        _HDR_FONT = Font(bold=True, color='FFFFFF')
+        _HDR_FILL_PURPLE = PatternFill(start_color='5B21B6', end_color='5B21B6', fill_type='solid')
+        _HDR_FILL_BLUE = PatternFill(start_color='1E40AF', end_color='1E40AF', fill_type='solid')
+        _HDR_FILL_GREEN = PatternFill(start_color='065F46', end_color='065F46', fill_type='solid')
+        _HDR_FILL_RED = PatternFill(start_color='991B1B', end_color='991B1B', fill_type='solid')
+        _SECTION_FILL = PatternFill(start_color='EDE9FE', end_color='EDE9FE', fill_type='solid')
+        _TOTAL_FILL = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
+        _TOTAL_FONT = Font(bold=True)
+        _PAID_FILL = PatternFill(start_color='D1FAE5', end_color='D1FAE5', fill_type='solid')
+        _NEG_FILL = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+        _THIN = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin'),
+        )
+        _RIGHT = Alignment(horizontal='right')
+        _CENTER = Alignment(horizontal='center')
+
+        def _hdr(ws, row, cols, fill=None):
+            fill = fill or _HDR_FILL_PURPLE
+            for col, val in enumerate(cols, 1):
+                c = ws.cell(row=row, column=col, value=val)
+                c.font = _HDR_FONT
+                c.fill = fill
+                c.border = _THIN
+                c.alignment = _CENTER
+
+        def _title_row(ws, text, ncols):
+            ws.cell(row=1, column=1, value=text).font = _TITLE_FONT
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncols)
+
+        def _num_cell(ws, row, col, val, negative=False, positive=False):
+            c = ws.cell(row=row, column=col, value=val)
+            c.alignment = _RIGHT
+            c.border = _THIN
+            c.number_format = '#,##0.00'
+            if negative and val and val > 0:
+                c.fill = _NEG_FILL
+            return c
+
+        def _str_cell(ws, row, col, val):
+            c = ws.cell(row=row, column=col, value=val)
+            c.border = _THIN
+            return c
+
+        wb = Workbook()
+
+        # ── Summary ──
+        if tab == 'summary':
+            ws = wb.active
+            ws.title = 'Summary'
+            ncols = 9
+            _title_row(ws, f'Payroll Summary — {period_label}', ncols)
+            ws.row_dimensions[1].height = 22
+
+            ws.append([])
+
+            # Section breakdown mini-table
+            ws.cell(row=3, column=1, value='Section Breakdown').font = Font(bold=True)
+            _hdr(ws, 4, ['Section', 'Employees', 'Net AED', 'Net INR/NPR'], _HDR_FILL_BLUE)
+            sections = [
+                ('Admin In-House', len(admin_inhouse_rows), admin_inhouse_totals['aed'], admin_inhouse_totals['inr'] + admin_inhouse_totals['npr']),
+                ('Admin Remote', len(admin_remote_rows), admin_remote_totals['aed'], admin_remote_totals['inr'] + admin_remote_totals['npr']),
+                ('Sales Fixed', len(sales_fixed_rows), sales_fixed_totals['aed'], sales_fixed_totals['inr'] + sales_fixed_totals['npr']),
+                ('Sales Performance', len(sales_perf_rows), sales_perf_totals['aed'], sales_perf_totals['inr'] + sales_perf_totals['npr']),
+            ]
+            r = 5
+            for sec_name, cnt, aed, inr in sections:
+                ws.cell(row=r, column=1, value=sec_name).border = _THIN
+                ws.cell(row=r, column=2, value=cnt).border = _THIN
+                _num_cell(ws, r, 3, aed)
+                _num_cell(ws, r, 4, inr if inr else 0)
+                r += 1
+            # Totals row
+            for col, val in enumerate([
+                'Total', len(final_rows), final_total_aed, (final_total_inr + final_total_npr) or 0
+            ], 1):
+                c = ws.cell(row=r, column=col, value=val)
+                c.font = _TOTAL_FONT
+                c.fill = _TOTAL_FILL
+                c.border = _THIN
+                if col >= 3:
+                    c.alignment = _RIGHT
+                    c.number_format = '#,##0.00'
+            r += 2
+
+            # Per-employee final table
+            ws.cell(row=r, column=1, value='Per-Employee Final Salary').font = Font(bold=True)
+            r += 1
+            headers = ['Employee', 'Section', 'Currency', 'Net Payroll', 'Deductions', 'Additions',
+                       'Carryover In', 'Carryover Out', 'Final Salary', 'Status']
+            _hdr(ws, r, headers, _HDR_FILL_PURPLE)
+            r += 1
+            for row in final_rows:
+                paid_label = 'PAID' if row.get('is_paid') else 'Unpaid'
+                _str_cell(ws, r, 1, row['employee'].name)
+                _str_cell(ws, r, 2, row['department'])
+                _str_cell(ws, r, 3, row['currency'])
+                _num_cell(ws, r, 4, row['payroll_net'])
+                _num_cell(ws, r, 5, row['total_deductions'], negative=True)
+                _num_cell(ws, r, 6, row['total_additions'])
+                _num_cell(ws, r, 7, row['carryover_in'], negative=True)
+                _num_cell(ws, r, 8, row['carryover_out'])
+                _num_cell(ws, r, 9, row['final_salary'])
+                ws.cell(row=r, column=10, value=paid_label).border = _THIN
+                if row.get('is_paid'):
+                    for col in range(1, 11):
+                        ws.cell(row=r, column=col).fill = _PAID_FILL
+                r += 1
+            # Totals
+            total_vals = ['', 'Total', '', '', '', '', '', '']
+            for col, val in enumerate(['', 'Total', '', '',
+                sum(row['payroll_net'] for row in final_rows),
+                sum(row['total_deductions'] for row in final_rows),
+                sum(row['total_additions'] for row in final_rows),
+                sum(row['carryover_in'] for row in final_rows),
+                sum(row['carryover_out'] for row in final_rows),
+                sum(row['final_salary'] for row in final_rows),
+            ], 1):
+                c = ws.cell(row=r, column=col, value=val)
+                c.font = _TOTAL_FONT
+                c.fill = _TOTAL_FILL
+                c.border = _THIN
+                if col >= 5:
+                    c.alignment = _RIGHT
+                    c.number_format = '#,##0.00'
+
+            # Column widths
+            for col, w in enumerate([28, 18, 10, 14, 14, 14, 14, 14, 14, 10], 1):
+                ws.column_dimensions[_get_col_letter(col)].width = w
+
+        # ── Admin In-House ──
+        elif tab == 'admin-inhouse':
+            ws = wb.active
+            ws.title = 'Admin In-House'
+            headers = ['Name', 'Designation', 'Salary', 'Full Days', 'Half Days',
+                       'Absent', 'Late Days', 'Deduction', 'Incentives', 'Reductions',
+                       'Commission', 'Net (AED)', 'Net (INR/NPR)', 'Status']
+            ncols = len(headers)
+            _title_row(ws, f'Admin In-House — {month_label} {selected_year}', ncols)
+            ws.append([])
+            _hdr(ws, 3, headers, _HDR_FILL_BLUE)
+            r = 4
+            for row in admin_inhouse_rows:
+                _str_cell(ws, r, 1, row['employee'].name)
+                _str_cell(ws, r, 2, getattr(row['employee'], 'designation', '') or '')
+                _num_cell(ws, r, 3, float(row.get('salary') or 0))
+                ws.cell(row=r, column=4, value=row.get('full_days', 0)).border = _THIN
+                ws.cell(row=r, column=5, value=row.get('half_days', 0)).border = _THIN
+                ws.cell(row=r, column=6, value=row.get('absent_days', 0)).border = _THIN
+                ws.cell(row=r, column=7, value=row.get('late_days', 0)).border = _THIN
+                _num_cell(ws, r, 8, float(row.get('deduction') or 0), negative=True)
+                _num_cell(ws, r, 9, float(row.get('incentives') or 0))
+                _num_cell(ws, r, 10, float(row.get('reductions') or 0), negative=True)
+                _num_cell(ws, r, 11, float(row.get('commission') or 0))
+                net = float(row.get('net_payroll') or 0)
+                if row.get('currency') == 'AED':
+                    _num_cell(ws, r, 12, net)
+                    _str_cell(ws, r, 13, '—')
+                else:
+                    _str_cell(ws, r, 12, '—')
+                    _num_cell(ws, r, 13, net)
+                ws.cell(row=r, column=14, value='PAID' if row.get('is_paid') else '').border = _THIN
+                if row.get('is_paid'):
+                    for col in range(1, ncols + 1):
+                        ws.cell(row=r, column=col).fill = _PAID_FILL
+                r += 1
+            # Totals
+            tots = [None, None, None, None, None, None, None,
+                    sum(float(row.get('deduction') or 0) for row in admin_inhouse_rows),
+                    sum(float(row.get('incentives') or 0) for row in admin_inhouse_rows),
+                    sum(float(row.get('reductions') or 0) for row in admin_inhouse_rows),
+                    sum(float(row.get('commission') or 0) for row in admin_inhouse_rows),
+                    admin_inhouse_totals['aed'],
+                    (admin_inhouse_totals['inr'] + admin_inhouse_totals['npr']) or 0,
+                    None]
+            for col, val in enumerate(tots, 1):
+                c = ws.cell(row=r, column=col, value='Total' if col == 1 else val)
+                c.font = _TOTAL_FONT
+                c.fill = _TOTAL_FILL
+                c.border = _THIN
+                if col >= 8 and val is not None:
+                    c.alignment = _RIGHT
+                    c.number_format = '#,##0.00'
+            for col, w in enumerate([28, 18, 10, 10, 10, 10, 10, 12, 12, 12, 12, 14, 14, 8], 1):
+                ws.column_dimensions[_get_col_letter(col)].width = w
+
+        # ── Admin Remote ──
+        elif tab == 'admin-remote':
+            ws = wb.active
+            ws.title = 'Admin Remote'
+            headers = ['Name', 'Currency', 'Salary', 'Present Days', 'Absent Days',
+                       'Deduction', 'Incentives', 'Reductions', 'Net (AED)', 'Net (INR/NPR)', 'Status']
+            ncols = len(headers)
+            _title_row(ws, f'Admin Remote — {month_label} {selected_year}', ncols)
+            ws.append([])
+            _hdr(ws, 3, headers, _HDR_FILL_BLUE)
+            r = 4
+            for row in admin_remote_rows:
+                _str_cell(ws, r, 1, row['employee'].name)
+                _str_cell(ws, r, 2, row.get('currency', 'AED'))
+                _num_cell(ws, r, 3, float(row.get('salary') or 0))
+                ws.cell(row=r, column=4, value=row.get('present_days', '')).border = _THIN
+                ws.cell(row=r, column=5, value=row.get('absent_days', '')).border = _THIN
+                _num_cell(ws, r, 6, float(row.get('deduction') or 0), negative=True)
+                _num_cell(ws, r, 7, float(row.get('incentives') or 0))
+                _num_cell(ws, r, 8, float(row.get('reductions') or 0), negative=True)
+                net = float(row.get('net_payroll') or 0)
+                if row.get('currency') == 'AED':
+                    _num_cell(ws, r, 9, net)
+                    _str_cell(ws, r, 10, '—')
+                else:
+                    _str_cell(ws, r, 9, '—')
+                    _num_cell(ws, r, 10, net)
+                ws.cell(row=r, column=11, value='PAID' if row.get('is_paid') else '').border = _THIN
+                if row.get('is_paid'):
+                    for col in range(1, ncols + 1):
+                        ws.cell(row=r, column=col).fill = _PAID_FILL
+                r += 1
+            for col, val in enumerate([
+                'Total', None, None, None,
+                sum(float(row.get('absent_days') or 0) for row in admin_remote_rows),
+                sum(float(row.get('deduction') or 0) for row in admin_remote_rows),
+                sum(float(row.get('incentives') or 0) for row in admin_remote_rows),
+                sum(float(row.get('reductions') or 0) for row in admin_remote_rows),
+                admin_remote_totals['aed'],
+                (admin_remote_totals['inr'] + admin_remote_totals['npr']) or 0,
+                None,
+            ], 1):
+                c = ws.cell(row=r, column=col, value='Total' if col == 1 else val)
+                c.font = _TOTAL_FONT
+                c.fill = _TOTAL_FILL
+                c.border = _THIN
+                if col >= 5 and val is not None:
+                    c.alignment = _RIGHT
+                    c.number_format = '#,##0.00'
+            for col, w in enumerate([28, 10, 12, 14, 14, 14, 14, 14, 14, 14, 8], 1):
+                ws.column_dimensions[_get_col_letter(col)].width = w
+
+        # ── Sales Fixed ──
+        elif tab == 'sales-fixed':
+            ws = wb.active
+            ws.title = 'Sales Fixed'
+            headers = ['Name', 'Type', 'Currency', 'Salary', 'Present Days', 'Absent Days',
+                       'Deduction', 'Commission', 'Incentives', 'Reductions',
+                       'Net (AED)', 'Net (INR/NPR)', 'Status']
+            ncols = len(headers)
+            _title_row(ws, f'Sales — Fixed Salary — {month_label} {selected_year}', ncols)
+            ws.append([])
+            _hdr(ws, 3, headers, _HDR_FILL_GREEN)
+            r = 4
+            for row in sales_fixed_rows:
+                _str_cell(ws, r, 1, row['employee'].name)
+                _str_cell(ws, r, 2, row.get('employee_type', '').capitalize())
+                _str_cell(ws, r, 3, row.get('currency', 'AED'))
+                _num_cell(ws, r, 4, float(row.get('salary') or 0))
+                ws.cell(row=r, column=5, value=row.get('present_days', '')).border = _THIN
+                ws.cell(row=r, column=6, value=row.get('absent_days', '')).border = _THIN
+                _num_cell(ws, r, 7, float(row.get('deduction') or 0), negative=True)
+                _num_cell(ws, r, 8, float(row.get('commission') or 0))
+                _num_cell(ws, r, 9, float(row.get('incentives') or 0))
+                _num_cell(ws, r, 10, float(row.get('reductions') or 0), negative=True)
+                net = float(row.get('net_payroll') or 0)
+                if row.get('currency') == 'AED':
+                    _num_cell(ws, r, 11, net)
+                    _str_cell(ws, r, 12, '—')
+                else:
+                    _str_cell(ws, r, 11, '—')
+                    _num_cell(ws, r, 12, net)
+                ws.cell(row=r, column=13, value='PAID' if row.get('is_paid') else '').border = _THIN
+                if row.get('is_paid'):
+                    for col in range(1, ncols + 1):
+                        ws.cell(row=r, column=col).fill = _PAID_FILL
+                r += 1
+            for col, val in enumerate([
+                'Total', None, None, None, None,
+                sum(float(row.get('absent_days') or 0) for row in sales_fixed_rows),
+                sum(float(row.get('deduction') or 0) for row in sales_fixed_rows),
+                sum(float(row.get('commission') or 0) for row in sales_fixed_rows),
+                sum(float(row.get('incentives') or 0) for row in sales_fixed_rows),
+                sum(float(row.get('reductions') or 0) for row in sales_fixed_rows),
+                sales_fixed_totals['aed'],
+                (sales_fixed_totals['inr'] + sales_fixed_totals['npr']) or 0,
+                None,
+            ], 1):
+                c = ws.cell(row=r, column=col, value='Total' if col == 1 else val)
+                c.font = _TOTAL_FONT
+                c.fill = _TOTAL_FILL
+                c.border = _THIN
+                if col >= 6 and val is not None:
+                    c.alignment = _RIGHT
+                    c.number_format = '#,##0.00'
+            for col, w in enumerate([28, 10, 10, 12, 14, 14, 14, 14, 14, 14, 14, 14, 8], 1):
+                ws.column_dimensions[_get_col_letter(col)].width = w
+
+        # ── Sales Performance (Old Method: all / in-house only / remote only) ──
+        elif tab in ('sales-perf', 'sales-perf-inhouse', 'sales-perf-remote'):
+            _sp_rows, _sp_totals, _sp_title = {
+                'sales-perf': (sales_perf_rows, sales_perf_totals, 'Sales — Performance Based (Old Method)'),
+                'sales-perf-inhouse': (sales_perf_inhouse_rows, sales_perf_inhouse_totals, 'Sales — Performance In-House (Old Method)'),
+                'sales-perf-remote': (sales_perf_remote_rows, sales_perf_remote_totals, 'Sales — Performance Remote (Old Method)'),
+            }[tab]
+            ws = wb.active
+            ws.title = 'Sales Performance'
+            bank_headers = [b.name for b in banks]
+            headers = ['Name', 'Type', 'Currency', 'Base Salary', 'Deductions'] + \
+                      bank_headers + ['Commission', 'Incentives', 'Net (AED)', 'Net (INR/NPR)', 'Status']
+            ncols = len(headers)
+            _title_row(ws, f'{_sp_title} — {month_label} {selected_year}', ncols)
+            ws.append([])
+            _hdr(ws, 3, headers, _HDR_FILL_RED)
+            r = 4
+            for row in _sp_rows:
+                _str_cell(ws, r, 1, row['employee'].name)
+                _str_cell(ws, r, 2, row.get('employee_type', '').capitalize())
+                _str_cell(ws, r, 3, row.get('currency', 'AED'))
+                _num_cell(ws, r, 4, float(row.get('salary') or 0))
+                _num_cell(ws, r, 5, float(row.get('combined_deductions') or 0), negative=True)
+                bank_counts = row.get('bank_counts_list') or []
+                for i, b in enumerate(banks):
+                    count = bank_counts[i] if i < len(bank_counts) else 0
+                    ws.cell(row=r, column=6 + i, value=count or 0).border = _THIN
+                col_off = 6 + len(banks)
+                _num_cell(ws, r, col_off, float(row.get('commission') or 0))
+                _num_cell(ws, r, col_off + 1, float(row.get('incentives') or 0))
+                net = float(row.get('net_payroll') or 0)
+                if row.get('currency') == 'AED':
+                    _num_cell(ws, r, col_off + 2, net)
+                    _str_cell(ws, r, col_off + 3, '—')
+                else:
+                    _str_cell(ws, r, col_off + 2, '—')
+                    _num_cell(ws, r, col_off + 3, net)
+                ws.cell(row=r, column=col_off + 4, value='PAID' if row.get('is_paid') else '').border = _THIN
+                if row.get('is_paid'):
+                    for col in range(1, ncols + 1):
+                        ws.cell(row=r, column=col).fill = _PAID_FILL
+                r += 1
+            # Totals
+            perf_bank_totals = [
+                sum((row.get('bank_counts_list') or [0] * len(banks))[i] if i < len(row.get('bank_counts_list') or []) else 0
+                    for row in _sp_rows)
+                for i in range(len(banks))
+            ]
+            tot_vals = ['Total', None, None, None,
+                        sum(float(row.get('combined_deductions') or 0) for row in _sp_rows),
+                        ] + perf_bank_totals + [
+                        sum(float(row.get('commission') or 0) for row in _sp_rows),
+                        sum(float(row.get('incentives') or 0) for row in _sp_rows),
+                        _sp_totals['aed'],
+                        (_sp_totals['inr'] + _sp_totals['npr']) or 0,
+                        None,
+                       ]
+            for col, val in enumerate(tot_vals, 1):
+                c = ws.cell(row=r, column=col, value=val)
+                c.font = _TOTAL_FONT
+                c.fill = _TOTAL_FILL
+                c.border = _THIN
+                if col >= 5 and val is not None and isinstance(val, (int, float)):
+                    c.alignment = _RIGHT
+                    c.number_format = '#,##0.00'
+            for col, w in enumerate([28, 10, 10, 14, 14] + [12] * len(banks) + [14, 14, 14, 14, 8], 1):
+                ws.column_dimensions[_get_col_letter(col)].width = w
+
+        # ── Deductions ──
+        elif tab == 'deductions':
+            ws = wb.active
+            ws.title = 'Deductions & Additions'
+            headers = ['Employee', 'Emp Type', 'Category', 'Direction', 'Note',
+                       'Currency', 'Total Amount', 'Split Months', 'This Month (Installment)',
+                       'Start Period', 'End Period', 'Recovery Status']
+            ncols = len(headers)
+            _title_row(ws, f'Deductions & Additions — {month_label} {selected_year}', ncols)
+            ws.append([])
+            _hdr(ws, 3, headers, _HDR_FILL_PURPLE)
+            r = 4
+            for entry in sorted(all_deductions_list, key=lambda e: e['employee'].name.lower()):
+                end_period = f"{entry['end_month_name']} {entry['end_year']}" if entry['split_months'] > 1 else ''
+                _str_cell(ws, r, 1, entry['employee'].name)
+                _str_cell(ws, r, 2, entry['employee_type'].capitalize())
+                _str_cell(ws, r, 3, entry['category_display'])
+                direction = 'Deduction' if entry['entry_type'] == 'deduction' else 'Addition'
+                _str_cell(ws, r, 4, direction)
+                _str_cell(ws, r, 5, entry['note'] or '')
+                _str_cell(ws, r, 6, entry['currency'])
+                _num_cell(ws, r, 7, float(entry['total_amount']))
+                ws.cell(row=r, column=8, value=entry['split_months']).border = _THIN
+                inst = float(entry['installment_amount'])
+                c = ws.cell(row=r, column=9, value=inst)
+                c.alignment = _RIGHT
+                c.border = _THIN
+                c.number_format = '#,##0.00'
+                if entry['entry_type'] == 'deduction':
+                    c.fill = _NEG_FILL
+                else:
+                    c.fill = _PAID_FILL
+                _str_cell(ws, r, 10, f"{entry['start_month_name']} {entry['start_year']}")
+                _str_cell(ws, r, 11, end_period)
+                if entry['is_active_this_month']:
+                    _status = 'Active This Month'
+                elif entry['is_upcoming']:
+                    _status = 'Upcoming'
+                elif not entry['is_finished']:
+                    _status = 'In Progress'
+                elif entry['entry_type'] == 'deduction':
+                    _status = 'Recovered' if entry['is_recovered'] else 'Pending Recovery'
+                else:
+                    _status = 'Completed'
+                _str_cell(ws, r, 12, _status)
+                r += 1
+            for col, w in enumerate([28, 12, 22, 12, 30, 10, 14, 14, 22, 16, 16, 14], 1):
+                ws.column_dimensions[_get_col_letter(col)].width = w
+
+        # ── Carryovers ──
+        elif tab == 'carryovers':
+            ws = wb.active
+            ws.title = 'Carryover Schedule'
+            headers = ['Employee', 'Type', 'Currency',
+                       'Salary went -ve in', 'Deducted from',
+                       'Total to Deduct', 'Already Deducted', 'Still to Deduct',
+                       'Status']
+            ncols = len(headers)
+            _title_row(ws, f'Deduction Carryover Schedule — {month_label} {selected_year}', ncols)
+            ws.append([])
+            _hdr(ws, 3, headers, _HDR_FILL_RED)
+            r = 4
+            for co in carryover_schedule:
+                _str_cell(ws, r, 1, co['employee'].name)
+                _str_cell(ws, r, 2, co['employee_type'].capitalize())
+                _str_cell(ws, r, 3, co['currency'])
+                _str_cell(ws, r, 4, co['from_label'])
+                _str_cell(ws, r, 5, co['to_label'])
+                _num_cell(ws, r, 6, co['overflow_amount'])
+                _num_cell(ws, r, 7, co['applied_amount'])
+                c8 = _num_cell(ws, r, 8, co['remaining'], negative=(co['remaining'] > 0))
+                status_map = {'cleared': 'FULLY RECOVERED', 'partial': 'PARTIALLY DEDUCTED', 'pending': 'NOT YET DEDUCTED', 'skipped': 'SKIPPED / WAIVED'}
+                _str_cell(ws, r, 9, status_map.get(co['status'], co['status']))
+                if co['status'] in ('cleared', 'skipped'):
+                    for col in range(1, ncols + 1):
+                        ws.cell(row=r, column=col).fill = _PAID_FILL
+                r += 1
+            # Summary rows
+            r += 1
+            ws.cell(row=r, column=1, value=f'Pending: {carryover_pending_count} unresolved').font = Font(bold=True)
+            ws.cell(row=r, column=6, value=carryover_pending_aed).number_format = '#,##0.00'
+            ws.cell(row=r, column=7, value='AED balance').font = Font(italic=True)
+            for col, w in enumerate([28, 12, 10, 18, 18, 18, 18, 18, 20], 1):
+                ws.column_dimensions[_get_col_letter(col)].width = w
+
+        else:
+            ws = wb.active
+            ws.title = 'Payroll'
+            ws.cell(row=1, column=1, value=f'No data for tab: {tab}')
+
+        # Freeze top rows and set filename
+        try:
+            ws.freeze_panes = ws.cell(row=4, column=1)
+        except Exception:
+            pass
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        safe_tab = tab.replace('-', '_')
+        filename = f"Payroll_{month_label}_{selected_year}_{safe_tab}.xlsx"
+        response = HttpResponse(
+            buf.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        logger.info("Payroll XLSX downloaded: tab=%s %s/%s by %s", tab, selected_month, selected_year, request.user.username)
+        return response
 
     return render(request, 'payroll/test_dashboard.html', {
         'selected_month': selected_month,
@@ -3367,38 +4748,73 @@ def payroll_test_dashboard(request):
         'banks': banks,
         'banks_json': banks_json,
         'admin_inhouse_rows': admin_inhouse_rows,
-        'admin_inhouse_totals': _section_totals(admin_inhouse_rows),
+        'admin_inhouse_totals': admin_inhouse_totals,
         'admin_remote_rows': admin_remote_rows,
-        'admin_remote_totals': _section_totals(admin_remote_rows),
+        'admin_remote_totals': admin_remote_totals,
         'sales_fixed_rows': sales_fixed_rows,
-        'sales_fixed_totals': _section_totals(sales_fixed_rows),
+        'sales_fixed_totals': sales_fixed_totals,
         'sales_perf_rows': sales_perf_rows,
-        'sales_perf_totals': _section_totals(sales_perf_rows),
+        'sales_perf_totals': sales_perf_totals,
         'sales_perf_bank_totals': [
             sum(row['bank_counts_list'][i] if row.get('bank_counts_list') and i < len(row['bank_counts_list']) else 0
                 for row in sales_perf_rows)
             for i in range(len(banks))
         ],
+        'sales_perf_inhouse_rows': sales_perf_inhouse_rows,
+        'sales_perf_inhouse_totals': sales_perf_inhouse_totals,
+        'sales_perf_inhouse_bank_totals': [
+            sum(row['bank_counts_list'][i] if row.get('bank_counts_list') and i < len(row['bank_counts_list']) else 0
+                for row in sales_perf_inhouse_rows)
+            for i in range(len(banks))
+        ],
+        'sales_perf_remote_rows': sales_perf_remote_rows,
+        'sales_perf_remote_totals': sales_perf_remote_totals,
+        'sales_perf_remote_bank_totals': [
+            sum(row['bank_counts_list'][i] if row.get('bank_counts_list') and i < len(row['bank_counts_list']) else 0
+                for row in sales_perf_remote_rows)
+            for i in range(len(banks))
+        ],
+        'sales_perf_test_rows': sales_perf_test_rows,
+        'sales_perf_test_totals': sales_perf_test_totals,
         'deduction_rows': deduction_rows,
         'all_deductions_list': all_deductions_list,
+        'deduction_groups': deduction_groups,
         'final_rows': final_rows,
         'final_total_aed': final_total_aed,
         'final_total_inr': final_total_inr,
+        'final_total_npr': final_total_npr,
+        'final_total_inr_aed': final_total_inr_aed,
+        'final_total_npr_aed': final_total_npr_aed,
         'final_total_combined_aed': final_total_combined_aed,
+        'visa_breakdown': visa_breakdown,
+        'unpaid_employees': unpaid_employees,
+        'unpaid_by_dept': unpaid_by_dept,
+        'unpaid_by_visa': unpaid_by_visa,
+        'unpaid_by_location': unpaid_by_location,
+        'unpaid_total_aed': unpaid_total_aed,
+        'unpaid_total_inr': unpaid_total_inr,
+        'unpaid_total_npr': unpaid_total_npr,
+        'unpaid_unique_employees': unpaid_unique_employees,
+        'unpaid_entry_count': unpaid_entry_count,
         'inr_exchange_rate': inr_exchange_rate,
+        'npr_exchange_rate': npr_exchange_rate,
         'all_employees_json': all_employees_json,
         'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
         'carryover_schedule': carryover_schedule,
         'carryover_pending_count': carryover_pending_count,
         'carryover_pending_aed': carryover_pending_aed,
         'carryover_pending_inr': carryover_pending_inr,
+        'carryover_pending_npr': carryover_pending_npr,
         'carryover_incoming_count': carryover_incoming_count,
         'carryover_outgoing_count': carryover_outgoing_count,
+        'is_frozen': is_frozen,
+        'frozen_at': frozen_obj.frozen_at if frozen_obj else None,
+        'frozen_by': frozen_obj.frozen_by if frozen_obj else None,
     })
 
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('payroll'))
 def mark_paid_salary(request):
     """
     Re-compute the full payroll for the given employees and lock every value
@@ -3444,7 +4860,7 @@ def mark_paid_salary(request):
             active_by_emp[(et, emp_obj.id)].append(entry)
 
     # Incoming carryovers
-    incoming_carryovers = DeductionCarryover.objects.filter(to_year=year, to_month=month)
+    incoming_carryovers = DeductionCarryover.objects.filter(to_year=year, to_month=month).exclude(is_skipped=True)
     carryover_by_emp = {}
     for co in incoming_carryovers:
         key = ('inhouse', co.employee_id) if co.employee_id else ('remote', co.remote_employee_id)
@@ -3596,7 +5012,7 @@ def mark_paid_salary(request):
 
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('payroll'))
 def unmark_paid_salary(request):
     """Remove the paid lock for selected employees for a given month."""
     if request.method != 'POST':

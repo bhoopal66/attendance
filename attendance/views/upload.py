@@ -3,6 +3,7 @@ Upload views for attendance data.
 Handles Excel uploads for in-house employees and CSV uploads for remote employees.
 """
 
+import io
 import logging
 import os
 import re
@@ -20,7 +21,7 @@ from ..models import (
     AttendanceRecord, EarlyLeaveRequest, Employee, EmployeeIDAlias,
     RemoteCallRecord, RemoteEmployee, RemoteEmployeeIDAlias,
 )
-from .utils import parse_duration, superuser_required
+from .utils import parse_duration, section_required
 
 logger = logging.getLogger('attendance')
 
@@ -74,6 +75,52 @@ def parse_html_excel(file_content):
     return df, extracted_date
 
 
+def parse_daily_report_excel(file_content):
+    """
+    Parse a multi-day HTML-based Daily Report Excel file.
+    These use a Daily_Report table with 20 columns including an embedded Date column.
+    Returns a DataFrame with columns: Person ID, Name, Date, First-In, Last-Out.
+    """
+    if isinstance(file_content, bytes):
+        content = file_content.decode('utf-8', errors='ignore')
+    else:
+        content = file_content
+
+    soup = BeautifulSoup(content, 'html.parser')
+
+    daily_table = soup.find('table', class_='Daily_Report')
+    if not daily_table:
+        raise ValueError("Could not find Daily_Report table in the file. Is this the correct multi-day report format?")
+
+    tds = daily_table.find_all('td')
+    cols_per_row = 20
+    rows = []
+    for i in range(0, len(tds), cols_per_row):
+        if i + cols_per_row <= len(tds):
+            row = [td.get_text(strip=True) for td in tds[i:i + cols_per_row]]
+            rows.append(row)
+
+    if not rows:
+        raise ValueError("No attendance data found in the Daily_Report table")
+
+    all_columns = [
+        'Index', 'Person ID', 'Name', 'Department', 'Position', 'Gender',
+        'Date', 'Week', 'Timetable', 'First-In', 'Last-Out',
+        'Work', 'OT', 'Attended', 'Late', 'Early', 'Absent', 'Leave', 'Status', 'Records'
+    ]
+    df = pd.DataFrame(rows, columns=all_columns)
+    return df[['Person ID', 'Name', 'Date', 'First-In', 'Last-Out']]
+
+
+def is_daily_report_excel(file_content):
+    """Check if an HTML-based Excel file is a multi-day Daily_Report format."""
+    if isinstance(file_content, bytes):
+        content = file_content.decode('utf-8', errors='ignore')
+    else:
+        content = file_content
+    return 'Daily_Report' in content
+
+
 def is_html_excel(file_content):
     """Check if the file content is HTML-based Excel."""
     try:
@@ -103,6 +150,10 @@ def _clean_id(value):
     Pandas often reads numeric IDs as floats (12345 -> 12345.0); naively
     str()-ing those produces "12345.0" which never matches the stored
     CharField "12345". HTML cells can also carry NBSP / extra whitespace.
+
+    Biometric machines sometimes export the same numeric ID in two formats
+    ("8" and "00000008"). Strip leading zeros from purely numeric IDs so
+    both forms normalize to the same value and lookups stay consistent.
     """
     if value is None:
         return None
@@ -125,6 +176,9 @@ def _clean_id(value):
     # Trailing ".0" from accidental float stringification upstream
     if re.fullmatch(r'\d+\.0+', s):
         s = s.split('.', 1)[0]
+    # Strip leading zeros from purely numeric IDs ("00000008" → "8")
+    if re.fullmatch(r'\d+', s):
+        s = str(int(s))
     return s
 
 
@@ -240,6 +294,40 @@ def _lookup_or_create_employee(person_id, name):
     employee = Employee.objects.create(person_id=person_id, name=name)
     logger.info("Created new employee: %s (person_id=%s)", name, person_id)
     return employee, True
+
+
+def _parse_remote_daily_csv(file_obj):
+    """
+    Parse a remote call statistics CSV, handling both old and new report formats.
+
+    Old format: header starts on row 1 (Extension, Answered, ..., Total Ring Duration, Total Talk Duration)
+    New format: 4 metadata rows precede the header, columns renamed to Total Ring Time / Total Talk Time
+
+    The header row is located by finding the row containing an 'Extension' column,
+    regardless of what other columns (e.g. a leading 'Date' column, used by the monthly
+    export) precede or follow it.
+
+    Returns a normalized DataFrame with Total Ring Duration / Total Talk Duration column names.
+    """
+    raw = file_obj.read()
+    if hasattr(file_obj, 'seek'):
+        file_obj.seek(0)
+    text = raw.decode('utf-8', errors='ignore') if isinstance(raw, bytes) else raw
+
+    lines = text.splitlines()
+    header_row_idx = 0
+    for i, line in enumerate(lines):
+        tokens = [t.strip().strip('"') for t in line.strip().split(',')]
+        if 'Extension' in tokens:
+            header_row_idx = i
+            break
+
+    df = pd.read_csv(io.StringIO(text), skiprows=header_row_idx)
+    df = df.rename(columns={
+        'Total Ring Time': 'Total Ring Duration',
+        'Total Talk Time': 'Total Talk Duration',
+    })
+    return df
 
 
 def _strip_csv_suffix(name):
@@ -396,7 +484,7 @@ def _calculate_work_duration(fi_time, lo_time):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('upload'), login_url='/report/')
 def upload_file(request):
     """Handle Excel file upload for in-house attendance data."""
     if request.method != 'POST' or not request.FILES.get('file'):
@@ -520,7 +608,7 @@ def upload_file(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('upload'), login_url='/report/')
 def upload_remote_call_stats(request):
     """Handle CSV upload for remote team call statistics."""
     if request.method != 'POST' or not request.FILES.get('remote_file'):
@@ -540,7 +628,7 @@ def upload_remote_call_stats(request):
         return redirect('upload')
 
     try:
-        df = pd.read_csv(csv_file)
+        df = _parse_remote_daily_csv(csv_file)
         selected_date = pd.to_datetime(selected_date_str).date()
 
         processed_count = 0
@@ -624,7 +712,7 @@ def upload_remote_call_stats(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('upload'), login_url='/report/')
 def upload_remote_monthly(request):
     """Handle CSV upload for monthly remote team call statistics (per-day breakdown)."""
     if request.method != 'POST' or not request.FILES.get('remote_monthly_file'):
@@ -646,7 +734,7 @@ def upload_remote_monthly(request):
     try:
         selected_year = int(selected_month_str.split('-')[0])
 
-        df = pd.read_csv(csv_file)
+        df = _parse_remote_daily_csv(csv_file)
 
         if 'Date' not in df.columns:
             messages.error(request, 'Invalid file format. Monthly CSV must have a "Date" column.')
@@ -669,10 +757,14 @@ def upload_remote_monthly(request):
                 if '-' not in str(extension_col):
                     continue
 
-                # Parse date: "Mar. 1" + year -> date object
+                # Parse date: either "MM/DD/YYYY" (new export format, year included)
+                # or "Mar. 1" (old format, year appended from the selected month)
                 try:
-                    date_text = date_str.replace('.', '').strip()
-                    record_date = datetime.strptime(f"{date_text} {selected_year}", "%b %d %Y").date()
+                    if '/' in date_str:
+                        record_date = datetime.strptime(date_str, "%m/%d/%Y").date()
+                    else:
+                        date_text = date_str.replace('.', '').strip()
+                        record_date = datetime.strptime(f"{date_text} {selected_year}", "%b %d %Y").date()
                 except ValueError:
                     logger.warning("Could not parse date '%s', skipping row", date_str)
                     continue
@@ -746,5 +838,133 @@ def upload_remote_monthly(request):
         return redirect('upload')
     except Exception:
         logger.exception("Unexpected error during monthly remote upload")
+        messages.error(request, 'An unexpected error occurred while processing the file.')
+        return redirect('upload')
+
+
+@login_required
+@user_passes_test(section_required('upload'), login_url='/report/')
+def upload_file_multiday(request):
+    """Handle multi-day attendance upload from a Daily Report XLS export."""
+    if request.method != 'POST' or not request.FILES.get('multiday_file'):
+        return redirect('upload')
+
+    excel_file = request.FILES['multiday_file']
+
+    try:
+        _validate_file_extension(excel_file.name, ALLOWED_ATTENDANCE_EXTENSIONS)
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect('upload')
+
+    try:
+        file_content = excel_file.read()
+
+        if not is_html_excel(file_content):
+            messages.error(request, 'Multi-day upload only supports the HTML-based .xls Daily Report format.')
+            return redirect('upload')
+
+        if not is_daily_report_excel(file_content):
+            messages.error(request, 'Could not find Daily_Report table. Please upload a full daily report export.')
+            return redirect('upload')
+
+        df = parse_daily_report_excel(file_content)
+
+        for col in ('First-In', 'Last-Out'):
+            df[col] = df[col].replace('-', pd.NA)
+
+        df['Person ID'] = df['Person ID'].apply(_clean_id)
+        df['Name'] = df['Name'].apply(_clean_name)
+
+        bad_rows = df[df['Person ID'].isna() | df['Name'].isna()]
+        if not bad_rows.empty:
+            logger.warning(
+                "Skipping %d row(s) with missing Person ID or Name in %s",
+                len(bad_rows), excel_file.name
+            )
+        df = df.dropna(subset=['Person ID', 'Name'])
+
+        # Parse dates; drop rows with unparseable dates
+        df['date_val'] = pd.to_datetime(df['Date'].astype(str).str.strip(), errors='coerce').dt.date
+        invalid_dates = df['date_val'].isna().sum()
+        if invalid_dates:
+            logger.warning("Skipping %d row(s) with unparseable dates in %s", invalid_dates, excel_file.name)
+        df = df.dropna(subset=['date_val'])
+
+        # Parse check-in/out as full datetimes so groupby min/max works correctly.
+        # Biometric exports sometimes have the same employee twice per day with
+        # different person_id formats ("8" vs "00000008"). Grouping and taking
+        # the earliest check-in / latest check-out merges those duplicate rows.
+        df['fi_dt'] = pd.to_datetime(
+            df['date_val'].astype(str) + ' ' + df['First-In'].astype(str),
+            errors='coerce'
+        )
+        df['lo_dt'] = pd.to_datetime(
+            df['date_val'].astype(str) + ' ' + df['Last-Out'].astype(str),
+            errors='coerce'
+        )
+
+        processed_count = 0
+        new_employees = []
+        dates_processed = set()
+
+        grouped = df.groupby(['Person ID', 'Name', 'date_val'], dropna=False)
+
+        with transaction.atomic():
+            for (person_id, name, date_val), group in grouped:
+                fi_dt = group['fi_dt'].min()
+                lo_dt = group['lo_dt'].max()
+
+                fi_time = fi_dt.time() if pd.notna(fi_dt) else None
+                lo_time = lo_dt.time() if pd.notna(lo_dt) else None
+
+                employee, created = _lookup_or_create_employee(person_id, name)
+                if created:
+                    new_employees.append(name)
+
+                fi_time, lo_time = _merge_with_approved_times(employee, date_val, fi_time, lo_time)
+                duration = _calculate_work_duration(fi_time, lo_time)
+
+                AttendanceRecord.objects.update_or_create(
+                    employee=employee,
+                    date=date_val,
+                    defaults={
+                        'first_in': fi_time,
+                        'last_out': lo_time,
+                        'work_duration': duration,
+                    }
+                )
+                dates_processed.add(date_val)
+                processed_count += 1
+
+        months_processed = {(d.year, d.month) for d in dates_processed}
+        for year, month in months_processed:
+            call_command('recalculate_summaries', year, month, verbosity=0)
+
+        days_count = len(dates_processed)
+        logger.info(
+            "Multi-day attendance upload: %d records across %d days by %s",
+            processed_count, days_count, request.user.username
+        )
+        messages.success(
+            request,
+            f'Multi-day report uploaded! {processed_count} records across {days_count} day(s) processed.'
+        )
+        if new_employees:
+            names = ', '.join(new_employees)
+            messages.warning(
+                request,
+                f'{len(new_employees)} new employee record(s) were auto-created: {names}. '
+                f'If these are existing employees with a new machine ID, use the '
+                f'Employee Directory to merge the duplicate records.'
+            )
+        return redirect('upload')
+
+    except ValueError as e:
+        logger.warning("Multi-day upload validation error: %s", e)
+        messages.error(request, f'Error processing file: {e}')
+        return redirect('upload')
+    except Exception:
+        logger.exception("Unexpected error during multi-day attendance upload")
         messages.error(request, 'An unexpected error occurred while processing the file.')
         return redirect('upload')

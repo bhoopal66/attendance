@@ -81,9 +81,16 @@
         overflow: hidden;
     }
 
+    .banks-table-wrap { overflow-x: auto; }
     .banks-table {
         width: 100%;
         border-collapse: collapse;
+    }
+
+    @media (max-width: 768px) {
+        .banks-container { padding: 10px; }
+        .banks-header { flex-direction: column; align-items: flex-start; }
+        .banks-table th, .banks-table td { padding: 9px 10px; font-size: 0.8rem; white-space: nowrap; }
     }
 
     .banks-table th {
@@ -314,7 +321,7 @@
         <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        Set the per-account commission charge for each bank. UAE employees (AED) use the AED rate; Indian employees (INR) use the INR rate when set. Commission = <strong>submissions × per-account charge</strong>.
+        Set the per-account commission charge for each bank. UAE employees (AED) use the AED rate; Indian (INR) and Nepalese (NPR) employees use their own rate when set. Commission = <strong>submissions × per-account charge</strong>, tiered per the settings below.
     </div>
 
     <!-- AED Section -->
@@ -323,6 +330,7 @@
     </div>
     <div class="banks-card" style="margin-bottom:28px;">
         {% if banks %}
+        <div class="banks-table-wrap">
         <table class="banks-table">
             <thead>
                 <tr>
@@ -346,7 +354,7 @@
                     </td>
                     <td>
                         <div class="action-btns">
-                            <button class="btn-edit" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }}, {{ bank.inr_per_account_charge|default:'null' }})">
+                            <button class="btn-edit" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }}, {{ bank.inr_per_account_charge|default:'null' }}, {{ bank.npr_per_account_charge|default:'null' }})">
                                 Edit
                             </button>
                             <button class="btn-toggle" onclick="toggleBank({{ bank.id }}, this)" data-active="{{ bank.is_active|yesno:'true,false' }}">
@@ -358,6 +366,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <div class="empty-state" id="emptyState">
             <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l9-3 9 3M3 6v12l9 3 9-3V6M12 3v18M3 12h18M3 18h18" /></svg></div>
@@ -376,6 +385,7 @@
     </div>
     <div class="banks-card" style="border:1px solid #bae6fd;">
         {% if banks %}
+        <div class="banks-table-wrap">
         <table class="banks-table">
             <thead>
                 <tr>
@@ -403,7 +413,7 @@
                     </td>
                     <td>
                         <div class="action-btns">
-                            <button class="btn-edit" style="background:#e0f2fe;color:#0369a1;border-color:#7dd3fc;" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }}, {{ bank.inr_per_account_charge|default:'null' }})">
+                            <button class="btn-edit" style="background:#e0f2fe;color:#0369a1;border-color:#7dd3fc;" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }}, {{ bank.inr_per_account_charge|default:'null' }}, {{ bank.npr_per_account_charge|default:'null' }})">
                                 Set INR Rate
                             </button>
                         </div>
@@ -412,11 +422,104 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <div class="empty-state">
             <p>No banks added yet.</p>
         </div>
         {% endif %}
+    </div>
+
+    <!-- NPR Section -->
+    <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#7c2d12;margin-bottom:8px;padding-left:2px;">
+        Nepalese Employees — NPR Commission Rates
+    </div>
+    <div style="font-size:0.8rem;color:#64748b;margin-bottom:10px;">
+        When an employee's currency is set to NPR, their performance salary is calculated using the NPR rate. Edit any bank above to set its NPR rate.
+    </div>
+    <div class="banks-card" style="border:1px solid #fed7aa;margin-bottom:28px;">
+        {% if banks %}
+        <div class="banks-table-wrap">
+        <table class="banks-table">
+            <thead>
+                <tr>
+                    <th>Bank Name</th>
+                    <th class="text-right">Per Account Charge (NPR)</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bank in banks %}
+                <tr>
+                    <td class="bank-name">{{ bank.name }}</td>
+                    <td class="text-right">
+                        {% if bank.npr_per_account_charge %}
+                            <span class="charge-badge" style="background:#fff7ed;color:#7c2d12;border-color:#fed7aa;">NPR {{ bank.npr_per_account_charge }}</span>
+                        {% else %}
+                            <span style="color:#94a3b8;font-size:0.8rem;font-style:italic;">Not set</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <span class="status-badge {% if bank.is_active %}status-active{% else %}status-inactive{% endif %}">
+                            {% if bank.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-btns">
+                            <button class="btn-edit" style="background:#fff7ed;color:#7c2d12;border-color:#fed7aa;" onclick="openEditModal({{ bank.id }}, '{{ bank.name|escapejs }}', {{ bank.per_account_charge }}, {{ bank.inr_per_account_charge|default:'null' }}, {{ bank.npr_per_account_charge|default:'null' }})">
+                                Set NPR Rate
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No banks added yet.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Commission Tier Settings -->
+    <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#64748b;margin-bottom:8px;padding-left:2px;">
+        Tiered Commission Settings
+    </div>
+    <div style="font-size:0.8rem;color:#64748b;margin-bottom:10px;">
+        For each foreign currency, the first N accounts (summed across all banks) are paid at each bank's per-account rate above; every account beyond that is paid a flat overflow rate instead.
+    </div>
+    <div class="banks-card" style="margin-bottom:28px;">
+        <div class="banks-table-wrap">
+        <table class="banks-table">
+            <thead>
+                <tr>
+                    <th>Currency</th>
+                    <th class="text-right">Threshold (accounts)</th>
+                    <th class="text-right">Overflow Rate (per account)</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tier in tier_rows %}
+                <tr>
+                    <td class="bank-name">{{ tier.currency }}</td>
+                    <td class="text-right">
+                        <input type="number" id="tierThreshold-{{ tier.currency }}" min="0" step="1" style="width:90px;text-align:right;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;" value="{{ tier.threshold }}">
+                    </td>
+                    <td class="text-right">
+                        <input type="number" id="tierOverflow-{{ tier.currency }}" min="0" step="0.01" style="width:110px;text-align:right;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;" placeholder="e.g. 3000" value="{% if tier.overflow_rate != None %}{{ tier.overflow_rate }}{% endif %}">
+                    </td>
+                    <td class="text-right">
+                        <button class="btn-edit" onclick="saveTierSetting('{{ tier.currency }}')">Save</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
     </div>
 
 </div>
@@ -444,6 +547,11 @@
                     <label>Per Account Charge — INR <span style="font-size:0.72rem;color:#94a3b8;font-weight:400;">(Indian employees, optional)</span></label>
                     <input type="number" id="bankChargeINR" step="0.01" min="0" placeholder="e.g., 500.00 — leave blank if not applicable">
                     <div class="form-hint">When set, Indian employees (INR currency) will have their commission calculated using this rate instead of the AED rate.</div>
+                </div>
+                <div class="form-group">
+                    <label>Per Account Charge — NPR <span style="font-size:0.72rem;color:#94a3b8;font-weight:400;">(Nepalese employees, optional)</span></label>
+                    <input type="number" id="bankChargeNPR" step="0.01" min="0" placeholder="e.g., 5000.00 — leave blank if not applicable">
+                    <div class="form-hint">When set, Nepalese employees (NPR currency) will have their commission calculated using this rate instead of the AED rate.</div>
                 </div>
             </div>
             <div class="modal-actions">
@@ -480,17 +588,19 @@
         document.getElementById('bankName').value = '';
         document.getElementById('bankCharge').value = '';
         document.getElementById('bankChargeINR').value = '';
+        document.getElementById('bankChargeNPR').value = '';
         document.getElementById('bankModal').classList.add('show');
         document.getElementById('bankName').focus();
     }
 
-    function openEditModal(id, name, charge, inrCharge) {
+    function openEditModal(id, name, charge, inrCharge, nprCharge) {
         editingId = id;
         document.getElementById('modalTitle').textContent = 'Edit Bank';
         document.getElementById('editBankId').value = id;
         document.getElementById('bankName').value = name;
         document.getElementById('bankCharge').value = charge;
         document.getElementById('bankChargeINR').value = (inrCharge !== null && inrCharge !== undefined) ? inrCharge : '';
+        document.getElementById('bankChargeNPR').value = (nprCharge !== null && nprCharge !== undefined) ? nprCharge : '';
         document.getElementById('bankModal').classList.add('show');
         document.getElementById('bankName').focus();
     }
@@ -505,21 +615,26 @@
         const charge = parseFloat(document.getElementById('bankCharge').value);
         const inrChargeRaw = document.getElementById('bankChargeINR').value.trim();
         const inrCharge = inrChargeRaw ? parseFloat(inrChargeRaw) : null;
+        const nprChargeRaw = document.getElementById('bankChargeNPR').value.trim();
+        const nprCharge = nprChargeRaw ? parseFloat(nprChargeRaw) : null;
 
         if (!name) { showToast('Please enter a bank name.', 'error'); return; }
         if (!charge || charge <= 0) { showToast('Enter a valid AED charge greater than 0.', 'error'); return; }
         if (inrCharge !== null && (isNaN(inrCharge) || inrCharge <= 0)) {
             showToast('INR charge must be greater than 0, or leave blank.', 'error'); return;
         }
+        if (nprCharge !== null && (isNaN(nprCharge) || nprCharge <= 0)) {
+            showToast('NPR charge must be greater than 0, or leave blank.', 'error'); return;
+        }
 
         try {
             let url, body;
             if (editingId) {
                 url = `/payroll/api/banks/${editingId}/`;
-                body = { action: 'update', name, per_account_charge: charge, inr_per_account_charge: inrCharge };
+                body = { action: 'update', name, per_account_charge: charge, inr_per_account_charge: inrCharge, npr_per_account_charge: nprCharge };
             } else {
                 url = '/payroll/api/banks/';
-                body = { name, per_account_charge: charge, inr_per_account_charge: inrCharge };
+                body = { name, per_account_charge: charge, inr_per_account_charge: inrCharge, npr_per_account_charge: nprCharge };
             }
 
             const res = await fetch(url, {
@@ -574,6 +689,36 @@
         }
     }
 
+    async function saveTierSetting(currency) {
+        const thresholdRaw = document.getElementById(`tierThreshold-${currency}`).value;
+        const overflowRaw = document.getElementById(`tierOverflow-${currency}`).value;
+        const threshold = parseInt(thresholdRaw);
+        const overflow = parseFloat(overflowRaw);
+
+        if (thresholdRaw === '' || isNaN(threshold) || threshold < 0) {
+            showToast('Enter a valid threshold (0 or more).', 'error'); return;
+        }
+        if (overflowRaw === '' || isNaN(overflow) || overflow < 0) {
+            showToast('Enter a valid overflow rate (0 or more).', 'error'); return;
+        }
+
+        try {
+            const res = await fetch('/payroll/api/commission-tier/save/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                body: JSON.stringify({ currency, threshold, overflow_rate: overflow }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`${currency} commission tiering saved.`);
+            } else {
+                showToast(data.error || 'Error saving tier settings.', 'error');
+            }
+        } catch {
+            showToast('Network error. Please try again.', 'error');
+        }
+    }
+
     // Close modal on overlay click
     document.getElementById('bankModal').addEventListener('click', function(e) {
         if (e.target === this) closeModal();
@@ -583,5 +728,6 @@
     document.getElementById('bankName').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
     document.getElementById('bankCharge').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
     document.getElementById('bankChargeINR').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
+    document.getElementById('bankChargeNPR').addEventListener('keydown', e => { if (e.key === 'Enter') saveBank(); });
 </script>
 {% endblock %}

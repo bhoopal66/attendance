@@ -10,7 +10,10 @@ import logging
 from datetime import timedelta
 
 from django.http import JsonResponse
+from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib.auth.decorators import login_required, user_passes_test
 
 from ..models import (
@@ -19,15 +22,48 @@ from ..models import (
 )
 from .utils import (
     get_employee_shift_for_date, get_saturday_shift, superuser_required,
+    has_section_access, section_required,
 )
 
 logger = logging.getLogger('attendance')
 
 
 @login_required
+def set_period(request):
+    """Set the app-wide working month/year (stored in session) and bounce back
+    to the referring page with month/year applied to its query string, so the
+    same period follows the user across the report, payroll, etc."""
+    next_url = request.GET.get('next', '')
+    if not next_url or not url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        next_url = reverse('report')
+
+    try:
+        month = int(request.GET.get('month'))
+        year = int(request.GET.get('year'))
+        if 1 <= month <= 12 and 2000 <= year <= 2099:
+            request.session['selected_month'] = month
+            request.session['selected_year'] = year
+    except (TypeError, ValueError):
+        month = request.session.get('selected_month')
+        year = request.session.get('selected_year')
+
+    if month and year:
+        from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+        parts = urlsplit(next_url)
+        query = dict(parse_qsl(parts.query))
+        query['month'] = month
+        query['year'] = year
+        next_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+    return redirect(next_url)
+
+
+@login_required
 def get_pending_count(request):
     """API endpoint to get current pending request count for real-time updates."""
-    if not request.user.is_superuser:
+    if not has_section_access(request.user, 'on_duty_requests'):
         return JsonResponse({'count': 0})
     count = EarlyLeaveRequest.objects.filter(status='pending').count()
     return JsonResponse({'count': count})
@@ -36,7 +72,7 @@ def get_pending_count(request):
 @login_required
 def get_pending_requests(request):
     """API endpoint to get all pending requests with full details for real-time dropdown."""
-    if not request.user.is_superuser:
+    if not has_section_access(request.user, 'on_duty_requests'):
         return JsonResponse({'requests': [], 'count': 0})
 
     pending = EarlyLeaveRequest.objects.filter(
@@ -77,6 +113,7 @@ def update_attendance(request):
         first_in = data.get('first_in')
         last_out = data.get('last_out')
         is_work_from_home = bool(data.get('is_work_from_home', False))
+        is_paid_leave = bool(data.get('is_paid_leave', False))
 
         if not employee_id or not date_str:
             return JsonResponse({'error': 'Missing required fields: employee_id, date'}, status=400)
@@ -105,6 +142,7 @@ def update_attendance(request):
                 'last_out': last_out_time,
                 'work_duration': work_duration,
                 'is_work_from_home': is_work_from_home,
+                'is_paid_leave': is_paid_leave,
             }
         )
 
@@ -125,6 +163,7 @@ def update_attendance(request):
                 'last_out': last_out,
                 'work_duration': str(work_duration) if work_duration else None,
                 'is_work_from_home': is_work_from_home,
+                'is_paid_leave': is_paid_leave,
             }
         })
 
@@ -229,7 +268,7 @@ def recalculate_monthly_summary(employee, year, month):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('on_duty_requests'), login_url='/report/')
 def get_request_attendance_data(request, request_id):
     """Get attendance data for a pending early leave request."""
     try:
@@ -281,7 +320,7 @@ def get_request_attendance_data(request, request_id):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('on_duty_requests'), login_url='/report/')
 def approve_early_leave(request, request_id):
     """Approve an early leave request and update attendance times."""
     if request.method != 'POST':
@@ -348,7 +387,7 @@ def approve_early_leave(request, request_id):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('on_duty_requests'), login_url='/report/')
 def decline_early_leave(request, request_id):
     """Decline an early leave request."""
     if request.method != 'POST':
@@ -374,6 +413,62 @@ def decline_early_leave(request, request_id):
         request_id, request.user.username
     )
     return JsonResponse({'success': True, 'message': 'Request declined'})
+
+
+@login_required
+@user_passes_test(section_required('on_duty_requests'), login_url='/report/')
+def approve_all_on_duty(request):
+    """Bulk-approve all pending on-duty requests using each request's own times."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    pending = EarlyLeaveRequest.objects.filter(status='pending').select_related(
+        'employee', 'remote_employee'
+    )
+    now = timezone.now()
+    approved_count = 0
+
+    for early_leave in pending:
+        if early_leave.employee:
+            first_in_time = early_leave.leaving_time
+            last_out_time = early_leave.return_time
+
+            early_leave.approved_first_in = first_in_time
+            early_leave.approved_last_out = last_out_time
+
+            attendance, created = AttendanceRecord.objects.get_or_create(
+                employee=early_leave.employee,
+                date=early_leave.request_date,
+                defaults={
+                    'first_in': first_in_time,
+                    'last_out': last_out_time,
+                    'work_duration': None,
+                }
+            )
+            if not created:
+                if first_in_time:
+                    attendance.first_in = first_in_time
+                if last_out_time:
+                    attendance.last_out = last_out_time
+
+            if attendance.first_in and attendance.last_out:
+                today = datetime.date.today()
+                dt_in = datetime.datetime.combine(today, attendance.first_in)
+                dt_out = datetime.datetime.combine(today, attendance.last_out)
+                attendance.work_duration = max(dt_out - dt_in, timedelta(0))
+
+            attendance.save()
+
+        early_leave.status = 'approved'
+        early_leave.reviewed_at = now
+        early_leave.save()
+        approved_count += 1
+
+    logger.info(
+        "Bulk on-duty approval: %d requests approved by %s",
+        approved_count, request.user.username
+    )
+    return JsonResponse({'success': True, 'approved_count': approved_count})
 
 
 @login_required

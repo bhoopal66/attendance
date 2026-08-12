@@ -130,7 +130,7 @@ Use these instead of the single-employee variants whenever rendering a full mont
 - `EmployeeIDAlias` / `RemoteEmployeeIDAlias` - Alternate IDs for employee deduplication/merging
 
 **Request Management:**
-- `EarlyLeaveRequest` - On-duty/field visit requests with clean() validation ensuring exactly one employee FK is set
+- `EarlyLeaveRequest` - On-duty/field visit requests with clean() validation ensuring exactly one employee FK is set; managed via the dedicated `/on-duty-requests/` admin page (`attendance/views/leave_management.py:on_duty_requests`), separate from the `LeaveRequest` workflow below
 - `LeaveRequest` - 4 types (sick, medical, annual, casual) with clean() date validation
 - `AnnualLeave` - Admin-assigned annual leave blocks (paid/unpaid) spanning date ranges
 - `Holiday` - Custom holidays (Sundays are auto-detected)
@@ -149,15 +149,17 @@ Use these instead of the single-employee variants whenever rendering a full mont
 
 ### URL Structure
 
-**Admin Panel:** `/` (upload), `/report/` (in-house), `/report/remote/` (remote), `/employees/`, `/leave-requests/`, `/annual-leave/`, `/special-shifts/`
+**Admin Panel:** `/` (upload), `/upload/multiday/` (multi-day Daily Report upload), `/report/` (in-house), `/report/remote/` (remote), `/employees/`, `/on-duty-requests/` (early-leave/on-duty request queue), `/leave-requests/`, `/annual-leave/`, `/special-shifts/`
 
 **Employee Management:** `/employees/update/`, `/employees/bulk-update/`, `/employees/merge/`, `/employees/delete/`, `/employees/link/`, `/employees/unlink/`
 
 **Employee Portal:** `/portal/` (dashboard), `/portal/login/`, `/portal/logout/`, `/portal/change-password/`, `/portal/early-leave-request/`, `/portal/leave-request/`, `/portal/api/my-requests/`
 
-**APIs:** `/api/attendance/update/`, `/api/remote/attendance/update/`, `/api/pending-count/`, `/api/pending-requests/`, `/request/<id>/data/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
+**APIs:** `/api/attendance/update/`, `/api/remote/attendance/update/`, `/api/pending-count/`, `/api/pending-requests/`, `/request/<id>/data/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/on-duty-requests/approve-all/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
 
-**Payroll:** `/payroll/` (dashboard), `/payroll/test/` (new comprehensive dashboard — see below), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/<emp_type>/<id>/`, `/payroll/api/submissions/save/`, `/payroll/api/upload-submissions/` (bulk XLSX), `/payroll/api/deductions/add/`, `/payroll/api/deductions/autofill/`, `/payroll/api/recalculate/`, `/payroll/api/exchange-rate/save/`, `/payroll/api/freeze/`, `/payroll/api/unfreeze/`, `/payroll/api/mark-paid/`, `/payroll/api/unmark-paid/`, `/payroll/api/employee/<emp_type>/<id>/update/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/voucher/advance/`
+**Payroll:** `/payroll/` (comprehensive dashboard, `payroll_test_dashboard` — see below), `/payroll/old/` (legacy dashboard, `payroll_dashboard`), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/<emp_type>/<id>/`, `/payroll/api/submissions/save/`, `/payroll/api/upload-submissions/` (bulk XLSX), `/payroll/api/deductions/add/`, `/payroll/api/deductions/autofill/`, `/payroll/api/recalculate/`, `/payroll/api/exchange-rate/save/`, `/payroll/api/freeze/`, `/payroll/api/unfreeze/`, `/payroll/api/mark-paid/`, `/payroll/api/unmark-paid/`, `/payroll/api/employee/<emp_type>/<id>/update/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/voucher/advance/`
+
+Note: `/payroll/` and `/payroll/test/` both route to `payroll_test_dashboard` — the "test" dashboard is now the primary one. The original `payroll_dashboard` view lives on at `/payroll/old/` for reference/rollback.
 
 ### Authentication
 
@@ -194,12 +196,17 @@ Custom error templates at `attendance/templates/`: `400.html`, `403.html`, `404.
 - `attendance/context_processors.py` - `pending_requests_processor` makes pending on-duty request counts available to all templates for authenticated superusers
 - `attendance/templatetags/attendance_extras.py` - Custom template filters: `is_in_list`, `dictsumby` (sums a key across a list of dicts or objects)
 - `attendance/management/commands/recalculate_summaries.py` - Management command to rebuild monthly summaries
-
-## Critical Implementation Details
+- `payroll/management/commands/convert_frozen_to_paid.py` - One-time migration converting `FrozenPayrollMonth` snapshots into per-employee `PaidSalaryRecord` entries, for the new dashboard's paid-record overlay; supports `--dry-run`
 
 ### XLS Upload Format
 
 The biometric machine exports `.xls` files that are actually HTML documents (not binary Excel). `upload.py` detects this automatically via `is_html_excel()` (checks for `<html` in the first 500 bytes) and parses them with BeautifulSoup (`parse_html_excel()`), looking for a `<table class="Punch_Report">` with 11 columns per row. Standard `.xls`/`.xlsx` files are handled with pandas/xlrd. Both paths normalise into the same DataFrame before processing. If a file parses unexpectedly, check which path was taken.
+
+There is also a separate **multi-day** upload path (`upload_file_multiday`, `/upload/multiday/`) for a "Daily Report" HTML export covering many days at once. It's detected via `is_daily_report_excel()` (looks for `Daily_Report` in the content) and parsed by `parse_daily_report_excel()`, which reads a 20-column-per-row `<table class="Daily_Report">` (columns include an embedded `Date` per row, unlike the single-day `Punch_Report` format) and reduces it to `Person ID`/`Name`/`Date`/`First-In`/`Last-Out`.
+
+Employee/person IDs are normalized by `_clean_id()`, which also strips leading zeros from purely numeric IDs (`"00000008"` → `"8"`) so both formats exported by the biometric machine match the same stored employee.
+
+Remote call-stat CSV uploads (`upload_remote_call_stats`) go through `_parse_remote_daily_csv()`, which transparently handles two report formats: an old format with the header on row 1, and a newer format with 4 metadata rows before the header and renamed `Total Ring Time`/`Total Talk Time` columns (normalized back to `Total Ring Duration`/`Total Talk Duration`).
 
 ### Employee Lookup Strategy (XLS Upload)
 
@@ -221,7 +228,7 @@ This is critical when the same `person_id` is reused (leavers' machine slots rea
 - Yellow (Late/Early): Late arrival (before 12:00) OR early departure
 - Orange (Half Day): Arrival after 12:00
 - Red (Absent): No attendance record + not holiday/Sunday
-- Blue (Paid Leave): Approved leave request
+- Blue (Paid Leave): Approved leave request, or `AttendanceRecord.is_paid_leave=True` set directly on the record (not deducted from salary)
 - Purple (Holiday): Sunday or custom holiday
 - **WFH override**: `AttendanceRecord.is_work_from_home=True` always counts as full-day Present, regardless of punch times
 - **Fixed salary override**: `Employee.is_fixed_salary=True` means punch-in alone counts as Present (no punch-out or duration threshold required)
@@ -240,8 +247,8 @@ Default thresholds can be overridden per period via `SpecialShiftPeriod` remote 
 A Sunday that falls between an approved-leave Saturday and an approved-leave Monday is treated as an **unpaid absent day** in payroll (one `daily_rate` deducted), even though it is normally a holiday. This bridges the gap so employees cannot claim a free Sunday by surrounding it with leave days.
 
 Logic lives in `attendance/views/utils.py:get_bridge_sunday_days()`. It checks both `LeaveRequest` (in-house only) and `AnnualLeave` (in-house and remote). The two sources are handled differently:
-- **`AnnualLeave` spans**: Sundays within the span are excluded from the bridge count because `recalculate_summaries` already adds them to `MonthlySummary.leave_days` — counting them again here would be a double deduction.
-- **`LeaveRequest` spans**: Sundays within the span are **not** excluded and are still counted as bridge Sundays, because `LeaveRequest` records do not add Sundays to `leave_days`.
+- **`AnnualLeave` spans**: any Sunday that falls anywhere inside the span is excluded from the bridge count (not just Sundays flanked by leave on both sides) because the payroll calculation's `annual_leave_extra_deduction` already charges `(100 − salary_pct)%` for non-working days within the span — counting them again here would be a double deduction.
+- **`LeaveRequest` spans**: Sundays within the span are **not** excluded and are still counted as bridge Sundays, because `LeaveRequest` records are not charged by any other mechanism.
 
 ### Salary Cycle / Pay Period
 
@@ -256,9 +263,9 @@ Helper: `_get_employee_pay_period(cycle_start_day, year, month)` in `payroll/vie
 
 Admins can edit remote call records directly from the remote attendance report. The new API endpoint `POST /api/remote/attendance/update/` (`update_remote_attendance` in `api.py`) accepts `employee_id`, `date`, `talk_minutes`, and `answered_calls`. It upserts a `RemoteCallRecord` and returns the recalculated `attendance_status`. The remote report template renders an edit icon on each day cell and a modal form wired to this endpoint.
 
-### Test Payroll Dashboard (`/payroll/test/`)
+### Payroll Dashboard (`/payroll/`, view `payroll_test_dashboard`, template `payroll/test_dashboard.html`)
 
-A new comprehensive payroll dashboard (`payroll_test_dashboard` view, template `payroll/test_dashboard.html`) that replaces the original dashboard workflow. Key differences from `/payroll/`:
+This is the primary payroll dashboard (both `/payroll/` and `/payroll/test/` route here); it replaced the original dashboard workflow, which is still reachable at `/payroll/old/` (view `payroll_dashboard`) for reference/rollback. Key differences from the old dashboard:
 
 - **Deductions table**: All `DeductionEntry` records rendered as a matrix of categories (advance, visa_status_change, clawback, leave_deduction, late_deduction, other_deduction, last_month_balance, paid_leave, other_addition) per employee. `leave_deduction` and `late_deduction` are auto-computed for attendance-based employees.
 - **Final summary**: Combines payroll net + deductions + additions → `final_salary` per employee; automatically creates `DeductionCarryover` when `final_salary < 0`.

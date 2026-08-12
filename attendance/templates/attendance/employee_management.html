@@ -6,50 +6,83 @@
 
 {% block extra_css %}
 <style>
-.emp-container { width: 100%; padding: 0 0 2rem; }
+.emp-container { width: 100%; padding: 0 0 2.5rem; }
 
-/* Page Header */
-.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
-.page-header-left { display: flex; align-items: center; gap: 0.75rem; }
-.page-header-icon { width: 40px; height: 40px; background: var(--primary-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
-.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); margin: 0; }
-.page-header p { font-size: 0.82rem; color: var(--text-secondary); margin: 0.1rem 0 0; }
-.btn-primary { padding: 0.55rem 1.1rem; background: var(--primary-color); color: #fff; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; transition: opacity .15s; }
-.btn-primary:hover { opacity: .88; }
+/* ── Page Header ────────────────────────────────────── */
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem; }
+.page-header-left { display: flex; align-items: center; gap: 0.9rem; }
+.page-header-icon {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(29,78,216,.3);
+}
+.page-header h1 { font-size: 1.35rem; font-weight: 700; color: var(--text-primary); margin: 0; letter-spacing: -0.01em; }
+.page-header p { font-size: 0.82rem; color: var(--text-secondary); margin: 0.15rem 0 0; }
 
-/* Stats Row */
-.stats-row { display: flex; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
-.stat-pill { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.6rem; }
-.stat-pill-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.stat-pill-icon.total   { background: #ede9fe; color: #6d28d9; }
-.stat-pill-icon.inhouse { background: #dbeafe; color: #1d4ed8; }
-.stat-pill-icon.remote  { background: #dcfce7; color: #166534; }
-.stat-pill-val { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
-.stat-pill-lbl { font-size: 0.75rem; color: var(--text-secondary); margin-top: 1px; }
+/* ── Stat Cards ─────────────────────────────────────── */
+.stats-row { display: flex; gap: 1rem; margin-bottom: 1.75rem; flex-wrap: wrap; }
+.stat-card {
+    flex: 1; min-width: 160px;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    display: flex; align-items: center; gap: 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    transition: box-shadow .15s, transform .15s;
+    position: relative; overflow: hidden;
+}
+.stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.09); transform: translateY(-1px); }
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 14px 14px 0 0; }
+.stat-card.total::before   { background: linear-gradient(90deg, #2563EB, #60A5FA); }
+.stat-card.inhouse::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.stat-card.remote::before  { background: linear-gradient(90deg, #10b981, #34d399); }
+.stat-icon {
+    width: 44px; height: 44px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.stat-card.total   .stat-icon { background: #DBEAFE; color: #2563EB; }
+.stat-card.inhouse .stat-icon { background: #eff6ff; color: #3b82f6; }
+.stat-card.remote  .stat-icon { background: #ecfdf5; color: #10b981; }
+.stat-val { font-size: 1.75rem; font-weight: 800; color: var(--text-primary); line-height: 1; letter-spacing: -0.03em; }
+.stat-lbl { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.2rem; font-weight: 500; }
 
-/* Filter Bar */
-.filter-bar { display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
-.search-wrap { position: relative; flex: 1; min-width: 200px; }
+/* ── Toolbar ─────────────────────────────────────────── */
+.toolbar {
+    display: flex; gap: 0.6rem; margin-bottom: 1rem;
+    flex-wrap: nowrap; align-items: center;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.6rem 0.75rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.search-wrap { position: relative; flex: 1; min-width: 180px; }
 .search-wrap svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
-.search-wrap input { width: 100%; padding: 0.5rem 0.75rem 0.5rem 2.2rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem; color: var(--text-primary); background: var(--surface-color); box-sizing: border-box; }
-.search-wrap input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(79,70,229,.1); }
-.filter-select { padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.83rem; color: var(--text-primary); background: var(--surface-color); cursor: pointer; }
-.filter-select:focus { outline: none; border-color: var(--primary-color); }
+.search-wrap input { width: 100%; padding: 0.48rem 0.75rem 0.48rem 2.15rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem; color: var(--text-primary); background: #f8fafc; box-sizing: border-box; transition: all .15s; }
+.search-wrap input:focus { outline: none; border-color: #2563EB; background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.toolbar-divider { width: 1px; height: 24px; background: var(--border-color); flex-shrink: 0; }
+.filter-select { width: auto; min-width: 110px; flex-shrink: 0; padding: 0.48rem 2rem 0.48rem 0.65rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.82rem; color: var(--text-primary); background: #f8fafc; cursor: pointer; transition: all .15s; }
+.filter-select:focus { outline: none; border-color: #2563EB; background: #fff; }
+/* kill the base.css width:100% rule for selects inside toolbar */
+.toolbar select { width: auto; }
 
-/* Bulk Actions */
-.bulk-bar { display: none; align-items: center; justify-content: space-between; gap: 0.75rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.6rem 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+/* ── Bulk Actions Bar ─────────────────────────────────── */
+.bulk-bar { display: none; align-items: center; justify-content: space-between; gap: 0.75rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 0.6rem 1rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
 .bulk-bar.show { display: flex; }
 .bulk-left { font-size: 0.83rem; color: #1e40af; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
 .bulk-right { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.bulk-select { padding: 0.4rem 0.6rem; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 0.8rem; background: white; color: var(--text-primary); }
-.bulk-input { padding: 0.4rem 0.6rem; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 0.8rem; width: 140px; }
-.btn-bulk-apply { padding: 0.4rem 0.9rem; background: var(--primary-color); color: white; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-.btn-bulk-cancel { padding: 0.4rem 0.9rem; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
-.btn-bulk-merge  { padding: 0.4rem 0.9rem; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-.btn-bulk-merge:hover { background: #ffedd5; }
-.btn-bulk-link   { padding: 0.4rem 0.9rem; background: #f0fdf4; color: #166534; border: 1px solid #86efac; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-.btn-bulk-link:hover { background: #dcfce7; }
-.btn-bulk-unlink { padding: 0.4rem 0.9rem; background: #fafafa; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.bulk-select { width: auto; padding: 0.38rem 0.6rem; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 0.8rem; background: white; color: var(--text-primary); }
+.bulk-input { padding: 0.38rem 0.6rem; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 0.8rem; width: 140px; }
+.btn-bulk-apply  { padding: 0.38rem 0.85rem; background: #1D4ED8; color: white; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.btn-bulk-cancel { padding: 0.38rem 0.85rem; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
+.btn-bulk-merge  { padding: 0.38rem 0.85rem; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.btn-bulk-merge:hover  { background: #ffedd5; }
+.btn-bulk-link   { padding: 0.38rem 0.85rem; background: #f0fdf4; color: #166534; border: 1px solid #86efac; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.btn-bulk-link:hover   { background: #dcfce7; }
+.btn-bulk-unlink { padding: 0.38rem 0.85rem; background: #fafafa; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 .btn-bulk-unlink:hover { background: #f1f5f9; }
 
 /* Merge modal specifics */
@@ -67,63 +100,114 @@
 .btn-danger { padding: 0.5rem 1.1rem; background: #dc2626; color: white; border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
 .btn-danger:hover { background: #b91c1c; }
 
-/* Table Card */
-.table-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; overflow: clip; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+/* ── Table Card ──────────────────────────────────────── */
+.table-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 14px; overflow: clip; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.emp-table { width: 100%; border-collapse: collapse; min-width: 780px; }
-.emp-table th { padding: 10px 14px; text-align: left; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); background: #f8fafc; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
-.emp-table th.text-center { text-align: center; }
-.emp-table td { padding: 12px 14px; border-bottom: 1px solid var(--border-color); font-size: 0.845rem; color: var(--text-primary); }
+.emp-table { width: 100%; border-collapse: collapse; min-width: 640px; }
+.emp-table th {
+    padding: 11px 16px; text-align: left;
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: #94a3b8;
+    background: #f8fafc; border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+.emp-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 0.87rem; color: var(--text-primary); vertical-align: middle; }
 .emp-table tbody tr:last-child td { border-bottom: none; }
-.emp-table tbody tr:hover td { background: #f8fafc; }
+.emp-table tbody tr:hover td { background: #fafbff; }
 .emp-table tbody tr.selected td { background: #f5f3ff; }
-.emp-table th.col-actions { position: sticky; right: 0; background: #f8fafc; box-shadow: -3px 0 6px rgba(0,0,0,.06); z-index: 2; min-width: 190px; text-align: right; }
-.emp-table td.col-actions { position: sticky; right: 0; background: var(--surface-color); box-shadow: -3px 0 6px rgba(0,0,0,.06); z-index: 1; text-align: right; }
-.emp-table tbody tr:hover td.col-actions { background: #f8fafc; }
+.emp-table th.col-actions { position: sticky; right: 0; background: #f8fafc; box-shadow: -2px 0 8px rgba(0,0,0,.06); z-index: 2; text-align: right; width: 100px; }
+.emp-table td.col-actions { position: sticky; right: 0; background: var(--surface-color); box-shadow: -2px 0 8px rgba(0,0,0,.06); z-index: 1; text-align: right; }
+.emp-table tbody tr:hover td.col-actions   { background: #fafbff; }
 .emp-table tbody tr.selected td.col-actions { background: #f5f3ff; }
-.actions-cell { display: flex; gap: 0.4rem; justify-content: flex-end; align-items: center; }
+.actions-cell { display: flex; gap: 0.35rem; justify-content: flex-end; align-items: center; }
 
-/* Table content */
-.emp-name-cell { display: flex; align-items: center; gap: 0.6rem; }
-.avatar { width: 28px; height: 28px; border-radius: 50%; background: #ede9fe; color: #6d28d9; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.avatar.remote { background: #dbeafe; color: #1d4ed8; }
-.emp-name { font-weight: 600; font-size: 0.855rem; }
-.text-muted { color: var(--text-secondary); }
-.text-mono { font-family: 'SF Mono', monospace; font-size: 0.8rem; }
+/* Employee name cell */
+.emp-cell { display: flex; align-items: center; gap: 0.7rem; }
+.avatar {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+    color: #6d28d9; font-size: 0.85rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    letter-spacing: 0;
+}
+.avatar.remote {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #1d4ed8;
+}
+.emp-info { min-width: 0; }
+.emp-name { font-weight: 600; font-size: 0.875rem; color: var(--text-primary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.emp-sub { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.2rem; flex-wrap: wrap; }
+.emp-id { font-family: 'SF Mono', 'Menlo', monospace; font-size: 0.7rem; color: #94a3b8; }
 
-.type-badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.55rem; border-radius: 20px; font-size: 0.7rem; font-weight: 600; white-space: nowrap; }
+/* Badges */
+.type-badge { display: inline-flex; align-items: center; padding: 0.12rem 0.5rem; border-radius: 20px; font-size: 0.67rem; font-weight: 700; white-space: nowrap; letter-spacing: 0.02em; }
 .type-badge.inhouse { background: #ede9fe; color: #6d28d9; }
 .type-badge.remote  { background: #dbeafe; color: #1d4ed8; }
-.linked-badge { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.68rem; color: #166534; background: #dcfce7; border: 1px solid #86efac; border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: 0.3rem; white-space: nowrap; cursor: default; }
-.type-cell { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem; }
+.linked-badge { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.65rem; color: #166534; background: #dcfce7; border: 1px solid #86efac; border-radius: 20px; padding: 0.1rem 0.45rem; white-space: nowrap; font-weight: 600; }
 
-.status-dot-only { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
-.status-dot-only.active   { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
-.status-dot-only.inactive { background: #94a3b8; box-shadow: 0 0 0 3px rgba(148,163,184,.18); }
-.col-status { text-align: center; width: 64px; }
+.badge { display: inline-flex; align-items: center; padding: 0.18rem 0.55rem; border-radius: 6px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
+.badge-fixed       { background: #dcfce7; color: #166534; }
+.badge-attendance  { background: #dbeafe; color: #1d4ed8; }
+.badge-performance { background: #fef3c7; color: #92400e; }
+.badge-aed         { background: #DBEAFE; color: #1E40AF; }
+.badge-inr         { background: #e0f2fe; color: #0369a1; }
+.badge-npr         { background: #fff7ed; color: #7c2d12; }
+.badge-jumbo       { background: #fce7f3; color: #9d174d; }
+.badge-ontime      { background: #ecfdf5; color: #065f46; }
+.badge-taamul      { background: #fff7ed; color: #9a3412; }
+.badge-own         { background: #f1f5f9; color: #64748b; }
 
-.tag { display: inline-block; background: #f1f5f9; color: #475569; padding: 0.12rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+.dept-tag { display: inline-block; padding: 0.22rem 0.6rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.78rem; color: #475569; font-weight: 500; }
 
-.btn-edit { padding: 0.3rem 0.75rem; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 0.78rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
-.btn-edit:hover { background: #dbeafe; }
-.btn-edit.remote-edit { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
-.btn-edit.remote-edit:hover { background: #e0f2fe; }
-.btn-delete { padding: 0.3rem 0.55rem; background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; border-radius: 6px; font-size: 0.78rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
-.btn-delete:hover { background: #ffe4e6; }
-tr.linked-row { background: #faf5ff; }
-tr.linked-row:hover { background: #f3e8ff !important; }
-.tcr-badge { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.68rem; color:#6d28d9; background:#ede9fe; border:1px solid #c4b5fd; border-radius:10px; padding:0.1rem 0.45rem; white-space:nowrap; font-weight:600; }
-.id-stack { display:flex; flex-direction:column; gap:0.15rem; }
-.id-sub { font-size:0.72rem; color:var(--text-secondary); font-family:'SF Mono',monospace; }
+/* Status cell */
+.status-cell { display: inline-flex; align-items: center; gap: 0.4rem; }
+.status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.active   { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.18); }
+.status-dot.inactive { background: #94a3b8; box-shadow: 0 0 0 3px rgba(148,163,184,.15); }
+.status-text { font-size: 0.82rem; font-weight: 500; }
+.status-text.active   { color: #16a34a; }
+.status-text.inactive { color: #94a3b8; }
+
+/* Contact cell */
+.contact-cell { display: flex; flex-direction: column; gap: 0.15rem; }
+.contact-main { font-size: 0.84rem; color: var(--text-primary); }
+.contact-sub  { font-size: 0.76rem; color: #94a3b8; }
+
+/* Payroll cell */
+.payroll-cell { display: flex; flex-direction: column; gap: 0.25rem; }
+
+.text-muted { color: var(--text-secondary); font-size: 0.85rem; }
+
+/* Action buttons */
+.btn-edit {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.3rem 0.65rem; background: #f8fafc;
+    color: #475569; border: 1px solid #e2e8f0;
+    border-radius: 7px; font-size: 0.78rem; font-weight: 500;
+    cursor: pointer; white-space: nowrap; transition: all .12s;
+}
+.btn-edit:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+.btn-delete {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0.3rem 0.45rem; background: #fff1f2;
+    color: #ef4444; border: 1px solid #fecdd3;
+    border-radius: 7px; font-size: 0.85rem;
+    cursor: pointer; transition: all .12s; flex-shrink: 0;
+}
+.btn-delete:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
+.btn-delete svg { width: 14px; height: 14px; flex-shrink: 0; display: block; }
+
+tr.linked-row { background: #fdfcff; }
+tr.linked-row:hover td { background: #f5f3ff !important; }
 
 /* Table footer */
-.table-footer { padding: 10px 14px; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); background: #f8fafc; }
+.table-footer { padding: 12px 16px; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); background: #f8fafc; }
 
 /* Empty state */
-.empty-state { padding: 3rem 1rem; text-align: center; color: var(--text-secondary); }
-.empty-state svg { opacity: .3; margin-bottom: 0.75rem; }
-.empty-state h3 { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.3rem; }
-.empty-state p  { font-size: 0.83rem; margin: 0; }
+.empty-state { padding: 4rem 1rem; text-align: center; }
+.empty-state-icon { width: 56px; height: 56px; background: #f1f5f9; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: #94a3b8; }
+.empty-state h3 { font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.35rem; }
+.empty-state p  { font-size: 0.84rem; color: var(--text-secondary); margin: 0; }
 
 /* Modal */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; backdrop-filter: blur(3px); }
@@ -149,7 +233,7 @@ tr.linked-row:hover { background: #f3e8ff !important; }
 .form-group:last-child { margin-bottom: 0; }
 .form-group label { font-size: 0.79rem; font-weight: 600; color: var(--text-secondary); }
 .form-group input, .form-group select { border: 1px solid var(--border-color); border-radius: 7px; padding: 0.48rem 0.7rem; font-size: 0.85rem; color: var(--text-primary); background: var(--surface-color); width: 100%; box-sizing: border-box; }
-.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(79,70,229,.1); }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(29,78,216,.1); }
 .form-group input[readonly] { background: #f8fafc; color: var(--text-secondary); cursor: default; }
 .form-help { font-size: 0.73rem; color: var(--text-secondary); margin: 0; }
 
@@ -164,64 +248,67 @@ tr.linked-row:hover { background: #f3e8ff !important; }
 /* ═══════════════ Edit Modal ═══════════════ */
 .edit-modal-box {
     background: #fff;
-    border-radius: 14px;
+    border-radius: 18px;
     width: 94%;
-    max-width: 600px;
-    height: 600px;
-    max-height: 92vh;
+    max-width: 680px;
+    max-height: 88vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07), 0 20px 40px -8px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
-    animation: emIn 0.18s ease;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.03), 0 12px 24px -6px rgba(15,23,42,0.12), 0 32px 64px -12px rgba(15,23,42,0.22);
+    animation: emIn 0.2s cubic-bezier(0.22,1,0.36,1);
 }
-@keyframes emIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+@keyframes emIn { from { opacity:0; transform:translateY(14px) scale(0.98); } to { opacity:1; transform:none; } }
 
 /* ── Header ───── */
 .em-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 20px; flex-shrink: 0;
-    background: linear-gradient(135deg, #1e3a8a 0%, #4f46e5 100%);
+    padding: 20px 24px 18px; flex-shrink: 0;
+    background: #fff; border-bottom: 1.5px solid #e2e8f0;
 }
-.em-hd-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.em-hd-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .em-avatar {
-    width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
-    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.22);
-    color: #fff; font-size: 1.1rem; font-weight: 700;
+    width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+    color: #6d28d9; font-size: 1.15rem; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 3px #fff, 0 0 0 4.5px #ede9fe;
 }
-.em-avatar.av-remote { background: rgba(139,92,246,0.28); border-color: rgba(196,181,253,0.35); }
-.em-hd-name { font-size: 0.95rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
-.em-hd-meta { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
-.em-hd-badge { padding: 1px 8px; border-radius: 99px; font-size: 0.67rem; font-weight: 500; background: rgba(255,255,255,0.16); color: rgba(255,255,255,0.88); }
-.em-hd-id { font-size: 0.68rem; color: rgba(255,255,255,0.5); font-family: 'SF Mono', 'Menlo', monospace; }
+.em-avatar.av-remote { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; box-shadow: 0 0 0 3px #fff, 0 0 0 4.5px #dbeafe; }
+.em-hd-name { font-size: 1.05rem; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; letter-spacing: -0.015em; }
+.em-hd-meta { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+.em-hd-badge { padding: 2px 9px; border-radius: 99px; font-size: 0.67rem; font-weight: 700; background: #ede9fe; color: #6d28d9; letter-spacing: 0.02em; }
+.em-hd-badge.av-remote { background: #dbeafe; color: #1d4ed8; }
+.em-hd-id { font-size: 0.72rem; color: #64748b; font-family: 'SF Mono', 'Menlo', monospace; }
 .em-close-btn {
-    width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,0.1); border: none; border-radius: 7px;
-    color: rgba(255,255,255,0.7); cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+    padding: 8px; display: flex; align-items: center; justify-content: center;
+    background: #f1f5f9; border: 1.5px solid #e2e8f0; border-radius: 9px;
+    color: #64748b; cursor: pointer; transition: all 0.15s; flex-shrink: 0;
 }
-.em-close-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+.em-close-btn:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.em-close-btn svg { width: 15px; height: 15px; flex-shrink: 0; display: block; }
 
 /* ── Tabs ───── */
 .em-tabs {
-    display: flex; background: #fff; border-bottom: 1px solid #e5e7eb;
-    flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+    display: flex; gap: 2px; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0;
+    flex-shrink: 0; overflow-x: auto; scrollbar-width: none; padding: 6px 14px 0;
 }
 .em-tabs::-webkit-scrollbar { display: none; }
 .em-tab {
     display: flex; align-items: center; gap: 6px;
-    padding: 10px 16px; font-size: 0.8rem; font-weight: 500; color: #6b7280;
-    background: none; border: none; border-bottom: 2px solid transparent;
-    cursor: pointer; white-space: nowrap; transition: color 0.12s; flex-shrink: 0;
-    margin-bottom: -1px; font-family: inherit;
+    padding: 10px 14px; font-size: 0.82rem; font-weight: 600; color: #64748b;
+    background: none; border: 1.5px solid transparent;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer; white-space: nowrap; transition: color 0.13s, border-color 0.13s, background 0.13s; flex-shrink: 0;
+    margin-bottom: -1.5px; font-family: inherit;
 }
 .em-tab svg { width: 13px; height: 13px; flex-shrink: 0; }
-.em-tab:hover { color: #111827; }
-.em-tab.active { color: #4f46e5; border-bottom-color: #4f46e5; font-weight: 600; }
+.em-tab:hover:not(.active) { color: #1e293b; background: #eef2f7; }
+.em-tab.active { color: #1D4ED8; font-weight: 700; background: #fff; border-color: #e2e8f0 #e2e8f0 #fff #e2e8f0; }
 
 /* ── Feedback ───── */
 .em-feedback {
-    display: none; font-size: 0.8rem; padding: 9px 20px;
+    display: none; font-size: 0.8rem; padding: 9px 22px;
     align-items: center; gap: 8px; flex-shrink: 0;
 }
 .em-feedback svg { width: 14px; height: 14px; flex-shrink: 0; }
@@ -229,137 +316,171 @@ tr.linked-row:hover { background: #f3e8ff !important; }
 .em-feedback.error   { display: flex; background: #fef2f2; color: #dc2626; border-bottom: 1px solid #fee2e2; }
 
 /* ── Panels ───── */
-.em-panels-wrap { flex: 1; overflow-y: auto; }
-.em-panel { display: none; padding: 18px 20px 22px; }
+.em-panels-wrap { flex: 0 0 auto; overflow-y: auto; background: #fff; position: relative; }
+.em-panel { display: none; padding: 22px 24px 26px; }
 .em-panel.active { display: block; animation: emFadeIn 0.15s ease; }
-@keyframes emFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes emFadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 
 /* ── Field helpers ───── */
-.em-g1 { margin-bottom: 14px; }
-.em-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.em-g1 { margin-bottom: 16px; }
+.em-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
 
 .em-label {
-    display: block; font-size: 0.78rem; font-weight: 500;
-    color: #374151; margin-bottom: 5px;
+    display: block; font-size: 0.78rem; font-weight: 600;
+    color: #374151; margin-bottom: 6px; letter-spacing: 0.01em;
 }
 .em-label .req { color: #ef4444; margin-left: 2px; }
 
 .em-input {
-    width: 100%; padding: 7px 10px;
-    border: 1px solid #d1d5db; border-radius: 7px;
-    font-size: 0.875rem; color: #111827; background: #fff;
+    width: 100%; padding: 9px 12px;
+    border: 1.5px solid #e5e7eb; border-radius: 9px;
+    font-size: 0.875rem; color: #0f172a; background: #f9fafb;
     box-sizing: border-box; font-family: inherit; line-height: 1.5;
-    transition: border-color 0.12s, box-shadow 0.12s;
+    transition: border-color 0.13s, box-shadow 0.13s, background 0.13s;
     -webkit-appearance: none;
 }
-.em-input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
-.em-input::placeholder { color: #9ca3af; }
-.em-input[readonly] { background: #f9fafb; color: #9ca3af; cursor: default; }
-select.em-input { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+.em-input:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 3.5px rgba(37,99,235,0.12); background: #fff; }
+.em-input:hover:not(:focus):not([readonly]) { border-color: #a8adb8; }
+.em-input::placeholder { color: #98a1b0; }
+.em-input[readonly] { background: #f1f3f7; color: #6b7280; cursor: default; border-color: #e5e7eb; }
+select.em-input { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; background-color: #f9fafb; }
+select.em-input:focus { background-color: #fff; }
 
-.em-help { font-size: 0.72rem; color: #9ca3af; margin-top: 4px; line-height: 1.4; }
+.em-help { font-size: 0.73rem; color: #9ca3af; margin-top: 5px; line-height: 1.45; }
 
 .em-id-chip {
-    padding: 7px 10px; border: 1px solid #e5e7eb; border-radius: 7px;
+    padding: 9px 12px; border: 1.5px solid #dde1e7; border-radius: 9px;
     font-size: 0.82rem; font-family: 'SF Mono', 'Menlo', monospace;
-    color: #6b7280; background: #f9fafb;
-    min-height: 36px; display: flex; align-items: center;
+    color: #475569; background: #f1f5f9;
+    min-height: 39px; display: flex; align-items: center;
 }
 
 .em-divider {
-    display: flex; align-items: center; gap: 10px;
-    margin: 18px 0 12px; color: #9ca3af;
-    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+    margin: 26px 0 14px; padding-bottom: 8px;
+    border-bottom: 1.5px solid #e5e7eb;
+    color: #64748b;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
 }
-.em-divider::after { content: ''; flex: 1; height: 1px; background: #f3f4f6; }
+.em-g1 + .em-divider, .em-g2 + .em-divider { margin-top: 22px; }
 
 /* ── Status toggle ───── */
 .em-status-grp {
-    display: flex; border: 1px solid #d1d5db; border-radius: 7px;
-    overflow: hidden; height: 36px;
+    display: flex; border: 1.5px solid #e5e7eb; border-radius: 9px;
+    overflow: hidden; height: 39px; background: #f9fafb;
 }
 .em-status-btn {
-    flex: 1; border: none; background: #fff; cursor: pointer;
-    font-size: 0.8rem; font-weight: 500; color: #9ca3af;
+    flex: 1; border: none; background: transparent; cursor: pointer;
+    font-size: 0.8rem; font-weight: 500; color: #64748b;
     display: flex; align-items: center; justify-content: center; gap: 5px;
-    transition: all 0.12s; font-family: inherit;
+    transition: all 0.13s; font-family: inherit;
 }
-.em-status-btn + .em-status-btn { border-left: 1px solid #d1d5db; }
-.em-status-btn.st-active   { background: #f0fdf4; color: #15803d; font-weight: 600; }
-.em-status-btn.st-inactive { background: #fef2f2; color: #dc2626; font-weight: 600; }
+.em-status-btn + .em-status-btn { border-left: 1.5px solid #e5e7eb; }
+.em-status-btn.st-active   { background: #f0fdf4; color: #16a34a; font-weight: 700; }
+.em-status-btn.st-inactive { background: #fef2f2; color: #dc2626; font-weight: 700; }
+.em-status-btn:not(.st-active):not(.st-inactive):not(.selected):hover { background: #f3f4f6; color: #374151; }
 
 /* ── Password ───── */
 .em-pw-wrap { position: relative; }
 .em-pw-toggle {
     position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
-    background: none; border: none; cursor: pointer; color: #9ca3af;
+    background: none; border: none; cursor: pointer; color: #64748b;
     padding: 3px; display: flex; align-items: center; transition: color 0.12s;
 }
-.em-pw-toggle:hover { color: #6b7280; }
+.em-pw-toggle:hover { color: #374151; }
 .em-pw-wrap .em-input { padding-right: 36px; }
 
 /* ── Security card ───── */
 .em-security-card {
-    display: flex; gap: 12px; padding: 14px 16px;
-    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px;
-    margin-bottom: 18px;
+    display: flex; gap: 14px; padding: 16px 18px;
+    background: linear-gradient(135deg, #f8f9ff 0%, #f3f4ff 100%);
+    border: 1.5px solid #e0e2f0; border-radius: 12px;
+    margin-bottom: 20px; border-left: 4px solid #2563EB;
 }
-.em-security-card > svg { color: #9ca3af; flex-shrink: 0; margin-top: 2px; }
-.em-security-title { font-size: 0.85rem; font-weight: 600; color: #111827; margin-bottom: 3px; }
-.em-security-sub   { font-size: 0.775rem; color: #6b7280; line-height: 1.5; }
+.em-security-card > svg { color: #2563EB; flex-shrink: 0; margin-top: 1px; }
+.em-security-title { font-size: 0.85rem; font-weight: 700; color: #1e1b4b; margin-bottom: 3px; }
+.em-security-sub   { font-size: 0.775rem; color: #5c60a0; line-height: 1.55; }
+
+/* ── Generic info card (reused for onboarding stage) ───── */
+.em-info-card {
+    display: flex; gap: 14px; padding: 16px 18px;
+    border: 1.5px solid #e0e2f0; border-radius: 12px;
+    margin-bottom: 14px; border-left: 4px solid #2563EB;
+    background: linear-gradient(135deg, #f8f9ff 0%, #f3f4ff 100%);
+}
+.em-info-card > svg { flex-shrink: 0; margin-top: 1px; color: #2563EB; }
+.em-info-card.teal {
+    background: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 100%);
+    border-color: #ccfbf1; border-left-color: #0d9488;
+}
+.em-info-card.teal > svg { color: #0d9488; }
+.em-info-card.teal .em-security-title { color: #115e59; }
+.em-info-card.teal .em-security-sub   { color: #0f766e; }
+.em-info-card.warn1 { border-left-color: #d97706; }
+.em-info-card.warn1 .em-security-title { color: #92400e; }
+.em-info-card.warn2 { border-left-color: #dc2626; }
+.em-info-card.warn2 .em-security-title { color: #991b1b; }
+.em-info-card.blue {
+    background: linear-gradient(135deg, #eff6ff 0%, #DBEAFE 100%);
+    border-color: #dbeafe; border-left-color: #1565c0;
+}
+.em-info-card.blue > svg { color: #1565c0; }
+.em-info-card.blue .em-security-title { color: #1e3a8a; }
+.em-info-card.blue .em-security-sub   { color: #1e40af; }
+.em-info-card.red {
+    background: linear-gradient(135deg, #fef2f2 0%, #fef1f1 100%);
+    border-color: #fecaca; border-left-color: #b71c1c;
+}
+.em-info-card.red > svg { color: #b71c1c; }
+.em-info-card.red .em-security-title { color: #7f1d1d; }
+.em-info-card.red .em-security-sub   { color: #991b1b; }
+
+/* ── Warning stage buttons (reuses .em-status-btn layout) ───── */
+#warningGrp.em-status-grp { width: 100%; }
+#warningGrp .em-status-btn { flex: 1; font-size: 0.78rem; }
+#warn0.selected { background: #f0fdf4; color: #16a34a; font-weight: 700; }
+#warn1.selected { background: #fffbeb; color: #d97706; font-weight: 700; }
+#warn2.selected { background: #fef2f2; color: #dc2626; font-weight: 700; }
 
 /* ── Footer ───── */
 .em-footer {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 20px; border-top: 1px solid #e5e7eb; background: #fff;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 16px 24px; border-top: 1.5px solid #e2e8f0; background: #f8fafc;
     flex-shrink: 0; gap: 12px;
 }
-.em-tab-dots { display: flex; gap: 5px; align-items: center; }
-.em-dot { width: 5px; height: 5px; border-radius: 50%; background: #d1d5db; cursor: pointer; transition: all 0.2s; }
-.em-dot.active { width: 16px; border-radius: 3px; background: #4f46e5; }
+.em-tab-dots { display: none; }
 .em-footer-btns { display: flex; gap: 8px; }
 .em-btn-cancel {
-    padding: 7px 15px; background: #fff; border: 1px solid #d1d5db; border-radius: 7px;
-    font-size: 0.85rem; color: #374151; cursor: pointer; font-weight: 500;
-    transition: all 0.12s; font-family: inherit;
+    padding: 9px 18px; background: #fff; border: 1.5px solid #e5e7eb; border-radius: 9px;
+    font-size: 0.85rem; color: #374151; cursor: pointer; font-weight: 600;
+    transition: all 0.13s; font-family: inherit;
 }
-.em-btn-cancel:hover { background: #f9fafb; border-color: #9ca3af; }
+.em-btn-cancel:hover { background: #f3f4f6; border-color: #b0b5c0; }
 .em-btn-save {
-    padding: 7px 17px; background: #4f46e5; border: none; border-radius: 7px;
+    padding: 9px 22px; background: #1D4ED8; border: none; border-radius: 9px;
     font-size: 0.85rem; color: #fff; cursor: pointer; font-weight: 600;
     display: inline-flex; align-items: center; gap: 6px;
-    transition: background 0.12s; font-family: inherit;
+    transition: background 0.13s, box-shadow 0.13s, transform 0.1s; font-family: inherit;
+    box-shadow: 0 1px 2px rgba(29,78,216,0.15), 0 4px 10px rgba(29,78,216,0.22);
 }
-.em-btn-save:hover { background: #4338ca; }
-.em-btn-save:disabled { opacity: 0.55; cursor: not-allowed; }
+.em-btn-save:hover { background: #1E40AF; box-shadow: 0 1px 2px rgba(29,78,216,0.2), 0 6px 16px rgba(29,78,216,0.3); }
+.em-btn-save:active { transform: translateY(1px); }
+.em-btn-save:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 560px) {
-    .edit-modal-box { width: 100%; max-width: 100%; height: auto; min-height: 60vh; max-height: 96vh; border-radius: 14px 14px 0 0; }
+    .edit-modal-box { width: 100%; max-width: 100%; max-height: 92vh; border-radius: 16px 16px 0 0; }
     .modal-overlay  { align-items: flex-end; }
     .em-g2          { grid-template-columns: 1fr; }
 }
 
-/* Payroll badges */
-.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
-.badge-fixed       { background: #dcfce7; color: #166534; }
-.badge-attendance  { background: #dbeafe; color: #1d4ed8; }
-.badge-performance { background: #fef3c7; color: #92400e; }
-.badge-aed         { background: #ede9fe; color: #1D4ED8; }
-.badge-inr         { background: #e0f2fe; color: #0369a1; }
-.badge-jumbo       { background: #fce7f3; color: #9d174d; }
-.badge-ontime      { background: #ecfdf5; color: #065f46; }
-.badge-taamul      { background: #fff7ed; color: #9a3412; }
-.badge-own         { background: #f1f5f9; color: #64748b; }
-.cycle-badge       { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: #f0fdf4; color: #15803d; font-family: 'SF Mono', monospace; }
-.cycle-badge.default { background: #f1f5f9; color: #475569; }
 
 /* Salary type pills in modal */
 .stype-pills { display: flex; flex-direction: column; gap: 7px; }
 .stype-pill {
     display: flex; align-items: center; gap: 11px; width: 100%;
-    padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 11px 13px; border: 1.5px solid #e5e7eb; border-radius: 9px;
     background: #fff; cursor: pointer; text-align: left; font-family: inherit;
     transition: all 0.12s; line-height: 1.3;
 }
@@ -385,13 +506,14 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
 /* Currency pills in modal */
 .currency-pills { display: flex; gap: 7px; }
 .currency-pill {
-    flex: 1; padding: 7px 8px; border: 1px solid #d1d5db; border-radius: 7px;
+    flex: 1; padding: 8px 8px; border: 1.5px solid #e5e7eb; border-radius: 9px;
     background: #fff; cursor: pointer; text-align: center;
     font-size: 0.83rem; font-weight: 500; color: #6b7280;
     transition: all 0.12s; font-family: inherit;
 }
 .currency-pill.selected.aed { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
 .currency-pill.selected.inr { border-color: #0369a1; background: #f0f9ff; color: #0369a1; font-weight: 600; }
+.currency-pill.selected.npr { border-color: #c2410c; background: #fff7ed; color: #7c2d12; font-weight: 600; }
 .currency-pill:hover:not(.selected) { border-color: #9ca3af; background: #f9fafb; }
 </style>
 {% endblock %}
@@ -403,11 +525,10 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
     <div class="page-header">
         <div class="page-header-left">
             <div class="page-header-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                     <circle cx="9" cy="7" r="4"/>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
             </div>
             <div>
@@ -419,41 +540,42 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
 
     <!-- Stats Row -->
     <div class="stats-row">
-        <div class="stat-pill">
-            <div class="stat-pill-icon total">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <div class="stat-card total">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </div>
             <div>
-                <div class="stat-pill-val">{{ total_count }}</div>
-                <div class="stat-pill-lbl">Total</div>
+                <div class="stat-val">{{ total_count }}</div>
+                <div class="stat-lbl">Total Employees</div>
             </div>
         </div>
-        <div class="stat-pill">
-            <div class="stat-pill-icon inhouse">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        <div class="stat-card inhouse">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
             </div>
             <div>
-                <div class="stat-pill-val">{{ inhouse_count }}</div>
-                <div class="stat-pill-lbl">In-House</div>
+                <div class="stat-val">{{ inhouse_count }}</div>
+                <div class="stat-lbl">In-House</div>
             </div>
         </div>
-        <div class="stat-pill">
-            <div class="stat-pill-icon remote">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <div class="stat-card remote">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             </div>
             <div>
-                <div class="stat-pill-val">{{ remote_count }}</div>
-                <div class="stat-pill-lbl">Remote</div>
+                <div class="stat-val">{{ remote_count }}</div>
+                <div class="stat-lbl">Remote</div>
             </div>
         </div>
     </div>
 
-    <!-- Filter Bar -->
-    <div class="filter-bar">
+    <!-- Toolbar -->
+    <div class="toolbar">
         <div class="search-wrap">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="text" id="searchInput" placeholder="Search by name, ID, email, department…">
         </div>
+        <div class="toolbar-divider"></div>
         <select class="filter-select" id="typeFilter">
             <option value="">All Types</option>
             <option value="inhouse">In-House</option>
@@ -465,7 +587,7 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
             <option value="inactive">Inactive</option>
         </select>
         <select class="filter-select" id="departmentFilter">
-            <option value="">All Departments</option>
+            <option value="">All Depts</option>
             {% for dept in departments %}<option value="{{ dept }}">{{ dept }}</option>{% endfor %}
         </select>
     </div>
@@ -474,7 +596,7 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
     <div class="bulk-bar" id="bulkBar">
         <div class="bulk-left">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-            <span id="selectedCount">0</span> employees selected
+            <span id="selectedCount">0</span> selected
         </div>
         <div class="bulk-right">
             <select id="bulkField" class="bulk-select" onchange="onBulkFieldChange()">
@@ -488,8 +610,8 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
             <select             id="bulkDeptValue"    class="bulk-select"  style="display:none"><option value="">-- Select --</option><option value="Sales">Sales</option><option value="Admin">Admin</option></select>
             <select             id="bulkStatusValue"  class="bulk-select"  style="display:none"><option value="true">Active</option><option value="false">Inactive</option></select>
             <button class="btn-bulk-apply" onclick="applyBulkUpdate()">Apply</button>
-            <button class="btn-bulk-merge"  id="mergeBtn"  onclick="openMergeModal()" style="display:none">Merge Duplicates</button>
-            <button class="btn-bulk-link"   id="linkBtn"   onclick="openLinkModal()"  style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg> Link Employees</button>
+            <button class="btn-bulk-merge"  id="mergeBtn"  onclick="openMergeModal()" style="display:none">Merge</button>
+            <button class="btn-bulk-link"   id="linkBtn"   onclick="openLinkModal()"  style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg> Link</button>
             <button class="btn-bulk-unlink" id="unlinkBtn" onclick="confirmUnlink()"  style="display:none">Unlink</button>
             <button class="btn-bulk-cancel" onclick="clearSelection()">Cancel</button>
         </div>
@@ -501,18 +623,13 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
         <table class="emp-table">
             <thead>
                 <tr>
-                    <th style="width:36px"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-                    <th>Type</th>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
+                    <th style="width:44px; padding-left:16px"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                    <th>Employee</th>
                     <th>Department</th>
-                    <th>Salary Type</th>
-                    <th>Pay Cycle</th>
-                    <th>Currency</th>
-                    <th>Visa Provider</th>
-                    <th class="col-status">Status</th>
+                    <th>Contact</th>
+                    <th>Payroll</th>
+                    <th>Visa</th>
+                    <th>Status</th>
                     <th class="col-actions">Actions</th>
                 </tr>
             </thead>
@@ -529,57 +646,62 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
                     data-status="{% if emp.is_active %}active{% else %}inactive{% endif %}"
                     data-linked="true"
                     data-linked-remote-id="{{ emp.linked_remote_id }}">
-                    <td><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
+                    <td style="padding-left:16px"><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
                     <td>
-                        <div class="type-cell">
-                            {% if emp.location == 'Remote' %}
-                            <span class="type-badge remote">Remote</span>
-                            {% elif emp.location == 'Inhouse' %}
-                            <span class="type-badge inhouse">Inhouse</span>
-                            {% else %}
-                            <span class="type-badge inhouse">In-House</span>
-                            {% endif %}
-                            <span class="linked-badge">Linked</span>
-                        </div>
-                    </td>
-                    <td>
-                        {% if emp.tcr_id %}<span class="text-mono">{{ emp.tcr_id }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
-                    </td>
-                    <td>
-                        <div class="emp-name-cell">
+                        <div class="emp-cell">
                             <div class="avatar">{{ emp.name|slice:":1"|upper }}</div>
-                            <span class="emp-name">{{ emp.name }}</span>
+                            <div class="emp-info">
+                                <span class="emp-name">{{ emp.name }}</span>
+                                <div class="emp-sub">
+                                    {% if emp.location == 'Remote' %}<span class="type-badge remote">Remote</span>
+                                    {% else %}<span class="type-badge inhouse">In-House</span>{% endif %}
+                                    <span class="linked-badge">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                                        Linked
+                                    </span>
+                                    {% if emp.tcr_id %}<span class="emp-id">{{ emp.tcr_id }}</span>{% endif %}
+                                </div>
+                            </div>
                         </div>
                     </td>
-                    <td><span class="text-muted">{{ emp.email|default:"—" }}</span></td>
-                    <td><span class="text-muted">{{ emp.phone|default:"—" }}</span></td>
                     <td>
-                        {% if emp.department %}<span class="tag">{{ emp.department }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                        {% if emp.department %}<span class="dept-tag">{{ emp.department }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
                     <td>
-                        {% if emp.is_fixed_salary %}<span class="badge badge-fixed">Fixed</span>
-                        {% elif emp.payroll_type == 'performance' %}<span class="badge badge-performance">Performance</span>
-                        {% else %}<span class="badge badge-attendance">Attendance</span>{% endif %}
+                        <div class="contact-cell">
+                            <span class="contact-main">{{ emp.email|default:"—" }}</span>
+                            {% if emp.phone %}<span class="contact-sub">{{ emp.phone }}</span>{% endif %}
+                        </div>
                     </td>
                     <td>
-                        {% if emp.salary_cycle_start_day == 1 %}<span class="cycle-badge">Full Month</span>
-                        {% elif emp.salary_cycle_start_day == 21 %}<span class="cycle-badge default">21→20</span>
-                        {% else %}<span class="cycle-badge">{{ emp.salary_cycle_start_day }}→{{ emp.salary_cycle_start_day|add:"-1" }}</span>{% endif %}
+                        <div class="payroll-cell">
+                            {% if emp.is_fixed_salary %}<span class="badge badge-fixed">Fixed</span>
+                            {% elif emp.payroll_type == 'performance' %}<span class="badge badge-performance">Performance</span>
+                            {% else %}<span class="badge badge-attendance">Attendance</span>{% endif %}
+                            <span class="badge {% if emp.currency == 'INR' %}badge-inr{% elif emp.currency == 'NPR' %}badge-npr{% else %}badge-aed{% endif %}">{{ emp.currency|default:"AED" }}</span>
+                        </div>
                     </td>
-                    <td><span class="badge {% if emp.currency == 'INR' %}badge-inr{% else %}badge-aed{% endif %}">{{ emp.currency|default:"AED" }}</span></td>
                     <td>
                         {% if emp.visa_provider == 'Jumbo' %}<span class="badge badge-jumbo">Jumbo</span>
                         {% elif emp.visa_provider == 'OnTime' %}<span class="badge badge-ontime">OnTime</span>
                         {% elif emp.visa_provider == 'Taamul' %}<span class="badge badge-taamul">Taamul</span>
                         {% else %}<span class="badge badge-own">Own</span>{% endif %}
                     </td>
-                    <td class="col-status">
-                        <span class="status-dot-only {% if emp.is_active %}active{% else %}inactive{% endif %}" title="{{ emp.is_active|yesno:'Active,Inactive' }}"></span>
+                    <td>
+                        <div class="status-cell">
+                            <span class="status-dot {% if emp.is_active %}active{% else %}inactive{% endif %}"></span>
+                            <span class="status-text {% if emp.is_active %}active{% else %}inactive{% endif %}">{{ emp.is_active|yesno:"Active,Inactive" }}</span>
+                        </div>
                     </td>
                     <td class="col-actions">
                         <div class="actions-cell">
-                            <button class="btn-edit" onclick="openEditModal({{ emp.id }}, 'inhouse', {{ emp.linked_remote_id }})">Edit</button>
-                            <button class="btn-delete" onclick="openDeleteModal({{ emp.id }}, 'inhouse', '{{ emp.name|escapejs }}')">&#x1F5D1;</button>
+                            <button class="btn-edit" onclick="openEditModal({{ emp.id }}, 'inhouse', {{ emp.linked_remote_id }})">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                Edit
+                            </button>
+                            <button class="btn-delete" onclick="openDeleteModal({{ emp.id }}, 'inhouse', '{{ emp.name|escapejs }}')" title="Delete">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path stroke-linecap="round" stroke-linejoin="round" d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m5 0V4a1 1 0 011-1h2a1 1 0 011 1v2"/></svg>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -590,75 +712,80 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
                     data-identifier="{{ emp.identifier|lower }}" data-department="{{ emp.department|lower }}"
                     data-location="{{ emp.location|lower }}" data-team="{{ emp.team|lower }}"
                     data-status="{% if emp.is_active %}active{% else %}inactive{% endif %}">
-                    <td><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
+                    <td style="padding-left:16px"><input type="checkbox" class="row-checkbox" onchange="updateSelection()"></td>
                     <td>
-                        <div class="type-cell">
-                            {% if emp.location == 'Remote' %}
-                            <span class="type-badge remote">Remote</span>
-                            {% elif emp.location == 'Inhouse' %}
-                            <span class="type-badge inhouse">Inhouse</span>
-                            {% else %}
-                            <span class="type-badge {{ emp.type }}">{{ emp.type|title }}</span>
-                            {% endif %}
-                        </div>
-                    </td>
-                    <td>
-                        {% if emp.tcr_id %}<span class="text-mono">{{ emp.tcr_id }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
-                    </td>
-                    <td>
-                        <div class="emp-name-cell">
+                        <div class="emp-cell">
                             <div class="avatar {% if emp.type == 'remote' %}remote{% endif %}">{{ emp.name|slice:":1"|upper }}</div>
-                            <span class="emp-name">{{ emp.name }}</span>
+                            <div class="emp-info">
+                                <span class="emp-name">{{ emp.name }}</span>
+                                <div class="emp-sub">
+                                    {% if emp.location == 'Remote' %}<span class="type-badge remote">Remote</span>
+                                    {% elif emp.location == 'Inhouse' %}<span class="type-badge inhouse">Inhouse</span>
+                                    {% else %}<span class="type-badge {{ emp.type }}">{{ emp.type|title }}</span>{% endif %}
+                                    {% if emp.tcr_id %}<span class="emp-id">{{ emp.tcr_id }}</span>{% endif %}
+                                </div>
+                            </div>
                         </div>
                     </td>
-                    <td><span class="text-muted">{{ emp.email|default:"—" }}</span></td>
-                    <td><span class="text-muted">{{ emp.phone|default:"—" }}</span></td>
                     <td>
-                        {% if emp.department %}<span class="tag">{{ emp.department }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                        {% if emp.department %}<span class="dept-tag">{{ emp.department }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
                     <td>
-                        {% if emp.is_fixed_salary %}<span class="badge badge-fixed">Fixed</span>
-                        {% elif emp.payroll_type == 'performance' %}<span class="badge badge-performance">Performance</span>
-                        {% else %}<span class="badge badge-attendance">Attendance</span>{% endif %}
+                        <div class="contact-cell">
+                            <span class="contact-main">{{ emp.email|default:"—" }}</span>
+                            {% if emp.phone %}<span class="contact-sub">{{ emp.phone }}</span>{% endif %}
+                        </div>
                     </td>
                     <td>
-                        {% if emp.salary_cycle_start_day == 1 %}<span class="cycle-badge">Full Month</span>
-                        {% elif emp.salary_cycle_start_day == 21 %}<span class="cycle-badge default">21→20</span>
-                        {% else %}<span class="cycle-badge">{{ emp.salary_cycle_start_day }}→{{ emp.salary_cycle_start_day|add:"-1" }}</span>{% endif %}
+                        <div class="payroll-cell">
+                            {% if emp.is_fixed_salary %}<span class="badge badge-fixed">Fixed</span>
+                            {% elif emp.payroll_type == 'performance' %}<span class="badge badge-performance">Performance</span>
+                            {% else %}<span class="badge badge-attendance">Attendance</span>{% endif %}
+                            <span class="badge {% if emp.currency == 'INR' %}badge-inr{% elif emp.currency == 'NPR' %}badge-npr{% else %}badge-aed{% endif %}">{{ emp.currency|default:"AED" }}</span>
+                        </div>
                     </td>
-                    <td><span class="badge {% if emp.currency == 'INR' %}badge-inr{% else %}badge-aed{% endif %}">{{ emp.currency|default:"AED" }}</span></td>
                     <td>
                         {% if emp.visa_provider == 'Jumbo' %}<span class="badge badge-jumbo">Jumbo</span>
                         {% elif emp.visa_provider == 'OnTime' %}<span class="badge badge-ontime">OnTime</span>
                         {% elif emp.visa_provider == 'Taamul' %}<span class="badge badge-taamul">Taamul</span>
                         {% else %}<span class="badge badge-own">Own</span>{% endif %}
                     </td>
-                    <td class="col-status">
-                        <span class="status-dot-only {% if emp.is_active %}active{% else %}inactive{% endif %}" title="{{ emp.is_active|yesno:'Active,Inactive' }}"></span>
+                    <td>
+                        <div class="status-cell">
+                            <span class="status-dot {% if emp.is_active %}active{% else %}inactive{% endif %}"></span>
+                            <span class="status-text {% if emp.is_active %}active{% else %}inactive{% endif %}">{{ emp.is_active|yesno:"Active,Inactive" }}</span>
+                        </div>
                     </td>
                     <td class="col-actions">
                         <div class="actions-cell">
-                            <button class="btn-edit" onclick="openEditModal({{ emp.id }}, '{{ emp.type }}')">Edit</button>
-                            <button class="btn-delete" onclick="openDeleteModal({{ emp.id }}, '{{ emp.type }}', '{{ emp.name|escapejs }}')">&#x1F5D1;</button>
+                            <button class="btn-edit" onclick="openEditModal({{ emp.id }}, '{{ emp.type }}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                Edit
+                            </button>
+                            <button class="btn-delete" onclick="openDeleteModal({{ emp.id }}, '{{ emp.type }}', '{{ emp.name|escapejs }}')" title="Delete">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path stroke-linecap="round" stroke-linejoin="round" d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m5 0V4a1 1 0 011-1h2a1 1 0 011 1v2"/></svg>
+                            </button>
                         </div>
                     </td>
                 </tr>
                 {% endif %}
                 {% empty %}
-                <tr><td colspan="13">
+                <tr><td colspan="8">
                     <div class="empty-state">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                        <div class="empty-state-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                        </div>
                         <h3>No employees found</h3>
-                        <p>No employee records exist yet.</p>
+                        <p>No employee records match the current filters.</p>
                     </div>
                 </td></tr>
                 {% endfor %}
             </tbody>
         </table>
-        </div><!-- /table-scroll -->
+        </div>
         <div class="table-footer">
             <span>Showing <strong>{{ employees|length }}</strong> of <strong>{{ total_count }}</strong> employees</span>
-            <span id="filterResultText"></span>
+            <span id="filterResultText" style="color:#2563EB;font-weight:600"></span>
         </div>
     </div>
 
@@ -803,7 +930,7 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
                 </div>
             </div>
             <button class="em-close-btn" onclick="closeEditModal()" title="Close">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
         </div>
 
@@ -834,7 +961,7 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
         </div>
 
         <!-- Panels -->
-        <div class="em-panels-wrap">
+        <div class="em-panels-wrap" id="emPanelsWrap">
 
             <!-- ── Profile ─────────────────────────────── -->
             <div class="em-panel active" id="panel-profile">
@@ -892,16 +1019,14 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
                         </select>
                     </div>
                 </div>
-                <div class="em-g2">
-                    <div>
-                        <label class="em-label">Team</label>
-                        <input type="text" id="editTeam" class="em-input" list="teamList" placeholder="Team name">
-                        <datalist id="teamList">{% for t in teams %}<option value="{{ t }}">{% endfor %}</datalist>
-                    </div>
-                    <div id="designationField">
-                        <label class="em-label">Designation</label>
-                        <input type="text" id="editDesignation" class="em-input" placeholder="e.g. Sales Executive">
-                    </div>
+                <div class="em-g1">
+                    <label class="em-label">Team</label>
+                    <input type="text" id="editTeam" class="em-input" list="teamList" placeholder="Team name">
+                    <datalist id="teamList">{% for t in teams %}<option value="{{ t }}">{% endfor %}</datalist>
+                </div>
+                <div class="em-g1" id="designationField">
+                    <label class="em-label">Designation</label>
+                    <input type="text" id="editDesignation" class="em-input" placeholder="e.g. Sales Executive">
                 </div>
 
                 <div class="em-divider">Employment</div>
@@ -928,6 +1053,54 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
                     <label class="em-label">Leaving Date</label>
                     <input type="date" id="editLeavingDate" class="em-input">
                     <div class="em-help">Leave blank if the employee is still active</div>
+                </div>
+
+                <!-- Remote Sales onboarding (Sales + Remote only) -->
+                <div id="remoteSalesSection" style="display:none">
+                    <div class="em-divider">Remote Sales — Onboarding &amp; Targets</div>
+
+                    <div class="em-info-card teal" id="onboardingStageBox">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                        <div>
+                            <div class="em-security-title" id="onboardingStageTitle">Onboarding stage — set a joining date</div>
+                            <div class="em-security-sub" id="onboardingStageSub">Ramp-up target is computed from the joining date above (Employee Onboarding Policy §2/§6).</div>
+                        </div>
+                    </div>
+
+                    <div class="em-g1">
+                        <label class="em-label">Target Warning Stage</label>
+                        <div class="em-status-grp" id="warningGrp">
+                            <button type="button" class="em-status-btn" id="warn0" onclick="setWarningCount(0)">Good Standing</button>
+                            <button type="button" class="em-status-btn" id="warn1" onclick="setWarningCount(1)">First Warning</button>
+                            <button type="button" class="em-status-btn" id="warn2" onclick="setWarningCount(2)">Final Warning</button>
+                        </div>
+                        <div class="em-help">Resets to Good Standing once the employee meets the monthly target again (§4).</div>
+                    </div>
+                    <div class="em-g1" id="lastWarningDateField" style="display:none">
+                        <label class="em-label">Warning Issued On</label>
+                        <input type="date" id="editLastWarningDate" class="em-input">
+                    </div>
+                </div>
+
+                <!-- In-House Sales onboarding (Sales + In-House only) -->
+                <div id="inhouseSalesSection" style="display:none">
+                    <div class="em-divider">In-House Sales — Onboarding &amp; Targets</div>
+
+                    <div class="em-info-card blue">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                        <div>
+                            <div class="em-security-title">Monthly sales target — applies every month, no ramp period</div>
+                            <div class="em-security-sub">4 NBF accounts approved (approval basis) + 8 other-bank accounts funded (RAK / Ruya / WIO / Mashreq, combined, funded basis).</div>
+                        </div>
+                    </div>
+
+                    <div class="em-info-card red">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                        <div>
+                            <div class="em-security-title">NBF is a hard salary gate</div>
+                            <div class="em-security-sub">If NBF approvals fall below 4 in a month, salary is held regardless of other-bank performance. The hold lifts automatically once NBF reaches 4 on a mid-month recheck. Uses the standard HR warning process — not the 3-strike remote track.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -971,6 +1144,7 @@ select.em-input { cursor: pointer; appearance: none; background-image: url("data
                         <div class="currency-pills">
                             <button type="button" class="currency-pill aed" id="pillAED" onclick="selectCurrency('AED')">AED — Dirham</button>
                             <button type="button" class="currency-pill inr" id="pillINR" onclick="selectCurrency('INR')">INR — Rupee</button>
+                            <button type="button" class="currency-pill npr" id="pillNPR" onclick="selectCurrency('NPR')">NPR — Rupee</button>
                         </div>
                     </div>
                 </div>
@@ -1178,6 +1352,7 @@ async function applyBulkUpdate() {
 let editCurrency  = 'AED';
 let editSalaryType = 'attendance';
 let editIsActive  = true;
+let editWarningCount = 0;
 const TAB_ORDER   = ['profile', 'org', 'payroll', 'security'];
 
 function switchTab(tab) {
@@ -1203,12 +1378,126 @@ function selectCurrency(c) {
     editCurrency = c;
     document.getElementById('pillAED').classList.toggle('selected', c === 'AED');
     document.getElementById('pillINR').classList.toggle('selected', c === 'INR');
+    document.getElementById('pillNPR').classList.toggle('selected', c === 'NPR');
 }
 
 function onCycleChange() {
     const val = document.getElementById('editCycleDay').value;
     document.getElementById('customCycleWrap').style.display = val === 'custom' ? 'block' : 'none';
 }
+
+// ── Remote Sales onboarding (Sales + Remote) ────────────────────────
+function setWarningCount(n) {
+    editWarningCount = n;
+    [0, 1, 2].forEach(i => document.getElementById('warn' + i).classList.toggle('selected', i === n));
+    document.getElementById('lastWarningDateField').style.display = n > 0 ? '' : 'none';
+    computeOnboardingStage();
+}
+
+function updateRemoteSalesVisibility() {
+    const isSalesRemote = document.getElementById('editDepartment').value === 'Sales'
+        && document.getElementById('editLocation').value === 'Remote';
+    document.getElementById('remoteSalesSection').style.display = isSalesRemote ? '' : 'none';
+    if (isSalesRemote) computeOnboardingStage();
+    resizeEditModalIfOpen();
+}
+
+// ── In-House Sales onboarding (Track A — Employee Onboarding Policy §1) ─────
+function updateInhouseSalesVisibility() {
+    const isSalesInhouse = document.getElementById('editDepartment').value === 'Sales'
+        && document.getElementById('editLocation').value === 'Inhouse';
+    document.getElementById('inhouseSalesSection').style.display = isSalesInhouse ? '' : 'none';
+    resizeEditModalIfOpen();
+}
+
+// Sizes the tab content area to the tallest tab (so switching tabs never
+// changes the popup's dimensions) while capping it to the viewport so it
+// never overflows the screen — only then does that tab scroll internally.
+function sizeEditModalPanels() {
+    const wrap = document.getElementById('emPanelsWrap');
+    if (!wrap) return;
+    const wrapWidth = wrap.clientWidth;
+    let maxH = 0;
+    wrap.querySelectorAll('.em-panel').forEach(p => {
+        const wasActive = p.classList.contains('active');
+        if (!wasActive) {
+            p.style.display = 'block';
+            p.style.position = 'absolute';
+            p.style.visibility = 'hidden';
+            p.style.top = '0';
+            p.style.left = '0';
+            p.style.width = wrapWidth + 'px';
+        }
+        maxH = Math.max(maxH, p.scrollHeight);
+        if (!wasActive) {
+            p.style.display = '';
+            p.style.position = '';
+            p.style.visibility = '';
+            p.style.top = '';
+            p.style.left = '';
+            p.style.width = '';
+        }
+    });
+
+    const chromeH = document.querySelector('.em-header').offsetHeight
+        + document.querySelector('.em-tabs').offsetHeight
+        + document.getElementById('emFeedback').offsetHeight
+        + document.querySelector('.em-footer').offsetHeight;
+    const viewportCap = window.innerHeight * (window.innerWidth <= 560 ? 0.92 : 0.88);
+    const available = Math.max(160, viewportCap - chromeH - 4);
+
+    wrap.style.height = Math.min(maxH, available) + 'px';
+}
+
+function resizeEditModalIfOpen() {
+    if (document.getElementById('editModal').classList.contains('show')) sizeEditModalPanels();
+}
+window.addEventListener('resize', resizeEditModalIfOpen);
+
+// Ramp-up rules per Employee Onboarding Policy §2/§6 (Track B — Remote/Telesales)
+function computeOnboardingStage() {
+    const box   = document.getElementById('onboardingStageBox');
+    const title = document.getElementById('onboardingStageTitle');
+    const sub   = document.getElementById('onboardingStageSub');
+    const joiningVal = document.getElementById('editJoiningDate').value;
+
+    box.className = 'em-info-card teal';
+
+    if (!joiningVal) {
+        title.textContent = 'Onboarding stage — set a joining date';
+        sub.textContent = 'Ramp-up target is computed from the joining date above.';
+        return;
+    }
+
+    const join  = new Date(joiningVal + 'T00:00:00');
+    const today = new Date();
+    const monthsSinceJoin = (today.getFullYear() - join.getFullYear()) * 12
+        + (today.getMonth() - join.getMonth()) + 1;
+
+    let stage, targetText;
+    if (monthsSinceJoin <= 1) {
+        stage = 'Month 1 — Grace Period';
+        targetText = '2 accounts, any bank. No NBF requirement yet. No warning issued for shortfall.';
+    } else if (monthsSinceJoin === 2) {
+        stage = 'Month 2 — Ramp Target';
+        targetText = '3 accounts, any bank. No NBF requirement yet. Missing this triggers Warning 1.';
+    } else {
+        stage = 'Month 3+ — Steady State';
+        targetText = '1 NBF (approval) + 3 funded accounts from RAK / Ruya / WIO / Mashreq. NBF is mandatory.';
+    }
+
+    title.textContent = stage;
+    sub.textContent = targetText;
+
+    if (editWarningCount === 1) box.classList.add('warn1');
+    else if (editWarningCount === 2) box.classList.add('warn2');
+}
+
+document.getElementById('editDepartment').addEventListener('change', updateRemoteSalesVisibility);
+document.getElementById('editDepartment').addEventListener('change', updateInhouseSalesVisibility);
+document.getElementById('editLocation').addEventListener('change', updateRemoteSalesVisibility);
+document.getElementById('editLocation').addEventListener('change', updateInhouseSalesVisibility);
+document.getElementById('editJoiningDate').addEventListener('change', computeOnboardingStage);
 
 function setStatus(active) {
     editIsActive = active;
@@ -1256,6 +1545,7 @@ function openEditModal(id, type, linkedRemoteId) {
     document.getElementById('emAvatar').className   = 'em-avatar' + (emp.type === 'remote' ? ' av-remote' : '');
     document.getElementById('emHdName').textContent = emp.name;
     document.getElementById('emHdBadge').textContent = typeLabel;
+    document.getElementById('emHdBadge').className   = 'em-hd-badge' + (emp.type === 'remote' ? ' av-remote' : '');
     document.getElementById('emHdId').textContent   = emp.tcr_id ? emp.tcr_id : (emp.identifier ? emp.identifier : '');
 
     // Profile tab
@@ -1284,6 +1574,10 @@ function openEditModal(id, type, linkedRemoteId) {
     setStatus(emp.is_active);
     document.getElementById('designationField').style.display = (emp.type === 'remote' || isLinked) ? '' : 'none';
     document.getElementById('editDesignation').value = emp.designation || '';
+    document.getElementById('editLastWarningDate').value = emp.last_warning_date || '';
+    setWarningCount(emp.warning_count || 0);
+    updateRemoteSalesVisibility();
+    updateInhouseSalesVisibility();
 
     // Payroll tab
     const isFixed = emp.is_fixed_salary;
@@ -1316,6 +1610,7 @@ function openEditModal(id, type, linkedRemoteId) {
         '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
 
     document.getElementById('editModal').classList.add('show');
+    sizeEditModalPanels();
 }
 
 function closeEditModal() {
@@ -1356,6 +1651,9 @@ async function saveEmployee() {
         currency:                 editCurrency,
         visa_provider:            document.getElementById('editVisaProvider').value,
         salary_cycle_start_day:   isNaN(cycleDay) ? 21 : cycleDay,
+        // remote sales onboarding
+        warning_count:            editWarningCount,
+        last_warning_date:        document.getElementById('editLastWarningDate').value || null,
     };
 
     const btn = document.getElementById('saveEmpBtn');

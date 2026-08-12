@@ -14,7 +14,7 @@ organized into logical modules:
 
 # Import all views for backward compatibility with urls.py
 from .utils import superuser_required, parse_duration
-from .upload import upload_file, upload_remote_call_stats, upload_remote_monthly
+from .upload import upload_file, upload_file_multiday, upload_remote_call_stats, upload_remote_monthly
 from .reports import attendance_report, remote_attendance_report
 from .downloads import (
     download_report,
@@ -38,8 +38,10 @@ from .api import (
     get_request_attendance_data,
     approve_early_leave,
     decline_early_leave,
+    approve_all_on_duty,
     get_pending_count,
-    get_pending_requests
+    get_pending_requests,
+    set_period
 )
 from .employee_management import (
     employee_management,
@@ -52,6 +54,7 @@ from .employee_management import (
 )
 from .leave_management import (
     leave_management,
+    on_duty_requests,
     approve_leave as approve_leave_request,
     reject_leave as reject_leave_request
 )
@@ -66,6 +69,12 @@ from .shift_management import (
     update_special_shift_period,
     delete_special_shift_period,
 )
+from .user_management import (
+    user_management,
+    create_user,
+    update_user,
+    delete_user,
+)
 
 # Make all views available when importing from attendance.views
 __all__ = [
@@ -74,6 +83,7 @@ __all__ = [
     'parse_duration',
     # Upload
     'upload_file',
+    'upload_file_multiday',
     'upload_remote_call_stats',
     'upload_remote_monthly',
     # Reports
@@ -99,8 +109,10 @@ __all__ = [
     'get_request_attendance_data',
     'approve_early_leave',
     'decline_early_leave',
+    'approve_all_on_duty',
     'get_pending_count',
     'get_pending_requests',
+    'set_period',
     # Employee Management
     'employee_management',
     'update_employee',
@@ -111,6 +123,7 @@ __all__ = [
     'unlink_employees',
     # Leave Management
     'leave_management',
+    'on_duty_requests',
     'approve_leave_request',
     'reject_leave_request',
     # Annual Leave Management
@@ -122,4 +135,9 @@ __all__ = [
     'add_special_shift_period',
     'update_special_shift_period',
     'delete_special_shift_period',
+    # User Management
+    'user_management',
+    'create_user',
+    'update_user',
+    'delete_user',
 ]

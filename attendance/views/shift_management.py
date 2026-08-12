@@ -12,13 +12,13 @@ from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 
 from ..models import SpecialShiftPeriod
-from .utils import superuser_required
+from .utils import section_required
 
 logger = logging.getLogger('attendance')
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('special_shifts'), login_url='/report/')
 def special_shift_periods(request):
     """Display and manage special shift periods (Ramadan, etc.)."""
     today = datetime.date.today()
@@ -39,7 +39,7 @@ def special_shift_periods(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('special_shifts'), login_url='/report/')
 @require_http_methods(["POST"])
 def add_special_shift_period(request):
     """Create a new special shift period."""
@@ -60,7 +60,7 @@ def add_special_shift_period(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('special_shifts'), login_url='/report/')
 @require_http_methods(["POST"])
 def update_special_shift_period(request, period_id):
     """Update an existing special shift period."""
@@ -86,7 +86,7 @@ def update_special_shift_period(request, period_id):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('special_shifts'), login_url='/report/')
 @require_http_methods(["POST"])
 def delete_special_shift_period(request, period_id):
     """Delete a special shift period."""

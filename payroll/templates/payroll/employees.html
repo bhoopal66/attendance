@@ -116,6 +116,7 @@
     }
 
     /* Employee Table */
+    .emp-table-wrap { overflow: auto; max-height: 68vh; }
     .emp-table {
         width: 100%;
         border-collapse: collapse;
@@ -145,6 +146,25 @@
 
     .emp-table tbody tr:hover { background: #f8fafc; }
 
+    /* Sticky header + frozen name column */
+    .emp-table-wrap thead th { position: sticky; top: 0; z-index: 2; }
+    .emp-table-wrap tbody td:first-child { position: sticky; left: 0; z-index: 1; background: #fff; }
+    .emp-table-wrap tbody tr:hover td:first-child { background: #f8fafc; }
+    .emp-table-wrap thead th:first-child { z-index: 3; }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+        .pe-container { padding: 14px; }
+        .pe-header { flex-direction: column; align-items: flex-start; }
+        .emp-table-wrap { max-height: 60vh; }
+    }
+    @media (max-width: 768px) {
+        .pe-container { padding: 10px; }
+        .pe-title { font-size: 1.2rem; }
+        .emp-table th, .emp-table td { padding: 8px 10px; font-size: 0.8rem; }
+        .emp-table-wrap { max-height: 55vh; }
+    }
+
     .emp-name { font-weight: 600; color: #0f172a; }
     .emp-tcr { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; font-family: monospace; }
 
@@ -162,6 +182,7 @@
 
     .badge-aed { background: #ede9fe; color: #1D4ED8; }
     .badge-inr { background: #e0f2fe; color: #0369a1; }
+    .badge-npr { background: #fff7ed; color: #7c2d12; }
 
     .salary-val {
         font-family: 'SF Mono', monospace;
@@ -448,6 +469,7 @@
     }
     .currency-pill.selected.aed { border-color: #1D4ED8; background: #ede9fe; color: #1D4ED8; }
     .currency-pill.selected.inr { border-color: #0369a1; background: #e0f2fe; color: #0369a1; }
+    .currency-pill.selected.npr { border-color: #c2410c; background: #fff7ed; color: #7c2d12; }
     .currency-pill:hover:not(.selected) { border-color: #94a3b8; }
 
     .modal-actions {
@@ -523,6 +545,10 @@
             <div class="stat-label">Paid in INR</div>
             <div class="stat-value inr" id="statInr">—</div>
         </div>
+        <div class="stat-card">
+            <div class="stat-label">Paid in NPR</div>
+            <div class="stat-value inr" id="statNpr">—</div>
+        </div>
     </div>
 
     <!-- In-House Employees -->
@@ -537,6 +563,7 @@
             <span class="section-h-count">{{ inhouse_employees|length }} active</span>
         </div>
         {% if inhouse_employees %}
+        <div class="emp-table-wrap">
         <table class="emp-table">
             <thead>
                 <tr>
@@ -597,7 +624,7 @@
                         {% endif %}
                     </td>
                     <td id="currency-inhouse-{{ emp.id }}">
-                        <span class="badge {% if emp.currency == 'INR' %}badge-inr{% else %}badge-aed{% endif %}">{{ emp.currency }}</span>
+                        <span class="badge {% if emp.currency == 'INR' %}badge-inr{% elif emp.currency == 'NPR' %}badge-npr{% else %}badge-aed{% endif %}">{{ emp.currency }}</span>
                     </td>
                     <td id="vp-inhouse-{{ emp.id }}">
                         {% if emp.visa_provider == 'Jumbo' %}
@@ -622,6 +649,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <div style="padding:32px;text-align:center;color:#94a3b8;">No active in-house employees found.</div>
         {% endif %}
@@ -639,6 +667,7 @@
             <span class="section-h-count">{{ remote_employees|length }} active</span>
         </div>
         {% if remote_employees %}
+        <div class="emp-table-wrap">
         <table class="emp-table">
             <thead>
                 <tr>
@@ -699,7 +728,7 @@
                         {% endif %}
                     </td>
                     <td id="currency-remote-{{ emp.id }}">
-                        <span class="badge {% if emp.currency == 'INR' %}badge-inr{% else %}badge-aed{% endif %}">{{ emp.currency }}</span>
+                        <span class="badge {% if emp.currency == 'INR' %}badge-inr{% elif emp.currency == 'NPR' %}badge-npr{% else %}badge-aed{% endif %}">{{ emp.currency }}</span>
                     </td>
                     <td id="vp-remote-{{ emp.id }}">
                         {% if emp.visa_provider == 'Jumbo' %}
@@ -724,6 +753,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <div style="padding:32px;text-align:center;color:#94a3b8;">No active remote employees found.</div>
         {% endif %}
@@ -801,6 +831,9 @@
                     </button>
                     <button type="button" class="currency-pill inr" id="pillINR" onclick="selectCurrency('INR')">
                         INR — Indian Rupee
+                    </button>
+                    <button type="button" class="currency-pill npr" id="pillNPR" onclick="selectCurrency('NPR')">
+                        NPR — Nepalese Rupee
                     </button>
                 </div>
             </div>
@@ -915,6 +948,7 @@
         editCurrency = c;
         document.getElementById('pillAED').classList.toggle('selected', c === 'AED');
         document.getElementById('pillINR').classList.toggle('selected', c === 'INR');
+        document.getElementById('pillNPR').classList.toggle('selected', c === 'NPR');
     }
 
     function getCsrf() {
@@ -975,7 +1009,7 @@
                 }
                 const currEl = document.getElementById(`currency-${editEmpType}-${editEmpId}`);
                 if (currEl) {
-                    const cls = data.currency === 'INR' ? 'badge-inr' : 'badge-aed';
+                    const cls = data.currency === 'INR' ? 'badge-inr' : (data.currency === 'NPR' ? 'badge-npr' : 'badge-aed');
                     currEl.innerHTML = `<span class="badge ${cls}">${data.currency}</span>`;
                 }
                 const desigEl = document.getElementById(`desig-${editEmpType}-${editEmpId}`);
@@ -1055,15 +1089,18 @@
     }
 
     function updateStats() {
-        let aed = 0, inr = 0;
+        let aed = 0, inr = 0, npr = 0;
         document.querySelectorAll('[id^="currency-"]').forEach(el => {
             const badge = el.querySelector('.badge');
             if (!badge) return;
-            if (badge.textContent.trim() === 'INR') inr++;
+            const cur = badge.textContent.trim();
+            if (cur === 'INR') inr++;
+            else if (cur === 'NPR') npr++;
             else aed++;
         });
         document.getElementById('statAed').textContent = aed;
         document.getElementById('statInr').textContent = inr;
+        document.getElementById('statNpr').textContent = npr;
     }
 
     document.addEventListener('DOMContentLoaded', updateStats);

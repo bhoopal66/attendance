@@ -5,6 +5,7 @@ Utility functions, decorators, and shared constants for attendance views.
 import datetime
 import calendar
 import logging
+from collections import defaultdict
 from datetime import timedelta, time
 from functools import wraps
 
@@ -32,6 +33,64 @@ WEEKDAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 def superuser_required(user):
     """Check if user is a superuser. Used with @user_passes_test."""
     return user.is_superuser
+
+
+def it_admin_required(user):
+    """Check if user is a superuser flagged as IT Admin. Used with @user_passes_test.
+
+    Gates the custom User Management page — separate from superuser_required,
+    which only gates general admin sections.
+    """
+    if not user.is_authenticated or not user.is_superuser:
+        return False
+    return getattr(user, 'profile', None) is not None and user.profile.is_it_admin
+
+
+# Sidebar pages that can be individually granted/revoked per user via the
+# User Management page. (key, label, group) — group is only used to cluster
+# checkboxes in that page's UI; enforcement only cares about the key.
+NAV_SECTIONS = [
+    ('upload', 'Upload Data', 'Workforce'),
+    ('employees', 'Employees', 'Workforce'),
+    ('special_shifts', 'Special Shifts', 'Scheduling'),
+    ('annual_leave', 'Annual Leave', 'Scheduling'),
+    ('on_duty_requests', 'On-Duty Requests', 'Requests'),
+    ('leave_requests', 'Leave Requests', 'Requests'),
+    ('payroll', 'Payroll', 'Payroll'),
+    ('banks', 'Banks', 'Payroll'),
+]
+NAV_SECTION_KEYS = {key for key, _, _ in NAV_SECTIONS}
+
+
+def has_section_access(user, section_key):
+    """Check if user may access a given sidebar page.
+
+    Superusers have full access by default; access is only narrowed once
+    itadmin explicitly turns on sections_restricted for that account.
+    """
+    if not user.is_authenticated or not user.is_superuser:
+        return False
+    profile = getattr(user, 'profile', None)
+    if not profile or not profile.sections_restricted:
+        return True
+    return section_key in (profile.allowed_sections or [])
+
+
+def section_required(section_key):
+    """Build a @user_passes_test predicate gating a specific sidebar page."""
+    def check(user):
+        return has_section_access(user, section_key)
+    return check
+
+
+def get_user_nav_sections(user):
+    """Set of section keys the user may access. Used to drive sidebar visibility."""
+    if not user.is_authenticated or not user.is_superuser:
+        return set()
+    profile = getattr(user, 'profile', None)
+    if not profile or not profile.sections_restricted:
+        return set(NAV_SECTION_KEYS)
+    return set(profile.allowed_sections or []) & NAV_SECTION_KEYS
 
 
 def require_post_json(view_func):
@@ -97,6 +156,186 @@ def get_remote_thresholds_from_period(period):
     return thresholds or None
 
 
+# Remote Sales:Performance payroll switched from the old present/half/absent
+# attendance calculation to the talktime-proportional daily-pay model ("Method
+# 2", see compute_sales_performance_v2_days / payroll._get_sales_performance_test_row)
+# starting with this salary month. Months before this keep using the original
+# calculation so already-computed (and especially already-paid/frozen) payroll
+# is never recalculated with a different formula, and the calendar view stays
+# consistent with whichever formula actually determined pay for that month.
+SALES_PERFORMANCE_V2_START = (2026, 7)
+
+
+def remote_employee_uses_performance_v2(employee, year, month):
+    """True if a remote employee's attendance for (year, month) is governed by
+    the Sales:Performance "Method 2" pay model rather than plain call-duration
+    thresholds — i.e. the same condition payroll._get_sales_payroll_row uses to
+    route into _get_sales_performance_test_row. Used by both payroll and the
+    attendance calendar/report/portal views so day classification never drifts
+    between the two.
+    """
+    return (
+        not employee.is_fixed_salary
+        and getattr(employee, 'payroll_type', 'attendance') == 'attendance'
+        and bool(employee.salary)
+        and (year, month) >= SALES_PERFORMANCE_V2_START
+    )
+
+
+def compute_sales_performance_v2_days(employee, period_start, period_end, holiday_dates):
+    """Day-by-day Method 2 classification for a remote Sales:Performance
+    employee across [period_start, period_end].
+
+    Shared by payroll's pay calculation (_get_sales_performance_test_row) and
+    the attendance calendar/report/portal views, so both always agree on which
+    regime and classification governs a given day. See
+    payroll.views._get_sales_performance_test_row for the full rule spec
+    (regime routing, grace-band gates, new-joiner-month handling).
+
+    Returns a dict with:
+      'days': {date: {'regime': 'non_working'|'friday_saturday'|'new_joiner'|'standard',
+                       'classification': 'non_working'|'full'|'half'|'proportional'|'leave',
+                       'tvm': int (talk minutes),
+                       'grace_denial_reason': None or one of the three cap-exhaustion reasons}}
+      plus aggregate counts: 'leave_days', 'half_days', 'proportional_days',
+      'full_days', 'non_working_days', 'new_joiner_days', 'grace_denials'.
+    """
+    from attendance.models import RemoteCallRecord, AnnualLeave
+
+    NEW_JOINER_FULL_DAY_THRESHOLD = 60
+    STANDARD_FULL_DAY_THRESHOLD = 90
+    GRACE_BAND_MIN = 55
+    HALF_DAY_THRESHOLD = 45
+    FRI_SAT_THRESHOLD = 30
+    MONTHLY_GRACE_CAP = 7
+    WEEKLY_GRACE_CAP = 2
+    CONSECUTIVE_GRACE_CAP = 2
+
+    call_records = {
+        r.date: r for r in RemoteCallRecord.objects.filter(
+            employee=employee, date__gte=period_start, date__lte=period_end,
+        ).only('date', 'total_talk_duration')
+    }
+
+    # Sundays/holidays that fall inside an AnnualLeave span are normally paid
+    # at the full daily wage below. During annual leave they should instead
+    # follow the leave's own pay rate — 0% for unpaid leave, salary_percentage%
+    # for paid leave — otherwise an unpaid leave still gets its Sundays paid
+    # in full for free. Maps date -> salary_pct for every day covered by an
+    # AnnualLeave span (only consulted for non-working days below).
+    annual_leave_pct_by_date = {}
+    for al in AnnualLeave.objects.filter(
+        remote_employee=employee, start_date__lte=period_end, end_date__gte=period_start,
+    ):
+        salary_pct = float(al.salary_percentage) if al.is_paid else 0.0
+        curr = max(al.start_date, period_start)
+        end = min(al.end_date, period_end)
+        while curr <= end:
+            annual_leave_pct_by_date[curr] = salary_pct
+            curr += datetime.timedelta(days=1)
+
+    days = {}
+    leave_days = half_days = proportional_days = full_days = 0
+    non_working_days = new_joiner_days = 0
+    grace_denials = defaultdict(int)
+    monthly_used = defaultdict(int)
+    weekly_used = defaultdict(int)
+    consecutive = 0
+
+    d = period_start
+    while d <= period_end:
+        rec = call_records.get(d)
+        tvm = int(rec.total_talk_duration.total_seconds() // 60) if (rec and rec.total_talk_duration) else 0
+
+        if d.weekday() == 6 or d in holiday_dates:
+            non_working_days += 1
+            days[d] = {
+                'regime': 'non_working', 'classification': 'non_working', 'tvm': tvm,
+                'grace_denial_reason': None,
+                'annual_leave_salary_pct': annual_leave_pct_by_date.get(d),
+            }
+            d += datetime.timedelta(days=1)
+            continue
+
+        if d.weekday() in (4, 5):  # Friday, Saturday -> binary 30-min threshold
+            if tvm >= FRI_SAT_THRESHOLD:
+                full_days += 1
+                days[d] = {'regime': 'friday_saturday', 'classification': 'full', 'tvm': tvm, 'grace_denial_reason': None}
+            else:
+                leave_days += 1
+                days[d] = {'regime': 'friday_saturday', 'classification': 'leave', 'tvm': tvm, 'grace_denial_reason': None}
+            d += datetime.timedelta(days=1)
+            continue
+
+        # Monday-Thursday
+        # New-joiner window is a rolling 30 days from joining_date (day 0
+        # through day 29 inclusive), not the calendar month of joining_date —
+        # otherwise someone who joins near month-end (e.g. the 29th) would get
+        # only a couple of lenient days before standard thresholds kick in.
+        is_new_joiner_month = bool(employee.joining_date) and 0 <= (d - employee.joining_date).days < 30
+
+        if is_new_joiner_month:
+            new_joiner_days += 1
+            if tvm >= NEW_JOINER_FULL_DAY_THRESHOLD:
+                full_days += 1
+                classification = 'full'
+            elif tvm >= HALF_DAY_THRESHOLD:
+                half_days += 1
+                classification = 'half'
+            else:
+                leave_days += 1
+                classification = 'leave'
+            days[d] = {'regime': 'new_joiner', 'classification': classification, 'tvm': tvm, 'grace_denial_reason': None}
+            d += datetime.timedelta(days=1)
+            continue
+
+        # Standard regime
+        if tvm >= STANDARD_FULL_DAY_THRESHOLD:
+            full_days += 1
+            days[d] = {'regime': 'standard', 'classification': 'full', 'tvm': tvm, 'grace_denial_reason': None}
+            consecutive = 0
+        elif tvm >= GRACE_BAND_MIN:  # 55-89: grace-band, subject to the three gates
+            month_key = (d.year, d.month)
+            week_key = d - datetime.timedelta(days=d.weekday())
+            denial_reason = None
+            if monthly_used[month_key] >= MONTHLY_GRACE_CAP:
+                denial_reason = 'MONTHLY_CAP_EXHAUSTED'
+            elif weekly_used[week_key] >= WEEKLY_GRACE_CAP:
+                denial_reason = 'WEEKLY_CAP_REACHED'
+            elif consecutive >= CONSECUTIVE_GRACE_CAP:
+                denial_reason = 'CONSECUTIVE_CAP_REACHED'
+
+            if denial_reason:
+                half_days += 1
+                grace_denials[denial_reason] += 1
+                days[d] = {'regime': 'standard', 'classification': 'half', 'tvm': tvm, 'grace_denial_reason': denial_reason}
+                consecutive = 0
+            else:
+                proportional_days += 1
+                monthly_used[month_key] += 1
+                weekly_used[week_key] += 1
+                consecutive += 1
+                days[d] = {'regime': 'standard', 'classification': 'proportional', 'tvm': tvm, 'grace_denial_reason': None}
+        elif tvm >= HALF_DAY_THRESHOLD:  # 45-54
+            half_days += 1
+            days[d] = {'regime': 'standard', 'classification': 'half', 'tvm': tvm, 'grace_denial_reason': None}
+            consecutive = 0
+        else:
+            leave_days += 1
+            days[d] = {'regime': 'standard', 'classification': 'leave', 'tvm': tvm, 'grace_denial_reason': None}
+            consecutive = 0
+
+        d += datetime.timedelta(days=1)
+
+    return {
+        'days': days,
+        'leave_days': leave_days, 'half_days': half_days,
+        'proportional_days': proportional_days, 'full_days': full_days,
+        'non_working_days': non_working_days, 'new_joiner_days': new_joiner_days,
+        'grace_denials': dict(grace_denials),
+    }
+
+
 def get_employee_shift_for_date(employee, target_date):
     """
     Get employee's shift timings for a specific date using 3-tier lookup strategy.
@@ -128,11 +367,23 @@ def get_employee_shift_for_date(employee, target_date):
 
 
 def get_selected_month_year(request):
-    """Extract and validate month/year from request GET params. Returns (month, year)."""
+    """Extract and validate month/year from request GET params. Returns (month, year).
+
+    Falls back to the last month/year the user selected anywhere in the app
+    (stored in session) instead of always defaulting to the current month, so
+    a choice made on one page (e.g. the report) carries over to others (e.g.
+    payroll) instead of silently resetting. Whenever month/year are given
+    explicitly, they become the new "current selection" for the session.
+    """
     now = datetime.datetime.now()
+    session = getattr(request, 'session', None)
+    default_month = (session and session.get('selected_month')) or now.month
+    default_year = (session and session.get('selected_year')) or now.year
+    explicit = 'month' in request.GET or 'year' in request.GET
+
     try:
-        month = int(request.GET.get('month', now.month))
-        year = int(request.GET.get('year', now.year))
+        month = int(request.GET.get('month', default_month))
+        year = int(request.GET.get('year', default_year))
         if not (1 <= month <= 12):
             month = now.month
         if not (2000 <= year <= 2099):
@@ -140,6 +391,11 @@ def get_selected_month_year(request):
     except (ValueError, TypeError):
         month = now.month
         year = now.year
+
+    if explicit and session is not None:
+        session['selected_month'] = month
+        session['selected_year'] = year
+
     return month, year
 
 
@@ -298,27 +554,25 @@ def get_bridge_sunday_days(employee, month_start, month_end):
             leave_dates.add(curr)
             curr += datetime.timedelta(days=1)
 
-    # Only exclude Sundays that are inside an AnnualLeave span — those are
-    # already added to leave_days in recalculate_summaries, so deducting them
-    # again via bridge_sunday_count would be double-counting.
-    # Sundays inside a LeaveRequest span are NOT in leave_days, so they must
-    # still be counted as bridge Sundays to ensure the deduction is applied.
-    continuous_dates = set()
+    # All Sundays within any AnnualLeave span are excluded from bridge.
+    # annual_leave_extra_deduction in the payroll calculation already charges
+    # (100 − salary_pct)% for non-working days within AnnualLeave.  Counting
+    # them again as bridge Sundays would be a double deduction.
+    # Sundays inside a LeaveRequest span are NOT excluded — they are not
+    # charged by any other mechanism and must be counted as bridge days.
+    al_sunday_set = set()
     for start_date, end_date in al_spans:
-        start = max(start_date, query_start)
+        curr = max(start_date, query_start)
         end = min(end_date, query_end)
-        curr = start
         while curr <= end:
-            if (curr.weekday() == 6
-                    and start_date <= curr - datetime.timedelta(days=1)
-                    and end_date >= curr + datetime.timedelta(days=1)):
-                continuous_dates.add(curr)
+            if curr.weekday() == 6:
+                al_sunday_set.add(curr)
             curr += datetime.timedelta(days=1)
 
     bridge = set()
     current = month_start
     while current <= month_end:
-        if current.weekday() == 6 and current not in continuous_dates:
+        if current.weekday() == 6 and current not in al_sunday_set:
             sat = current - datetime.timedelta(days=1)
             mon = current + datetime.timedelta(days=1)
             if sat in leave_dates and mon in leave_dates:
@@ -327,7 +581,8 @@ def get_bridge_sunday_days(employee, month_start, month_end):
     return bridge
 
 
-def get_common_report_context(month, year, cal_data, holidays_qs, show_inactive, search_query):
+def get_common_report_context(month, year, cal_data, holidays_qs, show_inactive, search_query,
+                               type_filter=''):
     """Build the common template context used by report views."""
     today = datetime.date.today()
     if year == today.year and month == today.month:
@@ -347,6 +602,7 @@ def get_common_report_context(month, year, cal_data, holidays_qs, show_inactive,
         'days_in_month': cal_data['days_in_month'],
         'show_inactive': show_inactive,
         'search_query': search_query,
+        'type_filter': type_filter,
         'holiday_days': [h.date.day for h in holidays_qs],
         'holiday_names': {h.date.day: h.name for h in holidays_qs},
         'current_day': current_day,

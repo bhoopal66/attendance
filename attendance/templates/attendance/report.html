@@ -9,33 +9,17 @@
 /* ====== Attendance Dashboard — Cards + Popup ====== */
 .att{max-width:1400px;margin:0 auto;padding:0 1rem 2rem}
 
-/* Tabs */
-.att-tabs{display:flex;border-bottom:1px solid var(--border-color);margin-bottom:1.25rem}
-.att-tab{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.1rem;font-size:.85rem;font-weight:600;color:var(--text-secondary);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
-.att-tab:hover{color:var(--primary-color)}
-.att-tab.active{color:var(--primary-color);border-bottom-color:var(--primary-color)}
-
-/* KPI Row */
-.att-kpis{display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap}
-.kpi{background:var(--surface-color);border:1px solid var(--border-color);border-radius:8px;padding:.5rem .8rem;display:flex;align-items:center;gap:.5rem;flex:1;min-width:140px}
-.kpi-icon{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.kpi-icon.neutral{background:#F1F5F9;color:#64748B}
-.kpi-icon.red{background:#FEE2E2;color:#DC2626}
-.kpi-icon.orange{background:#FFEDD5;color:#EA580C}
-.kpi-icon.amber{background:#FEF3C7;color:#D97706}
-.kpi-body .kpi-val{font-size:1.1rem;font-weight:700;color:var(--text-primary);line-height:1.2}
-.kpi-body .kpi-lbl{font-size:.64rem;color:var(--text-secondary)}
-
 /* Toolbar */
-.att-bar{background:var(--surface-color);border:1px solid var(--border-color);border-radius:10px;padding:.7rem .9rem;margin-bottom:1rem}
-.att-filters{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
-.search-wrap{position:relative;flex:1;min-width:160px}
+.att-bar{background:var(--surface-color);border:1px solid var(--border-color);border-radius:10px;padding:.6rem .8rem;margin-bottom:1rem}
+.att-filters{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.search-wrap{position:relative;flex:1 1 170px;min-width:130px}
 .search-wrap svg{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
 .search-wrap input{width:100%;padding:.4rem .65rem .4rem 2rem;border:1px solid var(--border-color);border-radius:7px;font-size:.82rem;background:var(--surface-color);color:var(--text-primary);box-sizing:border-box}
-.search-wrap input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 2px rgba(79,70,229,.1)}
-.rpt-select{padding:.4rem .65rem;border:1px solid var(--border-color);border-radius:7px;font-size:.82rem;background:var(--surface-color);color:var(--text-primary);cursor:pointer}
+.search-wrap input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 2px rgba(29,78,216,.1)}
+.rpt-select{width:auto;flex:0 0 auto;padding:.4rem 1.9rem .4rem .6rem;border:1px solid var(--border-color);border-radius:7px;font-size:.8rem;background:var(--surface-color);color:var(--text-primary);cursor:pointer}
 .rpt-select:focus{outline:none;border-color:var(--primary-color)}
-.inactive-label{display:flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.inactive-label{display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex:0 0 auto}
+.att-filters .download-dropdown{flex:0 0 auto}
 .inactive-label input{accent-color:var(--primary-color);cursor:pointer}
 .btn-dl{display:inline-flex;align-items:center;gap:.35rem;padding:.38rem .75rem;background:var(--primary-color);color:white;border:none;border-radius:7px;font-size:.78rem;font-weight:600;cursor:pointer;transition:opacity .15s}
 .btn-dl:hover{opacity:.88}
@@ -45,46 +29,66 @@
 .download-menu a{display:flex;align-items:center;gap:.6rem;padding:.6rem .9rem;color:var(--text-primary);text-decoration:none;font-size:.8rem;transition:background .12s}
 .download-menu a:hover{background:var(--primary-light);color:var(--primary-color)}
 
-/* ====== Employee Card Grid ====== */
-.emp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem}
-
-.emp-card{background:var(--surface-color);border:1px solid var(--border-color);border-radius:10px;padding:.75rem .85rem;cursor:pointer;transition:all .15s;position:relative}
-.emp-card:hover{border-color:#A5B4FC;box-shadow:0 4px 16px rgba(79,70,229,.1)}
-
-
-.emp-card-head{display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem}
-.emp-card-av{width:28px;height:28px;background:linear-gradient(135deg,#2563EB,#0891B2);color:white;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.7rem;flex-shrink:0}
-.emp-card-info{flex:1;min-width:0}
-.emp-card-name{font-size:.82rem;font-weight:600;color:var(--text-primary);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.emp-card-sub{font-size:.65rem;color:var(--text-secondary)}
-.emp-card-ded{padding:.12rem .4rem;border-radius:5px;font-size:.72rem;font-weight:700;flex-shrink:0}
-.emp-card-ded.has-ded{background:#FEE2E2;color:#DC2626}
-.emp-card-ded.zero{background:#F1F5F9;color:#94A3B8}
-.emp-card-arrow{position:absolute;top:.7rem;right:.7rem;opacity:0.35;color:var(--primary-color);transition:opacity .15s}
-.emp-card:hover .emp-card-arrow{opacity:1}
-.att-badge-off{background:#FEE2E2;color:#DC2626;padding:.05rem .28rem;border-radius:3px;font-size:.56rem;font-weight:700;text-transform:uppercase;margin-left:.2rem}
-
-/* Mini Calendar — color-only heatmap */
-.mini-cal{display:grid;grid-template-columns:repeat(7,16px);gap:3px;justify-content:center;padding:.1rem 0 .5rem}
-.mc-hd{font-size:.48rem;font-weight:600;color:#94A3B8;text-align:center;line-height:1;padding-bottom:2px}
-.mc{height:16px;border-radius:3px;background:#E2E8F0}
-.mc.empty{background:transparent}
-.mc.future{opacity:.28}
-.mc.s-green,.mc.s-present{background:#4ADE80}
-.mc.s-yellow,.mc.s-late,.mc.s-early{background:#FBBF24}
-.mc.s-absent{background:#F87171}
-.mc.s-paid_leave{background:#60A5FA}
-.mc.s-incomplete{background:#FB923C}
-.mc.s-holiday{background:#C084FC}
-.mc.s-on_duty{background:#2DD4BF}
-
-/* Card footer stats */
-.emp-card-stats{display:flex;gap:.6rem;flex-wrap:wrap;padding-top:.45rem;border-top:1px solid var(--border-color);font-size:.66rem;color:var(--text-secondary)}
-.emp-card-stats strong{font-weight:700}
-.emp-card-stats .cs-red strong{color:#DC2626}
-.emp-card-stats .cs-purple strong{color:#0E7490}
-.emp-card-stats .cs-amber strong{color:#D97706}
-.emp-card-stats .cs-blue strong{color:#2563EB}
+/* ====== Employee Table ====== */
+.att-badge-off{background:#FEE2E2;color:#DC2626;padding:.04rem .25rem;border-radius:3px;font-size:.55rem;font-weight:700;text-transform:uppercase;margin-left:.22rem;vertical-align:middle}
+.att-badge-type{display:inline-block;font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:.05rem .35rem;border-radius:3px;margin-left:.35rem;vertical-align:middle}
+.att-badge-type.inhouse{background:#EFF6FF;color:#1D4ED8}
+.att-badge-type.remote{background:#F5F3FF;color:#7C3AED}
+.linked-badge{display:inline-flex;align-items:center;gap:.15rem;font-size:.55rem;color:#166534;background:#DCFCE7;border:1px solid #86EFAC;border-radius:20px;padding:.03rem .35rem;white-space:nowrap;font-weight:700;margin-left:.3rem;vertical-align:middle}
+.linked-badge svg{width:8px;height:8px;flex-shrink:0}
+.emp-table{background:white;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden}
+.emp-table-hdr{display:grid;grid-template-columns:220px 1fr 88px 24px;padding:.45rem 1rem .45rem 1.3rem;background:linear-gradient(180deg,#F8FAFC,#F1F5F9);border-bottom:2px solid #E2E8F0;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94A3B8}
+.emp-row{display:grid;grid-template-columns:220px 1fr 88px 24px;align-items:center;padding:.6rem 1rem .6rem 1.3rem;border-bottom:1px solid #F1F5F9;cursor:pointer;transition:background .12s;border-left:3px solid transparent}
+.emp-row:last-child{border-bottom:none}
+.emp-row:hover{background:#EEF2FF}
+.emp-row.row-ok  {border-left-color:#10B981}
+.emp-row.row-warn{border-left-color:#F59E0B}
+.emp-row.row-bad {border-left-color:#EF4444}
+.er-name{display:flex;align-items:center;gap:.55rem;min-width:0;padding-right:.75rem}
+.er-av{width:32px;height:32px;background:linear-gradient(135deg,#2563EB,#0891B2);color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0}
+.er-av.remote{background:linear-gradient(135deg,#7C3AED,#2563EB)}
+.er-info{display:flex;flex-direction:column;min-width:0;gap:.05rem}
+.er-fullname{font-size:.84rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.er-id{font-size:.63rem;color:#94A3B8;line-height:1.2}
+.er-metrics{display:flex;align-items:center;gap:.5rem;padding-right:.75rem;flex-wrap:wrap}
+.er-ded{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:44px;padding:.22rem .5rem;border-radius:7px;flex-shrink:0;gap:.05rem}
+.er-ded.ded-zero{background:#ECFDF5;border:1px solid #A7F3D0}
+.er-ded.ded-some{background:#FFFBEB;border:1px solid #FDE68A}
+.er-ded.ded-high{background:#FEF2F2;border:1px solid #FECACA}
+.er-ded-val{font-size:1rem;font-weight:700;line-height:1.1}
+.er-ded.ded-zero .er-ded-val{color:#059669}
+.er-ded.ded-some .er-ded-val{color:#D97706}
+.er-ded.ded-high .er-ded-val{color:#DC2626}
+.er-ded-lbl{font-size:.52rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;line-height:1}
+.er-ded.ded-zero .er-ded-lbl{color:#059669;opacity:.7}
+.er-ded.ded-some .er-ded-lbl{color:#D97706;opacity:.7}
+.er-ded.ded-high .er-ded-lbl{color:#DC2626;opacity:.7}
+.er-divider{width:1px;height:26px;background:#E2E8F0;flex-shrink:0}
+.er-stats{display:flex;align-items:center;gap:.28rem;flex-wrap:wrap}
+.ers{display:inline-flex;align-items:baseline;gap:.2rem;padding:.17rem .4rem;border-radius:5px;white-space:nowrap}
+.ers .el{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.65}
+.ers .ev{font-size:.7rem;font-weight:700}
+.ers-lv{background:#FEF2F2;color:#DC2626}
+.ers-lt{background:#FFFBEB;color:#D97706}
+.ers-hf{background:#F5F3FF;color:#7C3AED}
+.ers-pd{background:#EFF6FF;color:#2563EB}
+.ers-pr{background:#ECFDF5;color:#059669}
+.ers-hr{background:#F0FDFA;color:#0F766E}
+.er-cal{display:flex;align-items:center;justify-content:center}
+.er-cal-grid{display:grid;grid-template-columns:repeat(7,10px);gap:1.5px}
+.er-dot{width:10px;height:10px;border-radius:2px;background:#E2E8F0}
+.er-dot.erc-empty{background:transparent}
+.er-dot.erc-future{background:#E2E8F0;opacity:.3}
+.er-dot.erc-green,.er-dot.erc-present{background:#34D399}
+.er-dot.erc-yellow,.er-dot.erc-late,.er-dot.erc-early,.er-dot.erc-half_day{background:#FCD34D}
+.er-dot.erc-absent{background:#FCA5A5}
+.er-dot.erc-paid_leave{background:#93C5FD}
+.er-dot.erc-incomplete{background:#FDBA74}
+.er-dot.erc-holiday{background:#C4B5FD}
+.er-dot.erc-on_duty{background:#5EEAD4}
+.er-dot.erc-partial{background:#F9A8D4}
+.er-arrow{display:flex;align-items:center;justify-content:flex-end;color:#CBD5E1;flex-shrink:0}
+.emp-row:hover .er-arrow{color:#2563EB}
 
 /* ====== Calendar Detail Modal (fullscreen popup) ====== */
 .cal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1500;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
@@ -94,8 +98,9 @@
 
 .cal-modal-top{display:flex;align-items:center;justify-content:space-between;padding:.6rem 1rem;border-bottom:1px solid var(--border-color);flex-shrink:0;background:#FAFBFC;border-radius:14px 14px 0 0}
 .cal-modal-nav{display:flex;gap:.3rem}
-.cal-nav-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:white;border:1px solid var(--border-color);border-radius:6px;cursor:pointer;color:var(--text-secondary);transition:all .12s}
+.cal-nav-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:white;border:1px solid var(--border-color);border-radius:6px;cursor:pointer;color:#374151;font-size:1.3rem;line-height:1;font-weight:400;transition:all .12s}
 .cal-nav-btn:hover{border-color:var(--primary-color);color:var(--primary-color)}
+.cal-modal-month{font-size:1rem;font-weight:700;color:#0F172A;padding:0 .6rem;min-width:130px;text-align:center;letter-spacing:-.01em}
 .cal-close-btn{width:28px;height:28px;background:white;border:1px solid var(--border-color);border-radius:6px;color:#64748B;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
 .cal-close-btn:hover{background:#FEE2E2;color:#DC2626;border-color:#FECACA}
 
@@ -105,6 +110,7 @@
 .cal-panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.6rem}
 .cal-panel-emp{display:flex;align-items:center;gap:.7rem}
 .cal-av-lg{width:40px;height:40px;background:linear-gradient(135deg,#2563EB,#0891B2);color:white;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0}
+.cal-av-lg.remote{background:linear-gradient(135deg,#7C3AED,#2563EB)}
 .cal-panel-name{font-size:1.05rem;font-weight:700;color:var(--text-primary);margin:0;line-height:1.3}
 .cal-panel-id{font-size:.72rem;color:var(--text-secondary)}
 .btn-dl-sm{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .65rem;background:white;border:1px solid var(--border-color);border-radius:6px;font-size:.73rem;color:var(--text-secondary);cursor:pointer;transition:all .12s}
@@ -119,7 +125,7 @@
 .legend-dot.red{background:#DC2626}
 .legend-dot.blue{background:#2563EB}
 .legend-dot.orange{background:#EA580C}
-.legend-dot.purple{background:#0E7490}
+.legend-dot.purple{background:#6366F1}
 
 /* Full calendar */
 .att-cal{border:1px solid var(--border-color);border-radius:8px;overflow:hidden;background:var(--border-color);margin-bottom:.75rem}
@@ -143,21 +149,27 @@
 .att-d.status-yellow{background:#FEFCE8}.att-d.status-yellow::after{background:#CA8A04}
 .att-d.status-late{background:#FEFCE8}.att-d.status-late::after{background:#CA8A04}
 .att-d.status-early{background:#FEFCE8}.att-d.status-early::after{background:#CA8A04}
+.att-d.status-half_day{background:#FEFCE8}.att-d.status-half_day::after{background:#CA8A04}
 .att-d.status-absent{background:#FEF2F2}.att-d.status-absent::after{background:#DC2626}
 .att-d.status-paid_leave{background:#EFF6FF}.att-d.status-paid_leave::after{background:#2563EB}
 .att-d.status-incomplete{background:#FFF7ED}.att-d.status-incomplete::after{background:#EA580C}
-.att-d.status-holiday{background:#F8FAFC}.att-d.status-holiday::after{background:#0E7490}
+.att-d.status-holiday{background:#F8FAFC}.att-d.status-holiday::after{background:#6366F1}
 .att-d.status-on_duty{background:#F0FDFA}.att-d.status-on_duty::after{background:#0D9488}
+.att-d.status-partial{background:#FDF2F8}.att-d.status-partial::after{background:#DB2777}
 
 .att-d .ct{display:flex;flex-direction:column;gap:0;margin-top:auto}
 .att-d .ct span{font-size:.62rem;color:#475569;line-height:1.4;font-weight:500;font-variant-numeric:tabular-nums}
 .att-d .cl{font-size:.58rem;font-weight:700;padding:.12rem .3rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;display:inline-block;align-self:flex-start;margin-top:auto;line-height:1.3}
-.cl.cl-leave{background:#FECACA;color:#991B1B}
+.cl.cl-absent{background:#FECACA;color:#991B1B}
 .cl.cl-paid{background:#BFDBFE;color:#1E40AF}
 .cl.cl-holiday{background:#DDD6FE;color:#5B21B6}
 .cl.cl-inc{background:#FED7AA;color:#9A3412}
 .cl.cl-onduty{background:#99F6E4;color:#115E59}
 .cl.cl-wfh{background:#BAE6FD;color:#0369A1}
+.cl.cl-present{background:#BBF7D0;color:#14532D}
+.cl.cl-half{background:#FEF08A;color:#713F12}
+.cl.cl-partial{background:#FBCFE8;color:#9D174D}
+.cl.cl-absent{background:#FECACA;color:#991B1B}
 .wfh-toggle{display:flex;align-items:center;gap:.45rem;font-size:.82rem;font-weight:600;color:var(--text-secondary);cursor:pointer;user-select:none}
 .wfh-toggle input[type="checkbox"]{accent-color:var(--primary-color);cursor:pointer;width:15px;height:15px;flex-shrink:0}
 .wfh-hint{font-size:.72rem;color:var(--text-secondary);margin-top:.2rem;margin-left:20px}
@@ -169,11 +181,17 @@
 .cal-sum-stats{display:flex;gap:1.25rem;flex-wrap:wrap}
 .cal-sum-item{font-size:.76rem;color:var(--text-secondary)}
 .cal-sum-item strong{font-weight:700;color:var(--text-primary)}
+.cal-sum-item.si-green strong{color:#16A34A}
 .cal-sum-item.si-red strong{color:#DC2626}
 .cal-sum-item.si-orange strong{color:#EA580C}
-.cal-sum-item.si-purple strong{color:#0E7490}
+.cal-sum-item.si-purple strong{color:#6366F1}
+.cal-sum-item.si-pink strong{color:#DB2777}
 .cal-sum-item.si-amber strong{color:#D97706}
 .cal-sum-item.si-blue strong{color:#2563EB}
+
+/* Linked notice inside modal */
+.cal-linked-note{display:flex;align-items:center;gap:.4rem;font-size:.73rem;color:#166534;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;padding:.45rem .65rem;margin-bottom:.75rem}
+.cal-linked-note svg{flex-shrink:0}
 
 /* Empty state */
 .att-empty{display:flex;flex-direction:column;align-items:center;padding:3rem 2rem;text-align:center;color:var(--text-secondary);background:var(--surface-color);border:1px solid var(--border-color);border-radius:10px}
@@ -194,8 +212,9 @@
 .modal-subtitle{font-size:.82rem;color:var(--text-secondary);margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-color)}
 .modal-form-group{margin-bottom:.75rem}
 .modal-form-group label{display:block;font-size:.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:.25rem}
-.modal-form-group input[type="time"]{width:100%;padding:.45rem .7rem;border:1px solid var(--border-color);border-radius:7px;font-size:.875rem;color:var(--text-primary);background:var(--surface-color);box-sizing:border-box}
-.modal-form-group input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 2px rgba(79,70,229,.1)}
+.modal-form-group input[type="time"],.modal-form-group input[type="number"]{width:100%;padding:.45rem .7rem;border:1px solid var(--border-color);border-radius:7px;font-size:.875rem;color:var(--text-primary);background:var(--surface-color);box-sizing:border-box}
+.modal-form-group input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 2px rgba(29,78,216,.1)}
+.modal-hint{font-size:.72rem;color:var(--text-secondary);margin-top:.2rem}
 .modal-actions{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border-color)}
 .btn-cancel{padding:.45rem .85rem;background:#F1F5F9;color:#1E293B;border:1px solid var(--border-color);border-radius:7px;font-size:.85rem;cursor:pointer}
 .btn-save{padding:.45rem .85rem;background:var(--primary-color);color:white;border:none;border-radius:7px;font-size:.85rem;font-weight:600;cursor:pointer}
@@ -205,10 +224,9 @@
 
 /* Responsive */
 @media(max-width:768px){
-    .att-kpis{gap:.4rem}.kpi{min-width:calc(50% - .2rem);padding:.4rem .6rem}
-    .kpi-icon{width:26px;height:26px}.kpi-body .kpi-val{font-size:.95rem}
-    .emp-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.5rem}
-    .emp-card{padding:.6rem .7rem}
+    .search-wrap{flex-basis:100%}
+    .emp-table-hdr,.emp-row{grid-template-columns:1fr 24px;padding-left:.75rem}
+    .emp-table-hdr span:not(:first-child):not(:last-child),.er-metrics,.er-cal{display:none}
     .cal-modal{width:98%;max-height:96vh;border-radius:10px}
     .cal-modal-body{padding:.75rem .85rem}
     .att-d{min-height:50px;padding:.25rem}.att-d .dn{font-size:.72rem}
@@ -216,50 +234,11 @@
     .cal-sum{flex-direction:column;align-items:flex-start}
     .cal-sum-stats{gap:.65rem}
 }
-@media(max-width:480px){
-    .emp-grid{grid-template-columns:1fr}
-    .mini-cal{grid-template-columns:repeat(7,14px);gap:2px}
-    .mc{height:14px}
-}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="att">
-
-    <!-- Tabs -->
-    <div class="att-tabs">
-        <a href="{% url 'report' %}?month={{ selected_month }}&year={{ selected_year }}" class="att-tab active">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            In-House Team
-        </a>
-        <a href="{% url 'remote_report' %}?month={{ selected_month }}&year={{ selected_year }}" class="att-tab">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-            Remote Team
-        </a>
-    </div>
-
-    <!-- KPI Cards -->
-    {% if team_summary %}
-    <div class="att-kpis">
-        <div class="kpi">
-            <div class="kpi-icon neutral"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-            <div class="kpi-body"><div class="kpi-val">{{ team_summary.total_employees }}</div><div class="kpi-lbl">Total Staff</div></div>
-        </div>
-        <div class="kpi">
-            <div class="kpi-icon red"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
-            <div class="kpi-body"><div class="kpi-val">{{ team_summary.total_deductions }}</div><div class="kpi-lbl">Total Deductions</div></div>
-        </div>
-        <div class="kpi">
-            <div class="kpi-icon orange"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-            <div class="kpi-body"><div class="kpi-val">{{ team_summary.total_leave_days }}</div><div class="kpi-lbl">Leave Days</div></div>
-        </div>
-        <div class="kpi">
-            <div class="kpi-icon amber"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-            <div class="kpi-body"><div class="kpi-val">{{ team_summary.total_late_days }}</div><div class="kpi-lbl">Late Arrivals</div></div>
-        </div>
-    </div>
-    {% endif %}
 
     <!-- Toolbar -->
     <div class="att-bar">
@@ -274,48 +253,111 @@
                 <div class="download-menu" id="downloadMenu">
                     <a href="javascript:void(0)" onclick="downloadReport()">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                        All Employees (Summary)
+                        In-House Summary
+                    </a>
+                    <a href="javascript:void(0)" onclick="downloadRemoteReport()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        Remote Summary
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Employee Card Grid -->
+    <!-- Employee Table -->
     {% if employees %}
-    <div class="emp-grid">
+    <div class="emp-table">
+        <div class="emp-table-hdr">
+            <span>Employee</span>
+            <span>Summary</span>
+            <span style="text-align:center">{{ month_name|slice:":3" }} {{ selected_year }}</span>
+            <span></span>
+        </div>
         {% for employee in employees %}
-        <div class="emp-card" onclick="openCalModal({{ employee.id }})">
-            <svg class="emp-card-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            <div class="emp-card-head">
-                <div class="emp-card-av">{{ employee.name|slice:":1"|upper }}</div>
-                <div class="emp-card-info">
-                    <span class="emp-card-name">{{ employee.name }}{% if not employee.is_active %}<span class="att-badge-off">Off</span>{% endif %}</span>
-                    <span class="emp-card-sub">ID: {{ employee.person_id }}</span>
+        {% if employee.type == 'inhouse' %}
+        <div class="emp-row {% if employee.summary.total_deductions == 0 %}row-ok{% elif employee.summary.total_deductions <= 1 %}row-warn{% else %}row-bad{% endif %}" data-name="{{ employee.name|lower }}" onclick="openCalModal({{ employee.id }})">
+            <div class="er-name">
+                <div class="er-av">{{ employee.name|slice:":1"|upper }}</div>
+                <div class="er-info">
+                    <span class="er-fullname">{{ employee.name }}{% if not employee.is_active %}<span class="att-badge-off">Off</span>{% endif %}{% if employee.is_linked %}<span class="linked-badge"><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>Linked</span>{% endif %}</span>
+                    <span class="er-id">ID: {{ employee.person_id }}</span>
                 </div>
-                <span class="emp-card-ded {% if employee.summary.total_deductions > 0 %}has-ded{% else %}zero{% endif %}">{{ employee.summary.total_deductions }}</span>
             </div>
-            <!-- Mini Calendar Heatmap -->
-            <div class="mini-cal">
-                <div class="mc-hd">S</div><div class="mc-hd">M</div><div class="mc-hd">T</div><div class="mc-hd">W</div><div class="mc-hd">T</div><div class="mc-hd">F</div><div class="mc-hd">S</div>
-                {% for day in calendar_days %}
-                {% if day %}
-                    {% with day_info=employee.calendar_data|get_item:day %}
-                    <div class="mc {% if day_info and day_info.status %}s-{{ day_info.status }}{% endif %} {% if day > current_day %}future{% endif %}"></div>
-                    {% endwith %}
-                {% else %}
-                    <div class="mc empty"></div>
-                {% endif %}
-                {% endfor %}
+            <div class="er-metrics">
+                <div class="er-ded {% if employee.summary.total_deductions == 0 %}ded-zero{% elif employee.summary.total_deductions <= 1 %}ded-some{% else %}ded-high{% endif %}">
+                    <span class="er-ded-val">{{ employee.summary.total_deductions }}</span>
+                    <span class="er-ded-lbl">ded</span>
+                </div>
+                <div class="er-divider"></div>
+                <div class="er-stats">
+                    <span class="ers ers-lv"><span class="el">Lv</span><span class="ev">{{ employee.summary.leave_days }}</span></span>
+                    <span class="ers ers-lt"><span class="el">Lt</span><span class="ev">{{ employee.summary.late_days }}</span></span>
+                    <span class="ers ers-hf"><span class="el">Hf</span><span class="ev">{{ employee.summary.half_days }}</span></span>
+                    <span class="ers ers-pd"><span class="el">Pd</span><span class="ev">{{ employee.summary.paid_leaves }}</span></span>
+                </div>
             </div>
-            <div class="emp-card-stats">
-                <span class="cs-red">Leave <strong>{{ employee.summary.leave_days }}</strong></span>
-                <span class="cs-purple">Half <strong>{{ employee.summary.half_days }}</strong></span>
-                <span class="cs-amber">Late <strong>{{ employee.summary.late_days }}</strong></span>
-                <span class="cs-blue">Paid <strong>{{ employee.summary.paid_leaves }}</strong></span>
+            <div class="er-cal">
+                <div class="er-cal-grid">
+                    {% for day in calendar_days %}
+                    {% if day %}
+                        {% with day_info=employee.calendar_data|get_item:day %}
+                        <div class="er-dot {% if day_info and day_info.status %}erc-{{ day_info.status }}{% endif %} {% if day > current_day %}erc-future{% endif %}"></div>
+                        {% endwith %}
+                    {% else %}
+                        <div class="er-dot erc-empty"></div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="er-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
         </div>
+        {% else %}
+        <div class="emp-row {% if employee.summary.absent_days == 0 %}row-ok{% elif employee.summary.absent_days <= 3 %}row-warn{% else %}row-bad{% endif %}" data-name="{{ employee.name|lower }}" onclick="openCalModal({{ employee.id }})">
+            <div class="er-name">
+                <div class="er-av remote">{{ employee.name|slice:":1"|upper }}</div>
+                <div class="er-info">
+                    <span class="er-fullname">{{ employee.name }}{% if not employee.is_active %}<span class="att-badge-off">Off</span>{% endif %}</span>
+                    <span class="er-id">Ext: {{ employee.extension_id }}</span>
+                </div>
+            </div>
+            <div class="er-metrics">
+                <div class="er-ded {% if employee.summary.absent_days == 0 %}ded-zero{% elif employee.summary.absent_days <= 3 %}ded-some{% else %}ded-high{% endif %}">
+                    <span class="er-ded-val">{{ employee.summary.absent_days }}</span>
+                    <span class="er-ded-lbl">absent</span>
+                </div>
+                <div class="er-divider"></div>
+                <div class="er-stats">
+                    <span class="ers ers-pr"><span class="el">Pr</span><span class="ev">{{ employee.summary.present_days }}</span></span>
+                    <span class="ers ers-hf"><span class="el">Hf</span><span class="ev">{{ employee.summary.half_days }}</span></span>
+                    <span class="ers ers-hr"><span class="el">Hr</span><span class="ev">{{ employee.summary.total_talk_hours }}</span></span>
+                </div>
+            </div>
+            <div class="er-cal">
+                <div class="er-cal-grid">
+                    {% for day in calendar_days %}
+                    {% if day %}
+                        {% with day_info=employee.calendar_data|get_item:day %}
+                        <div class="er-dot {% if day_info and day_info.status %}erc-{{ day_info.status }}{% endif %} {% if day > current_day %}erc-future{% endif %}"></div>
+                        {% endwith %}
+                    {% else %}
+                        <div class="er-dot erc-empty"></div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="er-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+        </div>
+        {% endif %}
         {% endfor %}
+    </div>
+    <div class="att-empty" id="liveSearchEmpty" style="display:none">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <h3>No matches</h3>
+        <p>No employee names match your search.</p>
     </div>
     {% else %}
     <div class="att-empty">
@@ -333,19 +375,17 @@
     <div class="cal-modal">
         <div class="cal-modal-top">
             <div class="cal-modal-nav">
-                <button class="cal-nav-btn" onclick="navModal(-1)" title="Previous (&#8592;)">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" fill="none" stroke="currentColor"/></svg>
-                </button>
-                <button class="cal-nav-btn" onclick="navModal(1)" title="Next (&#8594;)">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" fill="none" stroke="currentColor"/></svg>
-                </button>
+                <button class="cal-nav-btn" onclick="navModal(-1)" title="Previous month (&#8592;)">&#8249;</button>
+                <span class="cal-modal-month">{{ month_name }} {{ selected_year }}</span>
+                <button class="cal-nav-btn" onclick="navModal(1)" title="Next month (&#8594;)">&#8250;</button>
             </div>
             <button class="cal-close-btn" onclick="closeCalModal()" title="Close (Esc)">&#x2715;</button>
         </div>
         <div class="cal-modal-body">
             {% for employee in employees %}
             <div class="cal-panel" id="cal-{{ employee.id }}" style="display:none">
-                <!-- Header -->
+                {% if employee.type == 'inhouse' %}
+                <!-- ── In-house (fingerprint) panel ───────────────────────── -->
                 <div class="cal-panel-head">
                     <div class="cal-panel-emp">
                         <div class="cal-av-lg">{{ employee.name|slice:":1"|upper }}</div>
@@ -359,14 +399,21 @@
                         Download
                     </button>
                 </div>
+                {% if employee.is_linked %}
+                <div class="cal-linked-note">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    Also has a linked remote record ({{ employee.linked_remote_name }}). Fingerprint attendance is shown here; call data is hidden as redundant.
+                </div>
+                {% endif %}
                 <!-- Legend -->
                 <div class="cal-legend">
                     <span class="legend-item"><span class="legend-dot green"></span> On time</span>
                     <span class="legend-item"><span class="legend-dot yellow"></span> Late / Early</span>
-                    <span class="legend-item"><span class="legend-dot red"></span> Leave</span>
+                    <span class="legend-item"><span class="legend-dot red"></span> Absent</span>
                     <span class="legend-item"><span class="legend-dot blue"></span> Paid Leave</span>
                     <span class="legend-item"><span class="legend-dot orange"></span> Incomplete</span>
                     <span class="legend-item"><span class="legend-dot purple"></span> Holiday</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#0D9488"></span> On Duty</span>
                 </div>
                 <!-- Full Calendar -->
                 <div class="att-cal">
@@ -381,7 +428,7 @@
                             {% with day_info=employee.calendar_data|get_item:day %}
                             {% if day_info %}
                             <div class="att-d status-{{ day_info.status }} {% if day_info.is_sunday %}sun{% endif %} {% if day > current_day %}future{% endif %} {% if user.is_superuser %}editable{% endif %}"
-                                {% if user.is_superuser %}onclick="openEditModal({{ employee.id }}, '{{ employee.name }}', {{ day }}, '{{ day_info.record.first_in|time:'H:i'|default:'' }}', '{{ day_info.record.last_out|time:'H:i'|default:'' }}', {{ day_info.is_wfh|yesno:'true,false' }})"{% endif %}>
+                                {% if user.is_superuser %}onclick="openEditModal({{ employee.id }}, '{{ employee.name }}', {{ day }}, '{{ day_info.record.first_in|time:'H:i'|default:'' }}', '{{ day_info.record.last_out|time:'H:i'|default:'' }}', {{ day_info.is_wfh|yesno:'true,false' }}, {{ day_info.is_paid_leave|yesno:'true,false' }})"{% endif %}>
                                 <span class="dn">{{ day }}</span>
                                 {% if day_info.is_grace %}<span class="grace-tick">✕</span>{% endif %}
                                 {% if day_info.is_wfh %}
@@ -400,7 +447,7 @@
                                     </div>
                                     <span class="cl cl-onduty">On Duty</span>
                                 {% elif day_info.status == 'absent' %}
-                                    <span class="cl cl-leave">Leave</span>
+                                    <span class="cl cl-absent">Absent</span>
                                 {% elif day_info.status == 'paid_leave' %}
                                     <span class="cl cl-paid">Paid Leave</span>
                                 {% elif day_info.status == 'holiday' %}
@@ -434,18 +481,117 @@
                     <div class="cal-sum-stats">
                         <span class="cal-sum-item si-red">Deductions <strong>{{ employee.summary.total_deductions }}</strong></span>
                         <span class="cal-sum-item si-orange">Leave <strong>{{ employee.summary.leave_days }}</strong></span>
-                        <span class="cal-sum-item si-purple">Half Days <strong>{{ employee.summary.half_days }}</strong></span>
+                        <span class="cal-sum-item si-amber">Half Days <strong>{{ employee.summary.half_days }}</strong></span>
                         <span class="cal-sum-item si-amber">Late <strong>{{ employee.summary.late_days }}{% if employee.summary.late_half_days > 0 %} ({{ employee.summary.late_half_days }}x1/2){% endif %}</strong></span>
                         <span class="cal-sum-item si-blue">Paid Leave <strong>{{ employee.summary.paid_leaves }}</strong></span>
                     </div>
                 </div>
+                {% else %}
+                <!-- ── Remote (call data) panel ───────────────────────────── -->
+                <div class="cal-panel-head">
+                    <div class="cal-panel-emp">
+                        <div class="cal-av-lg remote">{{ employee.name|slice:":1"|upper }}</div>
+                        <div>
+                            <h2 class="cal-panel-name">{{ employee.name }}{% if not employee.is_active %} <span class="att-badge-off">Inactive</span>{% endif %}</h2>
+                            <span class="cal-panel-id">Ext: {{ employee.extension_id }} &middot; {{ month_name }} {{ selected_year }}</span>
+                        </div>
+                    </div>
+                    <button onclick="downloadRemoteEmployeeReport({{ employee.id }}, '{{ employee.name }}')" class="btn-dl-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download
+                    </button>
+                </div>
+                <!-- Legend -->
+                <div class="cal-legend">
+                    <span class="legend-item"><span class="legend-dot green"></span> Present</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#DB2777"></span> Partial (Grace)</span>
+                    <span class="legend-item"><span class="legend-dot yellow"></span> Half Day</span>
+                    <span class="legend-item"><span class="legend-dot red"></span> Absent</span>
+                    <span class="legend-item"><span class="legend-dot purple"></span> Holiday</span>
+                </div>
+                <!-- Full Calendar -->
+                <div class="att-cal">
+                    <div class="att-cal-hd">
+                        {% for day in weekdays %}
+                        <span{% if day == 'Sun' %} class="sun"{% endif %}>{{ day }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="att-cal-grid">
+                        {% for day in calendar_days %}
+                        {% if day %}
+                            {% with day_info=employee.calendar_data|get_item:day %}
+                            {% if day_info %}
+                            <div class="att-d status-{{ day_info.status }} {% if day_info.is_sunday %}sun{% endif %} {% if day > current_day %}future{% endif %} {% if user.is_superuser and not day_info.is_sunday and not day_info.is_holiday and day <= current_day %}editable{% endif %}"
+                                {% if user.is_superuser and not day_info.is_sunday and not day_info.is_holiday and day <= current_day %}onclick="openRemoteEditModal({{ employee.id }}, '{{ employee.name }}', {{ day }}, {{ day_info.talk_minutes }}, {{ day_info.answered_calls }})"{% endif %}>
+                                <span class="dn">{{ day }}</span>
+                                {% if day_info.is_sunday or day_info.is_holiday %}
+                                    <span class="cl cl-holiday">Holiday</span>
+                                {% elif not day_info.status %}
+                                {% elif day_info.status == 'present' %}
+                                    <div class="ct">
+                                        <span>{{ day_info.talk_minutes }} min</span>
+                                        <span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3"/></svg>
+                                            {{ day_info.answered_calls }}
+                                        </span>
+                                    </div>
+                                    <span class="cl cl-present">Present</span>
+                                {% elif day_info.status == 'partial' %}
+                                    <div class="ct">
+                                        <span>{{ day_info.talk_minutes }} min</span>
+                                        <span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3"/></svg>
+                                            {{ day_info.answered_calls }}
+                                        </span>
+                                    </div>
+                                    <span class="cl cl-partial" title="Grace-band day: prorated pay based on talk time">Partial</span>
+                                {% elif day_info.status == 'half_day' %}
+                                    <div class="ct">
+                                        <span>{{ day_info.talk_minutes }} min</span>
+                                        <span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3"/></svg>
+                                            {{ day_info.answered_calls }}
+                                        </span>
+                                    </div>
+                                    <span class="cl cl-half"{% if day_info.grace_denial_reason %} title="Grace-band day capped out ({{ day_info.grace_denial_reason }}) — paid as half day"{% endif %}>Half</span>
+                                {% elif day_info.status == 'absent' %}
+                                    {% if day_info.talk_minutes %}
+                                    <div class="ct"><span>{{ day_info.talk_minutes }} min</span></div>
+                                    {% endif %}
+                                    <span class="cl cl-absent">Absent</span>
+                                {% endif %}
+                                {% if user.is_superuser and not day_info.is_sunday and not day_info.is_holiday and day <= current_day %}
+                                <span class="edit-icon"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endwith %}
+                        {% else %}
+                            <div class="att-d empty"></div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <!-- Summary -->
+                <div class="cal-sum">
+                    <div class="cal-sum-stats">
+                        <span class="cal-sum-item si-green">Present <strong>{{ employee.summary.present_days }}</strong></span>
+                        {% if employee.summary.proportional_days %}
+                        <span class="cal-sum-item si-pink">Partial <strong>{{ employee.summary.proportional_days }}</strong></span>
+                        {% endif %}
+                        <span class="cal-sum-item si-amber">Half Days <strong>{{ employee.summary.half_days }}</strong></span>
+                        <span class="cal-sum-item si-red">Absent <strong>{{ employee.summary.absent_days }}</strong></span>
+                        <span class="cal-sum-item si-blue">Total Hours <strong>{{ employee.summary.total_talk_hours }}h</strong></span>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
     </div>
 </div>
 
-<!-- Edit Attendance Modal -->
+<!-- Edit Attendance Modal (in-house) -->
 {% if user.is_superuser %}
 <div class="modal-overlay" id="editModal">
     <div class="modal-box">
@@ -468,6 +614,13 @@
                     <div class="wfh-hint">Counts as full day attendance regardless of punch times</div>
                 </div>
                 <div class="modal-form-group">
+                    <label class="wfh-toggle">
+                        <input type="checkbox" id="editPaidLeave" name="is_paid_leave">
+                        <span>Paid Leave</span>
+                    </label>
+                    <div class="wfh-hint">Marks day as paid leave — not deducted from salary</div>
+                </div>
+                <div class="modal-form-group">
                     <label for="editFirstIn">First In Time</label>
                     <input type="time" id="editFirstIn" name="first_in">
                 </div>
@@ -484,6 +637,39 @@
         </div>
     </div>
 </div>
+
+<!-- Edit Call Record Modal (remote) -->
+<div class="modal-overlay" id="remoteEditModal">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>Edit Call Record</h3>
+            <button class="modal-close-btn" onclick="closeRemoteEditModal()">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-subtitle">
+                <strong id="remoteModalEmployeeName"></strong> &mdash; <span id="remoteModalDate"></span>
+            </div>
+            <form id="remoteEditForm">
+                <input type="hidden" id="remoteEditEmployeeId" name="employee_id">
+                <input type="hidden" id="remoteEditDate" name="date">
+                <div class="modal-form-group">
+                    <label for="remoteEditTalkMinutes">Talk Duration (minutes)</label>
+                    <input type="number" id="remoteEditTalkMinutes" name="talk_minutes" min="0" max="999" placeholder="0">
+                    <div class="modal-hint">Status is auto-calculated from talk duration</div>
+                </div>
+                <div class="modal-form-group">
+                    <label for="remoteEditAnsweredCalls">Answered Calls</label>
+                    <input type="number" id="remoteEditAnsweredCalls" name="answered_calls" min="0" max="9999" placeholder="0">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="closeRemoteEditModal()">Cancel</button>
+                    <button type="submit" class="btn-save" id="remoteSaveBtn">Save Changes</button>
+                </div>
+                <div class="modal-message" id="remoteModalMessage" style="display:none"></div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 {% endblock %}
@@ -494,9 +680,12 @@ window.reportConfig = {
     selectedYear:  {{ selected_year }},
     selectedMonth: {{ selected_month }},
     showInactive:  {% if show_inactive %}true{% else %}false{% endif %},
-    downloadReportUrl:         "{% url 'download_report' %}",
-    downloadEmployeeReportUrl: "{% url 'download_employee_report' employee_id=0 %}",
-    updateAttendanceUrl:       "{% url 'update_attendance' %}"
+    downloadReportUrl:               "{% url 'download_report' %}",
+    downloadEmployeeReportUrl:       "{% url 'download_employee_report' employee_id=0 %}",
+    downloadRemoteReportUrl:         "{% url 'download_remote_report' %}",
+    downloadRemoteEmployeeReportUrl: "{% url 'download_remote_employee_report' employee_id=0 %}",
+    updateAttendanceUrl:             "{% url 'update_attendance' %}",
+    updateRemoteAttendanceUrl:       "{% url 'update_remote_attendance' %}"
 };
 
 /* ====== Calendar Detail Modal ====== */
@@ -519,26 +708,35 @@ function closeCalModal() {
 }
 
 function navModal(dir) {
-    var idx = employeeIds.indexOf(currentEmpId);
-    var next = idx + dir;
-    if (next >= 0 && next < employeeIds.length) {
-        openCalModal(employeeIds[next]);
-    }
+    var cfg = window.reportConfig;
+    var year = cfg.selectedYear, month = cfg.selectedMonth + dir;
+    if (month < 1)  { month = 12; year -= 1; }
+    if (month > 12) { month = 1;  year += 1; }
+    var url = window.location.pathname + '?month=' + month + '&year=' + year;
+    if (cfg.showInactive) url += '&show_inactive=1';
+    if (currentEmpId) url += '&open=' + currentEmpId;
+    window.location.href = url;
 }
+
+/* Auto-reopen modal after month navigation */
+document.addEventListener('DOMContentLoaded', function() {
+    var openId = new URLSearchParams(window.location.search).get('open');
+    if (openId) openCalModal(parseInt(openId, 10));
+});
 
 /* Close on backdrop click */
 document.getElementById('calModal').addEventListener('click', function(e) {
     if (e.target === this) closeCalModal();
 });
 
-/* Keyboard: Esc to close, Left/Right to navigate */
+/* Keyboard: Esc to close, Left/Right to navigate months */
 document.addEventListener('keydown', function(e) {
     var modal = document.getElementById('calModal');
     if (!modal.classList.contains('show')) return;
     if (e.key === 'Escape') { closeCalModal(); e.preventDefault(); }
-    else if (e.key === 'ArrowLeft') { navModal(-1); e.preventDefault(); }
-    else if (e.key === 'ArrowRight') { navModal(1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft')  { navModal(-1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { navModal(1);  e.preventDefault(); }
 });
 </script>
-<script src="{% static 'attendance/js/report.js' %}?v=6"></script>
+<script src="{% static 'attendance/js/report.js' %}?v=7"></script>
 {% endblock %}

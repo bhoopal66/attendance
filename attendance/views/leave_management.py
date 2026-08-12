@@ -10,14 +10,14 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required, user_passes_test
 
-from ..models import LeaveRequest
-from .utils import superuser_required
+from ..models import EarlyLeaveRequest, LeaveRequest
+from .utils import section_required
 
 logger = logging.getLogger('attendance')
 
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('leave_requests'))
 def leave_management(request):
     """Admin page to view and manage leave requests."""
     status_filter = request.GET.get('status', 'pending')
@@ -45,7 +45,7 @@ def leave_management(request):
 
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('leave_requests'))
 @require_http_methods(["POST"])
 def approve_leave(request, leave_id):
     """Approve a leave request with optional day adjustment."""
@@ -100,7 +100,7 @@ def approve_leave(request, leave_id):
 
 
 @login_required
-@user_passes_test(superuser_required)
+@user_passes_test(section_required('leave_requests'))
 @require_http_methods(["POST"])
 def reject_leave(request, leave_id):
     """Reject a leave request."""
@@ -128,3 +128,27 @@ def reject_leave(request, leave_id):
     )
 
     return JsonResponse({'success': True, 'message': 'Leave request rejected'})
+
+
+@login_required
+@user_passes_test(section_required('on_duty_requests'))
+def on_duty_requests(request):
+    """Admin page to view and manage on-duty (early leave) requests."""
+    status_filter = request.GET.get('status', 'pending')
+
+    qs = EarlyLeaveRequest.objects.select_related('employee', 'remote_employee')
+    if status_filter != 'all':
+        qs = qs.filter(status=status_filter)
+
+    pending_count = EarlyLeaveRequest.objects.filter(status='pending').count()
+    approved_count = EarlyLeaveRequest.objects.filter(status='approved').count()
+    rejected_count = EarlyLeaveRequest.objects.filter(status='rejected').count()
+
+    context = {
+        'on_duty_requests': qs,
+        'status_filter': status_filter,
+        'pending_count': pending_count,
+        'approved_count': approved_count,
+        'rejected_count': rejected_count,
+    }
+    return render(request, 'attendance/on_duty_requests.html', context)

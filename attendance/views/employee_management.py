@@ -17,7 +17,7 @@ from ..models import (
     LeaveRequest, MonthlySummary, RemoteCallRecord, RemoteEmployee,
     RemoteEmployeeIDAlias, RemoteMonthlySummary, ShiftHistory,
 )
-from .utils import superuser_required
+from .utils import section_required
 
 logger = logging.getLogger('attendance')
 
@@ -28,6 +28,8 @@ ALLOWED_UPDATE_FIELDS = {
     'tcr_id',
     # payroll fields
     'currency', 'payroll_type', 'is_fixed_salary', 'visa_provider', 'salary_cycle_start_day',
+    # remote sales onboarding fields (RemoteEmployee only)
+    'warning_count', 'last_warning_date',
 }
 ALLOWED_BULK_FIELDS = {'department', 'location', 'team', 'is_active'}
 
@@ -59,6 +61,9 @@ def _serialize_employee(emp, emp_type, remote_by_tcr=None, inhouse_by_tcr=None):
     data['payroll_type'] = getattr(emp, 'payroll_type', 'attendance') or 'attendance'
     data['visa_provider'] = getattr(emp, 'visa_provider', '') or ''
     data['salary_cycle_start_day'] = getattr(emp, 'salary_cycle_start_day', 21) or 21
+    data['warning_count'] = getattr(emp, 'warning_count', 0) or 0
+    last_warning_date = getattr(emp, 'last_warning_date', None)
+    data['last_warning_date'] = last_warning_date.strftime('%Y-%m-%d') if last_warning_date else ''
     if emp.tcr_id:
         if emp_type == 'inhouse':
             remote = (remote_by_tcr or {}).get(emp.tcr_id)
@@ -86,7 +91,7 @@ def _serialize_employee(emp, emp_type, remote_by_tcr=None, inhouse_by_tcr=None):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('employees'), login_url='/report/')
 def employee_management(request):
     """Display all employees (in-house and remote) in a unified management page."""
     inhouse_employees = list(Employee.objects.all().order_by('name'))
@@ -143,7 +148,7 @@ def _get_employee_by_type(employee_id, employee_type):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('employees'), login_url='/report/')
 def update_employee(request):
     """API endpoint to update employee data."""
     if request.method != 'POST':
@@ -171,21 +176,24 @@ def update_employee(request):
         except (Employee.DoesNotExist, RemoteEmployee.DoesNotExist):
             return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
 
-        for emp in [inhouse, remote]:
+        old_currencies = {'inhouse': inhouse.currency, 'remote': remote.currency}
+        for emp_key, emp in (('inhouse', inhouse), ('remote', remote)):
             for field in ALLOWED_UPDATE_FIELDS:
                 if field not in data:
                     continue
-                # designation only exists on RemoteEmployee
-                if field == 'designation' and not hasattr(emp, 'designation'):
+                # designation/warning fields only exist on RemoteEmployee
+                if field in ('designation', 'warning_count', 'last_warning_date') and not hasattr(emp, field):
                     continue
                 value = data[field]
                 if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
-                             'joining_date', 'leaving_date', 'tcr_id', 'visa_provider'):
+                             'joining_date', 'leaving_date', 'tcr_id', 'visa_provider', 'last_warning_date'):
                     value = value or None
                 elif field == 'salary_cycle_start_day':
                     value = int(value) if value is not None else 21
                 elif field == 'is_fixed_salary':
                     value = bool(value)
+                elif field == 'warning_count':
+                    value = int(value) if value is not None else 0
                 setattr(emp, field, value)
             if data.get('portal_password'):
                 emp.portal_password = make_password(data['portal_password'])
@@ -195,6 +203,12 @@ def update_employee(request):
             remote.full_clean(exclude=['extension_id'])
             inhouse.save()
             remote.save()
+            if old_currencies['inhouse'] != inhouse.currency or old_currencies['remote'] != remote.currency:
+                from payroll.services import convert_employee_deduction_currency
+                if old_currencies['inhouse'] != inhouse.currency:
+                    convert_employee_deduction_currency('inhouse', inhouse.id, old_currencies['inhouse'], inhouse.currency)
+                if old_currencies['remote'] != remote.currency:
+                    convert_employee_deduction_currency('remote', remote.id, old_currencies['remote'], remote.currency)
             logger.info("Linked employees updated: %s (inhouse=%s, remote=%s) by %s",
                         inhouse.name, inhouse.id, remote.id, request.user.username)
             return JsonResponse({'success': True, 'message': 'Employee updated successfully'})
@@ -211,21 +225,25 @@ def update_employee(request):
     if not emp:
         return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
 
+    old_currency = emp.currency
+
     # Update allowed fields
     for field in ALLOWED_UPDATE_FIELDS:
         if field not in data:
             continue
-        # designation only exists on RemoteEmployee
-        if field == 'designation' and not hasattr(emp, 'designation'):
+        # designation/warning fields only exist on RemoteEmployee
+        if field in ('designation', 'warning_count', 'last_warning_date') and not hasattr(emp, field):
             continue
         value = data[field]
         if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
-                     'joining_date', 'leaving_date', 'tcr_id', 'visa_provider'):
+                     'joining_date', 'leaving_date', 'tcr_id', 'visa_provider', 'last_warning_date'):
             value = value or None
         elif field == 'salary_cycle_start_day':
             value = int(value) if value is not None else 21
         elif field == 'is_fixed_salary':
             value = bool(value)
+        elif field == 'warning_count':
+            value = int(value) if value is not None else 0
         setattr(emp, field, value)
 
     # Handle password separately (needs hashing)
@@ -235,6 +253,10 @@ def update_employee(request):
     try:
         emp.full_clean(exclude=['person_id', 'extension_id'])
         emp.save()
+        if old_currency != emp.currency:
+            from payroll.services import convert_employee_deduction_currency
+            emp_key = 'inhouse' if employee_type == 'inhouse' else 'remote'
+            convert_employee_deduction_currency(emp_key, emp.id, old_currency, emp.currency)
         logger.info("Employee updated: %s (id=%s) by %s", emp.name, emp.id, request.user.username)
         return JsonResponse({'success': True, 'message': 'Employee updated successfully'})
     except ValidationError as e:
@@ -248,7 +270,7 @@ def update_employee(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('employees'), login_url='/report/')
 def bulk_update_employees(request):
     """API endpoint to bulk update employee fields."""
     if request.method != 'POST':
@@ -356,7 +378,7 @@ def _merge_remote_employees(keep, drop):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('employees'), login_url='/report/')
 def merge_employees(request):
     """
     Merge two employee records of the same type.
@@ -409,7 +431,7 @@ def merge_employees(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('employees'), login_url='/report/')
 def delete_employee(request):
     """Permanently delete an employee and all their associated data."""
     if request.method != 'POST':
@@ -445,7 +467,7 @@ def delete_employee(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('employees'), login_url='/report/')
 def link_employees(request):
     """
     Link an in-house employee and a remote employee as the same person by
@@ -521,7 +543,7 @@ def link_employees(request):
 
 
 @login_required
-@user_passes_test(superuser_required, login_url='/report/')
+@user_passes_test(section_required('employees'), login_url='/report/')
 def unlink_employees(request):
     """Remove the TCR ID link between an in-house and remote employee."""
     if request.method != 'POST':

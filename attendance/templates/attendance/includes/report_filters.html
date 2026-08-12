@@ -1,9 +1,9 @@
 <!-- Report Filter Dropdowns Component -->
 <!-- DO NOT MODIFY: Spaces around comparison operators (==) are REQUIRED for Django templates -->
-<form method="get" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;width:100%">
+<form method="get" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;flex:1 1 auto;min-width:0">
     <div class="search-wrap">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" name="search" placeholder="Search employee name…" value="{{ search_query }}">
+        <input type="text" name="search" id="reportSearchInput" placeholder="Search employee name…" value="{{ search_query }}" autocomplete="off">
     </div>
 
     <select name="month" class="rpt-select" onchange="this.form.submit()">
@@ -16,6 +16,12 @@
         {% for y in years %}
         <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
         {% endfor %}
+    </select>
+
+    <select name="type" class="rpt-select" onchange="this.form.submit()">
+        <option value="" {% if type_filter == '' %}selected{% endif %}>All Types</option>
+        <option value="inhouse" {% if type_filter == 'inhouse' %}selected{% endif %}>In-House</option>
+        <option value="remote" {% if type_filter == 'remote' %}selected{% endif %}>Remote</option>
     </select>
 
     <label class="inactive-label">

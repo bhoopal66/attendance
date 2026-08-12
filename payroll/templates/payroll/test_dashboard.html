@@ -7,25 +7,59 @@
 {% block extra_css %}
 <style>
 /* ---- Layout ---- */
-.pd-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+.pd-container { padding: 12px 20px 20px; width: 100%; }
+
+/* Sticky top strip */
+.pd-sticky-top {
+    position: sticky;
+    top: 56px;
+    z-index: 99;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    margin: -40px -52px 12px;
+    padding: 12px 20px 8px;
+    border-radius: 0 0 14px 14px;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    transition: box-shadow 0.25s ease;
+}
+.pd-sticky-top.is-stuck {
+    box-shadow: 0 6px 28px rgba(0,0,0,0.1);
+}
 
 .pd-header {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+    margin-bottom: 8px; flex-wrap: wrap; gap: 12px;
 }
 .pd-title {
-    font-size: 1.4rem; font-weight: 700; color: #0f172a;
+    font-size: 1.25rem; font-weight: 700; color: #0f172a; line-height: 1.3;
 }
 .pd-title span { color: #6366f1; }
 
-.pd-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pd-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .pd-controls select {
-    padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
-    font-size: 0.875rem; background: #fff;
+    padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 7px;
+    font-size: 0.8rem; background: #fff; color: #334155;
+}
+.pd-period-form { display: flex; gap: 6px; align-items: center; }
+.pd-divider { width: 1px; height: 20px; background: #e2e8f0; margin: 0 2px; }
+.pd-inline-label { font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+
+.pd-toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 10px; padding: 6px 12px; margin-bottom: 6px;
+    background: #f8fafc; border: 1px solid #eef2f7; border-radius: 8px;
+}
+.pd-toolbar-group { display: flex; align-items: center; gap: 8px; }
+.pd-toolbar select {
+    padding: 5px 10px; border: 1px solid #e2e8f0; border-radius: 7px;
+    font-size: 0.8rem; background: #fff; color: #334155;
 }
 .btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.875rem; font-weight: 500; }
-.btn-primary { background: #4f46e5; color: #fff; }
-.btn-primary:hover { background: #4338ca; }
+.btn-primary { background: #1D4ED8; color: #fff; }
+.btn-primary:hover { background: #1E40AF; }
 .btn-secondary { background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
 .btn-secondary:hover { background: #e2e8f0; }
 .btn-danger { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
@@ -38,11 +72,11 @@
 /* ---- Section cards ---- */
 .section-card {
     background: #fff; border-radius: 12px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 24px; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 16px; overflow: hidden;
 }
 .section-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 16px 20px; border-bottom: 1px solid #f1f5f9;
+    padding: 12px 20px; border-bottom: 1px solid #f1f5f9;
 }
 .section-title {
     font-size: 0.95rem; font-weight: 700; color: #0f172a;
@@ -57,12 +91,21 @@
 .badge-sales { background: #fef9c3; color: #854d0e; }
 .badge-fixed { background: #dcfce7; color: #15803d; }
 .badge-perf { background: #fff7ed; color: #c2410c; }
+.badge-perf-test { background: #f5f3ff; color: #6d28d9; }
 .section-total {
-    font-size: 0.875rem; font-weight: 600; color: #4f46e5;
+    font-size: 0.875rem; font-weight: 600; color: #1D4ED8;
 }
+.btn-xlsx {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; font-size: 0.75rem; font-weight: 600;
+    background: #f0fdf4; color: #15803d; border: 1px solid #86efac;
+    border-radius: 7px; cursor: pointer; text-decoration: none;
+    white-space: nowrap;
+}
+.btn-xlsx:hover { background: #dcfce7; border-color: #4ade80; }
 
 /* ---- Tables ---- */
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow: auto; max-height: 68vh; }
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 th {
     padding: 10px 12px; text-align: left; font-size: 0.75rem; font-weight: 600;
@@ -74,6 +117,36 @@ tr:last-child td { border-bottom: none; }
 tr:hover td { background: #f8fafc; }
 tfoot td { background: #f8fafc; font-weight: 600; border-top: 2px solid #e2e8f0; }
 
+/* Sticky header + frozen first (identity) column for large data matrices */
+.table-wrap thead th { position: sticky; top: 0; z-index: 2; }
+.table-wrap tbody th:first-child,
+.table-wrap tbody td:first-child {
+    position: sticky; left: 0; z-index: 1; background: #fff;
+}
+.table-wrap tr:hover td:first-child { background: #f8fafc; }
+.table-wrap thead th:first-child { z-index: 3; }
+.table-wrap tfoot td:first-child { position: sticky; left: 0; z-index: 1; background: #f8fafc; }
+
+/* ---- Responsive ---- */
+@media (max-width: 1024px) {
+    .pd-container { padding: 14px; }
+    .pd-sticky-top { margin: -42px -46px 12px; }
+    .pd-header { flex-direction: column; align-items: flex-start; }
+    .pd-controls { width: 100%; }
+    .pd-controls select { flex: 1 1 140px; }
+    .section-header { flex-wrap: wrap; gap: 8px; }
+    .table-wrap { max-height: 60vh; }
+}
+
+@media (max-width: 768px) {
+    .pd-container { padding: 10px; }
+    .pd-sticky-top { margin: -30px -26px 16px; padding: 14px 14px 10px; border-radius: 0 0 14px 14px; }
+    .pd-title { font-size: 1.15rem; }
+    table { font-size: 0.78rem; }
+    th, td { padding: 8px; }
+    .table-wrap { max-height: 55vh; }
+}
+
 /* Text helpers */
 .text-right { text-align: right; }
 .text-center { text-align: center; }
@@ -81,12 +154,13 @@ tfoot td { background: #f8fafc; font-weight: 600; border-top: 2px solid #e2e8f0;
 .val-positive { color: #16a34a; }
 .val-negative { color: #dc2626; }
 .val-neutral { color: #334155; }
-.val-blue { color: #4f46e5; font-weight: 600; }
+.val-blue { color: #1D4ED8; font-weight: 600; }
 .muted { color: #94a3b8; font-size: 0.78rem; }
 
 /* Currency badge */
 .curr-aed { display: inline-block; font-size: 0.7rem; font-weight: 600; color: #1d4ed8; background: #eff6ff; border-radius: 4px; padding: 1px 5px; }
 .curr-inr { display: inline-block; font-size: 0.7rem; font-weight: 600; color: #0369a1; background: #e0f2fe; border-radius: 4px; padding: 1px 5px; }
+.curr-npr { display: inline-block; font-size: 0.7rem; font-weight: 600; color: #b45309; background: #fde68a; border-radius: 4px; padding: 1px 5px; }
 
 /* Type badge */
 .type-inhouse { font-size: 0.7rem; background: #f1f5f9; color: #475569; border-radius: 4px; padding: 1px 6px; }
@@ -116,6 +190,18 @@ tr.paid-row:hover td { background: #dcfce7 !important; }
     padding: 10px 0 6px;
 }
 .select-all-wrap { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #475569; }
+.emp-search-wrap { margin-left: auto; position: relative; }
+.emp-search-wrap input {
+    padding: 7px 12px 7px 30px; border: 1.5px solid #cbd5e1; border-radius: 8px;
+    font-size: 0.82rem; width: 220px; box-sizing: border-box;
+    background: #f8fafc; color: #0f172a;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+}
+.emp-search-wrap input::placeholder { color: #64748b; }
+.emp-search-wrap input:focus { outline: none; border-color: #1D4ED8; background: #fff; box-shadow: 0 0 0 3px rgba(29,78,216,0.1); }
+.emp-search-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none; }
+.emp-search-wrap.emp-search-inline { margin-left: 0; }
+.emp-search-wrap.emp-search-inline input { width: 170px; }
 
 /* Adjust button */
 .adj-btn {
@@ -131,14 +217,63 @@ tr.paid-row:hover td { background: #dcfce7 !important; }
 }
 .bank-btn:hover { background: #dcfce7; }
 
-/* Deduction entries list */
-.ded-entry {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 8px; border-radius: 6px; background: #f8fafc; margin-bottom: 4px;
-    font-size: 0.8rem;
+/* ---- Deductions tab (employee-wise history) ---- */
+.ded-stats-bar {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px; padding: 14px 20px 4px;
 }
-.ded-entry.is-deduction { border-left: 3px solid #fca5a5; }
-.ded-entry.is-addition { border-left: 3px solid #86efac; }
+.ded-stat { background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px; padding: 10px 14px; }
+.ded-stat-label { font-size: 0.68rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+.ded-stat-value { font-size: 1.15rem; font-weight: 700; font-family: monospace; color: #0f172a; }
+
+.ded-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 20px; flex-wrap: wrap; }
+.btn-chip {
+    font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: 20px;
+    border: 1px solid #e2e8f0; background: #fff; color: #475569; cursor: pointer; white-space: nowrap;
+}
+.btn-chip:hover { background: #f1f5f9; border-color: #cbd5e1; }
+
+.ded-groups { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+.ded-group { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+.ded-group-header {
+    width: 100%; display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; padding: 12px 16px; background: #f8fafc; border: none; cursor: pointer;
+    text-align: left; flex-wrap: wrap; font: inherit;
+}
+.ded-group-header:hover { background: #f1f5f9; }
+.ded-group-id { display: flex; align-items: center; gap: 8px; }
+.ded-caret { display: inline-block; font-size: 0.7rem; color: #94a3b8; transition: transform 0.15s; }
+.ded-group.open .ded-caret { transform: rotate(90deg); }
+.ded-group-name { font-size: 0.88rem; font-weight: 700; color: #0f172a; }
+.ded-group-stats { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ded-pill { font-size: 0.68rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+.ded-pill-active { background: #dbeafe; color: #1d4ed8; }
+.ded-pill-pending { background: #fef3c7; color: #b45309; }
+.ded-group-net { font-family: monospace; font-weight: 700; font-size: 0.85rem; min-width: 100px; text-align: right; }
+
+.ded-group-body { display: none; border-top: 1px solid #e2e8f0; }
+.ded-group.open .ded-group-body { display: block; }
+.ded-group-summary {
+    display: flex; gap: 22px; flex-wrap: wrap; align-items: center;
+    padding: 10px 16px; background: #fff; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9;
+}
+.ded-group-summary > div { display: flex; flex-direction: column; gap: 2px; }
+.ded-group-summary strong { font-family: monospace; font-size: 0.88rem; }
+.ded-history-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.ded-history-table th {
+    padding: 8px 12px; text-align: left; font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.4px; color: #94a3b8;
+    background: #fff; border-bottom: 1px solid #f1f5f9;
+}
+.ded-history-table td { padding: 8px 12px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+.ded-history-table tr:last-child td { border-bottom: none; }
+.ded-history-table tr.ded-row-active td { background: #eff6ff; }
+.status-pill { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+.status-active { background: #dbeafe; color: #1d4ed8; }
+.status-upcoming { background: #ede9fe; color: #5b21b6; }
+.status-recovered { background: #dcfce7; color: #15803d; }
+.status-pending { background: #fef3c7; color: #b45309; }
+.status-done { background: #f1f5f9; color: #64748b; }
 
 /* Modal */
 .modal-overlay {
@@ -160,7 +295,7 @@ tr.paid-row:hover td { background: #dcfce7 !important; }
     width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
     font-size: 0.875rem; box-sizing: border-box;
 }
-.form-control:focus { outline: none; border-color: #818cf8; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.form-control:focus { outline: none; border-color: #1D4ED8; box-shadow: 0 0 0 3px rgba(29,78,216,0.1); }
 .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 .modal-close { cursor: pointer; color: #94a3b8; font-size: 1.2rem; }
 
@@ -181,12 +316,6 @@ tr.paid-row:hover td { background: #dcfce7 !important; }
 .summary-card.inr .summary-card-value { color: #0369a1; }
 .summary-card.combined .summary-card-value { color: #15803d; }
 
-/* Deductions section entries */
-.ded-section { padding: 16px 20px; }
-.ded-emp-group { margin-bottom: 16px; }
-.ded-emp-name { font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
-.ded-entries-list { display: flex; flex-direction: column; gap: 4px; }
-
 /* Alert banner */
 .info-banner {
     background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
@@ -194,67 +323,124 @@ tr.paid-row:hover td { background: #dcfce7 !important; }
     display: flex; gap: 8px; align-items: flex-start;
 }
 
-/* AED / INR row and column differentiation */
+/* Inline help icon that opens an explanation modal */
+.help-icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 19px; height: 19px; border-radius: 50%;
+    background: #fbbf24; color: #78350f; font-size: 0.7rem; font-weight: 800;
+    cursor: pointer; border: none; flex-shrink: 0; line-height: 1;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    transition: background 0.15s, transform 0.1s;
+}
+.help-icon-btn:hover { background: #f59e0b; transform: scale(1.08); }
+.help-icon-btn:active { transform: scale(0.96); }
+.modal-explanation { font-size: 0.85rem; color: #374151; line-height: 1.6; }
+
+/* AED / INR / NPR row and column differentiation */
 tr.row-inr td { background: #f0f9ff; }
 tr.row-inr:hover td { background: #e0f2fe; }
 tr.row-inr td:first-child { border-left: 3px solid #38bdf8; }
 tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
+tr.row-npr td { background: #fffbeb; }
+tr.row-npr:hover td { background: #fef3c7; }
+tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 .th-aed { background: #eff6ff !important; color: #1d4ed8 !important; }
 .th-inr { background: #e0f2fe !important; color: #0369a1 !important; }
+.th-npr { background: #fef3c7 !important; color: #b45309 !important; }
 .val-inr { color: #0369a1; font-weight: 600; }
+.val-npr { color: #b45309; font-weight: 600; }
 .curr-split {
     display: flex; gap: 6px; align-items: center; font-size: 0.72rem; font-weight: 600;
 }
 .curr-split span { padding: 1px 7px; border-radius: 4px; }
 .curr-split .s-aed { background: #eff6ff; color: #1d4ed8; }
 .curr-split .s-inr { background: #e0f2fe; color: #0369a1; }
+.curr-split .s-npr { background: #fef3c7; color: #b45309; }
 
 /* ---- Tabs ---- */
 .tab-bar {
     display: flex; gap: 2px; background: #f1f5f9; border-radius: 10px;
-    padding: 4px; margin-bottom: 20px; flex-wrap: wrap;
+    padding: 4px; margin-bottom: 0; flex-wrap: wrap;
 }
 .tab-btn {
-    padding: 8px 18px; border: none; background: transparent; border-radius: 7px;
-    font-size: 0.82rem; font-weight: 600; color: #64748b; cursor: pointer;
-    white-space: nowrap; transition: all 0.15s;
+    padding: 7px 14px; border: none; background: transparent; border-radius: 7px;
+    font-size: 0.8rem; font-weight: 600; color: #64748b; cursor: pointer;
+    white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
 }
 .tab-btn:hover { color: #0f172a; background: rgba(255,255,255,0.6); }
-.tab-btn.active { background: #fff; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.tab-btn.active { background: #fff; color: #1D4ED8; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .tab-btn .tab-count {
     display: inline-block; font-size: 0.68rem; font-weight: 700;
-    background: #e0e7ff; color: #4f46e5; border-radius: 10px;
+    background: #DBEAFE; color: #1D4ED8; border-radius: 10px;
     padding: 0 6px; margin-left: 4px; vertical-align: middle;
 }
-.tab-btn.active .tab-count { background: #4f46e5; color: #fff; }
+.tab-btn.active .tab-count { background: #1D4ED8; color: #fff; }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
 /* ---- Summary tab ---- */
 .summary-overview-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px;
-    padding: 20px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;
+    padding: 12px 20px;
 }
+/* Neutral cards with a colored accent bar + colored value — avoids competing pastel fills */
 .sov-card {
-    border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 6px;
+    background: #fff; border: 1px solid #e2e8f0; border-left: 3px solid #cbd5e1;
+    border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
 }
-.sov-card.aed { background: #eff6ff; border: 1px solid #bfdbfe; }
-.sov-card.inr { background: #e0f2fe; border: 1px solid #bae6fd; }
-.sov-card.combined { background: #f0fdf4; border: 1px solid #bbf7d0; }
-.sov-card.neutral { background: #f8fafc; border: 1px solid #e2e8f0; }
+.sov-card.aed { border-left-color: #1d4ed8; }
+.sov-card.inr { border-left-color: #0369a1; }
+.sov-card.npr { border-left-color: #b45309; }
+.sov-card.combined { border-left-color: #15803d; }
 .sov-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; }
-.sov-value { font-size: 1.5rem; font-weight: 700; font-family: monospace; }
+.sov-value { font-size: 1.3rem; font-weight: 700; font-family: monospace; color: #334155; }
 .sov-card.aed .sov-value { color: #1d4ed8; }
 .sov-card.inr .sov-value { color: #0369a1; }
+.sov-card.npr .sov-value { color: #b45309; }
 .sov-card.combined .sov-value { color: #15803d; }
-.sov-card.neutral .sov-value { color: #334155; }
 .sov-sub { font-size: 0.72rem; color: #94a3b8; }
 
 .section-breakdown { margin: 0 20px 20px; }
 .breakdown-title { font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
 .csym { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.2px; opacity: 0.55; margin-right: 2px; vertical-align: baseline; }
+.csym-aed { color: #1d4ed8; opacity: 0.9; }
+.csym-inr { color: #0369a1; opacity: 0.9; }
+.csym-npr { color: #b45309; opacity: 0.9; }
 
-/* Carryover filter buttons */
+/* ---- Summary sub-navigation (keeps the Summary tab from dumping everything at once) ---- */
+.subtab-bar {
+    display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 16px;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: 0;
+}
+.subtab-btn {
+    padding: 8px 14px; border: none; background: transparent; cursor: pointer;
+    font-size: 0.82rem; font-weight: 600; color: #64748b;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+.subtab-btn:hover { color: #0f172a; }
+.subtab-btn.active { color: #1D4ED8; border-bottom-color: #1D4ED8; }
+.subtab-btn .tab-count {
+    display: inline-block; font-size: 0.66rem; font-weight: 700;
+    background: #DBEAFE; color: #1D4ED8; border-radius: 10px;
+    padding: 0 6px; margin-left: 4px; vertical-align: middle;
+}
+.subtab-btn.active .tab-count { background: #1D4ED8; color: #fff; }
+.summary-subtab { display: none; }
+.summary-subtab.active { display: block; }
+
+/* ---- Unpaid report: grouped tables (shared by dept / visa / location views) ---- */
+.unpaid-group { margin-bottom: 18px; }
+.unpaid-group-header {
+    font-size: 0.78rem; font-weight: 700; color: #334155; margin-bottom: 6px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.unpaid-group-meta { font-weight: 400; color: #94a3b8; display: flex; gap: 10px; flex-wrap: wrap; }
+.unpaid-grand-total {
+    display: flex; justify-content: flex-end; gap: 20px; flex-wrap: wrap;
+    padding: 10px 20px; border-top: 1px solid #e2e8f0; font-weight: 600; font-size: 0.85rem;
+}
+
+/* Carryover / visa filter buttons */
 .co-filter-btn {
     padding: 5px 12px; border: 1px solid #e2e8f0; border-radius: 20px;
     background: #f8fafc; color: #475569; font-size: 0.75rem; font-weight: 500;
@@ -262,67 +448,122 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
 }
 .co-filter-btn:hover { border-color: #94a3b8; background: #f1f5f9; }
 .co-filter-btn.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+#carryoverTable tbody .co-row { cursor: pointer; }
+#carryoverTable tbody .co-row:hover { background: #f8fafc; }
+.co-hist-row { border-bottom: 1px solid #f1f5f9; }
+.co-hist-row.co-hist-current { background: #eff6ff; }
+
+/* Currency key — spells out what each color/symbol means, for anyone new to the sheet */
+.curr-legend {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.72rem; color: #94a3b8; cursor: help; white-space: nowrap;
+}
+.curr-legend-sep { color: #cbd5e1; }
+
+/* Frozen-month banner, sized to match the compact header */
+.frozen-banner {
+    background: #fef3c7; border: 1px solid #f59e0b; border-radius: 7px;
+    padding: 7px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;
+}
+.frozen-banner span { font-size: 0.82rem; color: #92400e; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="pd-container">
 
-    <!-- Header -->
-    <div class="pd-header">
-        <div>
-            <div class="pd-title">Payroll — <span>{{ month_name }} {{ selected_year }}</span></div>
-            <div class="muted" style="margin-top:4px;">Period: {{ period_label }} &nbsp;·&nbsp; {{ days_in_month }} days · {{ total_holidays }} non-working days</div>
-        </div>
-        <div class="pd-controls">
-            <form method="get" style="display:flex;gap:8px;align-items:center;">
-                <select name="month">
-                    {% for val, label in months %}
-                    <option value="{{ val }}" {% if val == selected_month %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <select name="year">
-                    {% for yr in years %}
-                    <option value="{{ yr }}" {% if yr == selected_year %}selected{% endif %}>{{ yr }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" class="btn btn-primary">Go</button>
-            </form>
-            <a href="{% url 'payroll_dashboard' %}?month={{ selected_month }}&year={{ selected_year }}" class="btn btn-secondary">Old View</a>
-            <a href="{% url 'manage_banks' %}" class="btn btn-secondary">Banks</a>
-            <a href="{% url 'payroll_employees' %}" class="btn btn-secondary">Salary Setup</a>
-        </div>
-    </div>
+    <!-- Sticky top: header + frozen banner + visa filter + tabs -->
+    <div class="pd-sticky-top">
 
-    <!-- Tab Bar -->
-    <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchTab('summary')">
-            Summary
-        </button>
-        <button class="tab-btn" onclick="switchTab('admin-inhouse')">
-            Admin: In-House
-            <span class="tab-count">{{ admin_inhouse_rows|length }}</span>
-        </button>
-        <button class="tab-btn" onclick="switchTab('admin-remote')">
-            Admin: Remote
-            <span class="tab-count">{{ admin_remote_rows|length }}</span>
-        </button>
-        <button class="tab-btn" onclick="switchTab('sales-fixed')">
-            Sales: Fixed
-            <span class="tab-count">{{ sales_fixed_rows|length }}</span>
-        </button>
-        <button class="tab-btn" onclick="switchTab('sales-perf')">
-            Sales: Performance
-            <span class="tab-count">{{ sales_perf_rows|length }}</span>
-        </button>
-        <button class="tab-btn" onclick="switchTab('deductions')">
-            Deductions
-            <span class="tab-count">{{ all_deductions_list|length }}</span>
-        </button>
-        <button class="tab-btn" onclick="switchTab('carryovers')">
-            Carryovers
-            {% if carryover_pending_count %}<span class="tab-count" style="background:#f59e0b;color:#fff;">{{ carryover_pending_count }}</span>{% endif %}
-        </button>
+        <!-- Header: title + period selector + page links -->
+        <div class="pd-header">
+            <div>
+                <div class="pd-title">Payroll — <span>{{ month_name }} {{ selected_year }}</span></div>
+                <div class="muted" style="margin-top:2px;">{{ period_label }} &nbsp;·&nbsp; {{ days_in_month }} days &nbsp;·&nbsp; {{ total_holidays }} non-working</div>
+            </div>
+            <div class="pd-controls">
+                <form method="get" class="pd-period-form">
+                    <select name="month" onchange="this.form.submit()" title="Select month">
+                        {% for val, label in months %}
+                        <option value="{{ val }}" {% if val == selected_month %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="year" onchange="this.form.submit()" title="Select year">
+                        {% for yr in years %}
+                        <option value="{{ yr }}" {% if yr == selected_year %}selected{% endif %}>{{ yr }}</option>
+                        {% endfor %}
+                    </select>
+                    <noscript><button type="submit" class="btn btn-secondary btn-sm">Apply</button></noscript>
+                </form>
+                <span class="pd-divider"></span>
+                <a href="{% url 'manage_banks' %}" class="btn btn-secondary btn-sm">Banks</a>
+                <a href="{% url 'payroll_employees' %}" class="btn btn-secondary btn-sm">Salary Setup</a>
+                <a href="{% url 'payslip_history' %}" class="btn btn-secondary btn-sm">Payslip History</a>
+            </div>
+        </div>
+
+        {% if is_frozen %}
+        <div class="frozen-banner">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>
+                <strong>Historical payroll — locked.</strong>
+                Finalised on {{ frozen_at|date:"d M Y" }}{% if frozen_by %} by {{ frozen_by }}{% endif %} — figures cannot be changed; rows show verified paid values.
+            </span>
+        </div>
+        {% endif %}
+
+        <!-- Toolbar: visa filter (left) + currency key (right) -->
+        <div class="pd-toolbar">
+            <div class="pd-toolbar-group">
+                <span class="pd-inline-label">Visa Provider</span>
+                <select id="visaFilterSelect" onchange="filterByVisa(this.value)" title="Filter every table on this page by visa provider">
+                    <option value="all">All Providers</option>
+                    <option value="Jumbo">Jumbo</option>
+                    <option value="OnTime">OnTime</option>
+                    <option value="Taamul">Taamul</option>
+                    <option value="own">Own Visa</option>
+                </select>
+            </div>
+            <span class="curr-legend" title="Foreign-currency salaries are shown in their own currency alongside the AED figure. ₹ = Indian Rupee (INR), Rs. = Nepali Rupee (NPR).">
+                <span class="csym csym-aed">AED</span> UAE Dirham<span class="curr-legend-sep">·</span><span class="csym csym-inr">₹</span> INR<span class="curr-legend-sep">·</span><span class="csym csym-npr">Rs.</span> NPR
+            </span>
+        </div>
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('summary')">
+                Summary
+            </button>
+            <button class="tab-btn" onclick="switchTab('admin-inhouse')">
+                Admin: In-House
+                <span class="tab-count">{{ admin_inhouse_rows|length }}</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('admin-remote')">
+                Admin: Remote
+                <span class="tab-count">{{ admin_remote_rows|length }}</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('sales-fixed')">
+                Sales: Fixed
+                <span class="tab-count">{{ sales_fixed_rows|length }}</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('sales-perf-test')" title="Sales Performance Remote">
+                Sales Perf: Remote
+                <span class="tab-count">{{ sales_perf_test_rows|length }}</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('sales-perf-inhouse')" title="Sales Performance Inhouse">
+                Sales Perf: In-House
+                <span class="tab-count">{{ sales_perf_inhouse_rows|length }}</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('deductions')">
+                Deductions
+                <span class="tab-count">{{ all_deductions_list|length }}</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('carryovers')">
+                Carryovers
+                {% if carryover_pending_count %}<span class="tab-count" style="background:#f59e0b;color:#fff;">{{ carryover_pending_count }}</span>{% endif %}
+            </button>
+        </div>
+
     </div>
 
     <!-- ======================= TAB: Summary ======================= -->
@@ -330,41 +571,72 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
         <div class="section-card">
             <div class="section-header">
                 <div class="section-title">Final Salary — {{ period_label }}</div>
-                <div style="display:flex;gap:10px;align-items:center;">
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                     {% if inr_exchange_rate %}
                     <span class="muted">1 AED = {{ inr_exchange_rate }} INR</span>
-                    {% else %}
-                    <button class="btn btn-secondary btn-sm" onclick="openExchangeRateModal()">Set INR Rate</button>
+                    {% if not is_frozen %}
+                    <button class="btn btn-secondary btn-sm" onclick="openExchangeRateModal('INR', {{ inr_exchange_rate }})" title="Editing only affects this month's live figures — frozen/paid months keep their locked values">Edit INR</button>
                     {% endif %}
+                    {% elif not is_frozen %}
+                    <button class="btn btn-secondary btn-sm" onclick="openExchangeRateModal('INR')">Set INR Rate</button>
+                    {% endif %}
+                    {% if npr_exchange_rate %}
+                    <span class="muted">1 AED = {{ npr_exchange_rate }} NPR</span>
+                    {% if not is_frozen %}
+                    <button class="btn btn-secondary btn-sm" onclick="openExchangeRateModal('NPR', {{ npr_exchange_rate }})" title="Editing only affects this month's live figures — frozen/paid months keep their locked values">Edit NPR</button>
+                    {% endif %}
+                    {% elif not is_frozen %}
+                    <button class="btn btn-secondary btn-sm" onclick="openExchangeRateModal('NPR')">Set NPR Rate</button>
+                    {% endif %}
+                    <a class="btn-xlsx" href="?format=xlsx&tab=summary&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
                 </div>
             </div>
 
             <!-- Big totals -->
             <div class="summary-overview-grid">
-                <div class="sov-card neutral">
+                <div class="sov-card">
                     <div class="sov-label">Employees</div>
                     <div class="sov-value">{{ final_rows|length }}</div>
                     <div class="sov-sub">{{ days_in_month }} days · {{ total_holidays }} non-working</div>
                 </div>
                 <div class="sov-card aed">
                     <div class="sov-label">Total AED Payroll</div>
-                    <div class="sov-value"><span class="csym" style="font-size:0.75rem;">AED</span> {{ final_total_aed|floatformat:2 }}</div>
+                    <div class="sov-value"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ final_total_aed|floatformat:2 }}</div>
                 </div>
                 {% if final_total_inr > 0 %}
                 <div class="sov-card inr">
                     <div class="sov-label">Total INR Payroll</div>
-                    <div class="sov-value"><span class="csym" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2 }}</div>
-                    {% if inr_exchange_rate %}<div class="sov-sub">≈ AED {{ final_total_combined_aed|floatformat:0 }} combined</div>{% endif %}
+                    <div class="sov-value"><span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2 }}</div>
+                    {% if final_total_inr_aed %}<div class="sov-sub">≈ AED {{ final_total_inr_aed|floatformat:0 }}</div>{% endif %}
+                </div>
+                {% endif %}
+                {% if final_total_npr > 0 %}
+                <div class="sov-card npr">
+                    <div class="sov-label">Total NPR Payroll</div>
+                    <div class="sov-value"><span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ final_total_npr|floatformat:2 }}</div>
+                    {% if final_total_npr_aed %}<div class="sov-sub">≈ AED {{ final_total_npr_aed|floatformat:0 }}</div>{% endif %}
                 </div>
                 {% endif %}
                 {% if final_total_combined_aed != final_total_aed %}
                 <div class="sov-card combined">
                     <div class="sov-label">Combined (AED equiv.)</div>
-                    <div class="sov-value"><span class="csym" style="font-size:0.75rem;">AED</span> {{ final_total_combined_aed|floatformat:2 }}</div>
+                    <div class="sov-value"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ final_total_combined_aed|floatformat:2 }}</div>
                 </div>
                 {% endif %}
             </div>
+        </div><!-- end header/overview card -->
 
+        <!-- Sub-navigation: keeps Breakdown / Per-Employee / Visa / Unpaid from piling onto one screen -->
+        <div class="subtab-bar">
+            <button class="subtab-btn active" onclick="switchSummarySubtab(this,'ssub-employees')">Per-Employee <span class="tab-count">{{ final_rows|length }}</span></button>
+            <button class="subtab-btn" onclick="switchSummarySubtab(this,'ssub-breakdown')">Section Breakdown</button>
+            {% if visa_breakdown %}<button class="subtab-btn" onclick="switchSummarySubtab(this,'ssub-visa')">Visa Breakdown</button>{% endif %}
+            {% if unpaid_employees %}<button class="subtab-btn" onclick="switchSummarySubtab(this,'ssub-unpaid')">Unpaid Report <span class="tab-count" style="background:#fee2e2;color:#dc2626;">{{ unpaid_unique_employees }}</span></button>{% endif %}
+        </div>
+
+        <!-- ===== Sub-tab: Section Breakdown ===== -->
+        <div class="summary-subtab" id="ssub-breakdown">
+        <div class="section-card">
             <!-- Section breakdown -->
             <div class="section-breakdown">
                 <div class="breakdown-title">Breakdown by Section</div>
@@ -375,47 +647,52 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                                 <th>Section</th>
                                 <th class="text-right">Employees</th>
                                 <th class="text-right th-aed">Net (AED)</th>
-                                <th class="text-right th-inr">Net (INR)</th>
+                                <th class="text-right th-inr" title="₹ = INR (blue) · Rs. = NPR (amber)">Net (INR/NPR)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td><span class="section-badge badge-admin">Admin</span> In-House</td>
                                 <td class="text-right muted">{{ admin_inhouse_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym">₹</span> {{ admin_inhouse_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_inhouse_totals.inr|floatformat:2 }}{% endif %}{% if admin_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_inhouse_totals.npr|floatformat:2 }}{% endif %}{% if not admin_inhouse_totals.inr and not admin_inhouse_totals.npr %}—{% endif %}</td>
                             </tr>
                             <tr>
                                 <td><span class="section-badge badge-remote">Remote</span> Admin Remote</td>
                                 <td class="text-right muted">{{ admin_remote_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym">₹</span> {{ admin_remote_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_remote_totals.inr|floatformat:2 }}{% endif %}{% if admin_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_remote_totals.npr|floatformat:2 }}{% endif %}{% if not admin_remote_totals.inr and not admin_remote_totals.npr %}—{% endif %}</td>
                             </tr>
                             <tr>
                                 <td><span class="section-badge badge-fixed">Fixed</span> Sales: Fixed Salary</td>
                                 <td class="text-right muted">{{ sales_fixed_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym">₹</span> {{ sales_fixed_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_fixed_totals.inr|floatformat:2 }}{% endif %}{% if sales_fixed_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_fixed_totals.npr|floatformat:2 }}{% endif %}{% if not sales_fixed_totals.inr and not sales_fixed_totals.npr %}—{% endif %}</td>
                             </tr>
                             <tr>
                                 <td><span class="section-badge badge-perf">Perf</span> Sales: Performance</td>
                                 <td class="text-right muted">{{ sales_perf_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ sales_perf_totals.aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if sales_perf_totals.inr %}<span class="csym">₹</span> {{ sales_perf_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_totals.aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if sales_perf_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_totals.inr|floatformat:2 }}{% endif %}{% if sales_perf_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_totals.npr|floatformat:2 }}{% endif %}{% if not sales_perf_totals.inr and not sales_perf_totals.npr %}—{% endif %}</td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr>
                                 <td><strong>Gross Payroll</strong></td>
                                 <td class="text-right num">{{ final_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ final_total_aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if final_total_inr %}<span class="csym">₹</span> {{ final_total_inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2 }}</td>
+                                <td class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2 }}{% else %}—{% endif %}</td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
             </div>
+        </div><!-- end section-card -->
+        </div><!-- end ssub-breakdown -->
 
+        <!-- ===== Sub-tab: Per-Employee ===== -->
+        <div class="summary-subtab active" id="ssub-employees">
+        <div class="section-card">
             <!-- Per-employee final table -->
             <div class="section-breakdown">
                 <div class="breakdown-title">Per-Employee Final Salary</div>
@@ -426,9 +703,13 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                     </label>
                     <button class="btn btn-success btn-sm" onclick="markSelectedPaid()">&#10003; Mark as Paid</button>
                     <span id="selectedCount" class="muted" style="font-size:0.8rem;"></span>
+                    <div class="emp-search-wrap">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="text" id="finalTableSearch" placeholder="Search by name…" oninput="filterFinalTableByName(this.value)">
+                    </div>
                 </div>
                 <div class="table-wrap">
-                    <table>
+                    <table id="finalTable">
                         <thead>
                             <tr>
                                 <th style="width:32px;"></th>
@@ -440,15 +721,24 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                                 <th class="text-right" style="color:#7c3aed;">Carryover In</th>
                                 <th class="text-right" style="color:#b45309;">Carryover Out</th>
                                 <th class="text-right th-aed">Final (AED)</th>
-                                <th class="text-right th-inr">Final (INR)</th>
+                                <th class="text-right th-inr" title="₹ = INR (blue) · Rs. = NPR (amber)">Final (INR/NPR)</th>
                                 <th class="text-center">Status</th>
+                                <th class="text-center">Payslip</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in final_rows %}
                             <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}"
                                 data-emp-id="{{ row.employee.id }}"
-                                data-emp-type="{{ row.employee_type }}">
+                                data-emp-type="{{ row.employee_type }}"
+                                data-visa="{{ row.employee.visa_provider|default:'own' }}"
+                                data-payroll-net="{{ row.payroll_net }}"
+                                data-total-ded="{{ row.total_deductions }}"
+                                data-total-add="{{ row.total_additions }}"
+                                data-co-in="{{ row.carryover_in }}"
+                                data-co-out="{{ row.carryover_out }}"
+                                data-final-salary="{{ row.final_salary }}"
+                                data-currency="{{ row.currency }}">
                                 <td class="text-center">
                                     {% if not row.is_paid %}
                                     <input type="checkbox" class="final-row-cb" onchange="updateSelectedCount()">
@@ -463,14 +753,17 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                                 <td class="text-right num" style="color:#b45309;">{% if row.carryover_out > 0 %}→ {{ row.carryover_out|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num val-blue" style="font-size:0.95rem;">
                                     {% if row.currency == 'AED' %}
-                                    <span class="csym">AED</span> {{ row.final_salary|floatformat:2 }}
-                                    {% if row.is_paid %}🔒{% endif %}
+                                    <span class="csym csym-aed">AED</span> {{ row.final_salary|floatformat:2 }}
+                                    {% if row.is_paid %}<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;opacity:0.6;margin-left:3px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>{% endif %}
                                     {% else %}<span class="muted">—</span>{% endif %}
                                 </td>
-                                <td class="text-right num val-inr" style="font-size:0.95rem;">
+                                <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}" style="font-size:0.95rem;">
                                     {% if row.currency == 'INR' %}
-                                    <span class="csym">₹</span> {{ row.final_salary|floatformat:2 }}
-                                    {% if row.is_paid %}🔒{% endif %}
+                                    <span class="csym csym-inr">₹</span> {{ row.final_salary|floatformat:2 }}
+                                    {% if row.is_paid %}<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;opacity:0.6;margin-left:3px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>{% endif %}
+                                    {% elif row.currency == 'NPR' %}
+                                    <span class="csym csym-npr">Rs.</span> {{ row.final_salary|floatformat:2 }}
+                                    {% if row.is_paid %}<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;opacity:0.6;margin-left:3px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>{% endif %}
                                     {% else %}<span class="muted">—</span>{% endif %}
                                 </td>
                                 <td class="text-center">
@@ -482,9 +775,12 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                                     <span class="muted" style="font-size:0.75rem;">Unpaid</span>
                                     {% endif %}
                                 </td>
+                                <td class="text-center">
+                                    <a href="{% url 'download_payslip' row.employee_type row.employee.id %}?month={{ selected_month }}&year={{ selected_year }}" class="adj-btn" style="text-decoration:none;" target="_blank">Payslip</a>
+                                </td>
                             </tr>
                             {% empty %}
-                            <tr class="empty-row"><td colspan="11">No employees found</td></tr>
+                            <tr class="empty-row"><td colspan="12">No employees found</td></tr>
                             {% endfor %}
                         </tbody>
                         {% if final_rows %}
@@ -492,13 +788,14 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                             <tr>
                                 <td></td>
                                 <td colspan="2"><strong>Total</strong></td>
-                                <td class="text-right num">{{ final_rows|dictsumby:"payroll_net"|floatformat:2 }}</td>
-                                <td class="text-right num val-negative">{{ final_rows|dictsumby:"total_deductions"|floatformat:2 }}</td>
-                                <td class="text-right num val-positive">{{ final_rows|dictsumby:"total_additions"|floatformat:2 }}</td>
-                                <td class="text-right num" style="color:#7c3aed;">{{ final_rows|dictsumby:"carryover_in"|floatformat:2 }}</td>
-                                <td class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2 }}</td>
-                                <td class="text-right num val-blue"><span class="csym">AED</span> {{ final_total_aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if final_total_inr %}<span class="csym">₹</span> {{ final_total_inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td id="tfoot-payroll-net" class="text-right num">{{ final_rows|dictsumby:"payroll_net"|floatformat:2 }}</td>
+                                <td id="tfoot-total-ded" class="text-right num val-negative">{{ final_rows|dictsumby:"total_deductions"|floatformat:2 }}</td>
+                                <td id="tfoot-total-add" class="text-right num val-positive">{{ final_rows|dictsumby:"total_additions"|floatformat:2 }}</td>
+                                <td id="tfoot-co-in" class="text-right num" style="color:#7c3aed;">{{ final_rows|dictsumby:"carryover_in"|floatformat:2 }}</td>
+                                <td id="tfoot-co-out" class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2 }}</td>
+                                <td id="tfoot-final-aed" class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2 }}</td>
+                                <td id="tfoot-final-inr" class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2 }}{% endif %}{% if final_total_npr %} <span class="csym csym-npr">Rs.</span> {{ final_total_npr|floatformat:2 }}{% endif %}{% if not final_total_inr and not final_total_npr %}—{% endif %}</td>
+                                <td></td>
                                 <td></td>
                             </tr>
                         </tfoot>
@@ -506,7 +803,114 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                     </table>
                 </div>
             </div>
-        </div>
+        </div><!-- end section-card -->
+        </div><!-- end ssub-employees -->
+
+        <!-- ===== Sub-tab: Visa Breakdown ===== -->
+        {% if visa_breakdown %}
+        <div class="summary-subtab" id="ssub-visa">
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">Visa Provider Breakdown</div>
+                <span class="muted">{{ final_rows|length }} employee{{ final_rows|length|pluralize }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Visa Provider</th>
+                            <th class="text-right">Employees</th>
+                            <th class="text-right">Total AED</th>
+                            <th class="text-right">Total INR / NPR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for grp in visa_breakdown %}
+                        <tr data-visa="{{ grp.key }}">
+                            <td><strong>{{ grp.label }}</strong></td>
+                            <td class="text-right num">{{ grp.count }}</td>
+                            <td class="text-right num val-blue">{% if grp.total_aed %}<span class="csym csym-aed">AED</span> {{ grp.total_aed|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="text-right num val-inr">{% if grp.total_inr %}<span class="csym csym-inr">₹</span> {{ grp.total_inr|floatformat:2 }}{% endif %}{% if grp.total_npr %} <span class="csym csym-npr">Rs.</span> {{ grp.total_npr|floatformat:2 }}{% endif %}{% if not grp.total_inr and not grp.total_npr %}<span class="muted">—</span>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        {% with total_count=visa_breakdown|dictsumby:"count" total_aed=visa_breakdown|dictsumby:"total_aed" total_inr=visa_breakdown|dictsumby:"total_inr" total_npr=visa_breakdown|dictsumby:"total_npr" %}
+                        <tr style="border-top:2px solid var(--border);font-weight:600;">
+                            <td><strong>Total</strong></td>
+                            <td class="text-right num">{{ total_count }}</td>
+                            <td class="text-right num val-blue">{% if total_aed %}<span class="csym csym-aed">AED</span> {{ total_aed|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="text-right num val-inr">{% if total_inr %}<span class="csym csym-inr">₹</span> {{ total_inr|floatformat:2 }}{% endif %}{% if total_npr %} <span class="csym csym-npr">Rs.</span> {{ total_npr|floatformat:2 }}{% endif %}{% if not total_inr and not total_npr %}<span class="muted">—</span>{% endif %}</td>
+                        </tr>
+                        {% endwith %}
+                    </tfoot>
+                </table>
+            </div>
+        </div><!-- end section-card -->
+        </div><!-- end ssub-visa -->
+        {% endif %}
+
+        <!-- ===== Sub-tab: Unpaid Salary Report (cumulative) ===== -->
+        {% if unpaid_employees %}
+        <div class="summary-subtab" id="ssub-unpaid">
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">Unpaid Salary Report <span class="muted" style="font-size:0.78rem;font-weight:400;">— cumulative till {{ selected_month }}/{{ selected_year }}</span></div>
+                <span class="muted">{{ unpaid_unique_employees }} employee{{ unpaid_unique_employees|pluralize }} &middot; {{ unpaid_entry_count }} month-record{{ unpaid_entry_count|pluralize }}</span>
+            </div>
+
+            <!-- Totals bar -->
+            <div style="display:flex;gap:12px;flex-wrap:wrap;padding:0 20px 16px;">
+                {% if unpaid_total_aed %}
+                <div class="sov-card" style="border-color:#ef4444;">
+                    <div class="sov-label" style="color:#ef4444;">Total Unpaid (AED)</div>
+                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ unpaid_total_aed|floatformat:2 }}</div>
+                </div>
+                {% endif %}
+                {% if unpaid_total_inr %}
+                <div class="sov-card" style="border-color:#ef4444;">
+                    <div class="sov-label" style="color:#ef4444;">Total Unpaid (INR)</div>
+                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ unpaid_total_inr|floatformat:2 }}</div>
+                </div>
+                {% endif %}
+                {% if unpaid_total_npr %}
+                <div class="sov-card" style="border-color:#ef4444;">
+                    <div class="sov-label" style="color:#ef4444;">Total Unpaid (NPR)</div>
+                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ unpaid_total_npr|floatformat:2 }}</div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Group-by view switcher -->
+            <div style="padding:0 20px 8px;">
+                <div class="subtab-bar" style="margin-bottom:16px;">
+                    <button class="subtab-btn unpaid-groupby-btn active" onclick="switchUnpaidTab(this,'unpaid-by-dept')">By Department</button>
+                    <button class="subtab-btn unpaid-groupby-btn" onclick="switchUnpaidTab(this,'unpaid-by-visa')">By Visa Provider</button>
+                    <button class="subtab-btn unpaid-groupby-btn" onclick="switchUnpaidTab(this,'unpaid-by-location')">By Location</button>
+                </div>
+
+                <div id="unpaid-by-dept" class="unpaid-tab-panel">
+                    {% include 'payroll/includes/unpaid_group_table.html' with groups=unpaid_by_dept %}
+                </div>
+                <div id="unpaid-by-visa" class="unpaid-tab-panel" style="display:none;">
+                    {% include 'payroll/includes/unpaid_group_table.html' with groups=unpaid_by_visa %}
+                </div>
+                <div id="unpaid-by-location" class="unpaid-tab-panel" style="display:none;">
+                    {% include 'payroll/includes/unpaid_group_table.html' with groups=unpaid_by_location %}
+                </div>
+            </div>
+
+            <!-- Grand total (same across all three grouping views, shown once) -->
+            <div class="unpaid-grand-total">
+                <span>Grand Total ({{ unpaid_unique_employees }} employees)</span>
+                {% if unpaid_total_aed %}<span style="color:#ef4444;"><span class="csym csym-aed">AED</span> {{ unpaid_total_aed|floatformat:2 }}</span>{% endif %}
+                {% if unpaid_total_inr %}<span class="val-inr"><span class="csym csym-inr">₹</span> {{ unpaid_total_inr|floatformat:2 }}</span>{% endif %}
+                {% if unpaid_total_npr %}<span class="val-npr"><span class="csym csym-npr">Rs.</span> {{ unpaid_total_npr|floatformat:2 }}</span>{% endif %}
+            </div>
+        </div><!-- end section-card -->
+        </div><!-- end ssub-unpaid -->
+        {% endif %}
+
     </div><!-- end tab-summary -->
 
     <!-- ======================= TABLE 1: Admin — In-House ======================= -->
@@ -518,15 +922,21 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                 In-House Employees
             </div>
             <div style="display:flex;gap:12px;align-items:center;">
+                <div class="emp-search-wrap emp-search-inline">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="text" placeholder="Search by name…" oninput="filterTableByName('adminInhouseTable', this.value)">
+                </div>
                 <span class="muted">{{ admin_inhouse_rows|length }} employee{{ admin_inhouse_rows|length|pluralize }}</span>
                 <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</span>
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</span>
                     {% if admin_inhouse_totals.inr %}<span class="s-inr">₹ {{ admin_inhouse_totals.inr|floatformat:2 }}</span>{% endif %}
+                    {% if admin_inhouse_totals.npr %}<span class="s-npr">Rs. {{ admin_inhouse_totals.npr|floatformat:2 }}</span>{% endif %}
                 </div>
+                <a class="btn-xlsx" href="?format=xlsx&tab=admin-inhouse&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="adminInhouseTable">
                 <thead>
                     <tr>
                         <th>Name</th>
@@ -540,13 +950,13 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <th class="text-right">Reductions</th>
                         <th class="text-right">Commission</th>
                         <th class="text-right th-aed">Net (AED)</th>
-                        <th class="text-right th-inr">Net (INR)</th>
+                        <th class="text-right th-inr" title="₹ = INR (blue) · Rs. = NPR (amber)">Net (INR/NPR)</th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in admin_inhouse_rows %}
-                    <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}" data-emp-id="{{ row.employee.id }}" data-emp-type="inhouse">
+                    <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}" data-emp-id="{{ row.employee.id }}" data-emp-type="inhouse" data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
                             <div>{{ row.employee.name }}</div>
                             {% if row.employee.designation %}<div class="muted">{{ row.employee.designation }}</div>{% endif %}
@@ -563,8 +973,8 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
                             <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','inhouse','{{ row.employee.name }}')">{{ row.commission|floatformat:2 }}</button>
                         </td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num val-inr">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','inhouse','{{ row.employee.name }}')">+ Adjust</button>
@@ -584,8 +994,8 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <td class="text-right num val-positive">{{ admin_inhouse_rows|dictsumby:"incentives"|floatformat:2 }}</td>
                         <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"reductions"|floatformat:2 }}</td>
                         <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"commission"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym">₹</span> {{ admin_inhouse_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_inhouse_totals.inr|floatformat:2 }}{% endif %}{% if admin_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_inhouse_totals.npr|floatformat:2 }}{% endif %}{% if not admin_inhouse_totals.inr and not admin_inhouse_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -604,15 +1014,21 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                 Admin Remote Employees
             </div>
             <div style="display:flex;gap:12px;align-items:center;">
+                <div class="emp-search-wrap emp-search-inline">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="text" placeholder="Search by name…" oninput="filterTableByName('adminRemoteTable', this.value)">
+                </div>
                 <span class="muted">{{ admin_remote_rows|length }} employee{{ admin_remote_rows|length|pluralize }}</span>
                 <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</span>
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</span>
                     {% if admin_remote_totals.inr %}<span class="s-inr">₹ {{ admin_remote_totals.inr|floatformat:2 }}</span>{% endif %}
+                    {% if admin_remote_totals.npr %}<span class="s-npr">Rs. {{ admin_remote_totals.npr|floatformat:2 }}</span>{% endif %}
                 </div>
+                <a class="btn-xlsx" href="?format=xlsx&tab=admin-remote&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="adminRemoteTable">
                 <thead>
                     <tr>
                         <th>Name</th>
@@ -623,13 +1039,13 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <th class="text-right">Incentives</th>
                         <th class="text-right">Reductions</th>
                         <th class="text-right th-aed">Net (AED)</th>
-                        <th class="text-right th-inr">Net (INR)</th>
+                        <th class="text-right th-inr" title="₹ = INR (blue) · Rs. = NPR (amber)">Net (INR/NPR)</th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in admin_remote_rows %}
-                    <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}" data-emp-id="{{ row.employee.id }}" data-emp-type="remote">
+                    <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}" data-emp-id="{{ row.employee.id }}" data-emp-type="remote" data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
                             <div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
@@ -650,8 +1066,8 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         </td>
                         <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
                         <td class="text-right num val-negative">{{ row.reductions|floatformat:2 }}</td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num val-inr">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','remote','{{ row.employee.name }}')">+ Adjust</button>
@@ -669,8 +1085,8 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"deduction"|floatformat:2 }}</td>
                         <td class="text-right num val-positive">{{ admin_remote_rows|dictsumby:"incentives"|floatformat:2 }}</td>
                         <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"reductions"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym">₹</span> {{ admin_remote_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_remote_totals.inr|floatformat:2 }}{% endif %}{% if admin_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_remote_totals.npr|floatformat:2 }}{% endif %}{% if not admin_remote_totals.inr and not admin_remote_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -689,15 +1105,21 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                 Sales — Fixed Salary
             </div>
             <div style="display:flex;gap:12px;align-items:center;">
+                <div class="emp-search-wrap emp-search-inline">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="text" placeholder="Search by name…" oninput="filterTableByName('salesFixedTable', this.value)">
+                </div>
                 <span class="muted">{{ sales_fixed_rows|length }} employee{{ sales_fixed_rows|length|pluralize }}</span>
                 <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</span>
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</span>
                     {% if sales_fixed_totals.inr %}<span class="s-inr">₹ {{ sales_fixed_totals.inr|floatformat:2 }}</span>{% endif %}
+                    {% if sales_fixed_totals.npr %}<span class="s-npr">Rs. {{ sales_fixed_totals.npr|floatformat:2 }}</span>{% endif %}
                 </div>
+                <a class="btn-xlsx" href="?format=xlsx&tab=sales-fixed&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="salesFixedTable">
                 <thead>
                     <tr>
                         <th>Name</th>
@@ -710,14 +1132,15 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <th class="text-right">Incentives</th>
                         <th class="text-right">Reductions</th>
                         <th class="text-right th-aed">Net (AED)</th>
-                        <th class="text-right th-inr">Net (INR)</th>
+                        <th class="text-right th-inr" title="₹ = INR (blue) · Rs. = NPR (amber)">Net (INR/NPR)</th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in sales_fixed_rows %}
                     <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}"
-                        data-emp-id="{{ row.employee.id }}" data-emp-type="{{ row.employee_type }}">
+                        data-emp-id="{{ row.employee.id }}" data-emp-type="{{ row.employee_type }}"
+                        data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
                             <div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
@@ -743,8 +1166,8 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         </td>
                         <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
                         <td class="text-right num val-negative">{{ row.reductions|floatformat:2 }}</td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num val-inr">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">+ Adjust</button>
@@ -763,8 +1186,8 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <td class="text-right num">{{ sales_fixed_rows|dictsumby:"commission"|floatformat:2 }}</td>
                         <td class="text-right num val-positive">{{ sales_fixed_rows|dictsumby:"incentives"|floatformat:2 }}</td>
                         <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"reductions"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym">₹</span> {{ sales_fixed_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_fixed_totals.inr|floatformat:2 }}{% endif %}{% if sales_fixed_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_fixed_totals.npr|floatformat:2 }}{% endif %}{% if not sales_fixed_totals.inr and not sales_fixed_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -774,21 +1197,199 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
     </div>
     </div><!-- end tab-sales-fixed -->
 
-    <!-- ======================= TAB: Sales Performance ======================= -->
-    <div class="tab-panel" id="tab-sales-perf">
+    <!-- ======================= TAB: Sales Performance Remote (Method 2) ======================= -->
+    <div class="tab-panel" id="tab-sales-perf-test">
     <div class="section-card">
         <div class="section-header">
             <div class="section-title">
                 <span class="section-badge badge-perf">Performance</span>
-                Sales — Performance Based
+                Sales Performance — Remote
+                <button type="button" class="help-icon-btn" title="How this is calculated" onclick="openModal('salesPerfInfoModal')">?</button>
             </div>
             <div style="display:flex;gap:12px;align-items:center;">
-                <span class="muted">{{ sales_perf_rows|length }} employee{{ sales_perf_rows|length|pluralize }}</span>
-                <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym">AED</span> {{ sales_perf_totals.aed|floatformat:2 }}</span>
-                    {% if sales_perf_totals.inr %}<span class="s-inr">₹ {{ sales_perf_totals.inr|floatformat:2 }}</span>{% endif %}
+                <div class="emp-search-wrap emp-search-inline">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="text" placeholder="Search by name…" oninput="filterTableByName('salesPerfTestTable', this.value)">
                 </div>
+                <span class="muted">{{ sales_perf_test_rows|length }} employee{{ sales_perf_test_rows|length|pluralize }}</span>
             </div>
+        </div>
+        <div class="table-wrap">
+            <table id="salesPerfTestTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th class="text-right">Salary</th>
+                        <th class="text-right">Daily Rate</th>
+                        <th class="text-right">Leave Days</th>
+                        <th class="text-right">Half Days</th>
+                        <th class="text-right">Proportional Days</th>
+                        <th class="text-right">Full Days</th>
+                        <th class="text-right">Non-Working (Paid)</th>
+                        <th class="text-right">Net Payroll</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in sales_perf_test_rows %}
+                    <tr class="row-{{ row.currency|lower }}" data-emp-id="{{ row.employee.id }}" data-emp-type="remote"
+                        data-visa="{{ row.employee.visa_provider|default:'own' }}">
+                        <td>
+                            <div>{{ row.employee.name }}</div>
+                            <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
+                            <span class="type-remote">Remote</span>
+                            {% if row.target_achieved %}<span class="section-badge badge-perf" title="Hit 4-account target — paid full salary regardless of attendance">Target Hit</span>{% endif %}
+                        </td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num">{% if row.daily_rate %}{{ row.daily_rate|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.leave_days > 0 %}val-negative{% endif %}">{{ row.leave_days }}</td>
+                        <td class="text-right num">{{ row.half_days }}</td>
+                        <td class="text-right num">{{ row.proportional_days }}</td>
+                        <td class="text-right num val-positive">{{ row.full_days }}</td>
+                        <td class="text-right num muted">{{ row.non_working_days }}</td>
+                        <td class="text-right num val-blue">
+                            <span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {{ row.net_payroll_test|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="empty-row"><td colspan="9">No remote performance-based sales employees found</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if sales_perf_test_rows %}
+                <tfoot>
+                    <tr>
+                        <td><strong>Total</strong></td><td></td><td></td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"leave_days" }}</td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"half_days" }}</td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"proportional_days" }}</td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"full_days" }}</td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"non_working_days" }}</td>
+                        <td class="text-right num val-blue">
+                            <span class="csym csym-aed">AED</span> {{ sales_perf_test_totals.test_net_aed|floatformat:2 }}
+                            {% if sales_perf_test_totals.test_net_inr %}<div class="muted"><span class="csym csym-inr">₹</span> {{ sales_perf_test_totals.test_net_inr|floatformat:2 }}</div>{% endif %}
+                        </td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    </div><!-- end tab-sales-perf-test -->
+
+    <!-- ======================= TAB: Sales Performance Inhouse (Old Method) ======================= -->
+    <div class="tab-panel" id="tab-sales-perf-inhouse">
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <span class="section-badge badge-perf-test">Old</span>
+                Sales Performance — In-House
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <div class="emp-search-wrap emp-search-inline">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="text" placeholder="Search by name…" oninput="filterTableByName('salesPerfInhouseTable', this.value)">
+                </div>
+                <span class="muted">{{ sales_perf_inhouse_rows|length }} employee{{ sales_perf_inhouse_rows|length|pluralize }}</span>
+                <div class="curr-split">
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_perf_inhouse_totals.aed|floatformat:2 }}</span>
+                    {% if sales_perf_inhouse_totals.inr %}<span class="s-inr">₹ {{ sales_perf_inhouse_totals.inr|floatformat:2 }}</span>{% endif %}
+                    {% if sales_perf_inhouse_totals.npr %}<span class="s-npr">Rs. {{ sales_perf_inhouse_totals.npr|floatformat:2 }}</span>{% endif %}
+                </div>
+                <a class="btn-xlsx" href="?format=xlsx&tab=sales-perf-inhouse&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table id="salesPerfInhouseTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th class="text-right">Base Salary</th>
+                        <th class="text-right">Deductions</th>
+                        {% for bank in banks %}<th class="text-right">{{ bank.name }}</th>{% endfor %}
+                        <th class="text-right">Commission</th>
+                        <th class="text-right">Incentives</th>
+                        <th class="text-right th-aed">Net (AED)</th>
+                        <th class="text-right th-inr" title="₹ = INR (blue) · Rs. = NPR (amber)">Net (INR/NPR)</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in sales_perf_inhouse_rows %}
+                    <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}"
+                        data-emp-id="{{ row.employee.id }}" data-emp-type="{{ row.employee_type }}"
+                        data-visa="{{ row.employee.visa_provider|default:'own' }}">
+                        <td>
+                            <div>{{ row.employee.name }}</div>
+                            <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
+                            {% if row.is_attendance_based %}<span class="muted">Att. Scaled</span>{% endif %}
+                        </td>
+                        <td><span class="type-inhouse">In-House</span></td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.combined_deductions > 0 %}val-negative{% endif %}">
+                            {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}
+                        </td>
+                        {% for count in row.bank_counts_list %}
+                        <td class="text-right num {% if count > 0 %}val-positive{% endif %}">{% if count %}{{ count }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        {% empty %}
+                        <td class="muted text-right">—</td>
+                        {% endfor %}
+                        <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
+                            {% if row.commission > 0 %}<span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {% endif %}{{ row.commission|floatformat:2 }}
+                        </td>
+                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-center">
+                            {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
+                            <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">Edit</button>
+                            <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">+ Adjust</button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="empty-row"><td colspan="10">No performance-based in-house sales employees found</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if sales_perf_inhouse_rows %}
+                <tfoot>
+                    <tr>
+                        <td><strong>Total</strong></td><td></td><td></td>
+                        <td class="text-right num val-negative">{{ sales_perf_inhouse_rows|dictsumby:"combined_deductions"|floatformat:2 }}</td>
+                        {% for total in sales_perf_inhouse_bank_totals %}<td class="text-right num">{{ total }}</td>{% endfor %}
+                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"commission"|floatformat:2 }}</td>
+                        <td class="text-right num val-positive">{{ sales_perf_inhouse_rows|dictsumby:"incentives"|floatformat:2 }}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_inhouse_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if sales_perf_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_inhouse_totals.inr|floatformat:2 }}{% endif %}{% if sales_perf_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_inhouse_totals.npr|floatformat:2 }}{% endif %}{% if not sales_perf_inhouse_totals.inr and not sales_perf_inhouse_totals.npr %}—{% endif %}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    </div><!-- end tab-sales-perf-inhouse -->
+
+    <!-- ======================= TAB: Sales Performance Old Method ======================= -->
+    <div class="tab-panel" id="tab-sales-perf">
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <span class="section-badge badge-perf-test">Old</span>
+                Sales Performance — Old Method
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <span class="muted">{{ sales_perf_remote_rows|length }} employee{{ sales_perf_remote_rows|length|pluralize }}</span>
+                <div class="curr-split">
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_perf_remote_totals.aed|floatformat:2 }}</span>
+                    {% if sales_perf_remote_totals.inr %}<span class="s-inr">₹ {{ sales_perf_remote_totals.inr|floatformat:2 }}</span>{% endif %}
+                    {% if sales_perf_remote_totals.npr %}<span class="s-npr">Rs. {{ sales_perf_remote_totals.npr|floatformat:2 }}</span>{% endif %}
+                </div>
+                <a class="btn-xlsx" href="?format=xlsx&tab=sales-perf-remote&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
+            </div>
+        </div>
+        <div style="padding:10px 16px;background:#f5f3ff;border-bottom:1px solid #ede9fe;font-size:0.8rem;color:#5b21b6;">
+            Kept for reference alongside the live "Sales Performance — Remote" (Method 2) tab. From July 2026 salary
+            onwards these rows use the same Method 2 calculation as that tab; months before July 2026 show the
+            original present/half/absent calculation that was actually used for that month's payroll.
         </div>
         <div class="table-wrap">
             <table>
@@ -802,26 +1403,22 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <th class="text-right">Commission</th>
                         <th class="text-right">Incentives</th>
                         <th class="text-right th-aed">Net (AED)</th>
-                        <th class="text-right th-inr">Net (INR)</th>
+                        <th class="text-right th-inr" title="₹ = INR (blue) · Rs. = NPR (amber)">Net (INR/NPR)</th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in sales_perf_rows %}
+                    {% for row in sales_perf_remote_rows %}
                     <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}"
-                        data-emp-id="{{ row.employee.id }}" data-emp-type="{{ row.employee_type }}">
+                        data-emp-id="{{ row.employee.id }}" data-emp-type="{{ row.employee_type }}"
+                        data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
                             <div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
-                            {% if row.is_attendance_based %}<span class="muted">Att. Scaled</span>{% endif %}
+                            {% if row.payroll_method == 'v2' %}<span class="muted" title="Talktime-proportional daily pay (Method 2)">M2</span>
+                            {% elif row.is_attendance_based %}<span class="muted">Att. Scaled</span>{% endif %}
                         </td>
-                        <td>
-                            {% if row.employee_type == 'remote' %}
-                            <span class="type-remote">Remote</span>
-                            {% else %}
-                            <span class="type-inhouse">In-House</span>
-                            {% endif %}
-                        </td>
+                        <td><span class="type-remote">Remote</span></td>
                         <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.combined_deductions > 0 %}val-negative{% endif %}">
                             {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}
@@ -832,11 +1429,11 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         <td class="muted text-right">—</td>
                         {% endfor %}
                         <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
-                            {% if row.commission > 0 %}<span class="csym">{% if row.currency == 'INR' %}₹{% else %}AED{% endif %}</span> {% endif %}{{ row.commission|floatformat:2 }}
+                            {% if row.commission > 0 %}<span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {% endif %}{{ row.commission|floatformat:2 }}
                         </td>
                         <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num val-inr">{% if row.currency == 'INR' %}<span class="csym">₹</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">Edit</button>
@@ -844,19 +1441,19 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="10">No performance-based sales employees found</td></tr>
+                    <tr class="empty-row"><td colspan="10">No performance-based remote sales employees found</td></tr>
                     {% endfor %}
                 </tbody>
-                {% if sales_perf_rows %}
+                {% if sales_perf_remote_rows %}
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td><td></td>
-                        <td class="text-right num val-negative">{{ sales_perf_rows|dictsumby:"combined_deductions"|floatformat:2 }}</td>
-                        {% for total in sales_perf_bank_totals %}<td class="text-right num">{{ total }}</td>{% endfor %}
-                        <td class="text-right num">{{ sales_perf_rows|dictsumby:"commission"|floatformat:2 }}</td>
-                        <td class="text-right num val-positive">{{ sales_perf_rows|dictsumby:"incentives"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym">AED</span> {{ sales_perf_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if sales_perf_totals.inr %}<span class="csym">₹</span> {{ sales_perf_totals.inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td class="text-right num val-negative">{{ sales_perf_remote_rows|dictsumby:"combined_deductions"|floatformat:2 }}</td>
+                        {% for total in sales_perf_remote_bank_totals %}<td class="text-right num">{{ total }}</td>{% endfor %}
+                        <td class="text-right num">{{ sales_perf_remote_rows|dictsumby:"commission"|floatformat:2 }}</td>
+                        <td class="text-right num val-positive">{{ sales_perf_remote_rows|dictsumby:"incentives"|floatformat:2 }}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_remote_totals.aed|floatformat:2 }}</td>
+                        <td class="text-right num val-inr">{% if sales_perf_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_remote_totals.inr|floatformat:2 }}{% endif %}{% if sales_perf_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_remote_totals.npr|floatformat:2 }}{% endif %}{% if not sales_perf_remote_totals.inr and not sales_perf_remote_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -871,70 +1468,137 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
     <div class="section-card">
         <div class="section-header">
             <div class="section-title">Deductions &amp; Additions</div>
-            <button class="btn btn-primary btn-sm" onclick="openAddDedModal()">+ Add Entry</button>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn btn-primary btn-sm" onclick="openAddDedModal()">+ Add Entry</button>
+                <a class="btn-xlsx" href="?format=xlsx&tab=deductions&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
+            </div>
         </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Employee</th>
-                        <th>Category</th>
-                        <th>Note</th>
-                        <th class="text-right">Total Amount</th>
-                        <th>Period</th>
-                        <th class="text-right">This Month</th>
-                        <th class="text-center">Status</th>
-                        <th class="text-center">Delete</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for entry in all_deductions_list %}
-                    <tr id="ded-row-{{ entry.id }}">
-                        <td>
-                            {{ entry.employee.name }}
-                            {% if entry.employee_type == 'remote' %}<span class="type-remote">Remote</span>{% endif %}
-                        </td>
-                        <td>
-                            {% if entry.entry_type == 'deduction' %}
-                            <span style="color:#dc2626;font-weight:600;">↓ {{ entry.category_display }}</span>
-                            {% else %}
-                            <span style="color:#16a34a;font-weight:600;">↑ {{ entry.category_display }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="muted">{{ entry.note|default:"—" }}</td>
-                        <td class="text-right num">
-                            <span class="curr-{{ entry.currency|lower }}">{{ entry.currency }}</span>
-                            {{ entry.total_amount|floatformat:2 }}
-                            {% if entry.split_months > 1 %}<div class="muted">÷ {{ entry.split_months }} months</div>{% endif %}
-                        </td>
-                        <td class="muted">
-                            {{ entry.start_month_name }} {{ entry.start_year }}
-                            {% if entry.split_months > 1 %} → {{ entry.end_month_name }} {{ entry.end_year }}{% endif %}
-                        </td>
-                        <td class="text-right num">
-                            {% if entry.entry_type == 'deduction' %}
-                            <span class="val-negative">-{{ entry.installment_amount|floatformat:2 }}</span>
-                            {% else %}
-                            <span class="val-positive">+{{ entry.installment_amount|floatformat:2 }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if entry.is_active_this_month %}
-                            <span style="font-size:0.72rem;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;">Active</span>
-                            {% else %}
-                            <span style="font-size:0.72rem;background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:12px;">Inactive</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            <button class="btn btn-danger btn-xs" onclick="deleteDedEntry({{ entry.id }})">Delete</button>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr class="empty-row"><td colspan="8">No deduction or addition entries found</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        {% if deduction_groups %}
+        <div class="ded-stats-bar">
+            <div class="ded-stat">
+                <div class="ded-stat-label">Employees with entries</div>
+                <div class="ded-stat-value">{{ deduction_groups|length }}</div>
+            </div>
+            <div class="ded-stat">
+                <div class="ded-stat-label">Active this month — deductions</div>
+                <div class="ded-stat-value val-negative">&minus; {{ deduction_groups|dictsumby:"active_deduction"|floatformat:2 }}</div>
+            </div>
+            <div class="ded-stat">
+                <div class="ded-stat-label">Active this month — additions</div>
+                <div class="ded-stat-value val-positive">+ {{ deduction_groups|dictsumby:"active_addition"|floatformat:2 }}</div>
+            </div>
+            <div class="ded-stat">
+                <div class="ded-stat-label">Total entries on record</div>
+                <div class="ded-stat-value">{{ all_deductions_list|length }}</div>
+            </div>
         </div>
+        <div class="ded-toolbar">
+            <div class="emp-search-wrap emp-search-inline">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="ded-emp-search" placeholder="Search employee..." oninput="filterDedGroups()">
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button type="button" class="btn-chip" onclick="expandAllDedGroups()">Expand all</button>
+                <button type="button" class="btn-chip" onclick="collapseAllDedGroups()">Collapse all</button>
+            </div>
+        </div>
+        <div class="ded-groups" id="ded-groups-list">
+            {% for group in deduction_groups %}
+            <div class="ded-group" data-emp="{{ group.employee.name|lower }}">
+                <button type="button" class="ded-group-header" onclick="toggleDedGroup(this)">
+                    <div class="ded-group-id">
+                        <span class="ded-caret">&#9656;</span>
+                        <span class="ded-group-name">{{ group.employee.name }}</span>
+                        {% if group.employee_type == 'remote' %}<span class="type-remote">Remote</span>{% endif %}
+                        <span class="curr-{{ group.currency|lower }}">{{ group.currency }}</span>
+                    </div>
+                    <div class="ded-group-stats">
+                        {% if group.active_count %}<span class="ded-pill ded-pill-active">{{ group.active_count }} active this month</span>{% endif %}
+                        {% if group.pending_count %}<span class="ded-pill ded-pill-pending">{{ group.pending_count }} pending recovery</span>{% endif %}
+                        <span class="muted">{{ group.entry_count }} entr{{ group.entry_count|pluralize:"y,ies" }}</span>
+                        <span class="ded-group-net {% if group.lifetime_net < 0 %}val-negative{% elif group.lifetime_net > 0 %}val-positive{% endif %}">{% if group.lifetime_net > 0 %}+{% endif %}{{ group.lifetime_net|floatformat:2 }}</span>
+                    </div>
+                </button>
+                <div class="ded-group-body">
+                    <div class="ded-group-summary">
+                        <div><span class="muted">Lifetime deducted</span><strong class="val-negative">&minus; {{ group.lifetime_deduction|floatformat:2 }}</strong></div>
+                        <div><span class="muted">Lifetime added</span><strong class="val-positive">+ {{ group.lifetime_addition|floatformat:2 }}</strong></div>
+                        <div><span class="muted">This month net</span><strong class="{% if group.active_net < 0 %}val-negative{% elif group.active_net > 0 %}val-positive{% endif %}">{% if group.active_net > 0 %}+{% endif %}{{ group.active_net|floatformat:2 }}</strong></div>
+                        {% if group.carryover_in %}<div><span class="muted">Carried over in</span><strong class="val-negative">&minus; {{ group.carryover_in|floatformat:2 }}</strong></div>{% endif %}
+                        <button type="button" class="btn-chip" style="margin-left:auto;" onclick="openAddDedModal('{{ group.employee.id }}','{{ group.employee_type }}')">+ Add entry</button>
+                    </div>
+                    <div class="table-wrap" style="max-height:none;">
+                    <table class="ded-history-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Note</th>
+                                <th class="text-right">Total</th>
+                                <th>Period</th>
+                                <th class="text-right">Installment</th>
+                                <th class="text-center">Status</th>
+                                <th>Added</th>
+                                <th class="text-center">Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in group.entries %}
+                            <tr id="ded-row-{{ entry.id }}" class="{% if entry.is_active_this_month %}ded-row-active{% endif %}">
+                                <td>
+                                    {% if entry.entry_type == 'deduction' %}
+                                    <span class="val-negative" style="font-weight:600;">&darr; {{ entry.category_display }}</span>
+                                    {% else %}
+                                    <span class="val-positive" style="font-weight:600;">&uarr; {{ entry.category_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="muted">{{ entry.note|default:"—" }}</td>
+                                <td class="text-right num">
+                                    {{ entry.total_amount|floatformat:2 }}
+                                    {% if entry.split_months > 1 %}<div class="muted">&divide; {{ entry.split_months }} months</div>{% endif %}
+                                </td>
+                                <td class="muted">
+                                    {{ entry.start_month_name }} {{ entry.start_year }}
+                                    {% if entry.split_months > 1 %} &rarr; {{ entry.end_month_name }} {{ entry.end_year }}{% endif %}
+                                </td>
+                                <td class="text-right num">
+                                    {% if entry.entry_type == 'deduction' %}
+                                    <span class="val-negative">-{{ entry.installment_amount|floatformat:2 }}</span>
+                                    {% else %}
+                                    <span class="val-positive">+{{ entry.installment_amount|floatformat:2 }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if entry.is_active_this_month %}
+                                    <span class="status-pill status-active">Active this month</span>
+                                    {% elif entry.is_upcoming %}
+                                    <span class="status-pill status-upcoming">Upcoming</span>
+                                    {% elif not entry.is_finished %}
+                                    <span class="status-pill status-active">In progress</span>
+                                    {% elif entry.entry_type == 'deduction' and entry.is_recovered %}
+                                    <span class="status-pill status-recovered">Recovered</span>
+                                    {% elif entry.entry_type == 'deduction' %}
+                                    <span class="status-pill status-pending">Pending recovery</span>
+                                    {% else %}
+                                    <span class="status-pill status-done">Completed</span>
+                                    {% endif %}
+                                </td>
+                                <td class="muted">{{ entry.created_at }}</td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-danger btn-xs" onclick="deleteDedEntry({{ entry.id }})">Delete</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div id="ded-no-match" class="empty-row" style="display:none;">No employees match your search.</div>
+        {% else %}
+        <div class="table-wrap"><table><tbody><tr class="empty-row"><td>No deduction or addition entries found</td></tr></tbody></table></div>
+        {% endif %}
     </div>
     </div><!-- end tab-deductions -->
 
@@ -943,13 +1607,14 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
     <div class="section-card">
         <div class="section-header">
             <div class="section-title">Deduction Carryover Schedule</div>
+            <a class="btn-xlsx" href="?format=xlsx&tab=carryovers&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
         </div>
 
         <!-- What is a carryover? -->
         <div style="margin:16px 20px;padding:14px 16px;background:#fef9c3;border:1px solid #fde68a;border-radius:10px;font-size:0.82rem;color:#78350f;line-height:1.6;">
             <strong>What is a carryover?</strong> &nbsp;When an employee's total deductions exceed their salary in a given month, the salary is capped at zero and the unsatisfied deduction amount is <strong>carried forward as an extra deduction</strong> in the next month. Every row below is a <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.75rem;">DEDUCTION</span> — no additions here.
             <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600;">Salary went −ve in Month A</span>
+                <span style="background:#DBEAFE;color:#3730a3;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600;">Salary went −ve in Month A</span>
                 <span style="color:#94a3b8;">→</span>
                 <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600;">Extra deduction applied in Month B</span>
                 <span style="color:#94a3b8;">→</span>
@@ -998,6 +1663,7 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
             <button class="co-filter-btn" onclick="filterCarryovers('outgoing')" data-filter="outgoing">Created this month ({{ carryover_outgoing_count }})</button>
             <button class="co-filter-btn" onclick="filterCarryovers('pending')" data-filter="pending">Not yet recovered</button>
             <button class="co-filter-btn" onclick="filterCarryovers('cleared')" data-filter="cleared">Fully recovered</button>
+            <button class="co-filter-btn" onclick="filterCarryovers('skipped')" data-filter="skipped">Skipped</button>
         </div>
 
         <!-- Table -->
@@ -1018,6 +1684,8 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                 <tbody>
                     {% for co in carryover_schedule %}
                     <tr class="co-row"
+                        onclick="openCarryoverHistory('{{ co.employee_type }}_{{ co.employee.id }}', {{ co.from_year }}, {{ co.from_month }})"
+                        title="Click to see this employee's full carryover history"
                         data-status="{{ co.status }}"
                         data-incoming="{% if co.is_incoming %}1{% else %}0{% endif %}"
                         data-outgoing="{% if co.is_outgoing %}1{% else %}0{% endif %}">
@@ -1041,25 +1709,29 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
                             {% if co.is_incoming %}<div style="font-size:0.68rem;color:#dc2626;margin-top:3px;">← this month</div>{% endif %}
                         </td>
                         <td class="text-right num" style="color:#1e293b;">
-                            {% if co.currency == 'INR' %}₹{% else %}<span class="csym">AED</span>{% endif %}
+                            {% if co.currency == 'INR' %}₹{% elif co.currency == 'NPR' %}Rs.{% else %}<span class="csym csym-aed">AED</span>{% endif %}
                             {{ co.overflow_amount|floatformat:2 }}
                         </td>
                         <td class="text-right num" style="color:#16a34a;">
                             {% if co.applied_amount > 0 %}
-                                −{% if co.currency == 'INR' %}₹{% else %}<span class="csym">AED</span>{% endif %}{{ co.applied_amount|floatformat:2 }}
+                                −{% if co.currency == 'INR' %}₹{% elif co.currency == 'NPR' %}Rs.{% else %}<span class="csym csym-aed">AED</span>{% endif %}{{ co.applied_amount|floatformat:2 }}
                             {% else %}
                                 <span class="muted">—</span>
                             {% endif %}
                         </td>
-                        <td class="text-right num" style="font-weight:700;{% if co.remaining > 0 %}color:#dc2626;{% else %}color:#16a34a;{% endif %}">
-                            {% if co.remaining > 0 %}
-                                −{% if co.currency == 'INR' %}₹{% else %}<span class="csym">AED</span>{% endif %}{{ co.remaining|floatformat:2 }}
+                        <td class="text-right num" style="font-weight:700;{% if co.status == 'skipped' %}color:#64748b;{% elif co.remaining > 0 %}color:#dc2626;{% else %}color:#16a34a;{% endif %}">
+                            {% if co.status == 'skipped' %}
+                                Waived
+                            {% elif co.remaining > 0 %}
+                                −{% if co.currency == 'INR' %}₹{% elif co.currency == 'NPR' %}Rs.{% else %}<span class="csym csym-aed">AED</span>{% endif %}{{ co.remaining|floatformat:2 }}
                             {% else %}
                                 ✓ Nil
                             {% endif %}
                         </td>
                         <td class="text-center">
-                            {% if co.status == 'cleared' %}
+                            {% if co.status == 'skipped' %}
+                                <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;background:#e2e8f0;color:#475569;letter-spacing:0.3px;">SKIPPED</span>
+                            {% elif co.status == 'cleared' %}
                                 <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;background:#dcfce7;color:#15803d;letter-spacing:0.3px;">FULLY RECOVERED</span>
                             {% elif co.status == 'partial' %}
                                 <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;background:#fef3c7;color:#92400e;letter-spacing:0.3px;">PARTIALLY DEDUCTED</span>
@@ -1091,13 +1763,24 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
 
 <!-- Add Adjustment Modal -->
 <div class="modal-overlay" id="adjModal">
-    <div class="modal">
+    <div class="modal" style="min-width:480px;max-width:560px;max-height:85vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div class="modal-title">Add Adjustment — <span id="adjEmpName"></span></div>
+            <div class="modal-title">Adjustments — <span id="adjEmpName"></span></div>
             <span class="modal-close" onclick="closeModal('adjModal')">✕</span>
         </div>
         <input type="hidden" id="adjEmpId">
         <input type="hidden" id="adjEmpType">
+
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#64748b;margin:4px 0 8px;">
+            Existing for <span id="adjExistingMonthLabel"></span>
+        </div>
+        <div id="adjExistingList" style="margin-bottom:18px;">
+            <div class="muted" style="font-size:0.82rem;">Loading…</div>
+        </div>
+
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#64748b;margin-bottom:8px;border-top:1px solid #f1f5f9;padding-top:14px;">
+            Add New
+        </div>
         <div class="form-group">
             <label class="form-label">Type</label>
             <select id="adjType" class="form-control">
@@ -1115,7 +1798,7 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
         </div>
         <div class="form-actions">
             <button class="btn btn-secondary" onclick="closeModal('adjModal')">Cancel</button>
-            <button class="btn btn-primary" onclick="saveAdjustment()">Save</button>
+            <button class="btn btn-primary" onclick="saveAdjustment()">Add Adjustment</button>
         </div>
     </div>
 </div>
@@ -1208,19 +1891,56 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
 <div class="modal-overlay" id="exchangeRateModal">
     <div class="modal" style="min-width:360px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div class="modal-title">Set INR Exchange Rate</div>
+            <div class="modal-title" id="exchangeRateModalTitle">Set Exchange Rate</div>
             <span class="modal-close" onclick="closeModal('exchangeRateModal')">✕</span>
         </div>
         <div class="info-banner">
-            ⓘ Enter the rate on the 10th of this month. This is used to convert INR salaries to AED in the final summary.
+            ⓘ This is used to convert foreign-currency salaries to AED in the final summary for {{ period_label }} only — frozen or already-paid months keep the rate that was in effect when they were locked.
         </div>
+        <input type="hidden" id="exchangeRateCurrency" value="INR">
         <div class="form-group">
-            <label class="form-label">1 AED = ? INR</label>
+            <label class="form-label" id="exchangeRateLabel">1 AED = ? INR</label>
             <input type="number" id="inrRateInput" class="form-control" placeholder="e.g. 22.50" step="0.0001" min="0">
         </div>
         <div class="form-actions">
             <button class="btn btn-secondary" onclick="closeModal('exchangeRateModal')">Cancel</button>
             <button class="btn btn-primary" onclick="saveExchangeRate()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Sales Performance — Remote calculation explanation -->
+<div class="modal-overlay" id="salesPerfInfoModal">
+    <div class="modal" style="min-width:480px;max-width:640px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="modal-title">How Sales Performance — Remote pay is calculated</div>
+            <span class="modal-close" onclick="closeModal('salesPerfInfoModal')">✕</span>
+        </div>
+        <div class="modal-explanation">
+            <strong>Live from July 2026 salary onwards.</strong> Talktime-proportional daily-pay model ("Method
+            2") — this is the calculation used for remote Sales: Performance employees in the Payroll Summary
+            (rows there are marked "M2"). Months before July 2026 still used the original present/half/absent
+            calculation for the actual payroll (see the "Sales Perf: Legacy" tab); those months are
+            shown here only for reference. Daily wage = salary ÷ working days in the period
+            (calendar days minus
+            Sundays/holidays); Sundays/holidays themselves are paid in full.
+            <strong>Fridays &amp; Saturdays:</strong> binary 30-minute threshold — &lt;30 min = absent (0 pay),
+            30+ min = full day pay (no half/proportional zone).
+            <strong>Monday&ndash;Thursday, new joiner's first calendar month:</strong> &lt;45 min = absent,
+            45&ndash;59 min = half day, 60+ min = full day paid at MAX(daily wage, talktime÷60 × daily wage) —
+            so strong first-month talktime is rewarded above the flat daily wage.
+            <strong>Monday&ndash;Thursday, standard (month 2+):</strong> &lt;45 min = absent, 45&ndash;54 min =
+            half day, 90+ min = full day; 55&ndash;89 min is a grace band paid proportionally
+            (talktime ÷ 90 × daily wage) — but only if the employee hasn't exhausted their grace days: max 7
+            grace days per calendar month, max 2 per Mon&ndash;Sun week, and max 2 consecutive grace days in a
+            row. A grace-band day that fails any of those caps is downgraded to half day pay instead.
+            <strong>Target override (INR only):</strong> if an employee's total bank account submissions for the
+            month reach 4, they're paid full salary for the period regardless of attendance (marked "Target
+            Hit"). In-house Sales: Performance employees are not shown here since they have no talktime data —
+            see the "Sales Perf: In-House" tab for those.
+            <em>Note: per-call data (call duration/internal/CRM-disposition filtering) isn't stored in this
+            system, so talktime minutes come directly from the daily call-record total rather than a
+            call-by-call filtered total.</em>
         </div>
     </div>
 </div>
@@ -1233,6 +1953,36 @@ tr.row-aed td:first-child { border-left: 3px solid #818cf8; }
             <span class="modal-close" onclick="closeModal('paidDetailModal')">✕</span>
         </div>
         <div id="paidDetailContent" style="font-size:0.85rem;"></div>
+    </div>
+</div>
+
+<!-- Carryover Full History Modal -->
+<div class="modal-overlay" id="carryoverHistoryModal">
+    <div class="modal" style="min-width:560px;max-width:680px;max-height:85vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div class="modal-title" id="carryoverHistoryTitle">Carryover History</div>
+            <span class="modal-close" onclick="closeModal('carryoverHistoryModal')">✕</span>
+        </div>
+        <div id="carryoverHistoryContent" style="font-size:0.85rem;"></div>
+    </div>
+</div>
+
+<!-- Confirm Dialog (replaces browser confirm() for destructive/irreversible actions) -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal" style="min-width:380px;max-width:440px;padding:24px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:18px;">
+            <div id="confirmModalIcon" style="width:38px;height:38px;border-radius:10px;background:#fee2e2;color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div class="modal-title" id="confirmModalTitle" style="margin-bottom:6px;">Confirm</div>
+                <div id="confirmModalMessage" style="font-size:0.85rem;color:#475569;line-height:1.55;white-space:pre-line;"></div>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="_confirmModalResolve(false)">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmModalOkBtn" onclick="_confirmModalResolve(true)">Confirm</button>
+        </div>
     </div>
 </div>
 
@@ -1250,15 +2000,117 @@ const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
 const PAID_SNAPSHOTS = {};
 {% for row in final_rows %}{% if row.is_paid %}
 PAID_SNAPSHOTS['{{ row.employee_type }}_{{ row.employee.id }}'] = {
-    paid_at: '{{ row.paid_at|date:"d M Y, H:i" }}',
-    paid_by: '{{ row.paid_by|default:"" }}',
-    snap: {{ row.paid_snapshot|default:"{}"|safe }}
+    paid_at: '{{ row.paid_at|date:"d M Y, H:i"|escapejs }}',
+    paid_by: '{{ row.paid_by|default:""|escapejs }}',
+    snap: {{ row.paid_snapshot_json|default:"{}"|safe }}
 };
 {% endif %}{% endfor %}
+
+/* Embed full carryover history, grouped per employee, for the click-through popup */
+const CARRYOVER_META = {};
+const CARRYOVER_HISTORY = {};
+{% for co in carryover_schedule %}
+(function(){
+    const key = '{{ co.employee_type }}_{{ co.employee.id }}';
+    CARRYOVER_META[key] = {
+        name: '{{ co.employee.name|escapejs }}',
+        type: '{{ co.employee_type }}',
+        currency: '{{ co.currency }}',
+    };
+    if (!CARRYOVER_HISTORY[key]) CARRYOVER_HISTORY[key] = [];
+    CARRYOVER_HISTORY[key].push({
+        id: {{ co.id }},
+        from_year: {{ co.from_year }}, from_month: {{ co.from_month }}, from_label: '{{ co.from_label|escapejs }}',
+        to_year: {{ co.to_year }}, to_month: {{ co.to_month }}, to_label: '{{ co.to_label|escapejs }}',
+        overflow_amount: {{ co.overflow_amount }}, applied_amount: {{ co.applied_amount }}, remaining: {{ co.remaining }},
+        status: '{{ co.status }}', is_incoming: {% if co.is_incoming %}true{% else %}false{% endif %}, is_outgoing: {% if co.is_outgoing %}true{% else %}false{% endif %},
+        is_skipped: {% if co.is_skipped %}true{% else %}false{% endif %},
+        skipped_by: '{{ co.skipped_by|default:""|escapejs }}',
+        skip_reason: '{{ co.skip_reason|default:""|escapejs }}',
+    });
+})();
+{% endfor %}
 
 function getCsrf() {
     const m = document.cookie.match(/csrftoken=([^;]+)/);
     return m ? m[1] : '';
+}
+
+/* ---- Visa Provider Filter ---- */
+var _activeVisaFilter = 'all';
+var _SEARCHABLE_TABLE_IDS = ['adminInhouseTable', 'adminRemoteTable', 'salesFixedTable', 'salesPerfTestTable', 'salesPerfInhouseTable'];
+function filterByVisa(val) {
+    _activeVisaFilter = val;
+    const sel = document.getElementById('visaFilterSelect');
+    if (sel && sel.value !== val) sel.value = val;
+    document.querySelectorAll('tr[data-visa]').forEach(row => {
+        const t = row.closest('table');
+        if (t && (t.id === 'finalTable' || _SEARCHABLE_TABLE_IDS.includes(t.id))) return;
+        row.style.display = (val === 'all' || row.dataset.visa === val) ? '' : 'none';
+    });
+    _applyFinalTableFilters();
+    _SEARCHABLE_TABLE_IDS.forEach(_applyTableNameFilter);
+}
+
+/* ---- Per-Employee Name Search (Final table) ---- */
+var _activeNameSearch = '';
+function filterFinalTableByName(val) {
+    _activeNameSearch = val.trim().toLowerCase();
+    _applyFinalTableFilters();
+}
+
+function _applyFinalTableFilters() {
+    document.querySelectorAll('#finalTable tbody tr[data-visa]').forEach(row => {
+        const visaMatch = (_activeVisaFilter === 'all' || row.dataset.visa === _activeVisaFilter);
+        const nameCell = row.children[1];
+        const nameMatch = !_activeNameSearch || (nameCell && nameCell.textContent.toLowerCase().includes(_activeNameSearch));
+        row.style.display = (visaMatch && nameMatch) ? '' : 'none';
+    });
+    _updateFinalTotals();
+}
+
+/* ---- Per-Employee Name Search (other section tables) ---- */
+var _tableNameSearch = {};
+function filterTableByName(tableId, val) {
+    _tableNameSearch[tableId] = val.trim().toLowerCase();
+    _applyTableNameFilter(tableId);
+}
+
+function _applyTableNameFilter(tableId) {
+    const search = _tableNameSearch[tableId] || '';
+    document.querySelectorAll('#' + tableId + ' tbody tr[data-visa]').forEach(row => {
+        const visaMatch = (_activeVisaFilter === 'all' || row.dataset.visa === _activeVisaFilter);
+        const nameCell = row.children[0];
+        const nameMatch = !search || (nameCell && nameCell.textContent.toLowerCase().includes(search));
+        row.style.display = (visaMatch && nameMatch) ? '' : 'none';
+    });
+}
+
+function _updateFinalTotals() {
+    let payrollNet = 0, totalDed = 0, totalAdd = 0, coIn = 0, coOut = 0, finalAed = 0, finalInr = 0, finalNpr = 0;
+    document.querySelectorAll('#finalTable tbody tr[data-visa]').forEach(row => {
+        if (row.style.display === 'none') return;
+        payrollNet += parseFloat(row.dataset.payrollNet || 0);
+        totalDed   += parseFloat(row.dataset.totalDed   || 0);
+        totalAdd   += parseFloat(row.dataset.totalAdd   || 0);
+        coIn       += parseFloat(row.dataset.coIn       || 0);
+        coOut      += parseFloat(row.dataset.coOut      || 0);
+        const fs = parseFloat(row.dataset.finalSalary || 0);
+        if (row.dataset.currency === 'INR') finalInr += fs;
+        else if (row.dataset.currency === 'NPR') finalNpr += fs;
+        else finalAed += fs;
+    });
+    const fmt = n => n.toFixed(2);
+    document.getElementById('tfoot-payroll-net').textContent = fmt(payrollNet);
+    document.getElementById('tfoot-total-ded').textContent  = fmt(totalDed);
+    document.getElementById('tfoot-total-add').textContent  = fmt(totalAdd);
+    document.getElementById('tfoot-co-in').textContent      = fmt(coIn);
+    document.getElementById('tfoot-co-out').textContent     = fmt(coOut);
+    document.getElementById('tfoot-final-aed').innerHTML    = '<span class="csym csym-aed">AED</span> ' + fmt(finalAed);
+    let inrNprHtml = '';
+    if (finalInr > 0) inrNprHtml += '<span class="csym csym-inr">₹</span> ' + fmt(finalInr);
+    if (finalNpr > 0) inrNprHtml += (inrNprHtml ? ' ' : '') + '<span class="csym csym-npr">Rs.</span> ' + fmt(finalNpr);
+    document.getElementById('tfoot-final-inr').innerHTML    = inrNprHtml || '—';
 }
 
 /* ---- Tab switching ---- */
@@ -1270,8 +2122,9 @@ function filterCarryovers(filter) {
         if (filter === 'all') show = true;
         else if (filter === 'incoming') show = row.dataset.incoming === '1';
         else if (filter === 'outgoing') show = row.dataset.outgoing === '1';
-        else if (filter === 'pending') show = row.dataset.status !== 'cleared';
+        else if (filter === 'pending') show = (row.dataset.status === 'pending' || row.dataset.status === 'partial');
         else if (filter === 'cleared') show = row.dataset.status === 'cleared';
+        else if (filter === 'skipped') show = row.dataset.status === 'skipped';
         row.style.display = show ? '' : 'none';
     });
 }
@@ -1282,6 +2135,7 @@ function switchTab(tabId) {
     document.getElementById('tab-' + tabId).classList.add('active');
     event.currentTarget.classList.add('active');
     location.hash = tabId;
+    if (_activeVisaFilter !== 'all') filterByVisa(_activeVisaFilter);
 }
 
 // Restore active tab from URL hash on load
@@ -1306,17 +2160,82 @@ function openModal(id) {
 }
 // Close on backdrop click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('active'); });
+    overlay.addEventListener('click', e => {
+        if (e.target !== overlay) return;
+        if (overlay.id === 'confirmModal') { _confirmModalResolve(false); return; }
+        overlay.classList.remove('active');
+    });
 });
 
+/* ---- Styled confirm dialog (replaces browser confirm() for destructive actions) ---- */
+var _confirmModalResolver = null;
+function _confirmModalResolve(result) {
+    closeModal('confirmModal');
+    if (_confirmModalResolver) { _confirmModalResolver(result); _confirmModalResolver = null; }
+}
+function confirmDialog(title, message, { okLabel = 'Confirm', danger = true } = {}) {
+    document.getElementById('confirmModalTitle').textContent = title;
+    document.getElementById('confirmModalMessage').textContent = message;
+    const okBtn = document.getElementById('confirmModalOkBtn');
+    okBtn.textContent = okLabel;
+    okBtn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+    document.getElementById('confirmModalIcon').style.background = danger ? '#fee2e2' : '#dbeafe';
+    document.getElementById('confirmModalIcon').style.color = danger ? '#dc2626' : '#1D4ED8';
+    openModal('confirmModal');
+    return new Promise(resolve => { _confirmModalResolver = resolve; });
+}
+
 /* ---- Adjustment Modal ---- */
+const _MONTH_NAMES_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 function openAdjModal(empId, empType, empName) {
     document.getElementById('adjEmpId').value = empId;
     document.getElementById('adjEmpType').value = empType;
     document.getElementById('adjEmpName').textContent = empName;
     document.getElementById('adjAmount').value = '';
     document.getElementById('adjReason').value = '';
+    document.getElementById('adjExistingMonthLabel').textContent = `${_MONTH_NAMES_SHORT[SELECTED_MONTH-1]} ${SELECTED_YEAR}`;
     openModal('adjModal');
+    loadExistingAdjustments(empId, empType);
+}
+
+async function loadExistingAdjustments(empId, empType) {
+    const listEl = document.getElementById('adjExistingList');
+    listEl.innerHTML = '<div class="muted" style="font-size:0.82rem;">Loading…</div>';
+    const url = empType === 'inhouse'
+        ? `/payroll/api/adjustments/${empId}/?year=${SELECTED_YEAR}&month=${SELECTED_MONTH}`
+        : `/payroll/api/remote-adjustments/${empId}/?year=${SELECTED_YEAR}&month=${SELECTED_MONTH}`;
+    try {
+        const r = await fetch(url);
+        const data = await r.json();
+        if (!data.success) { listEl.innerHTML = `<div class="muted" style="font-size:0.82rem;">${data.error || 'Failed to load.'}</div>`; return; }
+        if (!data.adjustments.length) { listEl.innerHTML = '<div class="muted" style="font-size:0.82rem;">No adjustments for this month.</div>'; return; }
+        const esc = s => (s || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        listEl.innerHTML = data.adjustments.map(adj => `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;">
+                <div style="flex:1;min-width:0;">
+                    <span style="display:inline-block;padding:1px 8px;border-radius:20px;font-size:0.65rem;font-weight:700;letter-spacing:0.3px;${adj.type === 'incentive' ? 'background:#dcfce7;color:#15803d;' : 'background:#fee2e2;color:#991b1b;'}">${adj.type === 'incentive' ? 'INCENTIVE' : 'REDUCTION'}</span>
+                    <strong style="font-family:monospace;margin-left:6px;">${adj.amount.toFixed(2)}</strong>
+                    <div style="font-size:0.78rem;color:#64748b;margin-top:3px;word-break:break-word;">${esc(adj.reason)}</div>
+                    <div style="font-size:0.68rem;color:#94a3b8;margin-top:2px;">${adj.created_at}</div>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="deleteAdjustmentItem(${adj.id})">Delete</button>
+            </div>
+        `).join('');
+    } catch {
+        listEl.innerHTML = '<div class="muted" style="font-size:0.82rem;">Error loading adjustments.</div>';
+    }
+}
+
+async function deleteAdjustmentItem(adjId) {
+    if (!await confirmDialog('Delete Adjustment', 'Delete this adjustment? This cannot be undone.', { okLabel: 'Delete' })) return;
+    const r = await fetch(`/payroll/api/adjustments/delete/${adjId}/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCsrf()},
+    });
+    const data = await r.json();
+    if (data.success) { location.reload(); }
+    else { alert(data.error || 'Failed to delete adjustment.'); }
 }
 
 async function saveAdjustment() {
@@ -1343,7 +2262,7 @@ async function saveAdjustment() {
 }
 
 /* ---- Deduction Modal ---- */
-function openAddDedModal() {
+function openAddDedModal(prefillId, prefillType) {
     // Populate employee select
     const sel = document.getElementById('dedEmpSelect');
     sel.innerHTML = '<option value="">— Select Employee —</option>';
@@ -1351,6 +2270,7 @@ function openAddDedModal() {
         const opt = document.createElement('option');
         opt.value = JSON.stringify({id: e.id, type: e.type});
         opt.textContent = `${e.name} (${e.dept || e.type})`;
+        if (prefillId != null && String(e.id) === String(prefillId) && e.type === prefillType) opt.selected = true;
         sel.appendChild(opt);
     });
     openModal('addDedModal');
@@ -1384,19 +2304,72 @@ async function saveDeduction() {
 }
 
 async function deleteDedEntry(entryId) {
-    if (!confirm('Delete this entry?')) return;
+    if (!await confirmDialog('Delete Entry', 'Delete this deduction/addition entry? This cannot be undone.', { okLabel: 'Delete' })) return;
     const r = await fetch(`/payroll/api/deductions/delete/${entryId}/`, {
         method: 'POST', headers: {'X-CSRFToken': getCsrf()},
     });
     const data = await r.json();
-    if (data.success) {
-        document.getElementById(`ded-row-${entryId}`)?.remove();
-    } else {
-        alert(data.error || 'Failed to delete.');
-    }
+    // Reload rather than surgically removing the row — the employee's group
+    // totals (lifetime/active sums, pill counts) need server recomputation.
+    if (data.success) { location.reload(); }
+    else { alert(data.error || 'Failed to delete.'); }
+}
+
+/* ---- Deductions tab: employee-wise groups ---- */
+// Smooth sticky shadow — appears only once the user has scrolled past the header
+(function() {
+    const sticky = document.querySelector('.pd-sticky-top');
+    if (!sticky) return;
+    const threshold = sticky.offsetTop + 10;
+    window.addEventListener('scroll', function() {
+        sticky.classList.toggle('is-stuck', window.scrollY > threshold);
+    }, { passive: true });
+})();
+
+function toggleDedGroup(headerBtn) {
+    headerBtn.closest('.ded-group').classList.toggle('open');
+}
+
+function expandAllDedGroups() {
+    document.querySelectorAll('#ded-groups-list .ded-group').forEach(g => g.classList.add('open'));
+}
+
+function collapseAllDedGroups() {
+    document.querySelectorAll('#ded-groups-list .ded-group').forEach(g => g.classList.remove('open'));
+}
+
+function filterDedGroups() {
+    const q = (document.getElementById('ded-emp-search').value || '').trim().toLowerCase();
+    const groups = document.querySelectorAll('#ded-groups-list .ded-group');
+    let visibleCount = 0;
+    groups.forEach(g => {
+        const match = !q || g.dataset.emp.includes(q);
+        g.style.display = match ? '' : 'none';
+        if (match) {
+            visibleCount++;
+            if (q) g.classList.add('open'); // auto-expand matches while searching
+        }
+    });
+    const noMatch = document.getElementById('ded-no-match');
+    if (noMatch) noMatch.style.display = visibleCount ? 'none' : '';
 }
 
 /* ---- Bank Submissions Modal ---- */
+function switchUnpaidTab(btn, panelId) {
+    document.querySelectorAll('.unpaid-groupby-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.unpaid-tab-panel').forEach(p => p.style.display = 'none');
+    document.getElementById(panelId).style.display = '';
+}
+
+function switchSummarySubtab(btn, panelId) {
+    document.querySelectorAll('#tab-summary > .subtab-bar > .subtab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('#tab-summary > .summary-subtab').forEach(p => p.classList.remove('active'));
+    document.getElementById(panelId).classList.add('active');
+    if (_activeVisaFilter !== 'all') filterByVisa(_activeVisaFilter);
+}
+
 function openBankModal(empId, empType, empName) {
     document.getElementById('bankEmpId').value = empId;
     document.getElementById('bankEmpType').value = empType;
@@ -1448,17 +2421,23 @@ async function saveBankSubmissions() {
 }
 
 /* ---- Exchange Rate Modal ---- */
-function openExchangeRateModal() {
+function openExchangeRateModal(currency, currentRate) {
+    currency = currency || 'INR';
+    document.getElementById('exchangeRateCurrency').value = currency;
+    document.getElementById('exchangeRateModalTitle').textContent = `Set ${currency} Exchange Rate`;
+    document.getElementById('exchangeRateLabel').textContent = `1 AED = ? ${currency}`;
+    document.getElementById('inrRateInput').value = currentRate || '';
     openModal('exchangeRateModal');
 }
 
 async function saveExchangeRate() {
+    const currency = document.getElementById('exchangeRateCurrency').value;
     const rate = document.getElementById('inrRateInput').value;
     if (!rate) { alert('Please enter a rate.'); return; }
     const r = await fetch('/payroll/api/exchange-rate/save/', {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
-        body: JSON.stringify({ year: SELECTED_YEAR, month: SELECTED_MONTH, rate: parseFloat(rate), currency: 'INR' }),
+        body: JSON.stringify({ year: SELECTED_YEAR, month: SELECTED_MONTH, rate: parseFloat(rate), currency: currency }),
     });
     const data = await r.json();
     if (data.success) { closeModal('exchangeRateModal'); location.reload(); }
@@ -1490,7 +2469,7 @@ async function markSelectedPaid() {
         names.push(tr.querySelector('td:nth-child(2)')?.textContent?.trim() || tr.dataset.empId);
     });
     const label = employees.length > 1 ? `${employees.length} employees` : names[0];
-    if (!confirm(`Mark as Paid for ${label}?\n\nThe full payroll will be re-computed and locked permanently. This cannot be undone without explicit unmark.`)) return;
+    if (!await confirmDialog('Mark as Paid', `Mark as Paid for ${label}?\n\nThe full payroll will be re-computed and locked permanently. This cannot be undone without explicit unmark.`, { okLabel: 'Mark as Paid' })) return;
     const r = await fetch('/payroll/api/mark-paid/', {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
@@ -1506,7 +2485,7 @@ async function unmarkPaid(btn) {
     const empId = parseInt(tr.dataset.empId);
     const empType = tr.dataset.empType;
     const name = tr.querySelector('td:nth-child(2)')?.textContent?.trim() || empId;
-    if (!confirm(`Remove paid lock for ${name}?\n\nAll values will revert to live recalculation.`)) return;
+    if (!await confirmDialog('Remove Paid Lock', `Remove paid lock for ${name}?\n\nAll values will revert to live recalculation.`, { okLabel: 'Remove Lock' })) return;
     const r = await fetch('/payroll/api/unmark-paid/', {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
@@ -1524,14 +2503,14 @@ function openPaidDetail(empId, empType) {
     if (!rec) { alert('Snapshot data not found.'); return; }
     const s = rec.snap;
 
-    const curr = s.currency === 'INR' ? '₹' : 'AED';
+    const curr = s.currency === 'INR' ? '₹' : (s.currency === 'NPR' ? 'Rs.' : 'AED');
     const fmt = v => (v == null ? '—' : Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
     const fmtI = v => (v == null ? '—' : Number(v).toLocaleString('en-US', {maximumFractionDigits:0}));
 
     const row = (label, val, cls='') =>
         `<tr><td style="padding:5px 8px;color:#64748b;white-space:nowrap;">${label}</td><td class="num ${cls}" style="padding:5px 8px;text-align:right;font-family:monospace;">${val}</td></tr>`;
     const sep = label =>
-        `<tr><td colspan="2" style="padding:8px 8px 4px;font-weight:700;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;color:#4f46e5;border-top:1px solid #f1f5f9;">${label}</td></tr>`;
+        `<tr><td colspan="2" style="padding:8px 8px 4px;font-weight:700;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;color:#1D4ED8;border-top:1px solid #f1f5f9;">${label}</td></tr>`;
 
     let bankRows = '';
     if (s.bank_submissions) {
@@ -1594,6 +2573,121 @@ function openPaidDetail(empId, empType) {
         </table>
     `;
     openModal('paidDetailModal');
+}
+
+/* ---- Carryover Full History Modal ---- */
+function openCarryoverHistory(key, clickedFromYear, clickedFromMonth) {
+    const meta = CARRYOVER_META[key];
+    const hist = CARRYOVER_HISTORY[key] || [];
+    if (!meta || !hist.length) { alert('No carryover history found.'); return; }
+
+    const curr = meta.currency === 'INR' ? '₹' : (meta.currency === 'NPR' ? 'Rs.' : 'AED');
+    const fmt = v => Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const esc = s => (s || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const statusBadge = status => {
+        if (status === 'skipped') return '<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:0.66rem;font-weight:700;background:#e2e8f0;color:#475569;letter-spacing:0.3px;">SKIPPED</span>';
+        if (status === 'cleared') return '<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:0.66rem;font-weight:700;background:#dcfce7;color:#15803d;letter-spacing:0.3px;">FULLY RECOVERED</span>';
+        if (status === 'partial') return '<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:0.66rem;font-weight:700;background:#fef3c7;color:#92400e;letter-spacing:0.3px;">PARTIALLY DEDUCTED</span>';
+        return '<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:0.66rem;font-weight:700;background:#fee2e2;color:#991b1b;letter-spacing:0.3px;">NOT YET DEDUCTED</span>';
+    };
+
+    // Oldest first, so the history reads as a timeline.
+    const ordered = [...hist].sort((a, b) => (a.from_year - b.from_year) || (a.from_month - b.from_month));
+
+    const totalOverflow = hist.reduce((s, c) => s + c.overflow_amount, 0);
+    const totalApplied = hist.reduce((s, c) => s + c.applied_amount, 0);
+    const totalOutstanding = hist.reduce((s, c) => s + (c.status === 'skipped' ? 0 : Math.max(c.remaining, 0)), 0);
+    const openCount = hist.filter(c => c.status !== 'cleared' && c.status !== 'skipped').length;
+
+    const summaryTile = (label, val, color) =>
+        `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;min-width:110px;">
+            <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#64748b;margin-bottom:2px;">${label}</div>
+            <div style="font-size:0.95rem;font-weight:700;font-family:monospace;color:${color};">${val}</div>
+        </div>`;
+
+    let rows = '';
+    ordered.forEach(c => {
+        const isClicked = (c.from_year === clickedFromYear && c.from_month === clickedFromMonth);
+        let actionHtml;
+        if (c.status === 'cleared') {
+            actionHtml = '';
+        } else if (c.status === 'skipped') {
+            actionHtml = `
+            <div style="margin-top:8px;font-size:0.74rem;color:#64748b;">
+                Waived${c.skipped_by ? ' by ' + esc(c.skipped_by) : ''}${c.skip_reason ? ' — "' + esc(c.skip_reason) + '"' : ''}
+                <button type="button" class="btn btn-secondary btn-sm" style="margin-left:8px;" onclick="toggleCarryoverSkip(${c.id}, false)">Undo Skip</button>
+            </div>`;
+        } else {
+            actionHtml = `
+            <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <input type="text" id="co-skip-reason-${c.id}" placeholder="Reason (optional)" style="font-size:0.76rem;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;flex:1;min-width:140px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleCarryoverSkip(${c.id}, true)">Skip This Month's Deduction</button>
+            </div>`;
+        }
+        rows += `
+        <div class="co-hist-row ${isClicked ? 'co-hist-current' : ''}" style="padding:10px 4px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:0.8rem;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:2px 8px;border-radius:6px;">${c.from_label}</span>
+                    <span style="color:#94a3b8;">→</span>
+                    <span style="font-size:0.8rem;color:#dc2626;font-weight:600;background:#fff1f2;padding:2px 8px;border-radius:6px;">${c.to_label}</span>
+                    ${isClicked ? '<span style="font-size:0.65rem;color:#1D4ED8;font-weight:700;margin-left:2px;">← selected</span>' : ''}
+                </div>
+                ${statusBadge(c.status)}
+            </div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:6px;font-size:0.78rem;color:#475569;">
+                <span>Total to deduct: <strong style="font-family:monospace;color:#1e293b;">${curr} ${fmt(c.overflow_amount)}</strong></span>
+                <span>Already deducted: <strong style="font-family:monospace;color:#16a34a;">${curr} ${fmt(c.applied_amount)}</strong></span>
+                <span>Still to deduct: <strong style="font-family:monospace;color:${c.status !== 'skipped' && c.remaining > 0 ? '#dc2626' : '#16a34a'};">${c.status === 'skipped' ? 'Waived' : (c.remaining > 0 ? curr + ' ' + fmt(c.remaining) : '✓ Nil')}</strong></span>
+            </div>
+            ${actionHtml}
+        </div>`;
+    });
+
+    document.getElementById('carryoverHistoryTitle').textContent = `${meta.name} — Carryover History`;
+    document.getElementById('carryoverHistoryContent').innerHTML = `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <span class="section-badge ${meta.type === 'inhouse' ? 'badge-admin' : 'badge-remote'}" style="font-size:0.62rem;">${meta.type === 'inhouse' ? 'In-House' : 'Remote'}</span>
+            <span class="muted" style="font-size:0.78rem;">${hist.length} carryover record${hist.length === 1 ? '' : 's'} on file</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 16px;">
+            ${summaryTile('Ever Carried', curr + ' ' + fmt(totalOverflow), '#1e293b')}
+            ${summaryTile('Recovered', curr + ' ' + fmt(totalApplied), '#16a34a')}
+            ${summaryTile('Outstanding', curr + ' ' + fmt(totalOutstanding), totalOutstanding > 0 ? '#dc2626' : '#16a34a')}
+            ${summaryTile('Open Records', openCount, openCount > 0 ? '#dc2626' : '#16a34a')}
+        </div>
+        <div style="border-top:1px solid #f1f5f9;">
+            ${rows}
+        </div>
+    `;
+    openModal('carryoverHistoryModal');
+}
+
+async function toggleCarryoverSkip(coId, skip) {
+    let reason = '';
+    if (skip) {
+        const input = document.getElementById(`co-skip-reason-${coId}`);
+        reason = input ? input.value.trim() : '';
+        if (!await confirmDialog(
+            'Skip This Month\'s Deduction',
+            'This carried-over deduction will be waived and excluded from live salary totals — the employee will not have it deducted. You can undo this later from the same popup.',
+            { okLabel: 'Skip Deduction' }
+        )) return;
+    } else {
+        if (!await confirmDialog(
+            'Undo Skip',
+            'This will restore the deduction so it is collected as normal again.',
+            { okLabel: 'Restore', danger: false }
+        )) return;
+    }
+    const r = await fetch(`/payroll/api/carryover/${coId}/toggle-skip/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+        body: JSON.stringify({ skip: skip, reason: reason }),
+    });
+    const data = await r.json();
+    if (data.success) { location.reload(); }
+    else { alert(data.error || 'Failed to update.'); }
 }
 </script>
 {% endblock %}

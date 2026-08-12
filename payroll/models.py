@@ -86,7 +86,7 @@ class Bank(models.Model):
     """
     A bank that DSA agents submit accounts to.
     Each bank has a per-account commission charge in AED (for UAE employees)
-    and optionally in INR (for Indian employees).
+    and optionally in INR (for Indian employees) and NPR (for Nepalese employees).
     """
     name = models.CharField(max_length=100, unique=True)
     per_account_charge = models.DecimalField(
@@ -97,6 +97,11 @@ class Bank(models.Model):
         max_digits=10, decimal_places=2,
         null=True, blank=True,
         help_text="Commission per account submission (INR) — for Indian employees. Leave blank if not applicable."
+    )
+    npr_per_account_charge = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+        help_text="Commission per account submission (NPR) — for Nepalese employees. Leave blank if not applicable."
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -109,11 +114,14 @@ class Bank(models.Model):
         """Return the appropriate per-account charge based on employee currency."""
         if currency == 'INR' and self.inr_per_account_charge:
             return self.inr_per_account_charge
+        if currency == 'NPR' and self.npr_per_account_charge:
+            return self.npr_per_account_charge
         return self.per_account_charge
 
     def __str__(self):
         inr_part = f" / INR {self.inr_per_account_charge}/account" if self.inr_per_account_charge else ""
-        return f"{self.name} (AED {self.per_account_charge}/account{inr_part})"
+        npr_part = f" / NPR {self.npr_per_account_charge}/account" if self.npr_per_account_charge else ""
+        return f"{self.name} (AED {self.per_account_charge}/account{inr_part}{npr_part})"
 
 
 class BankSubmission(models.Model):
@@ -197,6 +205,13 @@ class DeductionEntry(models.Model):
     )
     category = models.CharField(max_length=30, choices=DEDUCTION_CATEGORY_CHOICES)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(
+        max_length=3, choices=Employee.CURRENCY_CHOICES, default='AED',
+        help_text="Currency total_amount is recorded in. Set from the employee's "
+                   "currency at creation; if the employee's currency later changes, "
+                   "still-outstanding entries are converted and re-tagged, but entries "
+                   "already fully recovered keep the currency they were recovered in.",
+    )
     split_months = models.PositiveIntegerField(default=1, help_text="Spread deduction over N months")
     start_year = models.IntegerField()
     start_month = models.IntegerField(help_text="1-12")
@@ -271,8 +286,20 @@ class DeductionCarryover(models.Model):
     from_month = models.IntegerField()
     to_year = models.IntegerField()
     to_month = models.IntegerField()
+    currency = models.CharField(
+        max_length=3, choices=Employee.CURRENCY_CHOICES, default='AED',
+        help_text="Currency overflow_amount/applied_amount are recorded in. Set "
+                   "from the employee's currency when the carryover is created; "
+                   "still-open carryovers are converted and re-tagged if the "
+                   "employee's currency later changes, but already-cleared ones "
+                   "keep the currency they were recovered in.",
+    )
     overflow_amount = models.DecimalField(max_digits=10, decimal_places=2)
     applied_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    is_skipped = models.BooleanField(default=False, help_text="Admin waived this month's carried-over deduction; it is excluded from live totals.")
+    skipped_at = models.DateTimeField(null=True, blank=True)
+    skipped_by = models.CharField(max_length=150, blank=True)
+    skip_reason = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -314,6 +341,34 @@ class ExchangeRate(models.Model):
 
     def __str__(self):
         return f"1 AED = {self.rate} {self.currency} ({self.month}/{self.year})"
+
+
+class CommissionTierSettings(models.Model):
+    """
+    Tiered DSA commission rule for a foreign currency (e.g. INR, NPR).
+    The first `threshold` bank-submission accounts (summed across all banks,
+    in bank-name order) are paid at each bank's per-account rate for that
+    currency; every account beyond the threshold is paid a flat `overflow_rate`
+    instead. See Bank.charge_for_currency() for the per-bank rate lookup.
+    """
+    currency = models.CharField(max_length=3, unique=True, help_text="Foreign currency code, e.g. INR, NPR")
+    threshold = models.PositiveIntegerField(
+        default=4,
+        help_text="Number of accounts (across all banks) paid at each bank's per-account rate before overflow applies"
+    )
+    overflow_rate = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        help_text="Flat commission per account once the threshold is exceeded"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Commission Tier Setting"
+        verbose_name_plural = "Commission Tier Settings"
+        ordering = ['currency']
+
+    def __str__(self):
+        return f"{self.currency}: first {self.threshold} at bank rate, then {self.overflow_rate}/account"
 
 
 class GeneratedDocument(models.Model):
