@@ -50,14 +50,15 @@ def it_admin_required(user):
 # User Management page. (key, label, group) — group is only used to cluster
 # checkboxes in that page's UI; enforcement only cares about the key.
 NAV_SECTIONS = [
-    ('upload', 'Upload Data', 'Workforce'),
-    ('employees', 'Employees', 'Workforce'),
-    ('special_shifts', 'Special Shifts', 'Scheduling'),
-    ('annual_leave', 'Annual Leave', 'Scheduling'),
-    ('on_duty_requests', 'On-Duty Requests', 'Requests'),
-    ('leave_requests', 'Leave Requests', 'Requests'),
-    ('payroll', 'Payroll', 'Payroll'),
-    ('banks', 'Banks', 'Payroll'),
+    # (key, label, group) — group clusters checkboxes in User Management UI
+    ('employees',       'Employees',        'People'),
+    ('leave_requests',  'Leave Requests',   'People'),
+    ('annual_leave',    'Annual Leave',     'People'),
+    ('special_shifts',  'Special Shifts',   'Scheduling'),
+    ('on_duty_requests','On-Duty Requests', 'Administration'),
+    ('payroll',         'Payroll',          'Compensation'),
+    ('banks',           'Banks',            'Administration'),
+    ('upload',          'Upload Data',      'Data Upload'),
 ]
 NAV_SECTION_KEYS = {key for key, _, _ in NAV_SECTIONS}
 

@@ -1,7 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
-from .models import Employee, AttendanceRecord, MonthlySummary, ShiftHistory, RemoteEmployee, RemoteCallRecord, RemoteMonthlySummary, Holiday, EarlyLeaveRequest, LeaveRequest, UserProfile
+from .models import (
+    Employee, AttendanceRecord, MonthlySummary, ShiftHistory,
+    RemoteEmployee, RemoteCallRecord, RemoteMonthlySummary,
+    Holiday, EarlyLeaveRequest, LeaveRequest, UserProfile,
+    # Phase 2 — Master Data
+    Department, Team, Location, DesignationMaster,
+)
 
 
 class ShiftHistoryInline(admin.TabularInline):
@@ -255,3 +261,88 @@ class LeaveRequestAdmin(admin.ModelAdmin):
         }),
     )
 
+
+# ============================================
+# Phase 2 — Master Data / Lookup Tables
+# ============================================
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'team_count', 'designation_count', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'description')
+    ordering = ('name',)
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def team_count(self, obj):
+        return obj.teams.count()
+    team_count.short_description = 'Teams'
+
+    def designation_count(self, obj):
+        return obj.designations.count()
+    designation_count.short_description = 'Designations'
+
+
+@admin.register(Team)
+class TeamAdmin(admin.ModelAdmin):
+    list_display = ('name', 'department', 'is_active', 'created_at')
+    list_filter = ('is_active', 'department')
+    search_fields = ('name', 'description')
+    ordering = ('name',)
+    readonly_fields = ('created_at', 'updated_at')
+    autocomplete_fields = ('department',)
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'department', 'description', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(Location)
+class LocationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'description')
+    ordering = ('name',)
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(DesignationMaster)
+class DesignationMasterAdmin(admin.ModelAdmin):
+    list_display = ('title', 'department', 'is_active', 'created_at')
+    list_filter = ('is_active', 'department')
+    search_fields = ('title', 'description')
+    ordering = ('title',)
+    readonly_fields = ('created_at', 'updated_at')
+    autocomplete_fields = ('department',)
+    fieldsets = (
+        (None, {
+            'fields': ('title', 'department', 'description', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

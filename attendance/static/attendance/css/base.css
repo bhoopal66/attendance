@@ -6,11 +6,11 @@
    CSS Variables — Design Tokens
    ============================================ */
 :root {
-    /* Primary */
-    --primary-color: #1D4ED8;
-    --primary-hover: #1E40AF;
-    --primary-light: #DBEAFE;
-    --primary-gradient: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
+    /* Primary — Taamul Orange */
+    --primary-color: #F97316;
+    --primary-hover: #EA6C00;
+    --primary-light: #FFF7ED;
+    --primary-gradient: linear-gradient(135deg, #F97316 0%, #FB923C 100%);
 
     /* Accent */
     --accent-purple: #6366F1;
@@ -58,8 +58,8 @@
     --sidebar-bg: #0C1120;
     --sidebar-border: rgba(255, 255, 255, 0.05);
     --sidebar-item-hover: rgba(255, 255, 255, 0.06);
-    --sidebar-item-active-bg: rgba(29, 78, 216, 0.15);
-    --sidebar-accent: #93C5FD;
+    --sidebar-item-active-bg: rgba(249, 115, 22, 0.15);
+    --sidebar-accent: #FDBA74;
 
     /* Top bar */
     --topbar-height: 56px;
@@ -70,7 +70,7 @@
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    --shadow-primary: 0 4px 14px rgba(29, 78, 216, 0.25);
+    --shadow-primary: 0 4px 14px rgba(249, 115, 22, 0.25);
     --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
     --shadow-card-hover: 0 8px 25px rgba(0, 0, 0, 0.08);
 
@@ -189,7 +189,7 @@ a:hover {
     justify-content: center;
     color: white;
     flex-shrink: 0;
-    box-shadow: 0 4px 14px rgba(29, 78, 216, 0.4);
+    box-shadow: 0 4px 14px rgba(249, 115, 22, 0.4);
 }
 
 .logo-text {
@@ -346,8 +346,8 @@ body.sidebar-collapsed .sidebar-period {
 }
 
 .sidebar-item.active {
-    color: #BFDBFE;
-    background: rgba(29, 78, 216, 0.15);
+    color: #FED7AA;
+    background: rgba(249, 115, 22, 0.15);
     font-weight: 600;
 }
 
@@ -359,7 +359,7 @@ body.sidebar-collapsed .sidebar-period {
     transform: translateY(-50%);
     height: 16px;
     width: 3px;
-    background: #60A5FA;
+    background: #F97316;
     border-radius: 0 3px 3px 0;
 }
 
@@ -394,6 +394,30 @@ body.sidebar-collapsed .sidebar-period {
 .sidebar-item.admin-link:hover {
     background: rgba(251, 191, 36, 0.1);
     color: #fde68a;
+}
+
+.sidebar-item.sidebar-item-disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.sidebar-coming-soon {
+    margin-left: auto;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: rgba(249, 115, 22, 0.8);
+    background: rgba(249, 115, 22, 0.12);
+    padding: 1px 5px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    transition: opacity var(--transition-sidebar);
+}
+
+body.sidebar-collapsed .sidebar-coming-soon {
+    opacity: 0;
 }
 
 /* Notification Badge */
@@ -474,7 +498,7 @@ body.sidebar-collapsed .sidebar-period {
 .user-avatar {
     width: 29px;
     height: 29px;
-    background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
+    background: linear-gradient(135deg, #F97316 0%, #FB923C 100%);
     color: white;
     border-radius: 8px;
     display: flex;
@@ -483,7 +507,7 @@ body.sidebar-collapsed .sidebar-period {
     font-weight: 800;
     font-size: 0.6875rem;
     flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35);
 }
 
 .user-info-text {
@@ -754,14 +778,14 @@ body.sidebar-collapsed .main-content {
 .page-header .header-icon {
     width: 42px;
     height: 42px;
-    background: linear-gradient(135deg, var(--primary-color) 0%, #2563EB 100%);
+    background: var(--primary-gradient);
     border-radius: 11px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.2);
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
 }
 
 .page-header .header-text h1 {
@@ -982,8 +1006,8 @@ button, .btn {
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, #1E40AF 0%, #1D4ED8 100%);
-    box-shadow: 0 6px 18px rgba(29, 78, 216, 0.35);
+    background: linear-gradient(135deg, #EA6C00 0%, #F97316 100%);
+    box-shadow: 0 6px 18px rgba(249, 115, 22, 0.35);
     transform: translateY(-1px);
     color: white;
 }
@@ -1078,7 +1102,7 @@ textarea {
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
 }
 
 input::placeholder, textarea::placeholder {
@@ -1547,7 +1571,7 @@ tr:hover {
     border-radius: var(--radius-md);
     padding: 0.75rem 1rem;
     margin-bottom: 1rem;
-    border: 1px solid #BFDBFE;
+    border: 1px solid #FED7AA;
 }
 
 .time-display-row {
