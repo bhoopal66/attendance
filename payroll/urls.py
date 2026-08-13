@@ -5,6 +5,7 @@ from . import views_performance
 from . import views_profitability
 from . import views_management
 from . import views_audit
+from . import views_notes
 
 urlpatterns = [
     path('', views.payroll_test_dashboard, name='payroll_dashboard'),
@@ -66,4 +67,8 @@ urlpatterns = [
     path('management/<int:year>/<int:month>/', views_management.management_dashboard, name='payroll_management'),
     # Phase 13 — Audit Log
     path('audit-log/', views_audit.audit_log, name='payroll_audit_log'),
+
+    # Phase C — Per-employee Notes & Timeline
+    path('api/notes/<str:emp_type>/<int:employee_id>/', views_notes.get_employee_notes, name='get_employee_notes'),
+    path('api/notes/add/', views_notes.add_employee_note, name='add_employee_note'),
 ]

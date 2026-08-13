@@ -453,6 +453,35 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 .co-hist-row { border-bottom: 0.5px solid #f1f5f9; }
 .co-hist-row.co-hist-current { background: #eff6ff; }
 
+/* Notes & Timeline modal (Phase C) */
+.nt-add-box { display:flex; gap:8px; margin-bottom:16px; }
+.nt-add-box textarea {
+    flex:1; resize:vertical; min-height:44px; max-height:120px;
+    border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px;
+    font-size:0.82rem; font-family:inherit;
+}
+.nt-add-box button {
+    align-self:flex-end; background:#1e293b; color:#fff; border:none;
+    border-radius:8px; padding:9px 14px; font-size:0.78rem; font-weight:600;
+    cursor:pointer; white-space:nowrap;
+}
+.nt-add-box button:disabled { opacity:0.5; cursor:not-allowed; }
+.nt-timeline { display:flex; flex-direction:column; }
+.nt-row { display:grid; grid-template-columns:18px 1fr; gap:0 10px; }
+.nt-connector { display:flex; flex-direction:column; align-items:center; }
+.nt-dot { width:8px; height:8px; border-radius:50%; margin-top:5px; flex-shrink:0; }
+.nt-dot-note { background:#7c3aed; }
+.nt-dot-deduction { background:#dc2626; }
+.nt-dot-payment { background:#059669; }
+.nt-dot-carryover { background:#b45309; }
+.nt-line { width:2px; flex:1; min-height:20px; background:#e2e8f0; margin:2px 0; }
+.nt-card { padding-bottom:14px; }
+.nt-card-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.nt-title { font-weight:600; font-size:0.82rem; color:#1e293b; }
+.nt-meta { font-size:0.7rem; color:#94a3b8; margin-left:auto; white-space:nowrap; }
+.nt-detail { font-size:0.78rem; color:#475569; margin-top:2px; }
+.nt-empty { text-align:center; padding:24px 0; color:#94a3b8; font-size:0.82rem; }
+
 /* Currency key — spells out what each color/symbol means, for anyone new to the sheet */
 .curr-legend {
     display: inline-flex; align-items: center; gap: 5px;
@@ -744,7 +773,11 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                                     <input type="checkbox" class="final-row-cb" onchange="updateSelectedCount()">
                                     {% endif %}
                                 </td>
-                                <td>{{ row.employee.name }}</td>
+                                <td>{{ row.employee.name }}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-left:5px;opacity:0.45;cursor:pointer;" onclick="openNotesTimeline('{{ row.employee_type }}','{{ row.employee.id }}','{{ row.employee.name|escapejs }}')" title="Notes &amp; Timeline">
+                                        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                                    </svg>
+                                </td>
                                 <td class="muted">{{ row.department }}</td>
                                 <td class="text-right num">{{ row.payroll_net|floatformat:2 }}</td>
                                 <td class="text-right num val-negative"{% if row.total_deductions > 0 and not row.is_paid %} style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;" onclick="openDeductionBreakdown('{{ row.employee_type }}','{{ row.employee.id }}')" title="Click for itemized breakdown"{% endif %}>{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2 }}{% else %}—{% endif %}</td>
@@ -1967,6 +2000,23 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
     </div>
 </div>
 
+<!-- Notes & Timeline Modal (Phase C) -->
+<div class="modal-overlay" id="notesTimelineModal">
+    <div class="modal" style="min-width:480px;max-width:560px;max-height:85vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div class="modal-title" id="notesTimelineTitle">Notes &amp; Timeline</div>
+            <span class="modal-close" onclick="closeModal('notesTimelineModal')">✕</span>
+        </div>
+        <div class="nt-add-box">
+            <textarea id="ntNoteInput" placeholder="Add a note…"></textarea>
+            <button id="ntAddBtn" onclick="submitNote()">Add Note</button>
+        </div>
+        <div id="notesTimelineContent" style="font-size:0.85rem;">
+            <div class="nt-empty">Loading…</div>
+        </div>
+    </div>
+</div>
+
 <!-- Carryover Full History Modal -->
 <div class="modal-overlay" id="carryoverHistoryModal">
     <div class="modal" style="min-width:560px;max-width:680px;max-height:85vh;overflow-y:auto;">
@@ -2636,6 +2686,79 @@ function openDeductionBreakdown(empType, empId) {
         </table>
     `;
     openModal('dedBreakdownModal');
+}
+
+/* ---- Notes & Timeline Modal (Phase C) ---- */
+let NT_CURRENT = null; // {empType, empId}
+
+function openNotesTimeline(empType, empId, empName) {
+    NT_CURRENT = { empType, empId };
+    document.getElementById('notesTimelineTitle').textContent = `${empName} — Notes & Timeline`;
+    document.getElementById('ntNoteInput').value = '';
+    loadNotesTimeline();
+    openModal('notesTimelineModal');
+}
+
+async function loadNotesTimeline() {
+    const contentEl = document.getElementById('notesTimelineContent');
+    if (!NT_CURRENT) return;
+    contentEl.innerHTML = '<div class="nt-empty">Loading…</div>';
+    try {
+        const r = await fetch(`/payroll/api/notes/${NT_CURRENT.empType}/${NT_CURRENT.empId}/`);
+        const data = await r.json();
+        if (!data.success) { contentEl.innerHTML = '<div class="nt-empty">Could not load timeline.</div>'; return; }
+        if (!data.entries.length) { contentEl.innerHTML = '<div class="nt-empty">No notes or events yet.</div>'; return; }
+
+        const esc = s => (s || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        const fmtDate = iso => {
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}) + ', ' +
+                   d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+        };
+
+        contentEl.innerHTML = `<div class="nt-timeline">${data.entries.map((e, i) => `
+            <div class="nt-row">
+                <div class="nt-connector">
+                    <div class="nt-dot nt-dot-${e.type}"></div>
+                    ${i < data.entries.length - 1 ? '<div class="nt-line"></div>' : ''}
+                </div>
+                <div class="nt-card">
+                    <div class="nt-card-head">
+                        <span class="nt-title">${esc(e.title)}</span>
+                        <span class="nt-meta">${fmtDate(e.timestamp)}${e.actor ? ' · ' + esc(e.actor) : ''}</span>
+                    </div>
+                    ${e.detail ? `<div class="nt-detail">${esc(e.detail)}</div>` : ''}
+                </div>
+            </div>
+        `).join('')}</div>`;
+    } catch {
+        contentEl.innerHTML = '<div class="nt-empty">Could not load timeline.</div>';
+    }
+}
+
+async function submitNote() {
+    if (!NT_CURRENT) return;
+    const input = document.getElementById('ntNoteInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const btn = document.getElementById('ntAddBtn');
+    btn.disabled = true;
+    try {
+        const r = await fetch('/payroll/api/notes/add/', {
+            method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+            body: JSON.stringify({ emp_type: NT_CURRENT.empType, employee_id: NT_CURRENT.empId, text }),
+        });
+        const data = await r.json();
+        if (data.success) {
+            input.value = '';
+            await loadNotesTimeline();
+        } else {
+            alert(data.error || 'Failed to add note.');
+        }
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 /* ---- Carryover Full History Modal ---- */

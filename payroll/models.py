@@ -337,6 +337,50 @@ class DeductionCarryover(models.Model):
         return f"{emp.name} overflow {self.from_month}/{self.from_year} → {self.to_month}/{self.to_year}: {self.overflow_amount}"
 
 
+class PayrollNote(models.Model):
+    """
+    Phase C — free-text, timestamped note attached to an employee, shown in
+    the per-employee Notes & Timeline modal on the payroll dashboard
+    alongside the auto-generated deduction/payment/carryover history.
+
+    Manually created only (via the "+ Add Note" box); never edited or
+    deleted through the UI — an append-only comment log.
+    """
+    employee = models.ForeignKey(
+        'attendance.Employee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='payroll_notes',
+    )
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='payroll_notes',
+    )
+    text = models.TextField()
+    created_by = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['employee', '-created_at'], name='payroll_pay_employe_a1f2c3_idx'),
+            models.Index(fields=['remote_employee', '-created_at'], name='payroll_pay_remote__b4d5e6_idx'),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.employee and self.remote_employee:
+            raise ValidationError("A note must be linked to either an in-house or remote employee, not both.")
+        if not self.employee and not self.remote_employee:
+            raise ValidationError("A note must be linked to an employee.")
+
+    def __str__(self):
+        emp = self.employee or self.remote_employee
+        return f"{emp.name} note @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
 class ExchangeRate(models.Model):
     """
     Stores the exchange rate on the 10th of each month.
