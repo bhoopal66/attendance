@@ -1,0 +1,271 @@
+{% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block title %}Profitability {{ month_name }} {{ year }} · Taamul{% endblock %}
+{% block page_title %}Profitability — {{ month_name }} {{ year }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.prof-wrap { max-width: 1250px; }
+
+/* ── Month navigation ───────────────────────────────────────────────────────── */
+.month-nav { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.25rem; }
+.month-nav a {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 8px;
+    border: 1px solid var(--border-color); background: var(--surface-color);
+    color: var(--text-secondary); text-decoration: none;
+    font-size: 1rem; transition: all .15s;
+}
+.month-nav a:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.month-nav .month-label { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+
+/* ── FX warning banner ──────────────────────────────────────────────────────── */
+.fx-banner {
+    display: flex; gap: .7rem; align-items: flex-start;
+    background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 10px;
+    padding: .8rem 1rem; margin-bottom: 1.25rem;
+    font-size: .82rem; color: #92400E;
+}
+.fx-banner strong { font-weight: 700; }
+
+/* ── Summary cards ──────────────────────────────────────────────────────────── */
+.summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+    gap: .9rem; margin-bottom: 1.5rem;
+}
+.sum-card {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: .95rem 1.1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.sum-card .k { font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+               text-transform: uppercase; color: var(--text-secondary); margin-bottom: .3rem; }
+.sum-card .v { font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
+.sum-card .v.orange { color: var(--primary-color); }
+.sum-card .v.pos { color: #16A34A; }
+.sum-card .v.neg { color: #DC2626; }
+.sum-card .sub { font-size: .72rem; color: var(--text-secondary); margin-top: .15rem; }
+
+/* ── Cards & tables ─────────────────────────────────────────────────────────── */
+.prof-card {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    overflow-x: auto;
+}
+.prof-card h3 { margin: 0 0 1rem; font-size: .95rem; font-weight: 700; color: var(--text-primary); }
+
+.prof-table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+.prof-table th {
+    text-align: left; padding: .55rem .65rem;
+    font-size: .66rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color); white-space: nowrap;
+}
+.prof-table td {
+    padding: .58rem .65rem; border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary); vertical-align: middle; white-space: nowrap;
+}
+.prof-table tr:last-child td { border-bottom: none; }
+.prof-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.kind-tag {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    font-size: .64rem; font-weight: 700; background: #F3F4F6; color: #6B7280;
+}
+.kind-tag.remote { background: #FEF3C7; color: #92400E; }
+
+.contrib-pos { color: #16A34A; font-weight: 700; }
+.contrib-neg { color: #DC2626; font-weight: 700; }
+
+.roi-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: .7rem; font-weight: 700;
+}
+.roi-badge.pos  { background: #DCFCE7; color: #14532D; }
+.roi-badge.neg  { background: #FEE2E2; color: #991B1B; }
+.roi-badge.none { background: #F3F4F6; color: #6B7280; }
+
+.fx-row td { opacity: .65; }
+.fx-tag {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    font-size: .64rem; font-weight: 700; background: #FEE2E2; color: #991B1B;
+}
+
+.empty-note { padding: 1.5rem; text-align: center; color: var(--text-secondary); font-size: .85rem; }
+.note-line  { font-size: .72rem; color: var(--text-secondary); margin-top: .8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="prof-wrap">
+
+    <!-- ── Month navigation ─────────────────────────────────────────────── -->
+    <div class="month-nav">
+        <a href="{% url 'payroll_profitability' year=prev_year month=prev_month %}" title="Previous month">‹</a>
+        <span class="month-label">{{ month_name }} {{ year }}</span>
+        <a href="{% url 'payroll_profitability' year=next_year month=next_month %}" title="Next month">›</a>
+    </div>
+
+    <!-- ── FX warning ───────────────────────────────────────────────────── -->
+    {% if fx_missing %}
+    <div class="fx-banner">
+        <span>⚠</span>
+        <span>
+            <strong>{{ fx_missing|length }} agent{{ fx_missing|length|pluralize }} excluded from AED totals</strong>
+            — no exchange rate entered for {{ month_name }} {{ year }}:
+            {% for f in fx_missing %}{{ f.name }} ({{ f.currency }}){% if not forloop.last %}, {% endif %}{% endfor %}.
+            Add the rate(s) in Exchange Rates and this page will include them automatically.
+        </span>
+    </div>
+    {% endif %}
+
+    <!-- ── Summary cards ────────────────────────────────────────────────── -->
+    <div class="summary-grid">
+        <div class="sum-card">
+            <div class="k">Revenue</div>
+            <div class="v orange">AED {{ summary.total_revenue|floatformat:2 }}</div>
+            <div class="sub">{{ summary.total_accounts }} funded accounts</div>
+        </div>
+        <div class="sum-card">
+            <div class="k">Total Cost</div>
+            <div class="v">AED {{ summary.total_cost|floatformat:2 }}</div>
+            <div class="sub">salary + employer + commission</div>
+        </div>
+        <div class="sum-card">
+            <div class="k">Contribution</div>
+            <div class="v {% if summary.total_contribution >= 0 %}pos{% else %}neg{% endif %}">
+                AED {{ summary.total_contribution|floatformat:2 }}
+            </div>
+            <div class="sub">revenue − total cost</div>
+        </div>
+        <div class="sum-card">
+            <div class="k">Overall ROI</div>
+            <div class="v {% if summary.overall_roi is not None and summary.overall_roi >= 0 %}pos{% elif summary.overall_roi is not None %}neg{% endif %}">
+                {% if summary.overall_roi is not None %}{{ summary.overall_roi }}%{% else %}—{% endif %}
+            </div>
+        </div>
+        <div class="sum-card">
+            <div class="k">Agents</div>
+            <div class="v">{{ summary.people_complete }}</div>
+            <div class="sub">
+                {{ summary.profitable_count }} profitable ·
+                {{ summary.lossmaking_count }} loss-making{% if summary.people_fx_missing %} ·
+                {{ summary.people_fx_missing }} no FX{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Team rollup ──────────────────────────────────────────────────── -->
+    <div class="prof-card">
+        <h3>Team Contribution</h3>
+        {% if teams %}
+        <table class="prof-table">
+            <thead>
+                <tr>
+                    <th>Team</th>
+                    <th class="num">Members</th>
+                    <th class="num">Accounts</th>
+                    <th class="num">Revenue</th>
+                    <th class="num">Total Cost</th>
+                    <th class="num">Contribution</th>
+                    <th>ROI</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in teams %}
+                <tr>
+                    <td style="font-weight:600;">{{ t.team }}</td>
+                    <td class="num">{{ t.members }}</td>
+                    <td class="num">{{ t.accounts }}</td>
+                    <td class="num">{{ t.revenue|floatformat:2 }}</td>
+                    <td class="num">{{ t.total_cost|floatformat:2 }}</td>
+                    <td class="num {% if t.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">
+                        {{ t.contribution|floatformat:2 }}
+                    </td>
+                    <td>
+                        {% if t.roi_pct is not None %}
+                        <span class="roi-badge {% if t.roi_pct >= 0 %}pos{% else %}neg{% endif %}">{{ t.roi_pct }}%</span>
+                        {% else %}<span class="roi-badge none">—</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-note">No profitability data for {{ month_name }} {{ year }} yet.</div>
+        {% endif %}
+    </div>
+
+    <!-- ── Per-agent table ──────────────────────────────────────────────── -->
+    <div class="prof-card">
+        <h3>Agent Contribution</h3>
+        {% if rows %}
+        <table class="prof-table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Type</th>
+                    <th>Team</th>
+                    <th class="num">Accounts</th>
+                    <th class="num">Revenue</th>
+                    <th class="num">Salary</th>
+                    <th class="num">Employer Cost</th>
+                    <th class="num">Commission</th>
+                    <th class="num">Total Cost</th>
+                    <th class="num">Contribution</th>
+                    <th>ROI</th>
+                    <th class="num">Cost / Account</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr {% if r.fx_missing %}class="fx-row"{% endif %}>
+                    <td style="font-weight:600;">{{ r.name }}
+                        <span style="color:var(--text-secondary); font-size:.7rem;">({{ r.ref }})</span>
+                    </td>
+                    <td><span class="kind-tag {% if r.kind == 'remote' %}remote{% endif %}">
+                        {% if r.kind == 'remote' %}Remote{% else %}In-house{% endif %}</span>
+                    </td>
+                    <td>{{ r.team|default:'—' }}</td>
+                    <td class="num">{{ r.accounts }}</td>
+                    <td class="num">{{ r.revenue|floatformat:2 }}</td>
+                    {% if r.fx_missing %}
+                    <td colspan="7"><span class="fx-tag">No {{ r.currency }} exchange rate for {{ month_name }} {{ year }}</span></td>
+                    {% else %}
+                    <td class="num">{{ r.salary_aed|floatformat:2 }}</td>
+                    <td class="num">{{ r.employer_cost_aed|floatformat:2 }}</td>
+                    <td class="num">{{ r.commission_aed|floatformat:2 }}</td>
+                    <td class="num">{{ r.total_cost|floatformat:2 }}</td>
+                    <td class="num {% if r.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">
+                        {{ r.contribution|floatformat:2 }}
+                    </td>
+                    <td>
+                        {% if r.roi_pct is not None %}
+                        <span class="roi-badge {% if r.roi_pct >= 0 %}pos{% else %}neg{% endif %}">{{ r.roi_pct }}%</span>
+                        {% else %}<span class="roi-badge none">—</span>{% endif %}
+                    </td>
+                    <td class="num">
+                        {% if r.cost_per_account is not None %}{{ r.cost_per_account|floatformat:2 }}{% else %}—{% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="note-line">
+            All figures in AED. Foreign salaries/commissions converted at the month's exchange rate
+            (1 AED = rate units). Commission uses flat per-account bank rates; employer cost is the
+            latest cost setup effective on or before month-end. Revenue requires
+            <em>revenue per account</em> to be set on each bank.
+        </div>
+        {% else %}
+        <div class="empty-note">
+            No agents with activity, salary, or cost setup for {{ month_name }} {{ year }}.
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

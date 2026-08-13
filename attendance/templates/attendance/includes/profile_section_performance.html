@@ -1,0 +1,138 @@
+{% comment %}Section card: Performance — Targets & Revenue (Phase 10){% endcomment %}
+<div class="section-card full-width">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+            </svg>
+            Performance
+        </span>
+        <a class="btn-edit-section" style="text-decoration:none;"
+           href="{% url 'payroll_team_performance' year=perf_year month=perf_month %}"
+           title="Targets are set on the Team Performance page">Team View →</a>
+    </div>
+    <div class="section-body">
+
+        <style>
+        /* ── Performance section (Phase 10) ─────────────────────────────── */
+        .perf-cur-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: .8rem; margin-bottom: 1.2rem;
+        }
+        .perf-cur-box {
+            border: 1px solid var(--border-color); border-radius: 10px;
+            padding: .7rem .9rem; background: var(--surface-color);
+        }
+        .perf-cur-box .k { font-size: .64rem; font-weight: 700; letter-spacing: .06em;
+                           text-transform: uppercase; color: var(--text-secondary); }
+        .perf-cur-box .v { font-size: 1.15rem; font-weight: 800; color: var(--text-primary); margin-top: .2rem; }
+        .perf-cur-box .v.orange { color: var(--primary-color); }
+
+        .perf-badge {
+            display: inline-block; padding: 2px 10px; border-radius: 12px;
+            font-size: .68rem; font-weight: 700;
+        }
+        .perf-badge.achieved  { background: #DCFCE7; color: #14532D; }
+        .perf-badge.near      { background: #FEF3C7; color: #92400E; }
+        .perf-badge.below     { background: #FEE2E2; color: #991B1B; }
+        .perf-badge.no_target { background: #F3F4F6; color: #6B7280; }
+
+        /* trend bar chart — pure CSS, no JS library */
+        .perf-chart {
+            display: flex; align-items: flex-end; gap: 6px;
+            height: 120px; padding: .4rem .2rem 0;
+            border-bottom: 2px solid var(--border-color);
+        }
+        .perf-col { flex: 1; display: flex; flex-direction: column;
+                    align-items: center; justify-content: flex-end; height: 100%; gap: 2px; }
+        .perf-bars { display: flex; align-items: flex-end; gap: 2px; height: 100%; width: 100%;
+                     justify-content: center; }
+        .perf-bar { width: 42%; max-width: 16px; border-radius: 3px 3px 0 0; min-height: 2px; }
+        .perf-bar.tgt { background: #E5E7EB; }
+        .perf-bar.ach { background: var(--primary-gradient); }
+        .perf-bar.ach.achieved { background: #16A34A; }
+        .perf-bar.ach.below    { background: #DC2626; }
+        .perf-x {
+            display: flex; gap: 6px; margin-top: .35rem;
+        }
+        .perf-x span {
+            flex: 1; text-align: center; font-size: .6rem;
+            color: var(--text-secondary); font-weight: 600;
+        }
+        .perf-legend { display: flex; gap: 1rem; margin-top: .7rem; font-size: .68rem;
+                       color: var(--text-secondary); }
+        .perf-legend i { display: inline-block; width: 10px; height: 10px;
+                         border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+        .perf-empty { padding: 1.2rem; text-align: center;
+                      color: var(--text-secondary); font-size: .82rem; }
+        </style>
+
+        {% if perf_has_data %}
+
+        <!-- ── Current month snapshot ───────────────────────────────────── -->
+        {% if perf_current %}
+        <div class="perf-cur-grid">
+            <div class="perf-cur-box">
+                <div class="k">This Month Target</div>
+                <div class="v">{{ perf_current.target }}</div>
+            </div>
+            <div class="perf-cur-box">
+                <div class="k">Achieved</div>
+                <div class="v orange">{{ perf_current.achieved }}</div>
+            </div>
+            <div class="perf-cur-box">
+                <div class="k">Achievement</div>
+                <div class="v">
+                    {% if perf_current.pct is not None %}{{ perf_current.pct }}%{% else %}—{% endif %}
+                </div>
+            </div>
+            <div class="perf-cur-box">
+                <div class="k">Derived Revenue</div>
+                <div class="v orange">AED {{ perf_current.revenue|floatformat:2 }}</div>
+            </div>
+            <div class="perf-cur-box">
+                <div class="k">Status</div>
+                <div class="v" style="font-size:.85rem; padding-top:.3rem;">
+                    {% if perf_current.status == 'achieved' %}<span class="perf-badge achieved">Achieved</span>
+                    {% elif perf_current.status == 'near' %}<span class="perf-badge near">Near Target</span>
+                    {% elif perf_current.status == 'below' %}<span class="perf-badge below">Below Target</span>
+                    {% else %}<span class="perf-badge no_target">No Target</span>{% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ── 12-month trend (CSS bar chart) ───────────────────────────── -->
+        <div class="perf-chart">
+            {% for p in perf_trend %}
+            <div class="perf-col"
+                 title="{{ p.month }}/{{ p.year }} — target {{ p.target }}, achieved {{ p.achieved }}{% if p.pct is not None %} ({{ p.pct }}%){% endif %}">
+                <div class="perf-bars">
+                    <div class="perf-bar tgt"
+                         style="height: {% widthratio p.target perf_max 100 %}%;"></div>
+                    <div class="perf-bar ach {{ p.status }}"
+                         style="height: {% widthratio p.achieved perf_max 100 %}%;"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="perf-x">
+            {% for p in perf_trend %}<span>{{ p.month }}/{{ p.year|stringformat:'d'|slice:'2:' }}</span>{% endfor %}
+        </div>
+        <div class="perf-legend">
+            <span><i style="background:#E5E7EB;"></i>Target</span>
+            <span><i style="background:var(--primary-color);"></i>Achieved</span>
+            <span><i style="background:#16A34A;"></i>Achieved ≥100%</span>
+            <span><i style="background:#DC2626;"></i>Below 70%</span>
+        </div>
+
+        {% else %}
+        <div class="perf-empty">
+            No targets or bank submissions recorded for this employee in the last 12 months.<br>
+            Set a monthly target on the <a href="{% url 'payroll_team_performance' year=perf_year month=perf_month %}"
+               style="color:var(--primary-color);">Team Performance page</a>.
+        </div>
+        {% endif %}
+
+    </div>
+</div>

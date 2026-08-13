@@ -1,0 +1,372 @@
+{% comment %}Section card: Employer Cost Setup (Phase 6){% endcomment %}
+<div class="section-card full-width">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            Employer Cost
+        </span>
+        <button class="btn-edit-section" onclick="editSection('cost')">Edit</button>
+    </div>
+    <div class="section-body">
+
+        <!-- ── View Mode ──────────────────────────────────────────────── -->
+        <div class="view-mode" id="view-cost">
+            {% if current_cost %}
+            <div class="cost-hero">
+                <span class="cost-label">Total Monthly Cost</span>
+                <span class="cost-total-number">
+                    {{ employee.currency|default:"AED" }}
+                    {% with t=current_cost.total_monthly_cost %}
+                        {{ t|floatformat:2 }}
+                    {% endwith %}
+                </span>
+                <span class="cost-effective">effective {{ current_cost.effective_from }}</span>
+            </div>
+
+            <div class="cost-breakdown">
+                <div class="cost-line">
+                    <span class="cost-line-label">Manpower Fee</span>
+                    <span class="cost-line-value">{{ current_cost.manpower_monthly_fee|floatformat:2 }}</span>
+                </div>
+                <div class="cost-line">
+                    <span class="cost-line-label">Visa Amortisation</span>
+                    <span class="cost-line-value">{{ current_cost.visa_amortisation_monthly|floatformat:2 }}</span>
+                </div>
+                <div class="cost-line">
+                    <span class="cost-line-label">Visa Status Change</span>
+                    <span class="cost-line-value">{{ current_cost.visa_status_change_amortisation|floatformat:2 }}</span>
+                </div>
+                <div class="cost-line">
+                    <span class="cost-line-label">Medical Insurance</span>
+                    <span class="cost-line-value">{{ current_cost.medical_insurance_monthly|floatformat:2 }}</span>
+                </div>
+                <div class="cost-line">
+                    <span class="cost-line-label">EOS Provision</span>
+                    <span class="cost-line-value">{{ current_cost.eos_provision_monthly|floatformat:2 }}</span>
+                </div>
+                <div class="cost-line">
+                    <span class="cost-line-label">Leave Salary Provision</span>
+                    <span class="cost-line-value">{{ current_cost.leave_salary_provision_monthly|floatformat:2 }}</span>
+                </div>
+                <div class="cost-line">
+                    <span class="cost-line-label">Air Ticket Provision</span>
+                    <span class="cost-line-value">{{ current_cost.air_ticket_provision_monthly|floatformat:2 }}</span>
+                </div>
+                <div class="cost-line">
+                    <span class="cost-line-label">Recruitment Allocation</span>
+                    <span class="cost-line-value">{{ current_cost.recruitment_cost_allocation|floatformat:2 }}</span>
+                </div>
+                <div class="cost-line">
+                    <span class="cost-line-label">Other Cost</span>
+                    <span class="cost-line-value">{{ current_cost.other_cost_monthly|floatformat:2 }}</span>
+                </div>
+                {% if current_cost.notes %}
+                <div class="cost-line cost-notes-row">
+                    <span class="cost-line-label">Notes</span>
+                    <span class="cost-line-value cost-notes-text">{{ current_cost.notes }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="info-empty" style="padding: 1rem 0;">No employer cost setup recorded yet. Click <strong>Edit</strong> to add one.</p>
+            {% endif %}
+
+            {% if cost_history %}
+            <div class="cost-history-section">
+                <h4 class="cost-history-title">Cost History</h4>
+                <div class="table-scroll">
+                    <table class="cost-history-table">
+                        <thead>
+                            <tr>
+                                <th>Effective From</th>
+                                <th>Manpower</th>
+                                <th>Visa Amort.</th>
+                                <th>Status Chg.</th>
+                                <th>Medical</th>
+                                <th>EOS</th>
+                                <th>Leave Sal.</th>
+                                <th>Air Ticket</th>
+                                <th>Recruit.</th>
+                                <th>Other</th>
+                                <th>Total</th>
+                                <th>By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cs in cost_history %}
+                            <tr>
+                                <td>{{ cs.effective_from }}</td>
+                                <td>{{ cs.manpower_monthly_fee|floatformat:2 }}</td>
+                                <td>{{ cs.visa_amortisation_monthly|floatformat:2 }}</td>
+                                <td>{{ cs.visa_status_change_amortisation|floatformat:2 }}</td>
+                                <td>{{ cs.medical_insurance_monthly|floatformat:2 }}</td>
+                                <td>{{ cs.eos_provision_monthly|floatformat:2 }}</td>
+                                <td>{{ cs.leave_salary_provision_monthly|floatformat:2 }}</td>
+                                <td>{{ cs.air_ticket_provision_monthly|floatformat:2 }}</td>
+                                <td>{{ cs.recruitment_cost_allocation|floatformat:2 }}</td>
+                                <td>{{ cs.other_cost_monthly|floatformat:2 }}</td>
+                                <td class="cost-total-cell">{{ cs.total_monthly_cost|floatformat:2 }}</td>
+                                <td>{{ cs.created_by }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div><!-- /view-cost -->
+
+        <!-- ── Edit Mode ──────────────────────────────────────────────── -->
+        <form class="edit-form" id="form-cost"
+              onsubmit="event.preventDefault(); saveSection('cost', this);">
+            {% csrf_token %}
+
+            <div class="form-row">
+                <label>Effective From</label>
+                <input type="date" name="effective_from"
+                       value="{% if current_cost %}{{ current_cost.effective_from|date:'Y-m-d' }}{% endif %}"
+                       max="{{ today|date:'Y-m-d' }}">
+            </div>
+
+            <div class="cost-grid">
+                <div class="form-row">
+                    <label>Manpower Monthly Fee</label>
+                    <input type="number" name="manpower_monthly_fee" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.manpower_monthly_fee }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+                <div class="form-row">
+                    <label>Visa Amortisation (monthly)</label>
+                    <input type="number" name="visa_amortisation_monthly" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.visa_amortisation_monthly }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+                <div class="form-row">
+                    <label>Visa Status Change (monthly)</label>
+                    <input type="number" name="visa_status_change_amortisation" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.visa_status_change_amortisation }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+                <div class="form-row">
+                    <label>Medical Insurance (monthly)</label>
+                    <input type="number" name="medical_insurance_monthly" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.medical_insurance_monthly }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+                <div class="form-row">
+                    <label>EOS Provision (monthly)</label>
+                    <input type="number" name="eos_provision_monthly" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.eos_provision_monthly }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+                <div class="form-row">
+                    <label>Leave Salary Provision (monthly)</label>
+                    <input type="number" name="leave_salary_provision_monthly" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.leave_salary_provision_monthly }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+                <div class="form-row">
+                    <label>Air Ticket Provision (monthly)</label>
+                    <input type="number" name="air_ticket_provision_monthly" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.air_ticket_provision_monthly }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+                <div class="form-row">
+                    <label>Recruitment Cost Allocation</label>
+                    <input type="number" name="recruitment_cost_allocation" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.recruitment_cost_allocation }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+                <div class="form-row">
+                    <label>Other Cost (monthly)</label>
+                    <input type="number" name="other_cost_monthly" step="0.01" min="0"
+                           value="{% if current_cost %}{{ current_cost.other_cost_monthly }}{% else %}0{% endif %}"
+                           oninput="updateCostPreview()">
+                </div>
+            </div><!-- /cost-grid -->
+
+            <div class="cost-preview-bar">
+                <span class="cost-preview-label">Total Monthly Cost Preview:</span>
+                <span class="cost-preview-value" id="cost-total-preview">0.00</span>
+            </div>
+
+            <div class="form-row">
+                <label>Notes / Revision Reason</label>
+                <input type="text" name="notes"
+                       value="{% if current_cost %}{{ current_cost.notes|default:'' }}{% endif %}"
+                       placeholder="e.g. Annual insurance renewal, visa renewal">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save</button>
+                <button type="button" class="btn-cancel-edit" onclick="cancelSection('cost')">Cancel</button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<style>
+/* ── Employer Cost Section ────────────────────────────────────────────── */
+.cost-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .25rem;
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.25rem;
+    background: rgba(249, 115, 22, .06);
+    border-left: 3px solid var(--primary-color, #F97316);
+    border-radius: 6px;
+}
+.cost-label {
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #64748b;
+}
+.cost-total-number {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--primary-color, #F97316);
+    line-height: 1.15;
+}
+.cost-effective {
+    font-size: .78rem;
+    color: #94a3b8;
+}
+.cost-breakdown {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: .35rem .75rem;
+    margin-bottom: 1.25rem;
+}
+.cost-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: .35rem .5rem;
+    border-radius: 4px;
+}
+.cost-line:nth-child(odd) { background: #f8fafc; }
+.cost-line-label {
+    font-size: .8rem;
+    color: #64748b;
+}
+.cost-line-value {
+    font-size: .88rem;
+    font-weight: 600;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+.cost-notes-row { grid-column: 1 / -1; }
+.cost-notes-text { font-weight: 400; color: #475569; font-style: italic; }
+
+/* History table */
+.cost-history-section { margin-top: 1.5rem; }
+.cost-history-title {
+    font-size: .78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #64748b;
+    margin: 0 0 .6rem;
+}
+.table-scroll { overflow-x: auto; }
+.cost-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .8rem;
+}
+.cost-history-table th {
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    text-align: right;
+    padding: .4rem .6rem;
+    white-space: nowrap;
+}
+.cost-history-table th:first-child { text-align: left; }
+.cost-history-table td {
+    padding: .35rem .6rem;
+    text-align: right;
+    border-bottom: 1px solid #f1f5f9;
+    font-variant-numeric: tabular-nums;
+    color: #334155;
+}
+.cost-history-table td:first-child,
+.cost-history-table td:last-child { text-align: left; }
+.cost-history-table tr:last-child td { border-bottom: none; }
+.cost-total-cell { font-weight: 700; color: var(--primary-color, #F97316); }
+
+/* Edit form grid */
+.cost-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .5rem .75rem;
+    margin-bottom: .75rem;
+}
+@media (max-width: 900px) {
+    .cost-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+    .cost-grid { grid-template-columns: 1fr; }
+}
+.cost-preview-bar {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .65rem 1rem;
+    background: rgba(249, 115, 22, .08);
+    border: 1px solid rgba(249, 115, 22, .25);
+    border-radius: 6px;
+    margin-bottom: .75rem;
+}
+.cost-preview-label {
+    font-size: .82rem;
+    font-weight: 600;
+    color: #64748b;
+}
+.cost-preview-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary-color, #F97316);
+    font-variant-numeric: tabular-nums;
+}
+</style>
+
+<script>
+(function () {
+    const COST_FIELDS = [
+        'manpower_monthly_fee',
+        'visa_amortisation_monthly',
+        'visa_status_change_amortisation',
+        'medical_insurance_monthly',
+        'eos_provision_monthly',
+        'leave_salary_provision_monthly',
+        'air_ticket_provision_monthly',
+        'recruitment_cost_allocation',
+        'other_cost_monthly',
+    ];
+
+    window.updateCostPreview = function () {
+        const form = document.getElementById('form-cost');
+        if (!form) return;
+        let total = 0;
+        COST_FIELDS.forEach(function (name) {
+            const el = form.querySelector('[name="' + name + '"]');
+            if (el) total += parseFloat(el.value || '0') || 0;
+        });
+        const preview = document.getElementById('cost-total-preview');
+        if (preview) preview.textContent = total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    // Run once on load to initialise preview from pre-filled values
+    document.addEventListener('DOMContentLoaded', function () {
+        window.updateCostPreview();
+    });
+})();
+</script>

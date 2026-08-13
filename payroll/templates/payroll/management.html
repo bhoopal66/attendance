@@ -1,0 +1,356 @@
+{% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block title %}Management Dashboard {{ month_name }} {{ year }} · Taamul{% endblock %}
+{% block page_title %}Management Dashboard — {{ month_name }} {{ year }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.mgmt-wrap { max-width: 1250px; }
+
+/* ── Month navigation ───────────────────────────────────────────────────────── */
+.month-nav { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.25rem; }
+.month-nav a {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 8px;
+    border: 1px solid var(--border-color); background: var(--surface-color);
+    color: var(--text-secondary); text-decoration: none; font-size: 1rem;
+    transition: all .15s;
+}
+.month-nav a:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.month-nav .month-label { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+
+/* ── KPI cards ──────────────────────────────────────────────────────────────── */
+.kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: .9rem; margin-bottom: 1.5rem;
+}
+.kpi-card {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: .95rem 1.1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.kpi-card .k { font-size: .66rem; font-weight: 700; letter-spacing: .06em;
+               text-transform: uppercase; color: var(--text-secondary); margin-bottom: .3rem; }
+.kpi-card .v { font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
+.kpi-card .v.orange { color: var(--primary-color); }
+.kpi-card .v.pos { color: #16A34A; }
+.kpi-card .v.neg { color: #DC2626; }
+.kpi-card .sub { font-size: .7rem; color: var(--text-secondary); margin-top: .15rem; }
+
+/* ── Run status strip ───────────────────────────────────────────────────────── */
+.run-strip {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: .85rem 1.2rem; margin-bottom: 1.5rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.run-strip .label { font-size: .78rem; font-weight: 700; color: var(--text-secondary); }
+.run-pill {
+    display: inline-block; padding: 3px 12px; border-radius: 14px;
+    font-size: .74rem; font-weight: 700;
+}
+.run-pill.draft    { background: #F3F4F6; color: #6B7280; }
+.run-pill.review   { background: #FEF3C7; color: #92400E; }
+.run-pill.approved { background: #D1FAE5; color: #065F46; }
+.run-pill.locked   { background: #FFEDD5; color: #9A3412; }
+.run-pill.paid     { background: #DCFCE7; color: #14532D; }
+.run-pill.posted   { background: #E0F2FE; color: #1E3A5F; }
+.run-strip a {
+    margin-left: auto; font-size: .78rem; font-weight: 600;
+    color: var(--primary-color); text-decoration: none;
+}
+.run-strip a:hover { text-decoration: underline; }
+
+/* ── Panels ─────────────────────────────────────────────────────────────────── */
+.panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem; }
+@media (max-width: 900px) { .panel-grid { grid-template-columns: 1fr; } }
+.panel {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 14px; padding: 1.2rem 1.4rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.panel h3 { margin: 0 0 .9rem; font-size: .92rem; font-weight: 700; color: var(--text-primary); }
+.panel h3 .badge {
+    display: inline-block; margin-left: .5rem; padding: 1px 9px; border-radius: 11px;
+    font-size: .68rem; font-weight: 700;
+}
+.badge.blocker { background: #FEE2E2; color: #991B1B; }
+.badge.warning { background: #FEF3C7; color: #92400E; }
+.badge.ok      { background: #DCFCE7; color: #14532D; }
+
+.mgmt-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.mgmt-table th {
+    text-align: left; padding: .45rem .55rem;
+    font-size: .64rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color); white-space: nowrap;
+}
+.mgmt-table td {
+    padding: .5rem .55rem; border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary); white-space: nowrap;
+}
+.mgmt-table tr:last-child td { border-bottom: none; }
+.mgmt-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.perf-status {
+    display: inline-block; padding: 1px 9px; border-radius: 11px;
+    font-size: .66rem; font-weight: 700;
+}
+.perf-status.achieved  { background: #DCFCE7; color: #14532D; }
+.perf-status.near      { background: #FEF3C7; color: #92400E; }
+.perf-status.below     { background: #FEE2E2; color: #991B1B; }
+.contrib-pos { color: #16A34A; font-weight: 700; }
+.contrib-neg { color: #DC2626; font-weight: 700; }
+
+/* ── Alerts ─────────────────────────────────────────────────────────────────── */
+.alert-item {
+    border: 1px solid var(--border-color); border-left-width: 4px;
+    border-radius: 8px; padding: .7rem .9rem; margin-bottom: .7rem;
+}
+.alert-item.blocker { border-left-color: #DC2626; background: #FEF2F2; }
+.alert-item.warning { border-left-color: #F59E0B; background: #FFFBEB; }
+.alert-item .a-title { font-size: .82rem; font-weight: 700; color: var(--text-primary); }
+.alert-item .a-title .cnt { color: var(--text-secondary); font-weight: 600; font-size: .74rem; }
+.alert-item .a-detail { font-size: .74rem; color: var(--text-secondary); margin-top: .15rem; }
+.alert-item .a-items { font-size: .72rem; color: var(--text-primary); margin-top: .3rem; line-height: 1.5; }
+
+/* ── Data health ────────────────────────────────────────────────────────────── */
+.dh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .7rem; }
+.dh-box {
+    border: 1px solid var(--border-color); border-radius: 10px;
+    padding: .65rem .8rem; background: var(--surface-color);
+}
+.dh-box .k { font-size: .62rem; font-weight: 700; letter-spacing: .05em;
+             text-transform: uppercase; color: var(--text-secondary); }
+.dh-box .v { font-size: 1.05rem; font-weight: 800; color: var(--text-primary); margin-top: .2rem; }
+.dh-box .v.warn { color: #DC2626; }
+.dh-low { margin-top: .9rem; font-size: .74rem; color: var(--text-secondary); }
+
+.empty-note { padding: 1rem; text-align: center; color: var(--text-secondary); font-size: .82rem; }
+.quick-links { display: flex; gap: .8rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.quick-links a {
+    display: inline-flex; align-items: center; padding: 6px 14px;
+    background: var(--primary-gradient); color: #fff; border-radius: 8px;
+    font-size: .78rem; font-weight: 600; text-decoration: none; transition: opacity .15s;
+}
+.quick-links a:hover { opacity: .88; color: #fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgmt-wrap">
+
+    <!-- ── Month navigation ─────────────────────────────────────────────── -->
+    <div class="month-nav">
+        <a href="{% url 'payroll_management' year=prev_year month=prev_month %}" title="Previous month">‹</a>
+        <span class="month-label">{{ month_name }} {{ year }}</span>
+        <a href="{% url 'payroll_management' year=next_year month=next_month %}" title="Next month">›</a>
+    </div>
+
+    <!-- ── Quick links ──────────────────────────────────────────────────── -->
+    <div class="quick-links">
+        <a href="{% url 'payroll_run_detail' year=year month=month %}">Payroll Run</a>
+        <a href="{% url 'payroll_team_performance' year=year month=month %}">Team Performance</a>
+        <a href="{% url 'payroll_profitability' year=year month=month %}">Profitability</a>
+    </div>
+
+    <!-- ── Payroll run status strip ─────────────────────────────────────── -->
+    <div class="run-strip">
+        <span class="label">Payroll Run:</span>
+        <span class="run-pill {{ run.status }}">{{ run.get_status_display }}</span>
+        {% if run.next_action_label %}
+        <span style="font-size:.76rem; color:var(--text-secondary);">Next: {{ run.next_action_label }}</span>
+        {% else %}
+        <span style="font-size:.76rem; color:#14532D; font-weight:600;">Fully posted ✓</span>
+        {% endif %}
+        <a href="{% url 'payroll_run_detail' year=year month=month %}">Open run page →</a>
+    </div>
+
+    <!-- ── KPI cards ────────────────────────────────────────────────────── -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="k">Headcount</div>
+            <div class="v">{{ kpis.headcount_total }}</div>
+            <div class="sub">{{ kpis.headcount_inhouse }} in-house · {{ kpis.headcount_remote }} remote</div>
+        </div>
+        <div class="kpi-card">
+            <div class="k">Achievement</div>
+            <div class="v orange">
+                {% if kpis.achievement_pct is not None %}{{ kpis.achievement_pct }}%{% else %}—{% endif %}
+            </div>
+            <div class="sub">{{ kpis.total_achieved }} / {{ kpis.total_target }} accounts</div>
+        </div>
+        <div class="kpi-card">
+            <div class="k">Revenue</div>
+            <div class="v orange">AED {{ kpis.total_revenue|floatformat:0 }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="k">Total Cost</div>
+            <div class="v">AED {{ kpis.total_cost|floatformat:0 }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="k">Contribution</div>
+            <div class="v {% if kpis.total_contribution >= 0 %}pos{% else %}neg{% endif %}">
+                AED {{ kpis.total_contribution|floatformat:0 }}
+            </div>
+            <div class="sub">
+                ROI {% if kpis.overall_roi is not None %}{{ kpis.overall_roi }}%{% else %}—{% endif %}
+                · {{ kpis.profitable_count }}▲ {{ kpis.lossmaking_count }}▼
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="k">Alerts</div>
+            <div class="v {% if blocker_count %}neg{% elif warning_count %}orange{% else %}pos{% endif %}">
+                {{ blocker_count }} / {{ warning_count }}
+            </div>
+            <div class="sub">blockers / warnings</div>
+        </div>
+    </div>
+
+    <!-- ── Performers ───────────────────────────────────────────────────── -->
+    <div class="panel-grid">
+        <div class="panel">
+            <h3>Top Performers <span class="badge ok">by achievement</span></h3>
+            {% if top_by_pct %}
+            <table class="mgmt-table">
+                <thead><tr><th>Agent</th><th>Team</th><th class="num">Tgt</th><th class="num">Ach</th><th class="num">%</th><th></th></tr></thead>
+                <tbody>
+                {% for r in top_by_pct %}
+                    <tr>
+                        <td style="font-weight:600;">{{ r.name }}</td>
+                        <td>{{ r.team|default:'—' }}</td>
+                        <td class="num">{{ r.target }}</td>
+                        <td class="num">{{ r.achieved }}</td>
+                        <td class="num" style="font-weight:700;">{{ r.pct }}%</td>
+                        <td><span class="perf-status {{ r.status }}">{{ r.status_label }}</span></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty-note">No targets set for {{ month_name }}.</div>{% endif %}
+        </div>
+        <div class="panel">
+            <h3>Needs Attention <span class="badge warning">lowest achievement</span></h3>
+            {% if bottom_by_pct %}
+            <table class="mgmt-table">
+                <thead><tr><th>Agent</th><th>Team</th><th class="num">Tgt</th><th class="num">Ach</th><th class="num">%</th><th></th></tr></thead>
+                <tbody>
+                {% for r in bottom_by_pct %}
+                    <tr>
+                        <td style="font-weight:600;">{{ r.name }}</td>
+                        <td>{{ r.team|default:'—' }}</td>
+                        <td class="num">{{ r.target }}</td>
+                        <td class="num">{{ r.achieved }}</td>
+                        <td class="num" style="font-weight:700;">{{ r.pct }}%</td>
+                        <td><span class="perf-status {{ r.status }}">{{ r.status_label }}</span></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty-note">Fewer than {{ 6 }} agents with targets — see Team Performance.</div>{% endif %}
+        </div>
+        <div class="panel">
+            <h3>Top Contributors <span class="badge ok">AED contribution</span></h3>
+            {% if top_by_contribution %}
+            <table class="mgmt-table">
+                <thead><tr><th>Agent</th><th>Team</th><th class="num">Revenue</th><th class="num">Cost</th><th class="num">Contribution</th></tr></thead>
+                <tbody>
+                {% for r in top_by_contribution %}
+                    <tr>
+                        <td style="font-weight:600;">{{ r.name }}</td>
+                        <td>{{ r.team|default:'—' }}</td>
+                        <td class="num">{{ r.revenue|floatformat:0 }}</td>
+                        <td class="num">{{ r.total_cost|floatformat:0 }}</td>
+                        <td class="num {% if r.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">{{ r.contribution|floatformat:0 }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty-note">No profitability data yet.</div>{% endif %}
+        </div>
+        <div class="panel">
+            <h3>Lowest Contributors <span class="badge warning">AED contribution</span></h3>
+            {% if bottom_by_contribution %}
+            <table class="mgmt-table">
+                <thead><tr><th>Agent</th><th>Team</th><th class="num">Revenue</th><th class="num">Cost</th><th class="num">Contribution</th></tr></thead>
+                <tbody>
+                {% for r in bottom_by_contribution %}
+                    <tr>
+                        <td style="font-weight:600;">{{ r.name }}</td>
+                        <td>{{ r.team|default:'—' }}</td>
+                        <td class="num">{{ r.revenue|floatformat:0 }}</td>
+                        <td class="num">{{ r.total_cost|floatformat:0 }}</td>
+                        <td class="num {% if r.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">{{ r.contribution|floatformat:0 }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty-note">Fewer than 6 agents with complete data.</div>{% endif %}
+        </div>
+    </div>
+
+    <!-- ── Alerts + Data health ─────────────────────────────────────────── -->
+    <div class="panel-grid">
+        <div class="panel">
+            <h3>Exception Alerts
+                {% if blocker_count %}<span class="badge blocker">{{ blocker_count }} blocker{{ blocker_count|pluralize }}</span>{% endif %}
+                {% if warning_count %}<span class="badge warning">{{ warning_count }} warning{{ warning_count|pluralize }}</span>{% endif %}
+                {% if not alerts %}<span class="badge ok">All clear</span>{% endif %}
+            </h3>
+            {% for a in alerts %}
+            <div class="alert-item {{ a.severity }}">
+                <div class="a-title">{{ a.title }} <span class="cnt">({{ a.count }})</span></div>
+                {% if a.detail %}<div class="a-detail">{{ a.detail }}</div>{% endif %}
+                {% if a.items %}
+                <div class="a-items">
+                    {% for it in a.items %}{{ it }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                    {% if a.count > a.items|length %} … and {{ a.count|add:"-8" }} more{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="empty-note">No blockers or warnings for {{ month_name }} {{ year }}. ✓</div>
+            {% endfor %}
+        </div>
+        <div class="panel">
+            <h3>Data Health</h3>
+            <div class="dh-grid">
+                <div class="dh-box">
+                    <div class="k">Avg Profile Complete</div>
+                    <div class="v">
+                        {% if data_health.avg_completeness is not None %}{{ data_health.avg_completeness }}%{% else %}—{% endif %}
+                    </div>
+                </div>
+                <div class="dh-box">
+                    <div class="k">Low Profiles (&lt;60%)</div>
+                    <div class="v {% if data_health.low_completeness_count %}warn{% endif %}">{{ data_health.low_completeness_count }}</div>
+                </div>
+                <div class="dh-box">
+                    <div class="k">Missing Bank Details</div>
+                    <div class="v {% if data_health.missing_bank %}warn{% endif %}">{{ data_health.missing_bank }}</div>
+                </div>
+                <div class="dh-box">
+                    <div class="k">No Cost Setup</div>
+                    <div class="v {% if data_health.no_cost_setup %}warn{% endif %}">{{ data_health.no_cost_setup }}</div>
+                </div>
+                <div class="dh-box">
+                    <div class="k">Open Recoverables</div>
+                    <div class="v">{{ data_health.open_recoverables }}</div>
+                </div>
+                <div class="dh-box">
+                    <div class="k">Outstanding (AED)</div>
+                    <div class="v">{{ data_health.rec_outstanding|floatformat:0 }}</div>
+                </div>
+            </div>
+            {% if data_health.low_completeness %}
+            <div class="dh-low">
+                Lowest profiles:
+                {% for p in data_health.low_completeness %}{{ p.name }} ({{ p.pct }}%){% if not forloop.last %}, {% endif %}{% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

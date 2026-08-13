@@ -40,6 +40,8 @@ urlpatterns = [
     path('employees/delete/', views.delete_employee, name='delete_employee'),
     path('employees/link/', views.link_employees, name='link_employees'),
     path('employees/unlink/', views.unlink_employees, name='unlink_employees'),
+    # Employee Profile — 360° view (Phase 3)
+    path('employees/<str:person_id>/profile/', views.employee_profile, name='employee_profile'),
     # Leave Management (Admin)
     path('on-duty-requests/', views.on_duty_requests, name='on_duty_requests'),
     path('on-duty-requests/approve-all/', views.approve_all_on_duty, name='approve_all_on_duty'),
@@ -61,4 +63,3 @@ urlpatterns = [
     path('user-management/<int:user_id>/update/', views.update_user, name='update_user'),
     path('user-management/<int:user_id>/delete/', views.delete_user, name='delete_user'),
 ]
-

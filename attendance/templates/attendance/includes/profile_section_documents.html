@@ -1,0 +1,264 @@
+{% comment %}Section card: Employee Documents (Phase 7){% endcomment %}
+<div class="section-card full-width">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Documents
+        </span>
+        <button class="btn-edit-section doc-add-btn" onclick="toggleDocForm()">+ Add Document</button>
+    </div>
+    <div class="section-body">
+
+        <!-- ── Add Document Form (collapsed by default) ───────────── -->
+        <form class="doc-add-form" id="form-document" style="display:none;"
+              method="post" enctype="multipart/form-data"
+              onsubmit="submitDocForm(event, this)">
+            {% csrf_token %}
+
+            <div class="doc-form-grid">
+                <div class="form-row">
+                    <label>Document Type <span class="req">*</span></label>
+                    <select name="document_type" required>
+                        {% for value, label in document_type_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Document Number</label>
+                    <input type="text" name="document_number" placeholder="e.g. A1234567, 784-1234-5678901-2">
+                </div>
+                <div class="form-row">
+                    <label>Issuing Country</label>
+                    <input type="text" name="issuing_country" placeholder="e.g. India, UAE, Nepal">
+                </div>
+                <div class="form-row">
+                    <label>Issue Date</label>
+                    <input type="date" name="issue_date">
+                </div>
+                <div class="form-row">
+                    <label>Expiry Date</label>
+                    <input type="date" name="expiry_date">
+                </div>
+                <div class="form-row">
+                    <label>Upload File</label>
+                    <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                </div>
+            </div>
+
+            <div class="form-row" style="margin-top:.5rem;">
+                <label>Notes</label>
+                <input type="text" name="notes" placeholder="Any additional notes">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save Document</button>
+                <button type="button" class="btn-cancel-edit" onclick="toggleDocForm()">Cancel</button>
+            </div>
+        </form>
+
+        <!-- ── Document Table ─────────────────────────────────────── -->
+        {% if documents %}
+        <div class="table-scroll">
+            <table class="doc-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Number</th>
+                        <th>Issue Date</th>
+                        <th>Expiry Date</th>
+                        <th>Status</th>
+                        <th>Country</th>
+                        <th>Verified</th>
+                        <th>File</th>
+                        <th>Notes</th>
+                        <th>Added By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in documents %}
+                    <tr>
+                        <td class="doc-type-cell">{{ doc.get_document_type_display }}</td>
+                        <td class="doc-mono">{{ doc.document_number|default:"—" }}</td>
+                        <td>{{ doc.issue_date|default:"—" }}</td>
+                        <td>{{ doc.expiry_date|default:"—" }}</td>
+                        <td>
+                            {% if doc.expiry_date %}
+                                {% with s=doc.expiry_status %}
+                                <span class="expiry-badge expiry-{{ s }}">
+                                    {% if s == 'expired' %}Expired
+                                    {% elif s == 'expiring_soon' %}Expiring Soon
+                                    {% else %}Valid{% endif %}
+                                </span>
+                                {% endwith %}
+                            {% else %}
+                                <span class="expiry-badge expiry-no_expiry">No Expiry</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ doc.issuing_country|default:"—" }}</td>
+                        <td class="doc-verify-cell">
+                            {% if doc.is_verified %}
+                                <span class="verify-yes" title="Verified by {{ doc.verified_by }}">✓ Yes</span>
+                            {% else %}
+                                <span class="verify-no">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if doc.file %}
+                                <a href="{{ doc.file.url }}" target="_blank" class="doc-file-link">View</a>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="doc-notes-cell">{{ doc.notes|default:"—" }}</td>
+                        <td class="doc-added-cell">{{ doc.created_by }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="info-empty doc-empty">No documents recorded yet. Click <strong>+ Add Document</strong> to begin.</p>
+        {% endif %}
+
+    </div>
+</div>
+
+<style>
+/* ── Document Section ──────────────────────────────────────────────────── */
+.doc-add-btn {
+    font-size: .78rem;
+    font-weight: 600;
+    padding: .3rem .8rem;
+    border-radius: 6px;
+    border: 1.5px solid var(--primary-color, #F97316);
+    background: transparent;
+    color: var(--primary-color, #F97316);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.doc-add-btn:hover {
+    background: var(--primary-color, #F97316);
+    color: #fff;
+}
+.doc-add-form {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+}
+.doc-form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .5rem .75rem;
+}
+@media (max-width: 900px) { .doc-form-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .doc-form-grid { grid-template-columns: 1fr; } }
+
+/* ── Document Table ────────────────────────────────────────────────────── */
+.doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .8rem;
+}
+.doc-table th {
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    text-align: left;
+    padding: .4rem .65rem;
+    white-space: nowrap;
+}
+.doc-table td {
+    padding: .4rem .65rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    vertical-align: middle;
+}
+.doc-table tr:last-child td { border-bottom: none; }
+.doc-type-cell { font-weight: 600; color: #1e293b; white-space: nowrap; }
+.doc-mono { font-family: monospace; font-size: .82rem; }
+.doc-notes-cell { max-width: 180px; color: #64748b; font-style: italic; }
+.doc-added-cell { color: #94a3b8; font-size: .76rem; }
+.doc-file-link {
+    color: var(--primary-color, #F97316);
+    font-weight: 600;
+    text-decoration: none;
+}
+.doc-file-link:hover { text-decoration: underline; }
+.doc-empty {
+    padding: 1rem 0;
+    color: #94a3b8;
+}
+
+/* ── Expiry Badges ─────────────────────────────────────────────────────── */
+.expiry-badge {
+    display: inline-block;
+    padding: .2rem .55rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+.expiry-expired {
+    background: rgba(239, 68, 68, .12);
+    color: #dc2626;
+}
+.expiry-expiring_soon {
+    background: rgba(245, 158, 11, .14);
+    color: #d97706;
+}
+.expiry-valid {
+    background: rgba(16, 185, 129, .12);
+    color: #059669;
+}
+.expiry-no_expiry {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
+/* ── Verified indicator ────────────────────────────────────────────────── */
+.verify-yes { color: #059669; font-weight: 700; font-size: .82rem; }
+.verify-no  { color: #cbd5e1; }
+
+.req { color: #ef4444; }
+</style>
+
+<script>
+(function () {
+    window.toggleDocForm = function () {
+        var form = document.getElementById('form-document');
+        if (!form) return;
+        form.style.display = (form.style.display === 'none' || !form.style.display) ? 'block' : 'none';
+    };
+
+    window.submitDocForm = function (event, formEl) {
+        event.preventDefault();
+        var btn = formEl.querySelector('[type="submit"]');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+        var data = new FormData(formEl);
+        fetch(window.PROFILE_URL + '?section=document', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': data.get('csrfmiddlewaretoken') },
+            body: data,
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (json) {
+            if (json.ok) {
+                // Reload to show the new row
+                window.location.reload();
+            } else {
+                alert('Could not save document: ' + (json.error || 'unknown error'));
+                if (btn) { btn.disabled = false; btn.textContent = 'Save Document'; }
+            }
+        })
+        .catch(function () {
+            alert('Network error — please try again.');
+            if (btn) { btn.disabled = false; btn.textContent = 'Save Document'; }
+        });
+    };
+})();
+</script>

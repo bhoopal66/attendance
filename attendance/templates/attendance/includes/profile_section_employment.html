@@ -1,0 +1,132 @@
+{% comment %}Section card: Employment Details{% endcomment %}
+<div class="section-card">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            Employment Details
+        </span>
+        <button class="btn-edit-section" onclick="editSection('employment')">Edit</button>
+    </div>
+    <div class="section-body">
+
+        <!-- View Mode -->
+        <div class="view-mode" id="view-employment">
+            <div class="info-row">
+                <span class="info-label">Status</span>
+                <span class="info-value">
+                    <span class="status-badge {{ employee.employment_status_display_class }}">{{ employee.get_employment_status_display }}</span>
+                </span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Designation</span>
+                <span class="info-value">{{ employee.designation|default:'<span class="info-empty">—</span>' }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Department</span>
+                <span class="info-value">{{ employee.department|default:'<span class="info-empty">—</span>' }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Location</span>
+                <span class="info-value">{{ employee.location|default:'<span class="info-empty">—</span>' }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Team</span>
+                <span class="info-value">{{ employee.team|default:'<span class="info-empty">—</span>' }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Reporting Manager</span>
+                <span class="info-value">{% if employee.reporting_manager %}{{ employee.reporting_manager.name }}{% else %}<span class="info-empty">—</span>{% endif %}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Joining Date</span>
+                <span class="info-value">{% if employee.joining_date %}{{ employee.joining_date|date:"d M Y" }}{% else %}<span class="info-empty">—</span>{% endif %}</span>
+            </div>
+            {% if employee.notice_date %}
+            <div class="info-row">
+                <span class="info-label">Notice Date</span>
+                <span class="info-value">{{ employee.notice_date|date:"d M Y" }}</span>
+            </div>
+            {% endif %}
+            {% if employee.relieving_date %}
+            <div class="info-row">
+                <span class="info-label">Relieving Date</span>
+                <span class="info-value">{{ employee.relieving_date|date:"d M Y" }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Edit Mode -->
+        <form class="edit-form" id="form-employment"
+              onsubmit="event.preventDefault(); saveSection('employment', this);">
+            {% csrf_token %}
+
+            <div class="form-row">
+                <label>Employment Status</label>
+                <select name="employment_status">
+                    {% for val, label in status_choices %}
+                    <option value="{{ val }}" {% if employee.employment_status == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-row-2">
+                <div class="form-row">
+                    <label>Designation</label>
+                    <input type="text" name="designation" value="{{ employee.designation|default:'' }}">
+                </div>
+                <div class="form-row">
+                    <label>Department</label>
+                    <input type="text" name="department" value="{{ employee.department|default:'' }}">
+                </div>
+            </div>
+
+            <div class="form-row-2">
+                <div class="form-row">
+                    <label>Location</label>
+                    <input type="text" name="location" value="{{ employee.location|default:'' }}">
+                </div>
+                <div class="form-row">
+                    <label>Team</label>
+                    <input type="text" name="team" value="{{ employee.team|default:'' }}">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label>Reporting Manager</label>
+                <select name="reporting_manager">
+                    <option value="">— None —</option>
+                    {% for mgr in managers %}
+                    <option value="{{ mgr.id }}" {% if employee.reporting_manager_id == mgr.id %}selected{% endif %}>{{ mgr.name }} ({{ mgr.person_id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-row-2">
+                <div class="form-row">
+                    <label>Joining Date</label>
+                    <input type="date" name="joining_date" value="{{ employee.joining_date|date:'Y-m-d'|default:'' }}">
+                </div>
+                <div class="form-row">
+                    <label>Notice Date</label>
+                    <input type="date" name="notice_date" value="{{ employee.notice_date|date:'Y-m-d'|default:'' }}">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label>Relieving Date</label>
+                <input type="date" name="relieving_date" value="{{ employee.relieving_date|date:'Y-m-d'|default:'' }}" style="max-width: 220px;">
+            </div>
+
+            <div class="form-row">
+                <label>Reason for Change <span style="font-weight:400; color:var(--text-secondary);">(optional — logged in Employment History)</span></label>
+                <input type="text" name="history_reason" placeholder="e.g. Annual appraisal, internal transfer, promotion…" maxlength="255">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save</button>
+                <button type="button" class="btn-cancel-edit" onclick="cancelSection('employment')">Cancel</button>
+            </div>
+        </form>
+
+    </div>
+</div>

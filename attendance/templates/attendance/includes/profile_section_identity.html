@@ -1,0 +1,51 @@
+{% comment %}Section card: Identity Documents{% endcomment %}
+<div class="section-card">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0M9 12h6m-6 4h6"/></svg>
+            Identity Documents
+        </span>
+        <button class="btn-edit-section" onclick="editSection('identity')">Edit</button>
+    </div>
+    <div class="section-body">
+
+        <!-- View Mode -->
+        <div class="view-mode" id="view-identity">
+            <div class="info-row">
+                <span class="info-label">National ID / EID</span>
+                <span class="info-value masked">
+                    {% if employee.national_id %}
+                        {{ employee.national_id|slice:":-4" }}****
+                    {% else %}<span class="info-empty">—</span>{% endif %}
+                </span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Passport Number</span>
+                <span class="info-value masked">
+                    {% if employee.passport_number %}
+                        {{ employee.passport_number|slice:":-3" }}***
+                    {% else %}<span class="info-empty">—</span>{% endif %}
+                </span>
+            </div>
+        </div>
+
+        <!-- Edit Mode -->
+        <form class="edit-form" id="form-identity"
+              onsubmit="event.preventDefault(); saveSection('identity', this);">
+            {% csrf_token %}
+            <div class="form-row">
+                <label>National ID / Emirates ID</label>
+                <input type="text" name="national_id" value="{{ employee.national_id|default:'' }}" placeholder="784-XXXX-XXXXXXX-X">
+            </div>
+            <div class="form-row">
+                <label>Passport Number</label>
+                <input type="text" name="passport_number" value="{{ employee.passport_number|default:'' }}" placeholder="A1234567">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save</button>
+                <button type="button" class="btn-cancel-edit" onclick="cancelSection('identity')">Cancel</button>
+            </div>
+        </form>
+
+    </div>
+</div>

@@ -317,11 +317,125 @@ class Employee(BaseEmployee):
         help_text="Expected departure time for Mon-Fri (e.g., 18:30). Saturday is always 10:00-14:00."
     )
 
+    # ── Phase 3 — 360° Profile Fields ──────────────────────────────────────────
+
+    # Org hierarchy
+    reporting_manager = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='direct_reports',
+        help_text="Direct reporting manager for this employee",
+    )
+
+    # Personal Information
+    GENDER_CHOICES = [
+        ('M', 'Male'),
+        ('F', 'Female'),
+        ('O', 'Other'),
+    ]
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, null=True, blank=True)
+    BLOOD_GROUP_CHOICES = [
+        ('A+', 'A+'), ('A-', 'A-'),
+        ('B+', 'B+'), ('B-', 'B-'),
+        ('O+', 'O+'), ('O-', 'O-'),
+        ('AB+', 'AB+'), ('AB-', 'AB-'),
+    ]
+    blood_group = models.CharField(max_length=4, choices=BLOOD_GROUP_CHOICES, null=True, blank=True)
+
+    # Emergency Contact
+    emergency_contact_name = models.CharField(max_length=100, null=True, blank=True)
+    emergency_contact_phone = models.CharField(max_length=20, null=True, blank=True)
+
+    # Identity Documents
+    national_id = models.CharField(
+        max_length=50, null=True, blank=True,
+        help_text="Emirates ID / Aadhaar / National ID number",
+    )
+    passport_number = models.CharField(max_length=30, null=True, blank=True)
+
+    # Bank Details
+    bank_name = models.CharField(max_length=100, null=True, blank=True)
+    bank_account_number = models.CharField(max_length=50, null=True, blank=True)
+    bank_routing_code = models.CharField(
+        max_length=30, null=True, blank=True,
+        help_text="IFSC (India) / IBAN / Routing code depending on bank country",
+    )
+
+    # Profile Photo
+    profile_photo = models.ImageField(
+        upload_to='employee_photos/',
+        null=True, blank=True,
+        help_text="Employee passport-style photo",
+    )
+
+    # Employment Lifecycle
+    EMPLOYMENT_STATUS_CHOICES = [
+        ('active',      'Active'),
+        ('on_notice',   'On Notice'),
+        ('relieved',    'Relieved'),
+        ('absconded',   'Absconded'),
+    ]
+    employment_status = models.CharField(
+        max_length=20,
+        choices=EMPLOYMENT_STATUS_CHOICES,
+        default='active',
+        db_index=True,
+        help_text="Current employment lifecycle stage",
+    )
+    notice_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date notice period began",
+    )
+    relieving_date = models.DateField(
+        null=True, blank=True,
+        help_text="Official last working day / relieving date",
+    )
+
+    # Onboarding Checklist
+    onboarding_checklist = models.JSONField(
+        default=dict, blank=True,
+        help_text="Dict of checklist item keys → True/False completion state",
+    )
+
+    # ── End Phase 3 Fields ─────────────────────────────────────────────────────
+
     class Meta:
         unique_together = ('person_id', 'name')
 
     def __str__(self):
         return f"{self.name} ({self.person_id})"
+
+    # ── Computed Properties ────────────────────────────────────────────────────
+
+    PROFILE_TRACKABLE_FIELDS = [
+        'email', 'phone', 'date_of_birth', 'gender', 'blood_group',
+        'emergency_contact_name', 'emergency_contact_phone',
+        'national_id', 'passport_number',
+        'bank_name', 'bank_account_number',
+        'joining_date', 'designation', 'department', 'location', 'team',
+        'reporting_manager_id',
+        'profile_photo',
+    ]
+
+    @property
+    def profile_completeness(self):
+        """Return integer 0–100 representing % of trackable fields filled."""
+        filled = sum(
+            1 for field in self.PROFILE_TRACKABLE_FIELDS
+            if getattr(self, field, None)
+        )
+        return round(filled / len(self.PROFILE_TRACKABLE_FIELDS) * 100)
+
+    @property
+    def employment_status_display_class(self):
+        return {
+            'active':    'status-active',
+            'on_notice': 'status-notice',
+            'relieved':  'status-relieved',
+            'absconded': 'status-absconded',
+        }.get(self.employment_status, 'status-active')
 
 
 class AttendanceRecord(models.Model):
@@ -409,6 +523,592 @@ class ShiftHistory(models.Model):
         super().clean()
         if self.shift_start and self.shift_end and self.shift_start >= self.shift_end:
             raise ValidationError("Shift start must be before shift end.")
+
+
+# ============================================
+# Phase 4 — Employment History (Effective-Dated Change Log)
+# ============================================
+
+class EmploymentHistory(models.Model):
+    """
+    Immutable, effective-dated log of employment changes for in-house employees.
+
+    A row is created automatically whenever the Employment or Bank/Payroll
+    section of the employee profile is saved and a tracked field has changed.
+    Records are never edited or deleted — they form a permanent audit trail.
+
+    Tracked fields → change_type:
+        designation, department, team, location,
+        reporting_manager, employment_status, salary
+    """
+
+    CHANGE_TYPES = [
+        ('designation',       'Designation'),
+        ('department',        'Department'),
+        ('team',              'Team'),
+        ('location',          'Location'),
+        ('reporting_manager', 'Reporting Manager'),
+        ('employment_status', 'Employment Status'),
+        ('salary',            'Salary'),
+        ('other',             'Other'),
+    ]
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='employment_history',
+        help_text="The in-house employee this change belongs to",
+    )
+    change_type = models.CharField(
+        max_length=30,
+        choices=CHANGE_TYPES,
+        db_index=True,
+        help_text="Which aspect of employment changed",
+    )
+    effective_date = models.DateField(
+        help_text="Calendar date on which this change took effect",
+    )
+    previous_value = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Snapshot of the value before the change (null for first-ever entry)",
+    )
+    new_value = models.JSONField(
+        help_text="Snapshot of the value after the change",
+    )
+    reason = models.TextField(
+        blank=True,
+        help_text="Optional business reason or comment for this change",
+    )
+    changed_by = models.CharField(
+        max_length=150,
+        help_text="Username of the admin who made the change",
+    )
+    changed_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Server timestamp when the change was recorded (immutable)",
+    )
+
+    class Meta:
+        ordering = ['-effective_date', '-changed_at']
+        verbose_name = 'Employment History'
+        verbose_name_plural = 'Employment History'
+        indexes = [
+            models.Index(fields=['employee', '-effective_date']),
+            models.Index(fields=['change_type']),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.employee.name} — {self.get_change_type_display()} "
+            f"on {self.effective_date}"
+        )
+
+
+# ============================================
+# Phase 5 — Salary Structure (Component Breakdown + Effective-Dated History)
+# ============================================
+
+class SalaryStructure(models.Model):
+    """
+    Effective-dated salary component breakdown for in-house employees.
+
+    Each row represents a salary revision.  When a new revision is saved
+    the previous 'approved' row is superseded automatically by the view layer.
+    Employee.salary is kept in sync with the gross of the latest approved row
+    so payroll code continues to read a single authoritative field.
+
+    Components
+    ----------
+    basic, housing, transport, phone, other_allowance  → gross = sum of all five
+
+    Immutability
+    ------------
+    Rows are never edited after creation.  The admin class enforces this.
+    """
+
+    STATUS_CHOICES = [
+        ('approved',   'Approved'),
+        ('superseded', 'Superseded'),
+    ]
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='salary_structures',
+        help_text="In-house employee this salary structure belongs to",
+    )
+    effective_from = models.DateField(
+        help_text="Date from which this salary structure is effective",
+    )
+
+    # ── Allowance components ────────────────────────────────────────────────────
+    basic = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Basic / base pay component",
+    )
+    housing = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Housing allowance",
+    )
+    transport = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Transport allowance",
+    )
+    phone = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Phone / communication allowance",
+    )
+    other_allowance = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Any other allowance not covered above",
+    )
+
+    currency = models.CharField(
+        max_length=3, default='AED',
+        help_text="ISO currency code (e.g. AED, INR, NPR)",
+    )
+    revision_reason = models.TextField(
+        blank=True,
+        help_text="Business reason for this salary revision (e.g. Annual appraisal)",
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='approved', db_index=True,
+        help_text="'approved' = current; 'superseded' = replaced by a newer revision",
+    )
+    created_by = models.CharField(
+        max_length=150,
+        help_text="Username of the admin who created this revision",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-effective_from', '-created_at']
+        verbose_name = 'Salary Structure'
+        verbose_name_plural = 'Salary Structures'
+        indexes = [
+            models.Index(fields=['employee', '-effective_from'], name='attendance__salary_emp_idx'),
+            models.Index(fields=['status'], name='attendance__salary_status_idx'),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.employee.name} — {self.currency} {self.gross:,.2f} "
+            f"(from {self.effective_from}, {self.status})"
+        )
+
+    @property
+    def gross(self):
+        """Total gross salary = sum of all five components."""
+        return (
+            (self.basic or 0)
+            + (self.housing or 0)
+            + (self.transport or 0)
+            + (self.phone or 0)
+            + (self.other_allowance or 0)
+        )
+
+
+# ============================================
+# Phase 6 — Employer Cost Setup
+# ============================================
+
+class EmployerCostSetup(models.Model):
+    """
+    Effective-dated record of all employer-side costs for a single employee.
+
+    One employee may have multiple rows as costs change over time; the most
+    recent row (highest effective_from) is the "current" cost setup.
+
+    Covers both in-house (Employee) and remote (RemoteEmployee) staff —
+    exactly one FK should be set; the other must be null.
+    """
+
+    employee = models.ForeignKey(
+        'Employee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='cost_setups',
+        help_text='In-house employee (leave blank for remote)',
+    )
+    remote_employee = models.ForeignKey(
+        'RemoteEmployee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='cost_setups',
+        help_text='Remote employee (leave blank for in-house)',
+    )
+    effective_from = models.DateField(
+        help_text='Date from which this cost setup is effective',
+    )
+
+    # ── Cost components ────────────────────────────────────────────────────
+    manpower_monthly_fee = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Agency / manpower company monthly fee',
+    )
+    visa_amortisation_monthly = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Visa cost spread over visa validity period (monthly)',
+    )
+    visa_status_change_amortisation = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Status change / transfer cost amortised monthly',
+    )
+    medical_insurance_monthly = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Medical / health insurance monthly premium',
+    )
+    eos_provision_monthly = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='End-of-service gratuity provision (monthly accrual)',
+    )
+    leave_salary_provision_monthly = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Leave salary provision accrued monthly',
+    )
+    air_ticket_provision_monthly = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Annual return air ticket cost spread monthly',
+    )
+    recruitment_cost_allocation = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Recruitment / placement fee amortised monthly',
+    )
+    other_cost_monthly = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Any other employer cost not covered above',
+    )
+
+    notes = models.TextField(
+        blank=True,
+        help_text='Reason for this revision or any additional context',
+    )
+    created_by = models.CharField(
+        max_length=150,
+        help_text='Username of the admin who created this record',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-effective_from', '-created_at']
+        verbose_name = 'Employer Cost Setup'
+        verbose_name_plural = 'Employer Cost Setups'
+        indexes = [
+            models.Index(
+                fields=['employee', '-effective_from'],
+                name='att__ecost_emp_idx',
+            ),
+            models.Index(
+                fields=['remote_employee', '-effective_from'],
+                name='att__ecost_remp_idx',
+            ),
+        ]
+
+    def __str__(self):
+        who = (
+            self.employee.name if self.employee
+            else (self.remote_employee.name if self.remote_employee else '?')
+        )
+        return f"{who} — cost from {self.effective_from} (total {self.total_monthly_cost:,.2f})"
+
+    @property
+    def total_monthly_cost(self):
+        """Sum of all nine monthly cost components."""
+        return (
+            (self.manpower_monthly_fee or 0)
+            + (self.visa_amortisation_monthly or 0)
+            + (self.visa_status_change_amortisation or 0)
+            + (self.medical_insurance_monthly or 0)
+            + (self.eos_provision_monthly or 0)
+            + (self.leave_salary_provision_monthly or 0)
+            + (self.air_ticket_provision_monthly or 0)
+            + (self.recruitment_cost_allocation or 0)
+            + (self.other_cost_monthly or 0)
+        )
+
+
+# ============================================
+# Phase 7 — Employee Document Management
+# ============================================
+
+class EmployeeDocument(models.Model):
+    """
+    Per-employee document register — stores document metadata, file, and expiry.
+
+    Multiple rows per employee (one per document).
+    Supports both in-house (Employee) and remote (RemoteEmployee) staff —
+    exactly one FK should be set; the other must be null.
+
+    Expiry tracking:
+      - days_to_expiry  → int (negative if expired) or None (no expiry set)
+      - expiry_status   → 'expired' | 'expiring_soon' | 'valid' | 'no_expiry'
+    """
+
+    DOCUMENT_TYPES = [
+        ('passport',             'Passport'),
+        ('emirates_id',          'Emirates ID'),
+        ('uae_visa',             'UAE Visa'),
+        ('labour_card',          'Labour Card / Work Permit'),
+        ('employment_contract',  'Employment Contract'),
+        ('offer_letter',         'Offer Letter'),
+        ('medical_insurance',    'Medical Insurance Card'),
+        ('educational_cert',     'Educational Certificate'),
+        ('nda',                  'NDA / Non-Disclosure Agreement'),
+        ('bank_document',        'Bank Document'),
+        ('other',                'Other'),
+    ]
+
+    employee = models.ForeignKey(
+        'Employee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='documents',
+        help_text='In-house employee (leave blank for remote)',
+    )
+    remote_employee = models.ForeignKey(
+        'RemoteEmployee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='documents',
+        help_text='Remote employee (leave blank for in-house)',
+    )
+    document_type = models.CharField(
+        max_length=30, choices=DOCUMENT_TYPES,
+        help_text='Category of document',
+    )
+    document_number = models.CharField(
+        max_length=100, blank=True,
+        help_text='Passport number, EID number, visa number, etc.',
+    )
+    issue_date = models.DateField(
+        null=True, blank=True,
+        help_text='Date of issue',
+    )
+    expiry_date = models.DateField(
+        null=True, blank=True,
+        help_text='Expiry / valid until date — drives alert colouring',
+    )
+    issuing_country = models.CharField(
+        max_length=100, blank=True,
+        help_text='Country that issued the document',
+    )
+    file = models.FileField(
+        upload_to='employee_documents/%Y/%m/',
+        null=True, blank=True,
+        help_text='Scanned copy or digital version of the document',
+    )
+    is_verified = models.BooleanField(
+        default=False,
+        help_text='HR has sighted and verified the original document',
+    )
+    verified_by = models.CharField(
+        max_length=150, blank=True,
+        help_text='Username of the HR officer who verified',
+    )
+    verified_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Timestamp of verification',
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text='Any additional notes about this document',
+    )
+    created_by = models.CharField(
+        max_length=150,
+        help_text='Username who added this record',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['document_type', '-created_at']
+        verbose_name = 'Employee Document'
+        verbose_name_plural = 'Employee Documents'
+        indexes = [
+            models.Index(
+                fields=['employee', 'document_type'],
+                name='att__edoc_emp_type_idx',
+            ),
+            models.Index(
+                fields=['expiry_date'],
+                name='att__edoc_expiry_idx',
+            ),
+        ]
+
+    def __str__(self):
+        who = (
+            self.employee.name if self.employee
+            else (self.remote_employee.name if self.remote_employee else '?')
+        )
+        return f"{who} — {self.get_document_type_display()} ({self.document_number or 'no number'})"
+
+    @property
+    def days_to_expiry(self):
+        """Days until expiry (negative = already expired). None if no expiry date set."""
+        if not self.expiry_date:
+            return None
+        from datetime import date
+        return (self.expiry_date - date.today()).days
+
+    @property
+    def expiry_status(self):
+        """
+        Returns one of:
+          'expired'       — expiry_date is in the past
+          'expiring_soon' — expires within 30 days
+          'valid'         — expires in more than 30 days
+          'no_expiry'     — no expiry date set
+        """
+        d = self.days_to_expiry
+        if d is None:
+            return 'no_expiry'
+        if d < 0:
+            return 'expired'
+        if d <= 30:
+            return 'expiring_soon'
+        return 'valid'
+
+
+# ============================================
+# Phase 8 — Recoverable Sub-Ledger
+# ============================================
+
+class Recoverable(models.Model):
+    """
+    Tracks amounts the employee owes the company — visa costs, salary advances,
+    asset loans, training costs, air ticket recoveries, etc.
+
+    Each row is one recoverable item. The `amount_recovered` field is updated
+    incrementally as payroll deductions are processed (Phase 9) or manually
+    via the admin. `outstanding_balance` is the computed difference.
+
+    Supports both in-house (Employee) and remote (RemoteEmployee) — exactly one
+    FK should be set; the other must be null.
+    """
+
+    RECOVERABLE_TYPES = [
+        ('visa_cost',   'Visa Cost'),
+        ('advance',     'Salary Advance'),
+        ('asset',       'Asset / Equipment'),
+        ('training',    'Training Cost'),
+        ('air_ticket',  'Air Ticket'),
+        ('relocation',  'Relocation Cost'),
+        ('other',       'Other'),
+    ]
+
+    STATUS_CHOICES = [
+        ('active',   'Active'),    # outstanding balance > 0, recovery in progress
+        ('settled',  'Settled'),   # fully recovered
+        ('waived',   'Waived'),    # written off / forgiven
+        ('on_hold',  'On Hold'),   # temporarily paused
+    ]
+
+    employee = models.ForeignKey(
+        'Employee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='recoverables',
+        help_text='In-house employee (leave blank for remote)',
+    )
+    remote_employee = models.ForeignKey(
+        'RemoteEmployee',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='recoverables',
+        help_text='Remote employee (leave blank for in-house)',
+    )
+    recoverable_type = models.CharField(
+        max_length=30, choices=RECOVERABLE_TYPES,
+        help_text='Nature of the amount to be recovered',
+    )
+    description = models.CharField(
+        max_length=255,
+        help_text='Brief description of what this recoverable is for',
+    )
+    total_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        help_text='Total amount to be recovered from the employee',
+    )
+    currency = models.CharField(
+        max_length=3, default='AED',
+        help_text='ISO currency code (e.g. AED, INR, NPR)',
+    )
+    monthly_recovery = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Planned monthly deduction amount',
+    )
+    recovery_start_year = models.IntegerField(
+        help_text='Year in which monthly recovery begins',
+    )
+    recovery_start_month = models.IntegerField(
+        help_text='Month (1–12) in which monthly recovery begins',
+    )
+    amount_recovered = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text='Cumulative amount recovered to date (updated by payroll or admin)',
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='active', db_index=True,
+        help_text="'active' = recovery ongoing; 'settled' = fully paid; "
+                  "'waived' = written off; 'on_hold' = paused",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text='Additional context or comments',
+    )
+    # Waiver fields — populated only when status = 'waived'
+    waived_by = models.CharField(
+        max_length=150, blank=True,
+        help_text='Username who authorised the waiver',
+    )
+    waived_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='When the waiver was granted',
+    )
+    waived_reason = models.TextField(
+        blank=True,
+        help_text='Reason the outstanding amount was waived',
+    )
+    created_by = models.CharField(
+        max_length=150,
+        help_text='Username who created this record',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Recoverable'
+        verbose_name_plural = 'Recoverables'
+        indexes = [
+            models.Index(
+                fields=['employee', 'status'],
+                name='att__rec_emp_status_idx',
+            ),
+            models.Index(
+                fields=['remote_employee', 'status'],
+                name='att__rec_remp_status_idx',
+            ),
+        ]
+
+    def __str__(self):
+        who = (
+            self.employee.name if self.employee
+            else (self.remote_employee.name if self.remote_employee else '?')
+        )
+        return (
+            f"{who} — {self.get_recoverable_type_display()} "
+            f"{self.currency} {self.total_amount} ({self.status})"
+        )
+
+    @property
+    def outstanding_balance(self):
+        """Amount still to be recovered = total − recovered so far."""
+        return (self.total_amount or 0) - (self.amount_recovered or 0)
+
+    @property
+    def is_settled(self):
+        """True when the outstanding balance is zero or negative."""
+        return self.outstanding_balance <= 0
 
 
 # ============================================

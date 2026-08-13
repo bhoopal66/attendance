@@ -9,6 +9,7 @@ organized into logical modules:
 - reports.py: Attendance report views
 - downloads.py: XLSX report download views
 - employee_portal.py: Employee self-service portal views
+- employee_profile.py: Employee 360° profile view (Phase 3)
 - api.py: API endpoints for attendance management
 """
 
@@ -52,6 +53,7 @@ from .employee_management import (
     link_employees,
     unlink_employees,
 )
+from .employee_profile import employee_profile  # Phase 3
 from .leave_management import (
     leave_management,
     on_duty_requests,
@@ -121,6 +123,8 @@ __all__ = [
     'delete_employee',
     'link_employees',
     'unlink_employees',
+    # Employee Profile (Phase 3)
+    'employee_profile',
     # Leave Management
     'leave_management',
     'on_duty_requests',

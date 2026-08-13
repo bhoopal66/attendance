@@ -1,0 +1,71 @@
+{% comment %}Section card: Payroll & Bank Details{% endcomment %}
+<div class="section-card">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            Payroll &amp; Bank
+        </span>
+        <button class="btn-edit-section" onclick="editSection('bank')">Edit</button>
+    </div>
+    <div class="section-body">
+
+        <!-- View Mode -->
+        <div class="view-mode" id="view-bank">
+            <div class="info-row">
+                <span class="info-label">Pay Cycle Start</span>
+                <span class="info-value">{{ employee.salary_cycle_start_day|default:21 }}th of month</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Bank</span>
+                <span class="info-value">{% if employee.bank_name %}{{ employee.bank_name }}{% else %}<span class="info-empty">—</span>{% endif %}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Account No.</span>
+                <span class="info-value masked">
+                    {% if employee.bank_account_number %}
+                        ••••{{ employee.bank_account_number|slice:"-4:" }}
+                    {% else %}<span class="info-empty">—</span>{% endif %}
+                </span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">IFSC / Routing</span>
+                <span class="info-value">{% if employee.bank_routing_code %}{{ employee.bank_routing_code }}{% else %}<span class="info-empty">—</span>{% endif %}</span>
+            </div>
+        </div>
+
+        <!-- Edit Mode -->
+        <form class="edit-form" id="form-bank"
+              onsubmit="event.preventDefault(); saveSection('bank', this);">
+            {% csrf_token %}
+
+            <div class="form-row">
+                <label>Salary Cycle Start Day</label>
+                <select name="salary_cycle_start_day">
+                    <option value="1"  {% if employee.salary_cycle_start_day == 1 %}selected{% endif %}>1st (calendar month)</option>
+                    <option value="21" {% if employee.salary_cycle_start_day == 21 or not employee.salary_cycle_start_day %}selected{% endif %}>21st (prev 21 → curr 20)</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label>Bank Name</label>
+                <input type="text" name="bank_name" value="{{ employee.bank_name|default:'' }}" placeholder="e.g. Emirates NBD">
+            </div>
+            <div class="form-row-2">
+                <div class="form-row">
+                    <label>Account Number</label>
+                    <input type="text" name="bank_account_number" value="{{ employee.bank_account_number|default:'' }}" placeholder="IBAN / Account No.">
+                </div>
+                <div class="form-row">
+                    <label>IFSC / Routing Code</label>
+                    <input type="text" name="bank_routing_code" value="{{ employee.bank_routing_code|default:'' }}" placeholder="IFSC / Swift / Routing">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save</button>
+                <button type="button" class="btn-cancel-edit" onclick="cancelSection('bank')">Cancel</button>
+            </div>
+        </form>
+
+    </div>
+</div>

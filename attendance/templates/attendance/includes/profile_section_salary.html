@@ -1,0 +1,406 @@
+{% comment %}Section card: Salary Structure (Phase 5) — component breakdown + revision history{% endcomment %}
+<div class="section-card full-width">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Salary Structure
+        </span>
+        <button class="btn-edit-section" onclick="editSection('salary')">Revise Salary</button>
+    </div>
+    <div class="section-body">
+
+        <!-- ── View Mode ─────────────────────────────────────────────────────── -->
+        <div class="view-mode" id="view-salary">
+
+            {% if current_salary %}
+            <!-- Current gross + component grid -->
+            <div class="salary-gross-wrap">
+                <div class="salary-gross-label">Current Gross</div>
+                <div class="salary-gross-value">
+                    {{ current_salary.currency }}
+                    <span class="salary-gross-number">{{ current_salary.gross|floatformat:2 }}</span>
+                </div>
+                <div class="salary-gross-since">
+                    Effective from {{ current_salary.effective_from|date:"d M Y" }}
+                </div>
+            </div>
+
+            <!-- Component breakdown -->
+            <div class="salary-components">
+                {% if current_salary.basic %}
+                <div class="salary-comp-row">
+                    <span class="salary-comp-label">Basic</span>
+                    <span class="salary-comp-bar-wrap">
+                        <span class="salary-comp-bar" style="width:{% widthratio current_salary.basic current_salary.gross 100 %}%"></span>
+                    </span>
+                    <span class="salary-comp-val">{{ current_salary.currency }} {{ current_salary.basic|floatformat:2 }}</span>
+                </div>
+                {% endif %}
+                {% if current_salary.housing %}
+                <div class="salary-comp-row">
+                    <span class="salary-comp-label">Housing</span>
+                    <span class="salary-comp-bar-wrap">
+                        <span class="salary-comp-bar" style="width:{% widthratio current_salary.housing current_salary.gross 100 %}%"></span>
+                    </span>
+                    <span class="salary-comp-val">{{ current_salary.currency }} {{ current_salary.housing|floatformat:2 }}</span>
+                </div>
+                {% endif %}
+                {% if current_salary.transport %}
+                <div class="salary-comp-row">
+                    <span class="salary-comp-label">Transport</span>
+                    <span class="salary-comp-bar-wrap">
+                        <span class="salary-comp-bar" style="width:{% widthratio current_salary.transport current_salary.gross 100 %}%"></span>
+                    </span>
+                    <span class="salary-comp-val">{{ current_salary.currency }} {{ current_salary.transport|floatformat:2 }}</span>
+                </div>
+                {% endif %}
+                {% if current_salary.phone %}
+                <div class="salary-comp-row">
+                    <span class="salary-comp-label">Phone</span>
+                    <span class="salary-comp-bar-wrap">
+                        <span class="salary-comp-bar" style="width:{% widthratio current_salary.phone current_salary.gross 100 %}%"></span>
+                    </span>
+                    <span class="salary-comp-val">{{ current_salary.currency }} {{ current_salary.phone|floatformat:2 }}</span>
+                </div>
+                {% endif %}
+                {% if current_salary.other_allowance %}
+                <div class="salary-comp-row">
+                    <span class="salary-comp-label">Other</span>
+                    <span class="salary-comp-bar-wrap">
+                        <span class="salary-comp-bar" style="width:{% widthratio current_salary.other_allowance current_salary.gross 100 %}%"></span>
+                    </span>
+                    <span class="salary-comp-val">{{ current_salary.currency }} {{ current_salary.other_allowance|floatformat:2 }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% else %}
+            <!-- No salary structure yet -->
+            <div class="salary-empty">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="color:var(--text-secondary); margin-bottom:.4rem;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p>No salary structure set yet.</p>
+                <p style="font-size:.8rem; color:var(--text-secondary);">Use <strong>Revise Salary</strong> to add the first salary structure for this employee.</p>
+            </div>
+            {% endif %}
+
+            <!-- ── Salary History Table ──────────────────────────────────────── -->
+            {% if salary_history %}
+            <div class="salary-history-wrap">
+                <div class="salary-history-title">Revision History</div>
+                <table class="salary-history-table">
+                    <thead>
+                        <tr>
+                            <th>Effective From</th>
+                            <th>Basic</th>
+                            <th>Housing</th>
+                            <th>Transport</th>
+                            <th>Phone</th>
+                            <th>Other</th>
+                            <th>Gross</th>
+                            <th>Status</th>
+                            <th>Reason</th>
+                            <th>By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rev in salary_history %}
+                        <tr class="{% if rev.status == 'approved' %}salary-row-current{% endif %}">
+                            <td>{{ rev.effective_from|date:"d M Y" }}</td>
+                            <td>{{ rev.basic|floatformat:2 }}</td>
+                            <td>{{ rev.housing|floatformat:2 }}</td>
+                            <td>{{ rev.transport|floatformat:2 }}</td>
+                            <td>{{ rev.phone|floatformat:2 }}</td>
+                            <td>{{ rev.other_allowance|floatformat:2 }}</td>
+                            <td class="salary-gross-cell">{{ rev.currency }} {{ rev.gross|floatformat:2 }}</td>
+                            <td>
+                                <span class="salary-status-badge salary-status-{{ rev.status }}">
+                                    {{ rev.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="salary-reason-cell">{{ rev.revision_reason|default:"—" }}</td>
+                            <td>{{ rev.created_by }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+        </div><!-- /view-salary -->
+
+        <!-- ── Edit Mode (Revise Salary form) ───────────────────────────────── -->
+        <form class="edit-form" id="form-salary"
+              onsubmit="event.preventDefault(); saveSection('salary', this);">
+            {% csrf_token %}
+
+            <div class="form-row-2">
+                <div class="form-row">
+                    <label>Effective From</label>
+                    <input type="date" name="effective_from"
+                           value="{% now 'Y-m-d' %}"
+                           max="{% now 'Y-m-d' %}">
+                </div>
+                <div class="form-row">
+                    <label>Currency</label>
+                    <select name="currency">
+                        {% for val, label in currency_choices %}
+                        <option value="{{ val }}"
+                            {% if current_salary and current_salary.currency == val %}selected
+                            {% elif not current_salary and employee.currency == val %}selected
+                            {% elif val == 'AED' and not current_salary and not employee.currency %}selected
+                            {% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="salary-comp-form-grid">
+                <div class="form-row">
+                    <label>Basic</label>
+                    <input type="number" name="basic" min="0" step="0.01"
+                           value="{{ current_salary.basic|default:'0'|floatformat:2 }}"
+                           placeholder="0.00">
+                </div>
+                <div class="form-row">
+                    <label>Housing Allowance</label>
+                    <input type="number" name="housing" min="0" step="0.01"
+                           value="{{ current_salary.housing|default:'0'|floatformat:2 }}"
+                           placeholder="0.00">
+                </div>
+                <div class="form-row">
+                    <label>Transport Allowance</label>
+                    <input type="number" name="transport" min="0" step="0.01"
+                           value="{{ current_salary.transport|default:'0'|floatformat:2 }}"
+                           placeholder="0.00">
+                </div>
+                <div class="form-row">
+                    <label>Phone Allowance</label>
+                    <input type="number" name="phone" min="0" step="0.01"
+                           value="{{ current_salary.phone|default:'0'|floatformat:2 }}"
+                           placeholder="0.00">
+                </div>
+                <div class="form-row">
+                    <label>Other Allowance</label>
+                    <input type="number" name="other_allowance" min="0" step="0.01"
+                           value="{{ current_salary.other_allowance|default:'0'|floatformat:2 }}"
+                           placeholder="0.00">
+                </div>
+                <!-- Live gross preview -->
+                <div class="form-row salary-gross-preview-wrap">
+                    <label>Gross (preview)</label>
+                    <div class="salary-gross-preview" id="salary-gross-preview">—</div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label>Reason for Revision <span style="font-weight:400; color:var(--text-secondary);">(optional)</span></label>
+                <input type="text" name="revision_reason"
+                       placeholder="e.g. Annual appraisal, promotion, market correction…"
+                       maxlength="255">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save Revision</button>
+                <button type="button" class="btn-cancel-edit" onclick="cancelSection('salary')">Cancel</button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<style>
+/* ── Salary Structure — Current Gross Hero ──────────────────────────── */
+.salary-gross-wrap {
+    text-align: center;
+    padding: .75rem 0 1rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1rem;
+}
+.salary-gross-label {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-secondary);
+    margin-bottom: .2rem;
+}
+.salary-gross-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: .3rem;
+}
+.salary-gross-number {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    line-height: 1;
+}
+.salary-gross-since {
+    font-size: .75rem;
+    color: var(--text-secondary);
+    margin-top: .25rem;
+}
+
+/* ── Component bars ─────────────────────────────────────────────────── */
+.salary-components {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-bottom: 1.5rem;
+}
+.salary-comp-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 130px;
+    align-items: center;
+    gap: .6rem;
+}
+.salary-comp-label {
+    font-size: .78rem;
+    color: var(--text-secondary);
+    text-align: right;
+}
+.salary-comp-bar-wrap {
+    height: 8px;
+    background: #f3f4f6;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.salary-comp-bar {
+    display: block;
+    height: 100%;
+    background: var(--primary-gradient);
+    border-radius: 4px;
+    min-width: 2px;
+}
+.salary-comp-val {
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: right;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────── */
+.salary-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+.salary-empty p { margin: .2rem 0; }
+
+/* ── History table ──────────────────────────────────────────────────── */
+.salary-history-wrap {
+    margin-top: 1.25rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+}
+.salary-history-title {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: .65rem;
+}
+.salary-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .78rem;
+}
+.salary-history-table th {
+    text-align: left;
+    padding: .35rem .6rem;
+    font-size: .7rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+}
+.salary-history-table td {
+    padding: .45rem .6rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: middle;
+}
+.salary-history-table tbody tr:last-child td { border-bottom: none; }
+.salary-row-current td { background: #fff7ed; }
+.salary-gross-cell  { font-weight: 700; color: var(--text-primary); }
+.salary-reason-cell { color: var(--text-secondary); font-style: italic; max-width: 180px; }
+
+/* Status badge */
+.salary-status-badge {
+    font-size: .68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+.salary-status-approved   { background: rgba(16,185,129,.12); color: #059669; }
+.salary-status-superseded { background: #f1f5f9; color: #64748b; }
+
+/* ── Revise Salary form ─────────────────────────────────────────────── */
+.salary-comp-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: .6rem .75rem;
+    margin-bottom: .85rem;
+}
+@media (max-width: 700px) {
+    .salary-comp-form-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+    .salary-comp-form-grid { grid-template-columns: 1fr; }
+    .salary-comp-row { grid-template-columns: 70px 1fr 100px; }
+}
+
+.salary-gross-preview-wrap { display: flex; flex-direction: column; justify-content: flex-end; }
+.salary-gross-preview {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    padding: .3rem 0 .4rem;
+}
+</style>
+
+<script>
+/* ── Live gross preview for Revise Salary form ─────────────────────── */
+(function () {
+    const form   = document.getElementById('form-salary');
+    const preview = document.getElementById('salary-gross-preview');
+    const fields  = ['basic', 'housing', 'transport', 'phone', 'other_allowance'];
+
+    function updatePreview() {
+        let total = 0;
+        fields.forEach(f => {
+            const el = form ? form.querySelector('[name="' + f + '"]') : null;
+            if (el) total += parseFloat(el.value || 0) || 0;
+        });
+        const cur = form ? (form.querySelector('[name="currency"]') || {value:'AED'}).value : 'AED';
+        preview.textContent = cur + ' ' + total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    if (form) {
+        fields.forEach(f => {
+            const el = form.querySelector('[name="' + f + '"]');
+            if (el) el.addEventListener('input', updatePreview);
+        });
+        const curEl = form.querySelector('[name="currency"]');
+        if (curEl) curEl.addEventListener('change', updatePreview);
+        updatePreview();
+    }
+})();
+</script>

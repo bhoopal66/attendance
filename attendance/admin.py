@@ -7,6 +7,16 @@ from .models import (
     Holiday, EarlyLeaveRequest, LeaveRequest, UserProfile,
     # Phase 2 — Master Data
     Department, Team, Location, DesignationMaster,
+    # Phase 4 — Employment History
+    EmploymentHistory,
+    # Phase 5 — Salary Structure
+    SalaryStructure,
+    # Phase 6 — Employer Cost
+    EmployerCostSetup,
+    # Phase 7 — Employee Documents
+    EmployeeDocument,
+    # Phase 8 — Recoverable Sub-Ledger
+    Recoverable,
 )
 
 
@@ -56,38 +66,56 @@ admin.site.has_permission = _it_admin_only_has_permission
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('person_id', 'name', 'is_active', 'email', 'shift_start', 'shift_end')
-    list_filter = ('is_active', 'department', 'location', 'team')
-    search_fields = ('person_id', 'name', 'email')
+    list_display = ('person_id', 'name', 'employment_status', 'is_active', 'email', 'department', 'shift_start', 'shift_end')
+    list_filter = ('is_active', 'employment_status', 'department', 'location', 'team')
+    search_fields = ('person_id', 'name', 'email', 'tcr_id', 'national_id', 'passport_number')
     ordering = ('name',)
+    autocomplete_fields = ('reporting_manager',)
     inlines = [ShiftHistoryInline]
     fieldsets = (
         (None, {
-            'fields': ('person_id', 'name')
+            'fields': ('person_id', 'name', 'tcr_id')
         }),
-        ('Employment Status', {
-            'fields': ('is_active', 'leaving_date'),
-            'description': 'Mark as inactive when employee leaves. Their historical records will be preserved.'
+        ('Employment Lifecycle', {
+            'fields': ('employment_status', 'is_active', 'joining_date', 'notice_date', 'relieving_date', 'leaving_date'),
+            'description': 'Track the employee lifecycle stage. Use Relieved/Absconded + leaving_date when employee exits.',
         }),
-        ('Current Shift (used as fallback if no history)', {
+        ('Organisation', {
+            'fields': ('department', 'location', 'team', 'designation', 'reporting_manager'),
+        }),
+        ('Current Shift (fallback if no Shift History)', {
             'fields': ('shift_start', 'shift_end'),
-            'description': 'These are used only if no Shift History entries exist for this employee.'
+            'description': 'Used only when no Shift History entries exist for this employee.',
+            'classes': ('collapse',),
         }),
         ('Portal Login', {
             'fields': ('email', 'portal_password'),
-            'description': 'Set email and password for employee self-service portal access.'
-        }),
-        ('Organization', {
-            'fields': ('department', 'location', 'team'),
-        }),
-        ('Additional Information', {
-            'fields': ('salary', 'joining_date', 'designation', 'phone'),
-            'classes': ('collapse',)
+            'description': 'Set email and password for employee self-service portal access.',
         }),
         ('Payroll Settings', {
-            'fields': ('salary_cycle_start_day',),
-            'description': 'Pay period start day. 21 = 21st of prev month to 20th of current month; 1 = calendar month (1st to last day).',
-            'classes': ('collapse',)
+            'fields': ('salary', 'currency', 'payroll_type', 'is_fixed_salary', 'visa_provider', 'salary_cycle_start_day'),
+            'description': 'Pay period start day: 21 = 21st of prev month to 20th of current month; 1 = calendar month.',
+            'classes': ('collapse',),
+        }),
+        ('Personal Information', {
+            'fields': ('phone', 'date_of_birth', 'gender', 'blood_group', 'profile_photo'),
+            'classes': ('collapse',),
+        }),
+        ('Emergency Contact', {
+            'fields': ('emergency_contact_name', 'emergency_contact_phone'),
+            'classes': ('collapse',),
+        }),
+        ('Identity Documents', {
+            'fields': ('national_id', 'passport_number'),
+            'classes': ('collapse',),
+        }),
+        ('Bank Details', {
+            'fields': ('bank_name', 'bank_account_number', 'bank_routing_code'),
+            'classes': ('collapse',),
+        }),
+        ('Onboarding', {
+            'fields': ('onboarding_checklist',),
+            'classes': ('collapse',),
         }),
     )
 
@@ -327,6 +355,220 @@ class LocationAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(EmploymentHistory)
+class EmploymentHistoryAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'change_type', 'effective_date', 'previous_value', 'new_value', 'changed_by', 'changed_at')
+    list_filter = ('change_type', 'effective_date')
+    search_fields = ('employee__name', 'employee__person_id', 'changed_by', 'reason')
+    ordering = ('-effective_date', '-changed_at')
+    date_hierarchy = 'effective_date'
+    readonly_fields = ('employee', 'change_type', 'effective_date',
+                       'previous_value', 'new_value', 'reason',
+                       'changed_by', 'changed_at')
+
+    def has_add_permission(self, request):
+        return False   # history is auto-created only
+
+    def has_change_permission(self, request, obj=None):
+        return False   # immutable log — no editing via admin
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser  # superuser can purge if needed
+
+
+@admin.register(SalaryStructure)
+class SalaryStructureAdmin(admin.ModelAdmin):
+    list_display = (
+        'employee', 'effective_from', 'currency',
+        'basic', 'housing', 'transport', 'phone', 'other_allowance',
+        'gross_display', 'status', 'created_by', 'created_at',
+    )
+    list_filter = ('status', 'currency', 'effective_from')
+    search_fields = ('employee__name', 'employee__person_id', 'created_by', 'revision_reason')
+    ordering = ('-effective_from', '-created_at')
+    date_hierarchy = 'effective_from'
+    readonly_fields = (
+        'employee', 'effective_from', 'currency',
+        'basic', 'housing', 'transport', 'phone', 'other_allowance',
+        'revision_reason', 'status', 'created_by', 'created_at',
+    )
+
+    def gross_display(self, obj):
+        return f"{obj.currency} {obj.gross:,.2f}"
+    gross_display.short_description = 'Gross'
+
+    def has_add_permission(self, request):
+        return False   # revisions are created only through the employee profile view
+
+    def has_change_permission(self, request, obj=None):
+        return False   # immutable — no editing via admin
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser  # superuser can purge if needed
+
+
+@admin.register(EmployerCostSetup)
+class EmployerCostSetupAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_employee_name', 'effective_from',
+        'manpower_monthly_fee', 'medical_insurance_monthly', 'eos_provision_monthly',
+        'total_monthly_cost_display', 'created_by', 'created_at',
+    )
+    list_filter = ('effective_from',)
+    search_fields = (
+        'employee__name', 'employee__person_id',
+        'remote_employee__name', 'remote_employee__extension_id',
+        'created_by',
+    )
+    ordering = ('-effective_from', '-created_at')
+    date_hierarchy = 'effective_from'
+    readonly_fields = (
+        'employee', 'remote_employee', 'effective_from',
+        'manpower_monthly_fee', 'visa_amortisation_monthly',
+        'visa_status_change_amortisation', 'medical_insurance_monthly',
+        'eos_provision_monthly', 'leave_salary_provision_monthly',
+        'air_ticket_provision_monthly', 'recruitment_cost_allocation',
+        'other_cost_monthly', 'notes', 'created_by', 'created_at',
+    )
+
+    def get_employee_name(self, obj):
+        if obj.employee:
+            return obj.employee.name
+        if obj.remote_employee:
+            return obj.remote_employee.name
+        return '—'
+    get_employee_name.short_description = 'Employee'
+    get_employee_name.admin_order_field = 'employee__name'
+
+    def total_monthly_cost_display(self, obj):
+        return f"{obj.total_monthly_cost:,.2f}"
+    total_monthly_cost_display.short_description = 'Total Monthly Cost'
+
+    def has_add_permission(self, request):
+        return False   # records created through employee profile view only
+
+    def has_change_permission(self, request, obj=None):
+        return False   # immutable — no editing via admin
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser   # superuser can purge if needed
+
+
+@admin.register(EmployeeDocument)
+class EmployeeDocumentAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_employee_name', 'document_type', 'document_number',
+        'issue_date', 'expiry_date', 'expiry_status_display',
+        'is_verified', 'created_by', 'created_at',
+    )
+    list_filter = ('document_type', 'is_verified', 'expiry_date')
+    search_fields = (
+        'employee__name', 'employee__person_id',
+        'remote_employee__name', 'remote_employee__extension_id',
+        'document_number', 'created_by',
+    )
+    ordering = ('document_type', '-created_at')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_by', 'created_at')
+
+    fieldsets = (
+        ('Employee', {
+            'fields': ('employee', 'remote_employee'),
+            'description': 'Select either an in-house or a remote employee (not both).',
+        }),
+        ('Document Details', {
+            'fields': ('document_type', 'document_number', 'issuing_country', 'issue_date', 'expiry_date', 'file'),
+        }),
+        ('Verification', {
+            'fields': ('is_verified', 'verified_by', 'verified_at'),
+        }),
+        ('Notes & Audit', {
+            'fields': ('notes', 'created_by', 'created_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def get_employee_name(self, obj):
+        if obj.employee:
+            return obj.employee.name
+        if obj.remote_employee:
+            return obj.remote_employee.name
+        return '—'
+    get_employee_name.short_description = 'Employee'
+    get_employee_name.admin_order_field = 'employee__name'
+
+    def expiry_status_display(self, obj):
+        status_map = {
+            'expired':       '🔴 Expired',
+            'expiring_soon': '🟡 Expiring Soon',
+            'valid':         '🟢 Valid',
+            'no_expiry':     '— No Expiry',
+        }
+        return status_map.get(obj.expiry_status, '—')
+    expiry_status_display.short_description = 'Expiry Status'
+
+
+@admin.register(Recoverable)
+class RecoverableAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_employee_name', 'recoverable_type', 'description',
+        'currency', 'total_amount', 'amount_recovered', 'outstanding_balance_display',
+        'status', 'recovery_start_display', 'created_by', 'created_at',
+    )
+    list_filter = ('recoverable_type', 'status', 'currency')
+    search_fields = (
+        'employee__name', 'employee__person_id',
+        'remote_employee__name', 'remote_employee__extension_id',
+        'description', 'created_by',
+    )
+    ordering = ('-created_at',)
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_by', 'created_at', 'outstanding_balance_display')
+
+    fieldsets = (
+        ('Employee', {
+            'fields': ('employee', 'remote_employee'),
+            'description': 'Select either an in-house or a remote employee (not both).',
+        }),
+        ('Recoverable Details', {
+            'fields': ('recoverable_type', 'description', 'total_amount', 'currency'),
+        }),
+        ('Recovery Schedule', {
+            'fields': ('monthly_recovery', 'recovery_start_year', 'recovery_start_month'),
+        }),
+        ('Recovery Progress', {
+            'fields': ('amount_recovered', 'outstanding_balance_display', 'status'),
+        }),
+        ('Waiver', {
+            'fields': ('waived_by', 'waived_at', 'waived_reason'),
+            'classes': ('collapse',),
+            'description': 'Complete only when status is set to Waived.',
+        }),
+        ('Notes & Audit', {
+            'fields': ('notes', 'created_by', 'created_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def get_employee_name(self, obj):
+        if obj.employee:
+            return obj.employee.name
+        if obj.remote_employee:
+            return obj.remote_employee.name
+        return '—'
+    get_employee_name.short_description = 'Employee'
+    get_employee_name.admin_order_field = 'employee__name'
+
+    def outstanding_balance_display(self, obj):
+        bal = obj.outstanding_balance
+        return f'{obj.currency} {bal:,.2f}'
+    outstanding_balance_display.short_description = 'Outstanding'
+
+    def recovery_start_display(self, obj):
+        return f'{obj.recovery_start_month:02d}/{obj.recovery_start_year}'
+    recovery_start_display.short_description = 'Starts'
 
 
 @admin.register(DesignationMaster)
