@@ -396,10 +396,12 @@
             {% if leave_deduction %}{{ leave_deduction|floatformat:2|intcomma }}{% else %}—{% endif %}
           </td>
         </tr>
-        <!-- Row 2: HRA / Late Deduction -->
+        <!-- Row 2: HRA (Housing) / Late Deduction -->
         <tr>
           <td>HRA</td>
-          <td class="amt zero">—</td>
+          <td class="amt {% if not housing_full %}zero{% endif %}">
+            {% if housing_full %}{{ housing_full|floatformat:2|intcomma }}{% else %}—{% endif %}
+          </td>
           <td class="divider"></td>
           <td>Late Deduction</td>
           <td class="amt {% if not late_deduction %}zero{% endif %}">
@@ -445,6 +447,26 @@
           <td>Leave Salary</td>
           <td class="amt {% if not additions %}zero{% endif %}">
             {% if additions %}{{ additions|floatformat:2|intcomma }}{% else %}—{% endif %}
+          </td>
+          <td class="divider"></td>
+          <td></td>
+          <td class="amt zero">—</td>
+        </tr>
+        <!-- Row 7: Transport Allowance / (empty) -->
+        <tr>
+          <td>Transport Allowance</td>
+          <td class="amt {% if not transport_full %}zero{% endif %}">
+            {% if transport_full %}{{ transport_full|floatformat:2|intcomma }}{% else %}—{% endif %}
+          </td>
+          <td class="divider"></td>
+          <td></td>
+          <td class="amt zero">—</td>
+        </tr>
+        <!-- Row 8: Phone Allowance / (empty) -->
+        <tr>
+          <td>Phone Allowance</td>
+          <td class="amt {% if not phone_full %}zero{% endif %}">
+            {% if phone_full %}{{ phone_full|floatformat:2|intcomma }}{% else %}—{% endif %}
           </td>
           <td class="divider"></td>
           <td></td>

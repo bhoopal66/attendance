@@ -38,6 +38,7 @@ from attendance.views.utils import (
     SALES_PERFORMANCE_V2_START, compute_sales_performance_v2_days,
 )
 from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, PaidSalaryRecord, CommissionTierSettings, DEDUCTION_CATEGORY_CHOICES
+from .services import get_effective_salary_structure
 from .services import convert_employee_deduction_currency
 
 FOREIGN_CURRENCIES = ('INR', 'NPR')  # non-AED currencies with dashboard-level differentiation
@@ -303,9 +304,30 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         days_in_month = calendar.monthrange(year, month)[1]
 
     salary = float(emp.salary) if emp.salary else 0.0
-    basic_salary = round(salary * 0.40, 2)
-    housing_allowance = round(salary * 0.40, 2)
-    transport_allowance = round(salary * 0.20, 2)
+
+    # Phase 5 fix: use the employee's real approved SalaryStructure breakdown
+    # (Basic/Housing/Transport/Phone/Other) instead of a synthetic percentage
+    # split of the flat gross salary. Employee.salary stays the source of
+    # truth for the net-pay math below (it's kept in sync with the structure's
+    # gross by the Salary tab save handler) — only this display breakdown
+    # changes source.
+    _salary_structure = get_effective_salary_structure(emp, month_end)
+    has_salary_structure = _salary_structure is not None
+    if _salary_structure:
+        basic_salary = float(_salary_structure.basic)
+        housing_allowance = float(_salary_structure.housing)
+        transport_allowance = float(_salary_structure.transport)
+        phone_allowance = float(_salary_structure.phone)
+        other_allowance_amt = float(_salary_structure.other_allowance)
+    else:
+        # No approved SalaryStructure on file for this employee — flag it
+        # (surfaces on the dashboard row and the exception centre) rather
+        # than silently guessing a split.
+        basic_salary = 0.0
+        housing_allowance = 0.0
+        transport_allowance = 0.0
+        phone_allowance = 0.0
+        other_allowance_amt = 0.0
 
     approved_leaves = LeaveRequest.objects.filter(
         employee=emp,
@@ -396,6 +418,9 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'basic_salary': basic_salary,
         'housing_allowance': housing_allowance,
         'transport_allowance': transport_allowance,
+        'phone_allowance': phone_allowance,
+        'other_allowance_amt': other_allowance_amt,
+        'has_salary_structure': has_salary_structure,
         'full_days': full_days,
         'half_days': half_days,
         'effective_work_days': round(effective_work_days, 1),
@@ -3141,12 +3166,21 @@ def download_payslip(request, emp_type, emp_id):
         salary = float(snap.get('salary') or 0)
         days_in_month = snap.get('days_in_period') or 0
         absent_days_display = snap.get('absent_days') or 0
+        # Locked/paid snapshots never captured a per-component salary
+        # breakdown (only the flat gross) — this branch is intentionally left
+        # exactly as it always computed, per the rule that PaidSalaryRecord
+        # snapshots are never retroactively altered. housing/transport/phone
+        # are always 0 here; other_allowance_full carries the same 60% figure
+        # this locked payslip always showed.
         if salary:
             basic_full = round(salary * 0.40, 2)
-            allowance_full = round(salary * 0.60, 2)
+            other_allowance_full = round(salary * 0.60, 2)
         else:
             basic_full = 0.0
-            allowance_full = 0.0
+            other_allowance_full = 0.0
+        housing_full = 0.0
+        transport_full = 0.0
+        phone_full = 0.0
         commission = 0.0 if snap.get('is_fixed_salary') else snap.get('commission', 0.0)
         incentives = snap.get('incentives', 0.0)
         cat = snap.get('deductions_breakdown', {})
@@ -3163,13 +3197,14 @@ def download_payslip(request, emp_type, emp_id):
         )
         carryover_ded = round(snap.get('carryover_in', 0.0), 2)
         incentives_commission = round(incentives + commission, 2)
-        total_earnings = round(basic_full + allowance_full + incentives_commission + additions, 2)
+        total_earnings = round(basic_full + housing_full + transport_full + phone_full + other_allowance_full + incentives_commission + additions, 2)
         net_salary = round(snap.get('final_salary', 0.0), 2)
         total_deductions = round(total_earnings - net_salary, 2)
         salary_words = _amount_in_words(net_salary) if net_salary > 0 else 'Zero Only'
         return _render_payslip_response(
             request, emp, emp_type, selected_year, selected_month, month_name,
-            days_in_month, absent_days_display, salary, basic_full, allowance_full,
+            days_in_month, absent_days_display, salary,
+            basic_full, housing_full, transport_full, phone_full, other_allowance_full,
             incentives_commission, additions, leave_deduction, late_deduction,
             advance_ded, other_ded, carryover_ded, total_earnings, total_deductions,
             net_salary, salary_words,
@@ -3202,9 +3237,16 @@ def download_payslip(request, emp_type, emp_id):
         annual_leave_extra_deduction = payroll['annual_leave_extra_deduction']
         total_deduction_days = payroll['total_deduction_days']
         absent_days_display = round(total_deduction_days, 2)
-        # Fixed earnings from DB (no proration)
-        basic_full = round(salary * 0.40, 2)
-        allowance_full = round(salary * 0.60, 2)
+        # Real Basic/Housing/Transport/Phone/Other breakdown from the
+        # employee's approved SalaryStructure (Phase 5) — no approved
+        # structure on file means we can't print an accurate payslip.
+        if not payroll['has_salary_structure']:
+            return _render_payslip_missing_structure(request, emp, selected_year, selected_month, month_name)
+        basic_full = payroll['basic_salary']
+        housing_full = payroll['housing_allowance']
+        transport_full = payroll['transport_allowance']
+        phone_full = payroll['phone_allowance']
+        other_allowance_full = payroll['other_allowance_amt']
         # Attendance-based deduction components
         att_leave_ded = round(daily_rate * (absent_days + half_days * 0.5)
                               - annual_leave_compensation + annual_leave_extra_deduction, 2)
@@ -3221,12 +3263,31 @@ def download_payslip(request, emp_type, emp_id):
         reductions = payroll['reductions']
         absent_days_display = payroll.get('absent_days', 0)
         raw_salary = payroll.get('salary', 0.0)
-        if raw_salary:
-            basic_full = round(raw_salary * 0.40, 2)
-            allowance_full = round(raw_salary * 0.60, 2)
+        if emp_type == 'inhouse':
+            # In-house Sales employee — SalaryStructure applies to them too
+            # (it's not Admin-department-specific), so use the real breakdown
+            # the same way as the Admin branch above.
+            _salary_structure = get_effective_salary_structure(emp, period_end)
+            if not _salary_structure:
+                return _render_payslip_missing_structure(request, emp, selected_year, selected_month, month_name)
+            basic_full = float(_salary_structure.basic)
+            housing_full = float(_salary_structure.housing)
+            transport_full = float(_salary_structure.transport)
+            phone_full = float(_salary_structure.phone)
+            other_allowance_full = float(_salary_structure.other_allowance)
         else:
-            basic_full = 0.0
-            allowance_full = 0.0
+            # Remote employees have no SalaryStructure model to draw from —
+            # keep the existing flat-salary Basic 40% / Other Allowance 60%
+            # split, unchanged from before this fix.
+            if raw_salary:
+                basic_full = round(raw_salary * 0.40, 2)
+                other_allowance_full = round(raw_salary * 0.60, 2)
+            else:
+                basic_full = 0.0
+                other_allowance_full = 0.0
+            housing_full = 0.0
+            transport_full = 0.0
+            phone_full = 0.0
         al_comp = payroll.get('annual_leave_compensation', 0.0)
         att_leave_ded = max(0.0, payroll.get('deduction', 0.0) - al_comp)
         att_late_ded = 0.0
@@ -3266,7 +3327,7 @@ def download_payslip(request, emp_type, emp_id):
     other_ded = round(other_ded_manual + reductions, 2)
 
     incentives_commission = round(incentives + commission, 2)
-    total_earnings = round(basic_full + allowance_full + incentives_commission + additions, 2)
+    total_earnings = round(basic_full + housing_full + transport_full + phone_full + other_allowance_full + incentives_commission + additions, 2)
 
     # Carryover deduction (overflow from prior month that went negative)
     if emp_type == 'inhouse':
@@ -3293,16 +3354,35 @@ def download_payslip(request, emp_type, emp_id):
 
     return _render_payslip_response(
         request, emp, emp_type, selected_year, selected_month, month_name,
-        days_in_month, absent_days_display, salary, basic_full, allowance_full,
+        days_in_month, absent_days_display, salary,
+        basic_full, housing_full, transport_full, phone_full, other_allowance_full,
         incentives_commission, additions, leave_deduction, late_deduction,
         advance_ded, other_ded, carryover_ded, total_earnings, total_deductions,
         net_salary, salary_words,
     )
 
 
+def _render_payslip_missing_structure(request, emp, selected_year, selected_month, month_name):
+    """Clear error page instead of a guessed payslip when the employee has no
+    approved SalaryStructure covering this pay period (Phase 5 salary revision
+    workflow). Registers nothing in GeneratedDocument since no payslip was
+    actually produced."""
+    logger.warning(
+        "Payslip blocked for %s %s/%s — no approved SalaryStructure on file",
+        emp.name, selected_month, selected_year,
+    )
+    return render(request, 'payroll/payslip_missing_structure.html', {
+        'emp': emp,
+        'month_name': month_name,
+        'selected_year': selected_year,
+        'selected_month': selected_month,
+    }, status=422)
+
+
 def _render_payslip_response(
     request, emp, emp_type, selected_year, selected_month, month_name,
-    days_in_month, absent_days_display, salary, basic_full, allowance_full,
+    days_in_month, absent_days_display, salary,
+    basic_full, housing_full, transport_full, phone_full, other_allowance_full,
     incentives_commission, additions, leave_deduction, late_deduction,
     advance_ded, other_ded, carryover_ded, total_earnings, total_deductions,
     net_salary, salary_words,
@@ -3330,7 +3410,10 @@ def _render_payslip_response(
         'absent_days_display': absent_days_display,
         'salary': salary,
         'basic_full': basic_full,
-        'allowance_full': allowance_full,
+        'housing_full': housing_full,
+        'transport_full': transport_full,
+        'phone_full': phone_full,
+        'allowance_full': other_allowance_full,
         'incentives_commission': incentives_commission,
         'additions': additions,
         'leave_deduction': leave_deduction,
@@ -3799,7 +3882,7 @@ def payroll_test_dashboard(request):
         total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
         deduction_rows.append({
             'employee': emp, 'employee_type': 'inhouse', 'currency': emp.currency,
-            'categories': cat, 'carryover_in': carryover_in,
+            'categories': cat, 'carryover_in': carryover_in, 'ded_for_total': ded_for_total,
             'total_deductions': total_ded, 'total_additions': total_add,
             'net': round(total_add - total_ded, 2),
         })
@@ -3813,7 +3896,7 @@ def payroll_test_dashboard(request):
         total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
         deduction_rows.append({
             'employee': emp, 'employee_type': 'remote', 'currency': emp.currency,
-            'categories': cat, 'carryover_in': carryover_in,
+            'categories': cat, 'carryover_in': carryover_in, 'ded_for_total': _DED_COLS,
             'total_deductions': total_ded, 'total_additions': total_add,
             'net': round(total_add - total_ded, 2),
         })
@@ -3879,12 +3962,23 @@ def payroll_test_dashboard(request):
         carryover_out = 0.0
         if final_salary == 0.0 and round(payroll_net - total_ded + total_add, 2) < 0:
             carryover_out = round(abs(payroll_net - total_ded + total_add), 2)
+        # Itemized deduction breakdown for the click-through modal on the
+        # Deductions figure below — only categories actually counted toward
+        # total_ded are included, plus carryover_in, so the modal always
+        # reconciles exactly to the total shown in the table.
+        _ded_for_total = d.get('ded_for_total', _DED_COLS) if d else _DED_COLS
+        _categories = d['categories'] if d else {}
+        ded_breakdown_json = json.dumps({
+            'items': {c: _categories.get(c, 0.0) for c in _ded_for_total if _categories.get(c, 0.0)},
+            'carryover_in': carryover_in,
+        })
         final_rows.append({
             'employee': emp, 'employee_type': 'inhouse',
             'department': emp.department or 'In-House', 'currency': emp.currency,
             'payroll_net': payroll_net, 'total_deductions': total_ded,
             'total_additions': total_add, 'final_salary': final_salary,
             'carryover_in': carryover_in, 'carryover_out': carryover_out,
+            'ded_breakdown_json': ded_breakdown_json,
         })
 
     for emp in all_payroll_remote:
@@ -3918,12 +4012,19 @@ def payroll_test_dashboard(request):
         carryover_out = 0.0
         if final_salary == 0.0 and round(payroll_net - total_ded + total_add, 2) < 0:
             carryover_out = round(abs(payroll_net - total_ded + total_add), 2)
+        _ded_for_total = d.get('ded_for_total', _DED_COLS) if d else _DED_COLS
+        _categories = d['categories'] if d else {}
+        ded_breakdown_json = json.dumps({
+            'items': {c: _categories.get(c, 0.0) for c in _ded_for_total if _categories.get(c, 0.0)},
+            'carryover_in': carryover_in,
+        })
         final_rows.append({
             'employee': emp, 'employee_type': 'remote',
             'department': getattr(emp, 'department', 'Remote') or 'Remote', 'currency': emp.currency,
             'payroll_net': payroll_net, 'total_deductions': total_ded,
             'total_additions': total_add, 'final_salary': final_salary,
             'carryover_in': carryover_in, 'carryover_out': carryover_out,
+            'ded_breakdown_json': ded_breakdown_json,
         })
 
     # Load full paid salary snapshots and overlay onto all rows

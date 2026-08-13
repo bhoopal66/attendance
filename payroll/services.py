@@ -9,6 +9,27 @@ from decimal import Decimal, ROUND_HALF_UP
 from .models import DeductionEntry, DeductionCarryover, ExchangeRate
 
 
+def get_effective_salary_structure(employee, as_of_date):
+    """Return the SalaryStructure row effective for `employee` as of `as_of_date`,
+    or None if the employee has no approved salary structure covering that date.
+
+    Used by the payroll dashboard and the payslip generator (both in the
+    payroll/views.py monolith) so the real Basic/Housing/Transport/Phone/Other
+    breakdown entered via the employee's Salary tab (Phase 5) is shown instead
+    of a synthetic percentage split of the flat Employee.salary gross figure.
+
+    `employee` must be an attendance.models.Employee instance (in-house only —
+    RemoteEmployee has no salary_structures relation; callers should skip this
+    lookup for remote employees and keep the existing flat-salary behaviour).
+    """
+    return (
+        employee.salary_structures
+        .filter(status='approved', effective_from__lte=as_of_date)
+        .order_by('-effective_from', '-created_at')
+        .first()
+    )
+
+
 def _rate_for(currency, year, month):
     """Best-effort exchange rate for `currency` in a given year/month.
     Falls back to the nearest month with a stored rate if the exact one is

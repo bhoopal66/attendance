@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payslip unavailable — {{ emp.name }} — {{ month_name }} {{ selected_year }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f0f0f0;
+    color: #1a1a1a;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    max-width: 520px;
+    width: 100%;
+    padding: 32px 36px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    border-top: 5px solid #F97316;
+  }
+  .icon {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: #FEF3C7;
+    color: #92400E;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700;
+    margin-bottom: 16px;
+  }
+  h1 { font-size: 1.15rem; margin-bottom: 8px; color: #1a1a1a; }
+  p { font-size: 0.92rem; line-height: 1.55; color: #4b5563; margin-bottom: 10px; }
+  .detail-box {
+    background: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-size: 0.86rem;
+  }
+  .detail-box div { margin-bottom: 4px; }
+  .detail-box div:last-child { margin-bottom: 0; }
+  .detail-box b { color: #1a1a1a; }
+  a.back-link {
+    display: inline-block;
+    margin-top: 8px;
+    color: #F97316;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 0.88rem;
+  }
+  a.back-link:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">!</div>
+    <h1>Payslip cannot be generated</h1>
+    <p>
+      This employee has no approved salary structure on file covering this pay period,
+      so an accurate payslip can't be printed. Set up their Basic / Housing / Transport /
+      Phone / Other Allowance breakdown on the Salary tab of their profile, then try again.
+    </p>
+    <div class="detail-box">
+      <div><b>Employee:</b> {{ emp.name }}</div>
+      <div><b>Period:</b> {{ month_name }} {{ selected_year }}</div>
+    </div>
+    <a class="back-link" href="javascript:history.back()">&larr; Go back</a>
+  </div>
+</body>
+</html>
