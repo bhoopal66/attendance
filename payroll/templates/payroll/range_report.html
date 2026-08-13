@@ -1,0 +1,265 @@
+{% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block title %}Range Report — {{ from_month_name }} {{ from_year }} to {{ to_month_name }} {{ to_year }} · Taamul{% endblock %}
+{% block page_title %}Payroll Range Report{% endblock %}
+
+{% block extra_css %}
+<style>
+.rr-wrap { max-width: 1250px; }
+
+/* ── Range picker ─────────────────────────────────────────────────────── */
+.rr-picker {
+    display: flex; align-items: flex-end; gap: .9rem; flex-wrap: wrap;
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: .9rem 1.1rem; margin-bottom: 1.25rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.rr-field { display: flex; flex-direction: column; gap: .3rem; }
+.rr-field label {
+    font-size: .68rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text-secondary);
+}
+.rr-field select {
+    border: 1px solid var(--border-color); border-radius: 8px;
+    padding: 7px 10px; font-size: .82rem; background: var(--surface-color);
+    color: var(--text-primary);
+}
+.rr-picker .rr-sep { color: var(--text-secondary); padding-bottom: 8px; font-size: .85rem; }
+.rr-picker button {
+    background: var(--primary-color); color: #fff; border: none;
+    border-radius: 8px; padding: 8px 16px; font-size: .82rem; font-weight: 600;
+    cursor: pointer;
+}
+.rr-quicklinks { margin-left: auto; display: flex; gap: .6rem; align-items: center; }
+.rr-quicklinks a {
+    font-size: .78rem; color: var(--text-secondary); text-decoration: none;
+    border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 12px;
+}
+.rr-quicklinks a:hover { border-color: var(--primary-color); color: var(--primary-color); }
+
+/* ── Grand total cards ────────────────────────────────────────────────── */
+.rr-kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .9rem; margin-bottom: 1.5rem;
+}
+.rr-kpi-card {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: .95rem 1.1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.rr-kpi-card .k {
+    font-size: .66rem; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-secondary); margin-bottom: .3rem;
+}
+.rr-kpi-card .v { font-size: 1.25rem; font-weight: 800; color: var(--text-primary); }
+.rr-kpi-card .sub { font-size: .7rem; color: var(--text-secondary); margin-top: .15rem; }
+
+/* ── Table ─────────────────────────────────────────────────────────────── */
+.rr-table-wrap {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 14px; padding: .5rem 0 .2rem; overflow-x: auto;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.rr-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.rr-table th {
+    text-align: left; padding: 10px 14px; font-size: .68rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color); white-space: nowrap;
+}
+.rr-table td { padding: 9px 14px; border-bottom: 0.5px solid var(--border-color); vertical-align: middle; }
+.rr-table td.num { text-align: right; font-family: monospace; }
+.rr-table .val-negative { color: #DC2626; }
+.rr-table .val-positive { color: #16A34A; }
+.rr-months-badge {
+    display: inline-block; padding: 2px 9px; border-radius: 20px;
+    font-size: .68rem; font-weight: 700;
+}
+.rr-months-badge.complete { background: #DCFCE7; color: #14532D; }
+.rr-months-badge.partial  { background: #FEF3C7; color: #92400E; }
+.rr-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary); font-size: .85rem; }
+.rr-emp-name { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+
+/* ── Category breakdown modal ─────────────────────────────────────────── */
+.rr-modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(15,23,42,.45);
+    z-index: 1000; align-items: center; justify-content: center;
+}
+.rr-modal-overlay.active { display: flex; }
+.rr-modal {
+    background: var(--surface-color); border-radius: 14px; padding: 20px 22px;
+    min-width: 380px; max-width: 460px; max-height: 80vh; overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,.2);
+}
+.rr-modal-head {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;
+}
+.rr-modal-title { font-weight: 700; font-size: .95rem; color: var(--text-primary); }
+.rr-modal-close { cursor: pointer; color: var(--text-secondary); font-size: 1rem; }
+.rr-modal table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+.rr-modal td { padding: 6px 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rr-wrap">
+
+    <!-- ── Range picker ─────────────────────────────────────────────────── -->
+    <form class="rr-picker" method="get">
+        <div class="rr-field">
+            <label>From</label>
+            <div style="display:flex; gap:.4rem;">
+                <select name="from_month">
+                    {% for m, mname in month_choices %}
+                    <option value="{{ m }}" {% if m == from_month %}selected{% endif %}>{{ mname }}</option>
+                    {% endfor %}
+                </select>
+                <select name="from_year">
+                    {% for y in year_choices %}
+                    <option value="{{ y }}" {% if y == from_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="rr-sep">→</div>
+        <div class="rr-field">
+            <label>To</label>
+            <div style="display:flex; gap:.4rem;">
+                <select name="to_month">
+                    {% for m, mname in month_choices %}
+                    <option value="{{ m }}" {% if m == to_month %}selected{% endif %}>{{ mname }}</option>
+                    {% endfor %}
+                </select>
+                <select name="to_year">
+                    {% for y in year_choices %}
+                    <option value="{{ y }}" {% if y == to_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <button type="submit">Apply</button>
+        <div class="rr-quicklinks">
+            <a href="?from_month=1&from_year={{ today_year }}&to_month=12&to_year={{ today_year }}">This year</a>
+            <a href="{% url 'payroll_dashboard' %}">← Back to Dashboard</a>
+        </div>
+    </form>
+
+    <p style="font-size:.78rem; color:var(--text-secondary); margin: -0.5rem 0 1.25rem;">
+        Showing {{ from_month_name }} {{ from_year }} – {{ to_month_name }} {{ to_year }}
+        ({{ total_months_in_range }} month{{ total_months_in_range|pluralize }}).
+        Only months already marked as <strong>Paid</strong> are included — a partial badge below means some months
+        in this range haven't been finalized yet.
+    </p>
+
+    <!-- ── Grand totals by currency ─────────────────────────────────────── -->
+    {% if totals_by_currency %}
+    <div class="rr-kpi-grid">
+        {% for currency, t in totals_by_currency.items %}
+        <div class="rr-kpi-card">
+            <div class="k">{{ currency }} Final Salary Total</div>
+            <div class="v">{{ currency }} {{ t.final_salary|floatformat:2 }}</div>
+            <div class="sub">{{ t.employees }} employee{{ t.employees|pluralize }} · deductions {{ currency }} {{ t.total_deductions|floatformat:2 }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ── Per-employee table ───────────────────────────────────────────── -->
+    <div class="rr-table-wrap">
+        {% if rows %}
+        <table class="rr-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Section</th>
+                    <th>Months</th>
+                    <th class="num">Net Payroll</th>
+                    <th class="num">Deductions</th>
+                    <th class="num">Additions</th>
+                    <th class="num">Final Salary</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        <span class="rr-emp-name" onclick="rrOpenBreakdown({{ forloop.counter0 }})">{{ row.employee_name }}</span>
+                        {% if row.currency_mismatch %}<span title="Currency changed during this range" style="color:#DC2626;">⚠</span>{% endif %}
+                    </td>
+                    <td class="muted">{{ row.department|default:"—" }}</td>
+                    <td>
+                        <span class="rr-months-badge {% if row.is_complete %}complete{% else %}partial{% endif %}">
+                            {{ row.months_included }} of {{ row.months_total }}
+                        </span>
+                    </td>
+                    <td class="num">{{ row.currency }} {{ row.net_payroll|floatformat:2 }}</td>
+                    <td class="num val-negative">{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="num val-positive">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="num"><strong>{{ row.currency }} {{ row.final_salary|floatformat:2 }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="rr-empty">
+            No paid months found in this range.<br>
+            <span style="font-size:.78rem;">Mark months as Paid on the main dashboard, then they'll appear here.</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Category breakdown modal ─────────────────────────────────────────── -->
+<div class="rr-modal-overlay" id="rrModalOverlay" onclick="if(event.target===this) rrCloseBreakdown()">
+    <div class="rr-modal">
+        <div class="rr-modal-head">
+            <div class="rr-modal-title" id="rrModalTitle">Breakdown</div>
+            <span class="rr-modal-close" onclick="rrCloseBreakdown()">✕</span>
+        </div>
+        <div id="rrModalContent"></div>
+    </div>
+</div>
+
+<script>
+const RR_ROWS = [
+    {% for row in rows %}
+    {
+        name: '{{ row.employee_name|escapejs }}',
+        currency: '{{ row.currency }}',
+        categories: {{ row.categories_json|default:"{}"|safe }},
+        final_salary: {{ row.final_salary|default:0 }},
+        months_included: {{ row.months_included }},
+        months_total: {{ row.months_total }}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+const RR_CAT_LABELS = {{ cat_labels_json|default:"{}"|safe }};
+
+function rrOpenBreakdown(idx) {
+    const row = RR_ROWS[idx];
+    if (!row) return;
+    const fmt = v => Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const entries = Object.entries(row.categories || {});
+    let rowsHtml = entries.map(([k, v]) => `
+        <tr><td style="color:var(--text-secondary);">${RR_CAT_LABELS[k] || k}</td>
+            <td style="text-align:right; font-family:monospace;">${row.currency} ${fmt(v)}</td></tr>
+    `).join('');
+    if (!rowsHtml) {
+        rowsHtml = `<tr><td colspan="2" style="color:var(--text-secondary); padding:10px 4px;">No itemized entries across this range.</td></tr>`;
+    }
+    document.getElementById('rrModalTitle').textContent = `${row.name} — ${row.months_included}/${row.months_total} months`;
+    document.getElementById('rrModalContent').innerHTML = `
+        <table>
+            ${rowsHtml}
+            <tr><td style="font-weight:700; border-top:1px solid var(--border-color); padding-top:8px;">Final Salary (sum)</td>
+                <td style="text-align:right; font-family:monospace; font-weight:700; border-top:1px solid var(--border-color); padding-top:8px;">${row.currency} ${fmt(row.final_salary)}</td></tr>
+        </table>
+    `;
+    document.getElementById('rrModalOverlay').classList.add('active');
+}
+
+function rrCloseBreakdown() {
+    document.getElementById('rrModalOverlay').classList.remove('active');
+}
+</script>
+{% endblock %}

@@ -6,6 +6,7 @@ from . import views_profitability
 from . import views_management
 from . import views_audit
 from . import views_notes
+from . import views_range_report
 
 urlpatterns = [
     path('', views.payroll_test_dashboard, name='payroll_dashboard'),
@@ -71,4 +72,7 @@ urlpatterns = [
     # Phase C — Per-employee Notes & Timeline
     path('api/notes/<str:emp_type>/<int:employee_id>/', views_notes.get_employee_notes, name='get_employee_notes'),
     path('api/notes/add/', views_notes.add_employee_note, name='add_employee_note'),
+
+    # Phase D — Range / Annual Report
+    path('range-report/', views_range_report.range_report, name='payroll_range_report'),
 ]
