@@ -668,6 +668,21 @@ class PayrollRun(models.Model):
             self.posted_by = user_username
             self.posted_at = now
         self.save()
+
+        # Phase 13 — audit trail. Never let a logging failure block the
+        # transition itself; log_audit() already swallows its own errors.
+        try:
+            from attendance.audit import log_audit
+            from attendance.models import AuditLog
+            log_audit(
+                actor=user_username,
+                action=AuditLog.ACTION_TRANSITION,
+                instance=self,
+                note=f'{prev} -> {nxt}',
+            )
+        except Exception:
+            pass
+
         return True, nxt
 
 

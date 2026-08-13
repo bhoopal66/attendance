@@ -11,10 +11,12 @@ URL: /payroll/run/<year>/<month>/   (name='payroll_run_detail')
 import logging
 from datetime import date
 
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
+
+from attendance.views.utils import section_required
 
 logger = logging.getLogger('attendance')
 
@@ -160,6 +162,7 @@ def _build_exception_report(year, month):
 # ── View ──────────────────────────────────────────────────────────────────────
 
 @login_required
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(['GET', 'POST'])
 def payroll_run_detail(request, year, month):
     """

@@ -1561,3 +1561,65 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} profile"
+
+
+class AuditLog(models.Model):
+    """
+    Phase 13 — Append-only audit trail for financial and role-changing actions.
+
+    Deliberately generic (app_label/model_name/object_id/object_repr as plain
+    fields, not a GenericForeignKey) so a deleted source row never breaks the
+    audit history and so this model has zero FK coupling to payroll models
+    (avoids any cross-app migration-ordering fragility).
+
+    Populated two ways:
+      1. Explicit log_audit() calls at known mutation points where the real
+         request/actor is available (PayrollRun.advance(), employee profile
+         section saves, admin save_model/delete_model overrides).
+      2. A best-effort post_save/post_delete signal for models edited only
+         from code this app cannot safely instrument (e.g. DeductionEntry,
+         edited solely from the payroll views.py monolith) — those rows log
+         actor='system' since no request user is available to a signal.
+    """
+    ACTION_CREATE     = 'create'
+    ACTION_UPDATE     = 'update'
+    ACTION_DELETE     = 'delete'
+    ACTION_TRANSITION = 'transition'
+
+    ACTION_CHOICES = [
+        (ACTION_CREATE,     'Create'),
+        (ACTION_UPDATE,     'Update'),
+        (ACTION_DELETE,     'Delete'),
+        (ACTION_TRANSITION, 'Status Change'),
+    ]
+
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    actor = models.CharField(
+        max_length=150, blank=True,
+        help_text="Username of the person who made the change, or 'system' when captured via signal.",
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES, db_index=True)
+
+    app_label  = models.CharField(max_length=50, db_index=True)
+    model_name = models.CharField(max_length=50, db_index=True)
+    object_id  = models.CharField(max_length=50, blank=True)
+    object_repr = models.CharField(max_length=255, blank=True)
+
+    changes = models.JSONField(
+        default=dict, blank=True,
+        help_text="{field: [old_value, new_value], ...} — best-effort, empty for pure creates.",
+    )
+    note = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Audit Log Entry'
+        verbose_name_plural = 'Audit Log Entries'
+        indexes = [
+            models.Index(fields=['-timestamp'], name='att__audit_ts_idx'),
+            models.Index(fields=['app_label', 'model_name', 'object_id'], name='att__audit_obj_idx'),
+            models.Index(fields=['actor', '-timestamp'], name='att__audit_actor_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.get_action_display()} {self.model_name} #{self.object_id} by {self.actor or "system"} @ {self.timestamp:%Y-%m-%d %H:%M}'

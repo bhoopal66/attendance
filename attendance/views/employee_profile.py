@@ -350,7 +350,7 @@ def _save_salary(request, emp):
 
     # Create new approved revision
     created_by = request.user.username if request.user.is_authenticated else 'system'
-    SalaryStructure.objects.create(
+    new_structure = SalaryStructure.objects.create(
         employee=emp,
         effective_from=effective_from,
         basic=basic,
@@ -367,6 +367,21 @@ def _save_salary(request, emp):
     # Keep Employee.salary in sync with new gross (payroll reads this)
     emp.salary   = new_gross
     emp.currency = currency
+
+    # Phase 13 — audit trail
+    try:
+        from ..audit import log_audit, diff_fields
+        from ..models import AuditLog
+        log_audit(
+            actor=created_by, action=AuditLog.ACTION_CREATE, instance=new_structure,
+            changes=diff_fields(
+                {'salary': f'{prev_currency} {prev_salary}' if prev_salary is not None else None},
+                {'salary': f'{currency} {new_gross}'},
+            ),
+            note=f'Salary revision for {emp.name} ({emp.person_id})',
+        )
+    except Exception:
+        pass
 
     # Log to EmploymentHistory
     salary_before_str = f"{prev_currency} {prev_salary}" if prev_salary is not None else None
@@ -415,7 +430,7 @@ def _save_cost(request, emp):
     effective_from = _get(request, 'effective_from') or str(date.today())
     created_by     = request.user.username if request.user.is_authenticated else 'system'
 
-    EmployerCostSetup.objects.create(
+    new_cost = EmployerCostSetup.objects.create(
         employee=emp,
         effective_from=effective_from,
         manpower_monthly_fee=_dec('manpower_monthly_fee'),
@@ -432,6 +447,17 @@ def _save_cost(request, emp):
     )
     # _save_cost does not call emp.save() on extra fields — EmployerCostSetup
     # is a standalone record, not a field on Employee itself.
+
+    # Phase 13 — audit trail
+    try:
+        from ..audit import log_audit
+        from ..models import AuditLog
+        log_audit(
+            actor=created_by, action=AuditLog.ACTION_CREATE, instance=new_cost,
+            note=f'Employer cost setup for {emp.name} ({emp.person_id}), total AED {new_cost.total_monthly_cost:,.2f}',
+        )
+    except Exception:
+        pass
 
 
 def _save_document(request, emp):
@@ -507,6 +533,17 @@ def _save_recoverable(request, emp):
     rec.save()
     # _save_recoverable creates a standalone row — does NOT set fields on emp,
     # so the caller's emp.save() is a no-op for this section (harmless).
+
+    # Phase 13 — audit trail
+    try:
+        from ..audit import log_audit
+        from ..models import AuditLog
+        log_audit(
+            actor=created_by, action=AuditLog.ACTION_CREATE, instance=rec,
+            note=f'Recoverable for {emp.name} ({emp.person_id}): {rec.currency} {rec.total_amount:,.2f}',
+        )
+    except Exception:
+        pass
 
 
 def _save_onboarding(request, emp):

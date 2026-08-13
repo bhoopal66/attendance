@@ -1,5 +1,10 @@
 from django.urls import path
 from . import views
+from . import views_payroll_run
+from . import views_performance
+from . import views_profitability
+from . import views_management
+from . import views_audit
 
 urlpatterns = [
     path('', views.payroll_test_dashboard, name='payroll_dashboard'),
@@ -49,4 +54,16 @@ urlpatterns = [
     # Mark as Paid / Unmark
     path('api/mark-paid/', views.mark_paid_salary, name='mark_paid_salary'),
     path('api/unmark-paid/', views.unmark_paid_salary, name='unmark_paid_salary'),
+
+    # Phase 9 — Payroll Run lifecycle
+    path('run/<int:year>/<int:month>/', views_payroll_run.payroll_run_detail, name='payroll_run_detail'),
+    # Phase 10 — Team Performance
+    path('performance/<int:year>/<int:month>/', views_performance.team_performance, name='payroll_team_performance'),
+    # Phase 11 — Profitability
+    path('profitability/<int:year>/<int:month>/', views_profitability.profitability, name='payroll_profitability'),
+    # Phase 12 — Management Dashboard
+    path('management/', views_management.management_home, name='payroll_management_home'),
+    path('management/<int:year>/<int:month>/', views_management.management_dashboard, name='payroll_management'),
+    # Phase 13 — Audit Log
+    path('audit-log/', views_audit.audit_log, name='payroll_audit_log'),
 ]

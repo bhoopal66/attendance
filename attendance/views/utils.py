@@ -60,6 +60,7 @@ NAV_SECTIONS = [
     ('banks',           'Banks',            'Administration'),
     ('upload',          'Upload Data',      'Data Upload'),
     ('management',      'Management Dashboard', 'Administration'),   # Phase 12
+    ('audit_log',       'Audit Log',        'Administration'),        # Phase 13
 ]
 NAV_SECTION_KEYS = {key for key, _, _ in NAV_SECTIONS}
 

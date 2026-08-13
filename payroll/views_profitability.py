@@ -11,10 +11,12 @@ Deploy as: payroll/views_profitability.py
 import logging
 from datetime import date
 
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import Http404
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
+
+from attendance.views.utils import section_required
 
 logger = logging.getLogger('attendance')
 
@@ -25,6 +27,7 @@ MONTH_NAMES = [
 
 
 @login_required
+@user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(['GET'])
 def profitability(request, year, month):
     """Render the profitability page for the month."""

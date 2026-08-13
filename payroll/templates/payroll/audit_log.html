@@ -1,0 +1,176 @@
+{% extends 'attendance/base.html' %}
+{% load static %}
+
+{% block title %}Audit Log · Taamul{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+
+{% block extra_css %}
+<style>
+.audit-wrap { max-width: 1250px; }
+
+.filter-card {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;
+}
+.filter-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; }
+.filter-field { display: flex; flex-direction: column; gap: .25rem; }
+.filter-field label { font-size: .68rem; font-weight: 700; letter-spacing: .05em;
+                      text-transform: uppercase; color: var(--text-secondary); }
+.filter-field input, .filter-field select {
+    padding: .4rem .6rem; border: 1px solid var(--border-color); border-radius: 6px;
+    font-size: .82rem; background: var(--surface-color); color: var(--text-primary);
+    min-width: 140px;
+}
+.filter-btn {
+    padding: .45rem 1rem; background: var(--primary-gradient); color: #fff;
+    border: none; border-radius: 6px; font-size: .82rem; font-weight: 600;
+    cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+}
+.filter-btn:hover { opacity: .9; color: #fff; }
+.filter-clear { font-size: .78rem; color: var(--text-secondary); text-decoration: none; margin-left: .5rem; }
+.filter-clear:hover { color: var(--primary-color); }
+
+.audit-count { font-size: .8rem; color: var(--text-secondary); margin-bottom: .9rem; }
+
+.audit-card {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05); overflow-x: auto;
+}
+.audit-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.audit-table th {
+    text-align: left; padding: .5rem .6rem;
+    font-size: .64rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color); white-space: nowrap;
+}
+.audit-table td {
+    padding: .55rem .6rem; border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary); vertical-align: top;
+}
+.audit-table tr:last-child td { border-bottom: none; }
+.audit-ts { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text-secondary); font-size: .76rem; }
+.audit-actor { font-weight: 600; }
+.audit-actor.system { color: var(--text-secondary); font-style: italic; font-weight: 400; }
+
+.action-badge {
+    display: inline-block; padding: 1px 9px; border-radius: 10px;
+    font-size: .68rem; font-weight: 700;
+}
+.action-badge.create     { background: #DCFCE7; color: #14532D; }
+.action-badge.update     { background: #FEF3C7; color: #92400E; }
+.action-badge.delete     { background: #FEE2E2; color: #991B1B; }
+.action-badge.transition { background: #FFEDD5; color: #9A3412; }
+
+.audit-changes { font-size: .74rem; color: var(--text-secondary); max-width: 320px; }
+.audit-changes code { background: #F3F4F6; padding: 1px 4px; border-radius: 3px; font-size: .72rem; }
+.audit-note { font-size: .76rem; color: var(--text-secondary); font-style: italic; }
+
+.pagination { display: flex; gap: .5rem; align-items: center; justify-content: center; margin-top: 1rem; }
+.pagination a, .pagination span {
+    padding: .35rem .75rem; border-radius: 6px; font-size: .8rem;
+    text-decoration: none; color: var(--text-primary); border: 1px solid var(--border-color);
+}
+.pagination a:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.pagination .current { background: var(--primary-gradient); color: #fff; border: none; }
+
+.empty-note { padding: 1.5rem; text-align: center; color: var(--text-secondary); font-size: .85rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="audit-wrap">
+
+    <div class="filter-card">
+        <form method="get" class="filter-row">
+            <div class="filter-field">
+                <label>Model</label>
+                <select name="model">
+                    <option value="">All models</option>
+                    {% for m in model_choices %}
+                    <option value="{{ m }}" {% if filters.model == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-field">
+                <label>Action</label>
+                <select name="action">
+                    <option value="">All actions</option>
+                    {% for value, label in action_choices %}
+                    <option value="{{ value }}" {% if filters.action == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-field">
+                <label>Actor</label>
+                <input type="text" name="actor" value="{{ filters.actor }}" placeholder="username">
+            </div>
+            <div class="filter-field">
+                <label>From</label>
+                <input type="date" name="from" value="{{ filters.from }}">
+            </div>
+            <div class="filter-field">
+                <label>To</label>
+                <input type="date" name="to" value="{{ filters.to }}">
+            </div>
+            <button type="submit" class="filter-btn">Filter</button>
+            <a href="{% url 'payroll_audit_log' %}" class="filter-clear">Clear</a>
+        </form>
+    </div>
+
+    <div class="audit-count">{{ total_count }} entr{{ total_count|pluralize:'y,ies' }} found</div>
+
+    <div class="audit-card">
+        {% if page_obj.object_list %}
+        <table class="audit-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Model</th>
+                    <th>Object</th>
+                    <th>Changes</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in page_obj.object_list %}
+                <tr>
+                    <td class="audit-ts">{{ entry.timestamp|date:"d M Y H:i:s" }}</td>
+                    <td class="audit-actor {% if entry.actor == 'system' %}system{% endif %}">{{ entry.actor|default:'system' }}</td>
+                    <td><span class="action-badge {{ entry.action }}">{{ entry.get_action_display }}</span></td>
+                    <td>{{ entry.model_name }}</td>
+                    <td>{{ entry.object_repr|default:entry.object_id }}</td>
+                    <td class="audit-changes">
+                        {% if entry.changes %}
+                            {% for field, vals in entry.changes.items %}
+                            <div><code>{{ field }}</code>: {{ vals.0|default:'—' }} → {{ vals.1|default:'—' }}</div>
+                            {% endfor %}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="audit-note">{{ entry.note|default:'' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if filters.model %}&model={{ filters.model }}{% endif %}{% if filters.action %}&action={{ filters.action }}{% endif %}{% if filters.actor %}&actor={{ filters.actor }}{% endif %}{% if filters.from %}&from={{ filters.from }}{% endif %}{% if filters.to %}&to={{ filters.to }}{% endif %}">‹ Prev</a>
+            {% endif %}
+            <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if filters.model %}&model={{ filters.model }}{% endif %}{% if filters.action %}&action={{ filters.action }}{% endif %}{% if filters.actor %}&actor={{ filters.actor }}{% endif %}{% if filters.from %}&from={{ filters.from }}{% endif %}{% if filters.to %}&to={{ filters.to }}{% endif %}">Next ›</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-note">No audit entries match these filters.</div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

@@ -17,7 +17,10 @@ from .models import (
     EmployeeDocument,
     # Phase 8 — Recoverable Sub-Ledger
     Recoverable,
+    # Phase 13 — Audit Log
+    AuditLog,
 )
+from .audit import log_audit
 
 
 class ShiftHistoryInline(admin.TabularInline):
@@ -570,6 +573,38 @@ class RecoverableAdmin(admin.ModelAdmin):
         return f'{obj.recovery_start_month:02d}/{obj.recovery_start_year}'
     recovery_start_display.short_description = 'Starts'
 
+    # Phase 13 — audit trail. Recoverable status changes (settle/waive/adjust
+    # monthly_recovery) happen ONLY through this admin today (per Phase 8
+    # design), so this is the single real capture point for those edits.
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.created_by:
+            obj.created_by = request.user.username
+        before = {}
+        if change:
+            try:
+                prior = Recoverable.objects.get(pk=obj.pk)
+                before = {f: getattr(prior, f) for f in
+                         ('status', 'monthly_recovery', 'amount_recovered', 'waived_reason')}
+            except Recoverable.DoesNotExist:
+                before = {}
+        super().save_model(request, obj, form, change)
+        if change:
+            from .audit import diff_fields
+            after = {f: getattr(obj, f) for f in
+                     ('status', 'monthly_recovery', 'amount_recovered', 'waived_reason')}
+            changes = diff_fields(before, after)
+            if changes:
+                log_audit(actor=request.user.username, action=AuditLog.ACTION_UPDATE,
+                          instance=obj, changes=changes, note='Edited via Django admin')
+        else:
+            log_audit(actor=request.user.username, action=AuditLog.ACTION_CREATE,
+                      instance=obj, note='Created via Django admin')
+
+    def delete_model(self, request, obj):
+        log_audit(actor=request.user.username, action=AuditLog.ACTION_DELETE,
+                  instance=obj, note='Deleted via Django admin')
+        super().delete_model(request, obj)
+
 
 @admin.register(DesignationMaster)
 class DesignationMasterAdmin(admin.ModelAdmin):
@@ -588,3 +623,28 @@ class DesignationMasterAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    """
+    Read-only admin view of the audit trail — a secondary way to browse
+    entries alongside the dedicated /payroll/audit-log/ page. No add/edit/
+    delete: the audit trail must stay append-only and tamper-evident.
+    """
+    list_display = ('timestamp', 'actor', 'action', 'model_name', 'object_id', 'object_repr', 'note')
+    list_filter = ('action', 'app_label', 'model_name')
+    search_fields = ('actor', 'object_repr', 'object_id', 'note')
+    date_hierarchy = 'timestamp'
+    ordering = ('-timestamp',)
+    readonly_fields = ('timestamp', 'actor', 'action', 'app_label', 'model_name',
+                       'object_id', 'object_repr', 'changes', 'note')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
