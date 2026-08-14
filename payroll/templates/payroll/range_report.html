@@ -1,7 +1,7 @@
 {% extends 'attendance/base.html' %}
 {% load static %}
 
-{% block title %}Range Report — {{ from_month_name }} {{ from_year }} to {{ to_month_name }} {{ to_year }} · Taamul{% endblock %}
+{% block title %}Range Report — {{ period_label }} · Taamul{% endblock %}
 {% block page_title %}Payroll Range Report{% endblock %}
 
 {% block extra_css %}
@@ -37,6 +37,21 @@
     border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 12px;
 }
 .rr-quicklinks a:hover { border-color: var(--primary-color); color: var(--primary-color); }
+
+/* ── Phase E3: mode tabs + Multiple Months picker ─────────────────────── */
+.rr-mode-tabs { display: flex; gap: .4rem; margin-bottom: .6rem; }
+.rr-mode-tab {
+    background: var(--surface-color); border: 1px solid var(--border-color); color: var(--text-secondary);
+    border-radius: 8px; padding: 6px 14px; font-size: .8rem; font-weight: 600; cursor: pointer;
+}
+.rr-mode-tab.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+.rr-multi-panel { flex-direction: column; align-items: stretch; }
+.rr-month-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .5rem; max-width: 520px; }
+.rr-month-chip {
+    background: var(--surface-color); border: 1px solid var(--border-color); color: var(--text-primary);
+    border-radius: 8px; padding: 8px 0; font-size: .82rem; font-weight: 600; cursor: pointer; text-align: center;
+}
+.rr-month-chip.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
 
 /* ── Grand total cards ────────────────────────────────────────────────── */
 .rr-kpi-grid {
@@ -104,8 +119,16 @@
 {% block content %}
 <div class="rr-wrap">
 
+    <!-- ── Mode tabs (Phase E3) ─────────────────────────────────────────── -->
+    <div class="rr-mode-tabs">
+        <button type="button" class="rr-mode-tab {% if mode == 'range' %}active{% endif %}" onclick="rrSwitchMode('range')">Range</button>
+        <button type="button" class="rr-mode-tab {% if mode == 'multi' %}active{% endif %}" onclick="rrSwitchMode('multi')">Multiple Months</button>
+    </div>
+
     <!-- ── Range picker ─────────────────────────────────────────────────── -->
+    <div id="rrRangePanel" {% if mode != 'range' %}style="display:none;"{% endif %}>
     <form class="rr-picker" method="get">
+        <input type="hidden" name="mode" value="range">
         <div class="rr-field">
             <label>From</label>
             <div style="display:flex; gap:.4rem;">
@@ -139,13 +162,40 @@
         </div>
         <button type="submit">Apply</button>
         <div class="rr-quicklinks">
-            <a href="?from_month=1&from_year={{ today_year }}&to_month=12&to_year={{ today_year }}">This year</a>
+            <a href="?mode=range&from_month=1&from_year={{ today_year }}&to_month=12&to_year={{ today_year }}">This year</a>
             <a href="{% url 'payroll_dashboard' %}">← Back to Dashboard</a>
         </div>
     </form>
+    </div>
+
+    <!-- ── Multiple Months picker (Phase E3) ────────────────────────────── -->
+    <div id="rrMultiPanel" class="rr-picker rr-multi-panel" {% if mode != 'multi' %}style="display:none;"{% endif %}>
+        <div style="display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;">
+            <div class="rr-field">
+                <label>Year</label>
+                <select id="rrMultiYear">
+                    {% for y in year_choices %}
+                    <option value="{{ y }}" {% if y == multi_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <span style="font-size:.78rem; color:var(--text-secondary);">Pick any combination of months — they don't need to be consecutive.</span>
+        </div>
+        <div class="rr-month-grid" id="rrMonthGrid">
+            {% for m, mname in month_choices %}
+            <button type="button" class="rr-month-chip {% if m in selected_months %}active{% endif %}" data-m="{{ m }}" onclick="rrToggleMonth(this)">{{ mname }}</button>
+            {% endfor %}
+        </div>
+        <div style="display:flex; justify-content:flex-end;">
+            <button type="button" onclick="rrApplyMulti()">Apply<span id="rrMultiCount">{% if mode == 'multi' and selected_months %} ({{ selected_months|length }} month{{ selected_months|length|pluralize }}){% endif %}</span></button>
+        </div>
+        <div class="rr-quicklinks" style="margin-left:0;">
+            <a href="{% url 'payroll_dashboard' %}">← Back to Dashboard</a>
+        </div>
+    </div>
 
     <p style="font-size:.78rem; color:var(--text-secondary); margin: -0.5rem 0 1.25rem;">
-        Showing {{ from_month_name }} {{ from_year }} – {{ to_month_name }} {{ to_year }}
+        Showing {{ period_label }}
         ({{ total_months_in_range }} month{{ total_months_in_range|pluralize }}).
         Only months already marked as <strong>Paid</strong> are included — a partial badge below means some months
         in this range haven't been finalized yet.
@@ -260,6 +310,28 @@ function rrOpenBreakdown(idx) {
 
 function rrCloseBreakdown() {
     document.getElementById('rrModalOverlay').classList.remove('active');
+}
+
+/* ── Phase E3: mode tabs + Multiple Months picker ─────────────────────── */
+function rrSwitchMode(m) {
+    document.querySelectorAll('.rr-mode-tab').forEach(function (btn) {
+        btn.classList.toggle('active', btn.getAttribute('onclick') === "rrSwitchMode('" + m + "')");
+    });
+    document.getElementById('rrRangePanel').style.display = (m === 'range') ? '' : 'none';
+    document.getElementById('rrMultiPanel').style.display = (m === 'multi') ? '' : 'none';
+}
+
+function rrToggleMonth(btn) {
+    btn.classList.toggle('active');
+    const count = document.querySelectorAll('#rrMonthGrid .rr-month-chip.active').length;
+    document.getElementById('rrMultiCount').textContent = count ? ` (${count} month${count === 1 ? '' : 's'})` : '';
+}
+
+function rrApplyMulti() {
+    const year = document.getElementById('rrMultiYear').value;
+    const months = Array.from(document.querySelectorAll('#rrMonthGrid .rr-month-chip.active')).map(function (b) { return b.dataset.m; });
+    if (!months.length) { alert('Pick at least one month.'); return; }
+    window.location.href = `?mode=multi&multi_year=${year}&months=${months.join(',')}`;
 }
 </script>
 {% endblock %}

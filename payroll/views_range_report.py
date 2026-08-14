@@ -55,28 +55,55 @@ def _parse_int(value, default):
 @user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(['GET'])
 def range_report(request):
-    """Render the per-employee Range / Annual report for a From/To month window."""
+    """Render the per-employee Range / Annual report.
+
+    Two selection modes, both aggregating the same locked PaidSalaryRecord
+    snapshots — only the record filter differs:
+      - 'range' (default): a contiguous From/To month window.
+      - 'multi' (Phase E3): an arbitrary, non-contiguous set of months
+        within a single year (e.g. Jan + Mar + Aug 2026).
+    """
     today = date.today()
+    mode = request.GET.get('mode') or 'range'
+
     from_year = _parse_int(request.GET.get('from_year'), today.year)
     from_month = min(max(_parse_int(request.GET.get('from_month'), 1), 1), 12)
     to_year = _parse_int(request.GET.get('to_year'), today.year)
     to_month = min(max(_parse_int(request.GET.get('to_month'), 12), 1), 12)
 
-    from_idx = from_year * 12 + (from_month - 1)
-    to_idx = to_year * 12 + (to_month - 1)
-    if from_idx > to_idx:
-        from_idx, to_idx = to_idx, from_idx
-        from_year, from_month, to_year, to_month = to_year, to_month, from_year, from_month
+    multi_year = _parse_int(request.GET.get('multi_year'), today.year)
+    _months_raw = request.GET.get('months', '')
+    selected_months = sorted({
+        m for m in (_parse_int(tok, 0) for tok in _months_raw.split(',') if tok.strip())
+        if 1 <= m <= 12
+    })
 
-    total_months_in_range = to_idx - from_idx + 1
+    if mode == 'multi' and selected_months:
+        # ---- Phase E3: Multiple Months — arbitrary months within one year ----
+        total_months_in_range = len(selected_months)
+        candidates = PaidSalaryRecord.objects.filter(
+            year=multi_year, month__in=selected_months,
+        ).select_related('employee', 'remote_employee')
+        records = list(candidates)
+        period_label = ', '.join(MONTH_NAMES[m] for m in selected_months) + f' {multi_year}'
+    else:
+        mode = 'range'  # normalize (also covers 'multi' requested with no months picked yet)
+        from_idx = from_year * 12 + (from_month - 1)
+        to_idx = to_year * 12 + (to_month - 1)
+        if from_idx > to_idx:
+            from_idx, to_idx = to_idx, from_idx
+            from_year, from_month, to_year, to_month = to_year, to_month, from_year, from_month
 
-    # Narrow with a coarse year filter first (fast, indexed), then apply the
-    # exact month-precision range check in Python — year/month are separate
-    # integer fields, so there's no single indexed range condition for this.
-    candidates = PaidSalaryRecord.objects.filter(
-        year__gte=from_year, year__lte=to_year,
-    ).select_related('employee', 'remote_employee')
-    records = [r for r in candidates if from_idx <= (r.year * 12 + (r.month - 1)) <= to_idx]
+        total_months_in_range = to_idx - from_idx + 1
+
+        # Narrow with a coarse year filter first (fast, indexed), then apply the
+        # exact month-precision range check in Python — year/month are separate
+        # integer fields, so there's no single indexed range condition for this.
+        candidates = PaidSalaryRecord.objects.filter(
+            year__gte=from_year, year__lte=to_year,
+        ).select_related('employee', 'remote_employee')
+        records = [r for r in candidates if from_idx <= (r.year * 12 + (r.month - 1)) <= to_idx]
+        period_label = f'{MONTH_NAMES[from_month]} {from_year} – {MONTH_NAMES[to_month]} {to_year}'
 
     by_emp = {}
     for r in records:
@@ -138,10 +165,14 @@ def range_report(request):
         t['employees'] += 1
 
     context = {
+        'mode': mode,
         'from_year': from_year, 'from_month': from_month,
         'to_year': to_year, 'to_month': to_month,
         'from_month_name': MONTH_NAMES[from_month],
         'to_month_name': MONTH_NAMES[to_month],
+        'multi_year': multi_year,
+        'selected_months': selected_months,
+        'period_label': period_label,
         'total_months_in_range': total_months_in_range,
         'rows': rows,
         'totals_by_currency': dict(totals_by_currency),
