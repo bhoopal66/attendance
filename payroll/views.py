@@ -4835,6 +4835,34 @@ def payroll_test_dashboard(request):
         logger.info("Payroll XLSX downloaded: tab=%s %s/%s by %s", tab, selected_month, selected_year, request.user.username)
         return response
 
+    # ---- Phase E1: Workforce & ledger categories + Payment status summary ----
+    # Read-only aggregation over data already computed above (final_rows,
+    # admin_inhouse_rows, etc.) — no new queries, no new state. "Payment
+    # status" is intentionally a two-bucket Paid/Unpaid split: today's
+    # PaidSalaryRecord model only tracks a binary is_paid flag, there is no
+    # partial-payment concept yet, so we don't fabricate one here.
+    _wf_total_employees = len(final_rows)
+    _wf_categories = [
+        {'key': 'admin_inhouse', 'label': 'Admin: In-House', 'count': len(admin_inhouse_rows)},
+        {'key': 'admin_remote', 'label': 'Admin: Remote', 'count': len(admin_remote_rows)},
+        {'key': 'sales_fixed', 'label': 'Sales: Fixed', 'count': len(sales_fixed_rows)},
+        {'key': 'sales_perf_remote', 'label': 'Sales Perf: Remote', 'count': len(sales_perf_remote_rows)},
+        {'key': 'sales_perf_inhouse', 'label': 'Sales Perf: In-House', 'count': len(sales_perf_inhouse_rows)},
+    ]
+    for _wf_cat in _wf_categories:
+        _wf_cat['pct'] = round((_wf_cat['count'] / _wf_total_employees * 100), 1) if _wf_total_employees else 0
+
+    payment_status_summary = {
+        'paid_count': sum(1 for r in final_rows if r.get('is_paid')),
+        'unpaid_count': sum(1 for r in final_rows if not r.get('is_paid')),
+        'paid_aed': round(sum(r['final_salary'] for r in final_rows if r.get('is_paid') and r['currency'] == 'AED'), 2),
+        'paid_inr': round(sum(r['final_salary'] for r in final_rows if r.get('is_paid') and r['currency'] == 'INR'), 2),
+        'paid_npr': round(sum(r['final_salary'] for r in final_rows if r.get('is_paid') and r['currency'] == 'NPR'), 2),
+        'unpaid_aed': round(sum(r['final_salary'] for r in final_rows if not r.get('is_paid') and r['currency'] == 'AED'), 2),
+        'unpaid_inr': round(sum(r['final_salary'] for r in final_rows if not r.get('is_paid') and r['currency'] == 'INR'), 2),
+        'unpaid_npr': round(sum(r['final_salary'] for r in final_rows if not r.get('is_paid') and r['currency'] == 'NPR'), 2),
+    }
+
     return render(request, 'payroll/test_dashboard.html', {
         'selected_month': selected_month,
         'selected_year': selected_year,
@@ -4911,6 +4939,12 @@ def payroll_test_dashboard(request):
         'is_frozen': is_frozen,
         'frozen_at': frozen_obj.frozen_at if frozen_obj else None,
         'frozen_by': frozen_obj.frozen_by if frozen_obj else None,
+        # Phase E1 — Workforce & ledger categories / Payment status summary
+        'wf_categories': _wf_categories,
+        'wf_total_employees': _wf_total_employees,
+        'ledger_deductions_count': len(all_deductions_list),
+        'ledger_carryovers_count': len(carryover_schedule),
+        'payment_status_summary': payment_status_summary,
     })
 
 

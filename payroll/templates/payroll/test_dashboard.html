@@ -407,6 +407,30 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 .csym-inr { color: #0369a1; opacity: 0.9; }
 .csym-npr { color: #b45309; opacity: 0.9; }
 
+/* ---- Phase E1: Workforce & ledger categories / Payment status summary tables ---- */
+.e1-section-label {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: #94a3b8; margin: 0 0 10px;
+}
+.e1-summary-tables {
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; margin-bottom: 16px;
+}
+@media (max-width: 980px) { .e1-summary-tables { grid-template-columns: 1fr; } }
+.e1-summary-tables .section-header { padding: 10px 20px; }
+.e1-summary-tables table { font-size: 0.82rem; }
+.e1-dot, .e1-status-dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: middle;
+}
+.e1-dot-admin_inhouse { background: #eb6834; }
+.e1-dot-admin_remote { background: #1baf7a; }
+.e1-dot-sales_fixed { background: #b5790a; }
+.e1-dot-sales_perf_remote { background: #d15d8a; }
+.e1-dot-sales_perf_inhouse { background: #008300; }
+.e1-dot-deductions { background: #4a3aa7; }
+.e1-dot-carryovers { background: #e34948; }
+.e1-status-paid { background: #16a34a; }
+.e1-status-unpaid { background: #dc2626; }
+
 /* ---- Summary sub-navigation (keeps the Summary tab from dumping everything at once) ---- */
 .subtab-bar {
     display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 16px;
@@ -655,6 +679,97 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 {% endif %}
             </div>
         </div><!-- end header/overview card -->
+
+        <!-- ===================== Phase E1: Summary — this period ===================== -->
+        <div class="e1-section-label">Summary — this period</div>
+        <div class="e1-summary-tables">
+
+            <!-- Workforce & ledger categories -->
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-title">Workforce &amp; ledger categories</div>
+                    <div class="muted">{{ wf_total_employees }} employees</div>
+                </div>
+                <div class="table-wrap" style="max-height:none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th class="text-right">Count</th>
+                                <th class="text-right">Share</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cat in wf_categories %}
+                            <tr>
+                                <td><span class="e1-dot e1-dot-{{ cat.key }}"></span>{{ cat.label }}</td>
+                                <td class="text-right num" style="font-weight:700;">{{ cat.count }}</td>
+                                <td class="text-right num muted">{{ cat.pct }}%</td>
+                            </tr>
+                            {% endfor %}
+                            <tr>
+                                <td><span class="e1-dot e1-dot-deductions"></span>Deductions <span class="muted">(entries, not headcount)</span></td>
+                                <td class="text-right num" style="font-weight:700;">{{ ledger_deductions_count }}</td>
+                                <td class="text-right num muted">—</td>
+                            </tr>
+                            <tr>
+                                <td><span class="e1-dot e1-dot-carryovers"></span>Carryovers <span class="muted">(entries, not headcount)</span></td>
+                                <td class="text-right num" style="font-weight:700;">{{ ledger_carryovers_count }}</td>
+                                <td class="text-right num muted">—</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr><td>Total workforce</td><td class="text-right num">{{ wf_total_employees }}</td><td class="text-right num">100%</td></tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Payment status (two-bucket: Paid / Unpaid — no "partial" concept exists in the data yet) -->
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-title">Payment status</div>
+                    <div class="muted"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2 }} total</div>
+                </div>
+                <div class="table-wrap" style="max-height:none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th class="text-right">Count</th>
+                                <th class="text-right">Amount (AED)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="e1-status-dot e1-status-paid"></span>Paid</td>
+                                <td class="text-right num" style="font-weight:700;">{{ payment_status_summary.paid_count }}</td>
+                                <td class="text-right num val-blue">{{ payment_status_summary.paid_aed|floatformat:2 }}</td>
+                            </tr>
+                            <tr>
+                                <td><span class="e1-status-dot e1-status-unpaid"></span>Unpaid</td>
+                                <td class="text-right num" style="font-weight:700;">{{ payment_status_summary.unpaid_count }}</td>
+                                <td class="text-right num val-negative">{{ payment_status_summary.unpaid_aed|floatformat:2 }}</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr><td>Balance to pay</td><td class="text-right num">—</td><td class="text-right num val-negative">{{ payment_status_summary.unpaid_aed|floatformat:2 }}</td></tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% if payment_status_summary.paid_inr or payment_status_summary.unpaid_inr or payment_status_summary.paid_npr or payment_status_summary.unpaid_npr %}
+                <div style="padding:8px 20px 14px;font-size:0.76rem;color:#64748b;">
+                    {% if payment_status_summary.paid_inr or payment_status_summary.unpaid_inr %}
+                    <div>INR — Paid: <span class="csym csym-inr">₹</span>{{ payment_status_summary.paid_inr|floatformat:2 }} &nbsp;·&nbsp; Unpaid: <span class="csym csym-inr">₹</span>{{ payment_status_summary.unpaid_inr|floatformat:2 }}</div>
+                    {% endif %}
+                    {% if payment_status_summary.paid_npr or payment_status_summary.unpaid_npr %}
+                    <div>NPR — Paid: <span class="csym csym-npr">Rs.</span>{{ payment_status_summary.paid_npr|floatformat:2 }} &nbsp;·&nbsp; Unpaid: <span class="csym csym-npr">Rs.</span>{{ payment_status_summary.unpaid_npr|floatformat:2 }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+        </div><!-- end e1-summary-tables -->
 
         <!-- Sub-navigation: keeps Breakdown / Per-Employee / Visa / Unpaid from piling onto one screen -->
         <div class="subtab-bar">
