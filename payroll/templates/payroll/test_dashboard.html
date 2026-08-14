@@ -646,6 +646,21 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 </div>
             </div>
 
+            <!-- Phase E2: currency toggle — converts the 3 totals below using the
+                 same exchange rates already shown/edited via Set INR/NPR Rate.
+                 Scoped to just these cards for now; not wired to any other
+                 numbers on the page yet. -->
+            {% if inr_exchange_rate or npr_exchange_rate %}
+            <div style="padding:0 20px 10px;display:flex;align-items:center;gap:8px;">
+                <label for="e2CurrencySelect" class="muted" style="font-size:0.76rem;">Show totals in:</label>
+                <select id="e2CurrencySelect" class="btn-secondary btn-sm" style="font-family:inherit;">
+                    <option value="AED">AED</option>
+                    <option value="INR" {% if not inr_exchange_rate %}disabled{% endif %}>INR</option>
+                    <option value="NPR" {% if not npr_exchange_rate %}disabled{% endif %}>NPR</option>
+                </select>
+            </div>
+            {% endif %}
+
             <!-- Big totals -->
             <div class="summary-overview-grid">
                 <div class="sov-card">
@@ -655,19 +670,19 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 </div>
                 <div class="sov-card aed">
                     <div class="sov-label">Total AED Payroll</div>
-                    <div class="sov-value"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ final_total_aed|floatformat:2 }}</div>
+                    <div class="sov-value"><span class="e2-money" data-aed="{{ final_total_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ final_total_aed|floatformat:2 }}</span></div>
                 </div>
                 {% if final_total_inr > 0 %}
                 <div class="sov-card inr">
                     <div class="sov-label">Total INR Payroll</div>
-                    <div class="sov-value"><span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2 }}</div>
+                    <div class="sov-value">{% if final_total_inr_aed %}<span class="e2-money" data-aed="{{ final_total_inr_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2 }}</span>{% else %}<span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2 }}{% endif %}</div>
                     {% if final_total_inr_aed %}<div class="sov-sub">≈ AED {{ final_total_inr_aed|floatformat:0 }}</div>{% endif %}
                 </div>
                 {% endif %}
                 {% if final_total_npr > 0 %}
                 <div class="sov-card npr">
                     <div class="sov-label">Total NPR Payroll</div>
-                    <div class="sov-value"><span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ final_total_npr|floatformat:2 }}</div>
+                    <div class="sov-value">{% if final_total_npr_aed %}<span class="e2-money" data-aed="{{ final_total_npr_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ final_total_npr|floatformat:2 }}</span>{% else %}<span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ final_total_npr|floatformat:2 }}{% endif %}</div>
                     {% if final_total_npr_aed %}<div class="sov-sub">≈ AED {{ final_total_npr_aed|floatformat:0 }}</div>{% endif %}
                 </div>
                 {% endif %}
@@ -2172,6 +2187,35 @@ const ALL_EMPLOYEES = {{ all_employees_json|safe }};
 const SELECTED_MONTH = {{ selected_month }};
 const SELECTED_YEAR = {{ selected_year }};
 const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+/* Phase E2 — currency toggle for the 3 overview total cards only.
+   Rates are the same ones already shown/edited via Set INR/NPR Rate —
+   nothing new is invented here. If a rate isn't set for this period the
+   corresponding option is disabled in the template, so RATES[currency]
+   is only ever used when it's a real number. */
+(function () {
+    var select = document.getElementById('e2CurrencySelect');
+    if (!select) return;
+    var RATES = {
+        AED: 1,
+        INR: {{ inr_exchange_rate|default:"null" }},
+        NPR: {{ npr_exchange_rate|default:"null" }}
+    };
+    var SYMS = { AED: 'AED', INR: '₹', NPR: 'Rs.' };
+    function render(currency) {
+        var rate = RATES[currency];
+        if (currency !== 'AED' && !rate) return;
+        document.querySelectorAll('.e2-money[data-aed]').forEach(function (el) {
+            var aed = parseFloat(el.getAttribute('data-aed'));
+            if (isNaN(aed)) return;
+            var val = currency === 'AED' ? aed : aed * rate;
+            var decimals = parseInt(el.getAttribute('data-decimals') || '2', 10);
+            var formatted = val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+            el.textContent = SYMS[currency] + ' ' + formatted;
+        });
+    }
+    select.addEventListener('change', function () { render(this.value); });
+})();
 
 /* Embed paid snapshots for client-side detail modal */
 const PAID_SNAPSHOTS = {};
