@@ -703,7 +703,10 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
             <div class="section-card">
                 <div class="section-header">
                     <div class="section-title">Workforce &amp; ledger categories</div>
-                    <div class="muted">{{ wf_total_employees }} employees</div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="openModal('ledgerSummaryModal')">Deductions &amp; carryovers — details</button>
+                        <div class="muted">{{ wf_total_employees }} employees</div>
+                    </div>
                 </div>
                 <div class="table-wrap" style="max-height:none;">
                     <table>
@@ -2156,6 +2159,64 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
             <span class="modal-close" onclick="closeModal('carryoverHistoryModal')">✕</span>
         </div>
         <div id="carryoverHistoryContent" style="font-size:0.85rem;"></div>
+    </div>
+</div>
+
+<!-- Deductions & Carryovers Ledger Summary Modal (Phase E4) -->
+<div class="modal-overlay" id="ledgerSummaryModal">
+    <div class="modal" style="min-width:560px;max-width:720px;max-height:85vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div class="modal-title">Deductions &amp; carryovers ledger</div>
+            <span class="modal-close" onclick="closeModal('ledgerSummaryModal')">✕</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="section-card" style="margin:0;">
+                <div class="section-header">
+                    <div class="section-title">Deduction entries</div>
+                </div>
+                <div style="padding:14px 20px;font-size:0.85rem;">
+                    <div style="margin-bottom:10px;color:#64748b;">{{ ledger_deduction_entries }} deduction{{ ledger_deduction_entries|pluralize }} · {{ ledger_addition_entries }} addition{{ ledger_addition_entries|pluralize }} across all employees</div>
+                    {% for cat in ledger_deduction_categories %}
+                    <div style="display:flex;justify-content:space-between;padding:4px 0;">
+                        <span class="muted">{{ cat.label }}</span>
+                        <span style="font-weight:600;">{{ cat.count }} entr{{ cat.count|pluralize:"y,ies" }}</span>
+                    </div>
+                    {% empty %}
+                    <div class="muted">No deduction entries.</div>
+                    {% endfor %}
+                </div>
+                <div style="padding:0 20px 16px;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('ledgerSummaryModal'); switchTab('deductions');">Open deductions ledger</button>
+                </div>
+            </div>
+            <div class="section-card" style="margin:0;">
+                <div class="section-header">
+                    <div class="section-title">Carryover balances</div>
+                </div>
+                <div style="padding:14px 20px;font-size:0.85rem;">
+                    <div style="margin-bottom:10px;color:#64748b;">{{ carryover_pending_count }} pending / partial balance{{ carryover_pending_count|pluralize }} of {{ ledger_carryovers_count }} total record{{ ledger_carryovers_count|pluralize }}</div>
+                    <div style="display:flex;justify-content:space-between;padding:4px 0;">
+                        <span class="muted">Outstanding (AED)</span>
+                        <span style="font-weight:600;">AED {{ carryover_pending_aed|floatformat:2 }}</span>
+                    </div>
+                    {% if carryover_pending_inr %}
+                    <div style="display:flex;justify-content:space-between;padding:4px 0;">
+                        <span class="muted">Outstanding (INR)</span>
+                        <span style="font-weight:600;">INR {{ carryover_pending_inr|floatformat:2 }}</span>
+                    </div>
+                    {% endif %}
+                    {% if carryover_pending_npr %}
+                    <div style="display:flex;justify-content:space-between;padding:4px 0;">
+                        <span class="muted">Outstanding (NPR)</span>
+                        <span style="font-weight:600;">NPR {{ carryover_pending_npr|floatformat:2 }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div style="padding:0 20px 16px;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('ledgerSummaryModal'); switchTab('carryovers');">Open carryover ledger</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

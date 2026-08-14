@@ -4863,6 +4863,24 @@ def payroll_test_dashboard(request):
         'unpaid_npr': round(sum(r['final_salary'] for r in final_rows if not r.get('is_paid') and r['currency'] == 'NPR'), 2),
     }
 
+    # ---- Phase E4: Deductions & Carryovers ledger summary modal ----
+    # Read-only aggregation over all_deductions_list (already built above) —
+    # no new queries. Carryover figures reuse the carryover_pending_* totals
+    # already computed and passed into the context below.
+    _ledger_deduction_entries = 0
+    _ledger_addition_entries = 0
+    _ded_cat_counts = {}
+    for _entry in all_deductions_list:
+        if _entry['entry_type'] == 'deduction':
+            _ledger_deduction_entries += 1
+            _ded_cat_counts[_entry['category_display']] = _ded_cat_counts.get(_entry['category_display'], 0) + 1
+        else:
+            _ledger_addition_entries += 1
+    ledger_deduction_categories = sorted(
+        ({'label': label, 'count': count} for label, count in _ded_cat_counts.items()),
+        key=lambda c: -c['count']
+    )
+
     return render(request, 'payroll/test_dashboard.html', {
         'selected_month': selected_month,
         'selected_year': selected_year,
@@ -4945,6 +4963,10 @@ def payroll_test_dashboard(request):
         'ledger_deductions_count': len(all_deductions_list),
         'ledger_carryovers_count': len(carryover_schedule),
         'payment_status_summary': payment_status_summary,
+        # Phase E4 — Deductions & Carryovers ledger summary modal
+        'ledger_deduction_categories': ledger_deduction_categories,
+        'ledger_deduction_entries': _ledger_deduction_entries,
+        'ledger_addition_entries': _ledger_addition_entries,
     })
 
 
