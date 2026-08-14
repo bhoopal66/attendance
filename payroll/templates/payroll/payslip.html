@@ -462,16 +462,13 @@
           <td></td>
           <td class="amt zero">—</td>
         </tr>
-        <!-- Row 8: Phone Allowance / (empty) -->
-        <tr>
-          <td>Phone Allowance</td>
-          <td class="amt {% if not phone_full %}zero{% endif %}">
-            {% if phone_full %}{{ phone_full|floatformat:2|intcomma }}{% else %}—{% endif %}
-          </td>
-          <td class="divider"></td>
-          <td></td>
-          <td class="amt zero">—</td>
-        </tr>
+        {% comment %}
+        Phase E9 — the Phone Allowance earnings row was removed: the business
+        does not provide a phone allowance. Any residual amount in the salary
+        structure's phone field is folded into Other Allowance in the view, so
+        the earnings lines still add up to Total Earnings rather than quietly
+        losing money off the payslip.
+        {% endcomment %}
         <!-- Total row -->
         <tr class="total-row">
           <td><strong>Total Earnings</strong></td>

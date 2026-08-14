@@ -317,8 +317,15 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         basic_salary = float(_salary_structure.basic)
         housing_allowance = float(_salary_structure.housing)
         transport_allowance = float(_salary_structure.transport)
-        phone_allowance = float(_salary_structure.phone)
-        other_allowance_amt = float(_salary_structure.other_allowance)
+        # Phone is no longer a salary component (Phase E9 — the business does
+        # not provide a phone allowance). The column is gone from every
+        # breakdown, but any amount still sitting in the field is folded into
+        # Other rather than dropped: silently discarding it would make the
+        # components stop summing to the gross salary. The model field is
+        # deliberately left in place so nothing is destroyed and the component
+        # can be reinstated if that ever changes.
+        phone_allowance = 0.0
+        other_allowance_amt = float(_salary_structure.other_allowance) + float(_salary_structure.phone)
     else:
         # No approved SalaryStructure on file for this employee — flag it
         # (surfaces on the dashboard row and the exception centre) rather
@@ -464,8 +471,9 @@ def _attach_gross_breakdown(row, period_end):
             row['basic_salary'] = float(structure.basic)
             row['housing_allowance'] = float(structure.housing)
             row['transport_allowance'] = float(structure.transport)
-            row['phone_allowance'] = float(structure.phone)
-            row['other_allowance_amt'] = float(structure.other_allowance)
+            # Phase E9 — phone folded into Other; see _get_inhouse_payroll_row.
+            row['phone_allowance'] = 0.0
+            row['other_allowance_amt'] = float(structure.other_allowance) + float(structure.phone)
             row['has_salary_structure'] = True
             row['is_estimated'] = False
         else:
@@ -3325,8 +3333,11 @@ def download_payslip(request, emp_type, emp_id):
             basic_full = float(_salary_structure.basic)
             housing_full = float(_salary_structure.housing)
             transport_full = float(_salary_structure.transport)
-            phone_full = float(_salary_structure.phone)
-            other_allowance_full = float(_salary_structure.other_allowance)
+            # Phase E9 — phone is not a salary component; fold any residual
+            # amount into Other so the payslip's earnings lines still add up
+            # to the gross. See _get_inhouse_payroll_row for the full note.
+            phone_full = 0.0
+            other_allowance_full = float(_salary_structure.other_allowance) + float(_salary_structure.phone)
         else:
             # Remote employees have no SalaryStructure model to draw from —
             # keep the existing flat-salary Basic 40% / Other Allowance 60%
@@ -5163,6 +5174,19 @@ def payroll_test_dashboard(request):
         'ledger_deductions_count': len(all_deductions_list),
         'ledger_carryovers_count': len(carryover_schedule),
         'payment_status_summary': payment_status_summary,
+        # Phase E10 — the category colour key. Defined once here so the legend
+        # include, the avatar chips and the row stripes can never list a
+        # different set of categories from one another.
+        'category_legend_items': [
+            ('admin-in-house', 'Admin: In-House'),
+            ('admin-remote', 'Admin: Remote'),
+            ('sales-fixed', 'Sales: Fixed'),
+            ('sales-perf-remote', 'Sales Perf: Remote'),
+            # NB: 'in-house' with the hyphen — this must match the slug produced
+            # by category_slug above ("Sales Perf: In-House" -> lowercased, ": "
+            # and " " both to "-"), or the swatch silently loses its colour.
+            ('sales-perf-in-house', 'Sales Perf: In-House'),
+        ],
         # Phase E6: distinct sections present in final_rows, for the category
         # filter dropdown. Derived from the rows themselves rather than a fixed
         # list, so a new department never silently drops out of the filter.

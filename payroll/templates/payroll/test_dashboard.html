@@ -107,6 +107,59 @@
 /* ---- Tables ---- */
 .table-wrap { overflow: auto; max-height: 68vh; }
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+/* ── Phase E8: amount columns take only the width their figure needs ────
+   A table at `width: 100%` shares any leftover width across every column, so
+   each amount ends up padded out with space it does not need. The fix is to
+   give one column — the employee/identity column, which genuinely benefits
+   from room — `width: 100%`. Under `table-layout: auto` that column absorbs
+   ALL the slack, forcing every other column down to its content width. The
+   table still fills the card; the amounts no longer sprawl.
+   Numeric cells are additionally held on one line, so "content width" means
+   the width of the figure rather than of some wrapped fragment of it. */
+.table-wrap > table { width: 100%; table-layout: auto; }
+.table-wrap > table td.num,
+.table-wrap > table th.text-right,
+.table-wrap > table td.text-right { white-space: nowrap; }
+/* Identity column soaks up the remainder. finalTable leads with a checkbox,
+   so its name column is the second cell; the category tables lead with the
+   name itself. */
+#finalTable tbody td:nth-child(2) { width: 100%; }
+#adminInhouseTable tbody td:first-child,
+#adminRemoteTable tbody td:first-child,
+#salesFixedTable tbody td:first-child,
+#salesPerfTestTable tbody td:first-child,
+#salesPerfInhouseTable tbody td:first-child { width: 100%; }
+/* Tighter gutters across the data tables. At 20-plus columns the padding was
+   costing more width than the figures themselves. The outer edges keep a
+   roomier gutter so the table doesn't collide with the card border. */
+.table-wrap > table th,
+.table-wrap > table td { padding-left: 6px; padding-right: 6px; }
+.table-wrap > table th:first-child,
+.table-wrap > table td:first-child { padding-left: 12px; }
+.table-wrap > table th:last-child,
+.table-wrap > table td:last-child { padding-right: 12px; }
+
+/* ── Phase E9: salary component columns share one uniform width ────────
+   Basic / Housing / Transport / Other / Gross Total hold the same kind of
+   figure, so ragged widths make the group harder to scan than one tidy block.
+   `border-box` so the declared width is the width actually rendered, padding
+   included — otherwise every cell comes out 12px wider than asked and the
+   group stops matching. 90px leaves 78px of content, comfortably fitting a
+   figure up to "99,999.99"; anything larger widens its own column rather than
+   clipping, which is the right failure direction for money.
+   This block sits AFTER the gutter rules deliberately: it carries the same
+   specificity, so it has to come later to beat the wider first/last-child
+   gutter — "Basic" is the first cell of the second header row and was
+   otherwise rendering 6px wider than its neighbours. */
+.table-wrap > table th.gp-col,
+.table-wrap > table td.gp-col {
+    box-sizing: border-box;
+    width: 90px;
+    min-width: 90px;
+    padding-left: 6px;
+    padding-right: 6px;
+}
 th {
     padding: 8px 12px; text-align: left; font-size: 0.75rem; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;
@@ -479,6 +532,56 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 .e6-cat-sales-perf-in-house { background: #e4f5e4; color: #046004; }
 .e6-av-sales-perf-in-house  { background: #008300; }
 
+/* ── Phase E10: category by colour, not by column ──────────────────────
+   The Category column was removed; category now reads from a stripe down the
+   employee name cell (summary table) or a dot beside the name (category
+   tabs), both matching the avatar colour.
+
+   These deliberately avoid the row background and the row's left edge: the
+   background already means paid / partially paid / currency, and the left
+   edge of the FIRST cell already means currency. Overloading either would
+   have made payment status unreadable at a glance — so category takes the
+   one channel still free on each table. */
+.cat-swatch-admin-in-house      { background: #eb6834; }
+.cat-swatch-admin-remote        { background: #1baf7a; }
+.cat-swatch-sales-fixed         { background: #b5790a; }
+.cat-swatch-sales-perf-remote   { background: #d15d8a; }
+.cat-swatch-sales-perf-in-house { background: #008300; }
+
+/* Summary table: stripe on the NAME cell (2nd), leaving the 1st cell's
+   currency stripe untouched. inset box-shadow rather than border-left so it
+   never adds to the cell's width. */
+#finalTable tbody tr.cat-admin-in-house td:nth-child(2)      { box-shadow: inset 3px 0 0 #eb6834; }
+#finalTable tbody tr.cat-admin-remote td:nth-child(2)        { box-shadow: inset 3px 0 0 #1baf7a; }
+#finalTable tbody tr.cat-sales-fixed td:nth-child(2)         { box-shadow: inset 3px 0 0 #b5790a; }
+#finalTable tbody tr.cat-sales-perf-remote td:nth-child(2)   { box-shadow: inset 3px 0 0 #d15d8a; }
+#finalTable tbody tr.cat-sales-perf-in-house td:nth-child(2) { box-shadow: inset 3px 0 0 #008300; }
+#finalTable tbody td:nth-child(2) { padding-left: 12px; }
+
+/* Category tabs: a dot beside the name. Every row on a tab shares one
+   category, so this is a persistent key rather than a per-row distinction. */
+.cat-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 7px; flex: 0 0 auto;
+}
+
+/* Legend */
+.cat-legend {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 8px 20px; border-bottom: 1px solid #eef2f7; background: #fcfdfe;
+    font-size: 0.72rem; color: #64748b;
+}
+.cat-legend-label {
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;
+    font-size: 0.64rem; color: #94a3b8;
+}
+.cat-legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cat-legend-item .cat-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+/* On a single-category tab the other four are dimmed, so the key reads as
+   "you are here" rather than five equally-relevant options. */
+.cat-legend-item.muted-item { opacity: 0.32; }
+.cat-legend-item.is-active { font-weight: 700; color: #334155; }
+
 .e6-badge-unpaid {
     display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.66rem;
     font-weight: 700; background: #fee2e2; color: #b91c1c; letter-spacing: 0.3px;
@@ -646,6 +749,7 @@ tr.e6-partial-row { background: #fffcf5; }
                 <div class="muted" style="margin-top:2px;">{{ period_label }} &nbsp;·&nbsp; {{ days_in_month }} days &nbsp;·&nbsp; {{ total_holidays }} non-working</div>
             </div>
             <div class="pd-controls">
+                {% include "payroll/includes/period_mode.html" with active="month" year=selected_year %}
                 <form method="get" class="pd-period-form">
                     <select name="month" onchange="this.form.submit()" title="Select month">
                         {% for val, label in months %}
@@ -663,7 +767,6 @@ tr.e6-partial-row { background: #fffcf5; }
                 <a href="{% url 'manage_banks' %}" class="btn btn-secondary btn-sm">Banks</a>
                 <a href="{% url 'payroll_employees' %}" class="btn btn-secondary btn-sm">Salary Setup</a>
                 <a href="{% url 'payslip_history' %}" class="btn btn-secondary btn-sm">Payslip History</a>
-                <a href="{% url 'payroll_range_report' %}" class="btn btn-secondary btn-sm">Range Report</a>
             </div>
         </div>
 
@@ -1020,15 +1123,15 @@ tr.e6-partial-row { background: #fffcf5; }
                         Balance to pay: <strong><span class="csym csym-aed">AED</span> {{ payment_status_summary.balance_aed|floatformat:2|intcomma }}</strong>
                     </div>
                 </div>
+                {% include "payroll/includes/category_legend.html" %}
                 <div class="table-wrap">
                     <table id="finalTable">
                         <thead>
                             <tr>
                                 <th style="width:32px;" rowspan="2"></th>
                                 <th rowspan="2">Employee</th>
-                                <th rowspan="2">Category</th>
                                 <th class="text-center" rowspan="2">Status</th>
-                                <th class="text-center e6-grp e6-grp-gross" colspan="6" title="Salary structure components. These columns sum to the Gross Total.">GROSS PAY</th>
+                                <th class="text-center e6-grp e6-grp-gross" colspan="5" title="Salary structure components. These columns sum to the Gross Total.">GROSS PAY</th>
                                 <th class="text-right" rowspan="2" title="Gross pay after attendance scaling — the base the deductions below apply to">Net Payroll</th>
                                 <th class="text-center e6-grp" colspan="6" title="Every deduction category, itemized. These columns always sum exactly to the Total.">DEDUCTIONS</th>
                                 <th class="text-right e6-grp e6-grp-inc" rowspan="2">Incentives</th>
@@ -1040,12 +1143,11 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <th class="text-center" rowspan="2">Payslip</th>
                             </tr>
                             <tr>
-                                <th class="text-right e6-sub e6-sub-gross">Basic</th>
-                                <th class="text-right e6-sub e6-sub-gross">Housing</th>
-                                <th class="text-right e6-sub e6-sub-gross">Transport</th>
-                                <th class="text-right e6-sub e6-sub-gross">Phone</th>
-                                <th class="text-right e6-sub e6-sub-gross">Other</th>
-                                <th class="text-right e6-sub e6-sub-gross">Total</th>
+                                <th class="text-right e6-sub e6-sub-gross gp-col">Basic</th>
+                                <th class="text-right e6-sub e6-sub-gross gp-col">Housing</th>
+                                <th class="text-right e6-sub e6-sub-gross gp-col">Transport</th>
+                                <th class="text-right e6-sub e6-sub-gross gp-col">Other</th>
+                                <th class="text-right e6-sub e6-sub-gross gp-col">Total</th>
                                 <th class="text-right e6-sub">Late</th>
                                 <th class="text-right e6-sub">Leave</th>
                                 <th class="text-right e6-sub">Advance</th>
@@ -1056,7 +1158,7 @@ tr.e6-partial-row { background: #fffcf5; }
                         </thead>
                         <tbody>
                             {% for row in final_rows %}
-                            <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}{% if row.pay_status == 'partial' %} e6-partial-row{% endif %}"
+                            <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}{% if row.pay_status == 'partial' %} e6-partial-row{% endif %} cat-{{ row.category_slug }}"
                                 data-emp-id="{{ row.employee.id }}"
                                 data-emp-type="{{ row.employee_type }}"
                                 data-visa="{{ row.employee.visa_provider|default:'own' }}"
@@ -1083,7 +1185,6 @@ tr.e6-partial-row { background: #fffcf5; }
                                         </span>
                                     </div>
                                 </td>
-                                <td><span class="e6-cat e6-cat-{{ row.category_slug }}">{{ row.category_label }}</span></td>
                                 <td class="text-center">
                                     {% if row.pay_status == 'partial' %}
                                     <span class="e6-badge-partial" style="cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="Partially disbursed — balance still outstanding">&#189; Partial</span>
@@ -1106,19 +1207,17 @@ tr.e6-partial-row { background: #fffcf5; }
                                 than a fabricated split.
                                 {% endcomment %}
                                 {% if row.gross and row.gross.has_structure %}
-                                <td class="text-right num">{{ row.gross.basic|floatformat:2|intcomma }}</td>
-                                <td class="text-right num">{% if row.gross.housing %}{{ row.gross.housing|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num">{% if row.gross.transport %}{{ row.gross.transport|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num">{% if row.gross.phone %}{{ row.gross.phone|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num">{% if row.gross.other %}{{ row.gross.other|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num" style="font-weight:700;">{{ row.gross.total|floatformat:2|intcomma }}{% if row.gross.is_estimated %}<div class="muted" style="font-size:0.6rem;white-space:nowrap;font-weight:400;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split, not itemized payroll data.">estimated</div>{% endif %}</td>
+                                <td class="text-right num gp-col">{{ row.gross.basic|floatformat:2|intcomma }}</td>
+                                <td class="text-right num gp-col">{% if row.gross.housing %}{{ row.gross.housing|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num gp-col">{% if row.gross.transport %}{{ row.gross.transport|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num gp-col">{% if row.gross.other %}{{ row.gross.other|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num gp-col" style="font-weight:700;">{{ row.gross.total|floatformat:2|intcomma }}{% if row.gross.is_estimated %}<div class="muted" style="font-size:0.6rem;white-space:nowrap;font-weight:400;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split, not itemized payroll data.">estimated</div>{% endif %}</td>
                                 {% else %}
-                                <td class="text-right muted">—</td>
-                                <td class="text-right muted">—</td>
-                                <td class="text-right muted">—</td>
-                                <td class="text-right muted">—</td>
-                                <td class="text-right muted">—</td>
-                                <td class="text-right muted">—</td>
+                                                                <td class="text-right muted gp-col">—</td>
+                                <td class="text-right muted gp-col">—</td>
+                                <td class="text-right muted gp-col">—</td>
+                                <td class="text-right muted gp-col">—</td>
+                                <td class="text-right muted gp-col">—</td>
                                 {% endif %}
                                 <td class="text-right num">{{ row.payroll_net|floatformat:2|intcomma }}</td>
                                 {% comment %}
@@ -1159,20 +1258,19 @@ tr.e6-partial-row { background: #fffcf5; }
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr class="empty-row"><td colspan="24">No employees found</td></tr>
+                            <tr class="empty-row"><td colspan="23">No employees found</td></tr>
                             {% endfor %}
                         </tbody>
                         {% if final_rows %}
                         <tfoot>
                             <tr>
                                 <td></td>
-                                <td colspan="3"><strong>Total</strong></td>
-                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.basic"|floatformat:2|intcomma }}</td>
-                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.housing"|floatformat:2|intcomma }}</td>
-                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.transport"|floatformat:2|intcomma }}</td>
-                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.phone"|floatformat:2|intcomma }}</td>
-                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.other"|floatformat:2|intcomma }}</td>
-                                <td class="text-right num" style="font-weight:700;">{{ final_rows|dictsumby_nested:"gross.total"|floatformat:2|intcomma }}</td>
+                                <td colspan="2"><strong>Total</strong></td>
+                                <td class="text-right num gp-col">{{ final_rows|dictsumby_nested:"gross.basic"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num gp-col">{{ final_rows|dictsumby_nested:"gross.housing"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num gp-col">{{ final_rows|dictsumby_nested:"gross.transport"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num gp-col">{{ final_rows|dictsumby_nested:"gross.other"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num gp-col" style="font-weight:700;">{{ final_rows|dictsumby_nested:"gross.total"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-payroll-net" class="text-right num">{{ final_rows|dictsumby:"payroll_net"|floatformat:2|intcomma }}</td>
                                 <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.late"|floatformat:2|intcomma }}</td>
                                 <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.leave"|floatformat:2|intcomma }}</td>
@@ -1325,18 +1423,17 @@ tr.e6-partial-row { background: #fffcf5; }
                 <a class="btn-xlsx" href="?format=xlsx&tab=admin-inhouse&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
         </div>
-        <div class="table-wrap">
+        {% include "payroll/includes/category_legend.html" with active="admin-in-house" %}
+            <div class="table-wrap">
             <table id="adminInhouseTable">
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th class="text-right">Salary</th>
-                        <th class="text-right">Basic</th>
-                        <th class="text-right">Housing</th>
-                        <th class="text-right">Transport</th>
-                        <th class="text-right">Phone</th>
-                        <th class="text-right">Other</th>
-                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Salary column">Gross Total</th>
+                        <th class="text-right gp-col">Basic</th>
+                        <th class="text-right gp-col">Housing</th>
+                        <th class="text-right gp-col">Transport</th>
+                        <th class="text-right gp-col">Other</th>
+                        <th class="text-right gp-col" title="Basic + Housing + Transport + Other — the gross salary">Gross Total</th>
                         <th class="text-right">Full Days</th>
                         <th class="text-right">Half Days</th>
                         <th class="text-right">Absent</th>
@@ -1354,25 +1451,22 @@ tr.e6-partial-row { background: #fffcf5; }
                     {% for row in admin_inhouse_rows %}
                     <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}" data-emp-id="{{ row.employee.id }}" data-emp-type="inhouse" data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
-                            <div>{{ row.employee.name }}</div>
+                            <span class="cat-dot cat-swatch-admin-in-house" title="Admin In House"></span><div>{{ row.employee.name }}</div>
                             {% if row.employee.designation %}<div class="muted">{{ row.employee.designation }}</div>{% endif %}
                             {% if row.employee.payroll_type == 'performance' %}<span class="badge-perf section-badge">Performance</span>{% endif %}
                         </td>
-                        <td class="text-right num">{{ row.salary|floatformat:0|intcomma }}{% if not row.has_salary_structure %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div>{% endif %}</td>
                         {% if row.has_salary_structure %}
-                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}{% if row.is_estimated %}<div class="muted" style="font-size:0.6rem;white-space:nowrap;font-weight:400;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split, not itemized payroll data.">estimated</div>{% endif %}</td>
                         {% else %}
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right num gp-col" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}<div class="muted" style="font-size:0.62rem;white-space:nowrap;font-weight:400;" title="No approved salary structure on file — this is the flat salary, not an itemized breakdown">&#9888; no structure</div></td>
                         {% endif %}
                         <td class="text-right num">{{ row.full_days }}</td>
                         <td class="text-right num">{{ row.half_days }}</td>
@@ -1393,7 +1487,7 @@ tr.e6-partial-row { background: #fffcf5; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="19">No Admin in-house employees found</td></tr>
+                    <tr class="empty-row"><td colspan="17">No Admin in-house employees found</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if admin_inhouse_rows %}
@@ -1401,12 +1495,10 @@ tr.e6-partial-row { background: #fffcf5; }
                     <tr>
                         <td><strong>Total</strong></td>
                         <td></td>
-                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:700;">{{ admin_inhouse_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ admin_inhouse_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ admin_inhouse_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ admin_inhouse_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ admin_inhouse_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
                         <td></td><td></td><td></td><td></td>
                         <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
                         <td class="text-right num val-positive">{{ admin_inhouse_rows|dictsumby:"incentives"|floatformat:2|intcomma }}</td>
@@ -1445,18 +1537,17 @@ tr.e6-partial-row { background: #fffcf5; }
                 <a class="btn-xlsx" href="?format=xlsx&tab=admin-remote&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
         </div>
-        <div class="table-wrap">
+        {% include "payroll/includes/category_legend.html" with active="admin-remote" %}
+            <div class="table-wrap">
             <table id="adminRemoteTable">
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th class="text-right">Salary</th>
-                        <th class="text-right">Basic</th>
-                        <th class="text-right">Housing</th>
-                        <th class="text-right">Transport</th>
-                        <th class="text-right">Phone</th>
-                        <th class="text-right">Other</th>
-                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Salary column">Gross Total</th>
+                        <th class="text-right gp-col">Basic</th>
+                        <th class="text-right gp-col">Housing</th>
+                        <th class="text-right gp-col">Transport</th>
+                        <th class="text-right gp-col">Other</th>
+                        <th class="text-right gp-col" title="Basic + Housing + Transport + Other — the gross salary">Gross Total</th>
                         <th class="text-right">Present Days</th>
                         <th class="text-right">Absent Days</th>
                         <th class="text-right">Deduction</th>
@@ -1471,24 +1562,21 @@ tr.e6-partial-row { background: #fffcf5; }
                     {% for row in admin_remote_rows %}
                     <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}" data-emp-id="{{ row.employee.id }}" data-emp-type="remote" data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
-                            <div>{{ row.employee.name }}</div>
+                            <span class="cat-dot cat-swatch-admin-remote" title="Admin Remote"></span><div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
                         </td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}—{% endif %}{% if row.is_estimated %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split of the salary, not itemized payroll data.">estimated split</div>{% endif %}</td>
                         {% if row.has_salary_structure %}
-                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}{% if row.is_estimated %}<div class="muted" style="font-size:0.6rem;white-space:nowrap;font-weight:400;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split, not itemized payroll data.">estimated</div>{% endif %}</td>
                         {% else %}
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col"><div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div></td>
                         {% endif %}
                         <td class="text-right num">
                             {% if row.is_fixed_salary %}
@@ -1513,19 +1601,17 @@ tr.e6-partial-row { background: #fffcf5; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="16">No Admin remote employees found — set department to "Admin" on the remote employee's profile</td></tr>
+                    <tr class="empty-row"><td colspan="14">No Admin remote employees found — set department to "Admin" on the remote employee's profile</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if admin_remote_rows %}
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td>
-                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ admin_remote_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ admin_remote_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ admin_remote_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ admin_remote_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ admin_remote_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
                         <td></td>
                         <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"absent_days"|floatformat:1|intcomma }}</td>
                         <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
@@ -1564,19 +1650,18 @@ tr.e6-partial-row { background: #fffcf5; }
                 <a class="btn-xlsx" href="?format=xlsx&tab=sales-fixed&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
         </div>
-        <div class="table-wrap">
+        {% include "payroll/includes/category_legend.html" with active="sales-fixed" %}
+            <div class="table-wrap">
             <table id="salesFixedTable">
                 <thead>
                     <tr>
                         <th>Name</th>
                         <th>Type</th>
-                        <th class="text-right">Salary</th>
-                        <th class="text-right">Basic</th>
-                        <th class="text-right">Housing</th>
-                        <th class="text-right">Transport</th>
-                        <th class="text-right">Phone</th>
-                        <th class="text-right">Other</th>
-                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Salary column">Gross Total</th>
+                        <th class="text-right gp-col">Basic</th>
+                        <th class="text-right gp-col">Housing</th>
+                        <th class="text-right gp-col">Transport</th>
+                        <th class="text-right gp-col">Other</th>
+                        <th class="text-right gp-col" title="Basic + Housing + Transport + Other — the gross salary">Gross Total</th>
                         <th class="text-right">Present Days</th>
                         <th class="text-right">Absent Days</th>
                         <th class="text-right">Deduction</th>
@@ -1594,7 +1679,7 @@ tr.e6-partial-row { background: #fffcf5; }
                         data-emp-id="{{ row.employee.id }}" data-emp-type="{{ row.employee_type }}"
                         data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
-                            <div>{{ row.employee.name }}</div>
+                            <span class="cat-dot cat-swatch-sales-fixed" title="Sales Fixed"></span><div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
                         </td>
                         <td>
@@ -1604,21 +1689,18 @@ tr.e6-partial-row { background: #fffcf5; }
                             <span class="type-inhouse">In-House</span>
                             {% endif %}
                         </td>
-                        <td class="text-right num">{{ row.salary|floatformat:0|intcomma }}{% if not row.has_salary_structure and row.employee_type == 'inhouse' %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div>{% elif row.is_estimated %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split of the salary, not itemized payroll data.">estimated split</div>{% endif %}</td>
                         {% if row.has_salary_structure %}
-                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}{% if row.is_estimated %}<div class="muted" style="font-size:0.6rem;white-space:nowrap;font-weight:400;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split, not itemized payroll data.">estimated</div>{% endif %}</td>
                         {% else %}
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col"><div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div></td>
                         {% endif %}
                         <td class="text-right num">
                             {% if row.is_fixed_salary %}
@@ -1641,19 +1723,17 @@ tr.e6-partial-row { background: #fffcf5; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="18">No fixed-salary sales employees found</td></tr>
+                    <tr class="empty-row"><td colspan="16">No fixed-salary sales employees found</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if sales_fixed_rows %}
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td><td></td>
-                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ sales_fixed_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_fixed_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_fixed_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_fixed_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_fixed_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
                         <td></td>
                         <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"absent_days"|floatformat:1|intcomma }}</td>
                         <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
@@ -1688,18 +1768,17 @@ tr.e6-partial-row { background: #fffcf5; }
                 <span class="muted">{{ sales_perf_test_rows|length }} employee{{ sales_perf_test_rows|length|pluralize }}</span>
             </div>
         </div>
-        <div class="table-wrap">
+        {% include "payroll/includes/category_legend.html" with active="sales-perf-remote" %}
+            <div class="table-wrap">
             <table id="salesPerfTestTable">
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th class="text-right">Salary</th>
-                        <th class="text-right">Basic</th>
-                        <th class="text-right">Housing</th>
-                        <th class="text-right">Transport</th>
-                        <th class="text-right">Phone</th>
-                        <th class="text-right">Other</th>
-                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Salary column">Gross Total</th>
+                        <th class="text-right gp-col">Basic</th>
+                        <th class="text-right gp-col">Housing</th>
+                        <th class="text-right gp-col">Transport</th>
+                        <th class="text-right gp-col">Other</th>
+                        <th class="text-right gp-col" title="Basic + Housing + Transport + Other — the gross salary">Gross Total</th>
                         <th class="text-right">Daily Rate</th>
                         <th class="text-right">Leave Days</th>
                         <th class="text-right">Half Days</th>
@@ -1714,26 +1793,23 @@ tr.e6-partial-row { background: #fffcf5; }
                     <tr class="row-{{ row.currency|lower }}" data-emp-id="{{ row.employee.id }}" data-emp-type="remote"
                         data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
-                            <div>{{ row.employee.name }}</div>
+                            <span class="cat-dot cat-swatch-sales-perf-remote" title="Sales Perf Remote"></span><div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
                             <span class="type-remote">Remote</span>
                             {% if row.target_achieved %}<span class="section-badge badge-perf" title="Hit 4-account target — paid full salary regardless of attendance">Target Hit</span>{% endif %}
                         </td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}{% if row.is_estimated %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split of the salary, not itemized payroll data.">estimated split</div>{% endif %}</td>
                         {% if row.has_salary_structure %}
-                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}{% if row.is_estimated %}<div class="muted" style="font-size:0.6rem;white-space:nowrap;font-weight:400;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split, not itemized payroll data.">estimated</div>{% endif %}</td>
                         {% else %}
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col"><div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div></td>
                         {% endif %}
                         <td class="text-right num">{% if row.daily_rate %}{{ row.daily_rate|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.leave_days > 0 %}val-negative{% endif %}">{{ row.leave_days }}</td>
@@ -1746,19 +1822,17 @@ tr.e6-partial-row { background: #fffcf5; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="15">No remote performance-based sales employees found</td></tr>
+                    <tr class="empty-row"><td colspan="13">No remote performance-based sales employees found</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if sales_perf_test_rows %}
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td>
-                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ sales_perf_test_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_perf_test_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_perf_test_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_perf_test_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_perf_test_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
                         <td></td>
                         <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"leave_days" }}</td>
                         <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"half_days" }}</td>
@@ -1799,18 +1873,17 @@ tr.e6-partial-row { background: #fffcf5; }
                 <a class="btn-xlsx" href="?format=xlsx&tab=sales-perf-inhouse&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
         </div>
-        <div class="table-wrap">
+        {% include "payroll/includes/category_legend.html" with active="sales-perf-in-house" %}
+            <div class="table-wrap">
             <table id="salesPerfInhouseTable">
                 <thead>
                     <tr>
                         <th>Name</th>
                         <th>Type</th>
-                        <th class="text-right">Base Salary</th>
-                        <th class="text-right">Basic</th>
-                        <th class="text-right">Housing</th>
-                        <th class="text-right">Transport</th>
-                        <th class="text-right">Phone</th>
-                        <th class="text-right">Other</th>
+                        <th class="text-right gp-col">Basic</th>
+                        <th class="text-right gp-col">Housing</th>
+                        <th class="text-right gp-col">Transport</th>
+                        <th class="text-right gp-col">Other</th>
                         <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Base Salary column">Gross Total</th>
                         <th class="text-right">Deductions</th>
                         {% for bank in banks %}<th class="text-right">{{ bank.name }}</th>{% endfor %}
@@ -1827,26 +1900,23 @@ tr.e6-partial-row { background: #fffcf5; }
                         data-emp-id="{{ row.employee.id }}" data-emp-type="{{ row.employee_type }}"
                         data-visa="{{ row.employee.visa_provider|default:'own' }}">
                         <td>
-                            <div>{{ row.employee.name }}</div>
+                            <span class="cat-dot cat-swatch-sales-perf-in-house" title="Sales Perf In House"></span><div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
                             {% if row.is_attendance_based %}<span class="muted">Att. Scaled</span>{% endif %}
                         </td>
                         <td><span class="type-inhouse">In-House</span></td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}{% if not row.has_salary_structure %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div>{% endif %}</td>
                         {% if row.has_salary_structure %}
-                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}{% if row.is_estimated %}<div class="muted" style="font-size:0.6rem;white-space:nowrap;font-weight:400;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split, not itemized payroll data.">estimated</div>{% endif %}</td>
                         {% else %}
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
-                        <td class="text-right muted">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col">—</td>
+                        <td class="text-right muted gp-col"><div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div></td>
                         {% endif %}
                         <td class="text-right num {% if row.combined_deductions > 0 %}val-negative{% endif %}">
                             {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}
@@ -1869,19 +1939,17 @@ tr.e6-partial-row { background: #fffcf5; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="16">No performance-based in-house sales employees found</td></tr>
+                    <tr class="empty-row"><td colspan="14">No performance-based in-house sales employees found</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if sales_perf_inhouse_rows %}
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td><td></td>
-                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
-                        <td class="text-right num" style="font-weight:600;">{{ sales_perf_inhouse_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_perf_inhouse_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_perf_inhouse_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_perf_inhouse_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num gp-col">{{ sales_perf_inhouse_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
                         <td class="text-right num val-negative">{{ sales_perf_inhouse_rows|dictsumby:"combined_deductions"|floatformat:2|intcomma }}</td>
                         {% for total in sales_perf_inhouse_bank_totals %}<td class="text-right num">{{ total }}</td>{% endfor %}
                         <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"commission"|floatformat:2|intcomma }}</td>
@@ -1926,7 +1994,6 @@ tr.e6-partial-row { background: #fffcf5; }
                     <tr>
                         <th>Name</th>
                         <th>Type</th>
-                        <th class="text-right">Base Salary</th>
                         <th class="text-right">Deductions</th>
                         {% for bank in banks %}<th class="text-right">{{ bank.name }}</th>{% endfor %}
                         <th class="text-right">Commission</th>

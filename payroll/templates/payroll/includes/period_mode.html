@@ -1,0 +1,81 @@
+{% comment %}
+Phase E8 — shared period-mode selector.
+
+One control for every way of choosing a payroll period. "Month" is the main
+dashboard; Annual, Custom Range and Multiple Months are the report view. They
+live at different URLs, but they are presented here as modes of a single
+control so that picking a period never feels like navigating to a different
+tool.
+
+This markup AND its styling live in one file deliberately. The two pages that
+use it previously carried their own separately-written tab strips, which is
+exactly how two screens drift into looking like two different products. Any
+future change to the selector happens here, once, and both pages follow.
+
+Usage:
+    {% include "payroll/includes/period_mode.html" with active="month" year=selected_year %}
+
+    active — one of: month | annual | range | multi
+    year   — the year to carry into the Annual / Multiple Months views, so
+             switching mode keeps the period the user was already looking at
+             instead of silently resetting to today.
+{% endcomment %}
+<style>
+.period-mode {
+    display: inline-flex;
+    border: 1px solid #dbe3ec;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+.period-mode > button,
+.period-mode > a {
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: inherit;
+    line-height: 1.4;
+    border: none;
+    border-right: 1px solid #e8edf3;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.period-mode > button:last-child,
+.period-mode > a:last-child { border-right: none; }
+.period-mode > button:hover,
+.period-mode > a:hover { background: #f5f7fa; color: #334155; }
+.period-mode > .active,
+.period-mode > .active:hover {
+    background: #F97316;
+    color: #fff;
+    cursor: default;
+}
+</style>
+<div class="period-mode">
+    {% if active == 'month' %}
+    <button type="button" class="active" title="A single month">Month</button>
+    {% else %}
+    <a href="{% url 'payroll_dashboard' %}" title="A single month">Month</a>
+    {% endif %}
+
+    {% if active == 'annual' %}
+    <button type="button" class="active" title="Year to date — each employee measured from their joining date">Annual</button>
+    {% else %}
+    <a href="{% url 'payroll_range_report' %}?mode=annual&annual_year={{ year }}" title="Year to date — each employee measured from their joining date">Annual</a>
+    {% endif %}
+
+    {% if active == 'range' %}
+    <button type="button" class="active" title="Any From/To month window">Custom Range</button>
+    {% else %}
+    <a href="{% url 'payroll_range_report' %}?mode=range" title="Any From/To month window">Custom Range</a>
+    {% endif %}
+
+    {% if active == 'multi' %}
+    <button type="button" class="active" title="Any combination of months within a year">Multiple Months</button>
+    {% else %}
+    <a href="{% url 'payroll_range_report' %}?mode=multi&multi_year={{ year }}" title="Any combination of months within a year">Multiple Months</a>
+    {% endif %}
+</div>

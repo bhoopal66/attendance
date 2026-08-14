@@ -1,0 +1,29 @@
+{% comment %}
+Phase E10 — category colour key.
+
+The Category column was removed from the summary table; category is now carried
+by colour instead — the avatar chip and the stripe down the left of the
+employee name cell. A colour that isn't explained is just decoration, so this
+legend ships alongside every table that uses it.
+
+The five colours here are the single source of truth and are the same ones
+used by .e6-av-* (avatar) and .cat-stripe-* (row stripe). Changing a category
+colour means changing it in the CSS block in test_dashboard.html and here —
+they are deliberately kept adjacent in review for that reason.
+
+Usage:
+    {% include "payroll/includes/category_legend.html" %}
+    {% include "payroll/includes/category_legend.html" with active="admin-in-house" %}
+
+    active — optional slug. On a single-category tab, pass it to emphasise
+             that tab's own colour and mute the rest, so the key reads as
+             "you are here" rather than as five equally-relevant options.
+{% endcomment %}
+<div class="cat-legend">
+    <span class="cat-legend-label">Category</span>
+    {% for slug, label in category_legend_items %}
+    <span class="cat-legend-item{% if active and active != slug %} muted-item{% endif %}{% if active == slug %} is-active{% endif %}">
+        <span class="cat-swatch cat-swatch-{{ slug }}"></span>{{ label }}
+    </span>
+    {% endfor %}
+</div>

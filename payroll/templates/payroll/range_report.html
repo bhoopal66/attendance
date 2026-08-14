@@ -38,13 +38,21 @@
 }
 .rr-quicklinks a:hover { border-color: var(--primary-color); color: var(--primary-color); }
 
-/* ── Phase E3: mode tabs + Multiple Months picker ─────────────────────── */
-.rr-mode-tabs { display: flex; gap: .4rem; margin-bottom: .6rem; }
-.rr-mode-tab {
-    background: var(--surface-color); border: 1px solid var(--border-color); color: var(--text-secondary);
-    border-radius: 8px; padding: 6px 14px; font-size: .8rem; font-weight: 600; cursor: pointer;
-}
-.rr-mode-tab.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+/* ── Phase E8: period-mode row ─────────────────────────────────────────
+   The selector itself is styled in payroll/includes/period_mode.html so this
+   page and the dashboard cannot drift apart. Only the row around it lives
+   here. The old .rr-mode-tab rules were removed with the tab strip they
+   styled — leaving them would invite a future edit that silently changes
+   nothing. */
+/* Same column-sizing rule as the dashboard (Phase E8) — columns shrink to fit
+   their content, the table still fills the card when it is narrow, and figures
+   never wrap mid-number. */
+.rr-table-wrap > table { width: auto; min-width: 100%; table-layout: auto; }
+.rr-table-wrap > table td.num,
+.rr-table-wrap > table th.num { white-space: nowrap; }
+.rr-mode-row { display: flex; align-items: center; gap: .8rem; margin-bottom: .6rem; flex-wrap: wrap; }
+.rr-back { font-size: .78rem; color: var(--text-secondary); text-decoration: none; }
+.rr-back:hover { color: var(--primary-color); }
 .rr-multi-panel { flex-direction: column; align-items: stretch; }
 .rr-month-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .5rem; max-width: 520px; }
 /* Scoped with .rr-multi-panel so this beats the pre-existing ".rr-picker button"
@@ -131,18 +139,16 @@
 {% block content %}
 <div class="rr-wrap">
 
-    <!-- ── Mode tabs (Phase E3) ─────────────────────────────────────────── -->
-    <div class="rr-mode-tabs">
-        <button type="button" class="rr-mode-tab {% if mode == 'range' %}active{% endif %}" onclick="rrSwitchMode('range')">Range</button>
-        <button type="button" class="rr-mode-tab {% if mode == 'annual' %}active{% endif %}" onclick="rrSwitchMode('annual')">Annual</button>
-        <button type="button" class="rr-mode-tab {% if mode == 'multi' %}active{% endif %}" onclick="rrSwitchMode('multi')">Multiple Months</button>
-        <button type="button" class="rr-mode-tab {% if mode == 'since_joining' %}active{% endif %}" onclick="window.location.search='?mode=since_joining'">Since Joining</button>
+    <!-- ── Period mode — shared control, identical to the dashboard ─────── -->
+    <div class="rr-mode-row">
+        {% include "payroll/includes/period_mode.html" with active=mode year=annual_year %}
+        <a class="rr-back" href="{% url 'payroll_dashboard' %}">← Back to Dashboard</a>
     </div>
 
     <!-- ── Quick presets (Phase E7) ─────────────────────────────────────── -->
     <div class="rr-presets">
         {% for p in presets %}
-        <a href="?{{ p.query }}">{{ p.label }}{% if p.note %} <span class="rr-preset-note">({{ p.note }})</span>{% endif %}</a>
+        <a href="?{{ p.query }}" {% if mode == 'since_joining' and p.label == 'Since joining' %}class="active"{% endif %}>{{ p.label }}{% if p.note %} <span class="rr-preset-note">({{ p.note }})</span>{% endif %}</a>
         {% endfor %}
     </div>
 
@@ -354,15 +360,10 @@ function rrCloseBreakdown() {
     document.getElementById('rrModalOverlay').classList.remove('active');
 }
 
-/* ── Phase E3: mode tabs + Multiple Months picker ─────────────────────── */
-function rrSwitchMode(m) {
-    document.querySelectorAll('.rr-mode-tab').forEach(function (btn) {
-        btn.classList.toggle('active', btn.getAttribute('onclick') === "rrSwitchMode('" + m + "')");
-    });
-    document.getElementById('rrRangePanel').style.display = (m === 'range') ? '' : 'none';
-    document.getElementById('rrAnnualPanel').style.display = (m === 'annual') ? '' : 'none';
-    document.getElementById('rrMultiPanel').style.display = (m === 'multi') ? '' : 'none';
-}
+/* Phase E8: rrSwitchMode() was removed with the old tab strip. Mode is now
+   decided server-side and each picker panel is shown or hidden by the
+   template, so the highlighted mode can never disagree with the figures in
+   the table below it — which the old client-side toggle allowed. */
 
 function rrToggleMonth(btn) {
     btn.classList.toggle('active');
