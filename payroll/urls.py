@@ -7,6 +7,7 @@ from . import views_management
 from . import views_audit
 from . import views_notes
 from . import views_range_report
+from . import views_debug
 
 urlpatterns = [
     path('', views.payroll_test_dashboard, name='payroll_dashboard'),
@@ -75,4 +76,7 @@ urlpatterns = [
 
     # Phase D — Range / Annual Report
     path('range-report/', views_range_report.range_report, name='payroll_range_report'),
+
+    # TEMPORARY — Phase D investigation diagnostic (read-only). Remove after use.
+    path('api/debug/snapshot/', views_debug.inspect_snapshot, name='debug_snapshot'),
 ]
