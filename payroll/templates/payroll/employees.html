@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}
-{% load static %}
+{% load static humanize %}
 
 {% block title %}Payroll Employees{% endblock %}
 {% block page_title %}Payroll Employees{% endblock %}
@@ -618,7 +618,7 @@
                     </td>
                     <td class="text-right" id="salary-inhouse-{{ emp.id }}">
                         {% if emp.salary %}
-                            <span class="salary-val">{{ emp.salary|floatformat:0 }}</span>
+                            <span class="salary-val">{{ emp.salary|floatformat:0|intcomma }}</span>
                         {% else %}
                             <span class="no-salary">Not set</span>
                         {% endif %}
@@ -722,7 +722,7 @@
                     </td>
                     <td class="text-right" id="salary-remote-{{ emp.id }}">
                         {% if emp.salary %}
-                            <span class="salary-val">{{ emp.salary|floatformat:0 }}</span>
+                            <span class="salary-val">{{ emp.salary|floatformat:0|intcomma }}</span>
                         {% else %}
                             <span class="no-salary">Not set</span>
                         {% endif %}

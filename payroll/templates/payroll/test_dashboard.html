@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}
-{% load static attendance_extras %}
+{% load static attendance_extras humanize %}
 
 {% block title %}Payroll (New) — {{ month_name }} {{ selected_year }}{% endblock %}
 {% block page_title %}Payroll — {{ month_name }} {{ selected_year }}{% endblock %}
@@ -670,26 +670,26 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 </div>
                 <div class="sov-card aed">
                     <div class="sov-label">Total AED Payroll</div>
-                    <div class="sov-value"><span class="e2-money" data-aed="{{ final_total_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ final_total_aed|floatformat:2 }}</span></div>
+                    <div class="sov-value"><span class="e2-money" data-aed="{{ final_total_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ final_total_aed|floatformat:2|intcomma }}</span></div>
                 </div>
                 {% if final_total_inr > 0 %}
                 <div class="sov-card inr">
                     <div class="sov-label">Total INR Payroll</div>
-                    <div class="sov-value">{% if final_total_inr_aed %}<span class="e2-money" data-aed="{{ final_total_inr_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2 }}</span>{% else %}<span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2 }}{% endif %}</div>
-                    {% if final_total_inr_aed %}<div class="sov-sub">≈ AED {{ final_total_inr_aed|floatformat:0 }}</div>{% endif %}
+                    <div class="sov-value">{% if final_total_inr_aed %}<span class="e2-money" data-aed="{{ final_total_inr_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2|intcomma }}</span>{% else %}<span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ final_total_inr|floatformat:2|intcomma }}{% endif %}</div>
+                    {% if final_total_inr_aed %}<div class="sov-sub">≈ AED {{ final_total_inr_aed|floatformat:0|intcomma }}</div>{% endif %}
                 </div>
                 {% endif %}
                 {% if final_total_npr > 0 %}
                 <div class="sov-card npr">
                     <div class="sov-label">Total NPR Payroll</div>
-                    <div class="sov-value">{% if final_total_npr_aed %}<span class="e2-money" data-aed="{{ final_total_npr_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ final_total_npr|floatformat:2 }}</span>{% else %}<span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ final_total_npr|floatformat:2 }}{% endif %}</div>
-                    {% if final_total_npr_aed %}<div class="sov-sub">≈ AED {{ final_total_npr_aed|floatformat:0 }}</div>{% endif %}
+                    <div class="sov-value">{% if final_total_npr_aed %}<span class="e2-money" data-aed="{{ final_total_npr_aed|floatformat:2 }}" data-decimals="2"><span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ final_total_npr|floatformat:2|intcomma }}</span>{% else %}<span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ final_total_npr|floatformat:2|intcomma }}{% endif %}</div>
+                    {% if final_total_npr_aed %}<div class="sov-sub">≈ AED {{ final_total_npr_aed|floatformat:0|intcomma }}</div>{% endif %}
                 </div>
                 {% endif %}
                 {% if final_total_combined_aed != final_total_aed %}
                 <div class="sov-card combined">
                     <div class="sov-label">Combined (AED equiv.)</div>
-                    <div class="sov-value"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ final_total_combined_aed|floatformat:2 }}</div>
+                    <div class="sov-value"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ final_total_combined_aed|floatformat:2|intcomma }}</div>
                 </div>
                 {% endif %}
             </div>
@@ -747,7 +747,7 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
             <div class="section-card">
                 <div class="section-header">
                     <div class="section-title">Payment status</div>
-                    <div class="muted"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2 }} total</div>
+                    <div class="muted"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2|intcomma }} total</div>
                 </div>
                 <div class="table-wrap" style="max-height:none;">
                     <table>
@@ -762,26 +762,26 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <tr>
                                 <td><span class="e1-status-dot e1-status-paid"></span>Paid</td>
                                 <td class="text-right num" style="font-weight:700;">{{ payment_status_summary.paid_count }}</td>
-                                <td class="text-right num val-blue">{{ payment_status_summary.paid_aed|floatformat:2 }}</td>
+                                <td class="text-right num val-blue">{{ payment_status_summary.paid_aed|floatformat:2|intcomma }}</td>
                             </tr>
                             <tr>
                                 <td><span class="e1-status-dot e1-status-unpaid"></span>Unpaid</td>
                                 <td class="text-right num" style="font-weight:700;">{{ payment_status_summary.unpaid_count }}</td>
-                                <td class="text-right num val-negative">{{ payment_status_summary.unpaid_aed|floatformat:2 }}</td>
+                                <td class="text-right num val-negative">{{ payment_status_summary.unpaid_aed|floatformat:2|intcomma }}</td>
                             </tr>
                         </tbody>
                         <tfoot>
-                            <tr><td>Balance to pay</td><td class="text-right num">—</td><td class="text-right num val-negative">{{ payment_status_summary.unpaid_aed|floatformat:2 }}</td></tr>
+                            <tr><td>Balance to pay</td><td class="text-right num">—</td><td class="text-right num val-negative">{{ payment_status_summary.unpaid_aed|floatformat:2|intcomma }}</td></tr>
                         </tfoot>
                     </table>
                 </div>
                 {% if payment_status_summary.paid_inr or payment_status_summary.unpaid_inr or payment_status_summary.paid_npr or payment_status_summary.unpaid_npr %}
                 <div style="padding:8px 20px 14px;font-size:0.76rem;color:#64748b;">
                     {% if payment_status_summary.paid_inr or payment_status_summary.unpaid_inr %}
-                    <div>INR — Paid: <span class="csym csym-inr">₹</span>{{ payment_status_summary.paid_inr|floatformat:2 }} &nbsp;·&nbsp; Unpaid: <span class="csym csym-inr">₹</span>{{ payment_status_summary.unpaid_inr|floatformat:2 }}</div>
+                    <div>INR — Paid: <span class="csym csym-inr">₹</span>{{ payment_status_summary.paid_inr|floatformat:2|intcomma }} &nbsp;·&nbsp; Unpaid: <span class="csym csym-inr">₹</span>{{ payment_status_summary.unpaid_inr|floatformat:2|intcomma }}</div>
                     {% endif %}
                     {% if payment_status_summary.paid_npr or payment_status_summary.unpaid_npr %}
-                    <div>NPR — Paid: <span class="csym csym-npr">Rs.</span>{{ payment_status_summary.paid_npr|floatformat:2 }} &nbsp;·&nbsp; Unpaid: <span class="csym csym-npr">Rs.</span>{{ payment_status_summary.unpaid_npr|floatformat:2 }}</div>
+                    <div>NPR — Paid: <span class="csym csym-npr">Rs.</span>{{ payment_status_summary.paid_npr|floatformat:2|intcomma }} &nbsp;·&nbsp; Unpaid: <span class="csym csym-npr">Rs.</span>{{ payment_status_summary.unpaid_npr|floatformat:2|intcomma }}</div>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -817,34 +817,34 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <tr>
                                 <td><span class="section-badge badge-admin">Admin</span> In-House</td>
                                 <td class="text-right muted">{{ admin_inhouse_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_inhouse_totals.inr|floatformat:2 }}{% endif %}{% if admin_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_inhouse_totals.npr|floatformat:2 }}{% endif %}{% if not admin_inhouse_totals.inr and not admin_inhouse_totals.npr %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_inhouse_totals.inr|floatformat:2|intcomma }}{% endif %}{% if admin_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_inhouse_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not admin_inhouse_totals.inr and not admin_inhouse_totals.npr %}—{% endif %}</td>
                             </tr>
                             <tr>
                                 <td><span class="section-badge badge-remote">Remote</span> Admin Remote</td>
                                 <td class="text-right muted">{{ admin_remote_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_remote_totals.inr|floatformat:2 }}{% endif %}{% if admin_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_remote_totals.npr|floatformat:2 }}{% endif %}{% if not admin_remote_totals.inr and not admin_remote_totals.npr %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_remote_totals.inr|floatformat:2|intcomma }}{% endif %}{% if admin_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_remote_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not admin_remote_totals.inr and not admin_remote_totals.npr %}—{% endif %}</td>
                             </tr>
                             <tr>
                                 <td><span class="section-badge badge-fixed">Fixed</span> Sales: Fixed Salary</td>
                                 <td class="text-right muted">{{ sales_fixed_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_fixed_totals.inr|floatformat:2 }}{% endif %}{% if sales_fixed_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_fixed_totals.npr|floatformat:2 }}{% endif %}{% if not sales_fixed_totals.inr and not sales_fixed_totals.npr %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_fixed_totals.inr|floatformat:2|intcomma }}{% endif %}{% if sales_fixed_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_fixed_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not sales_fixed_totals.inr and not sales_fixed_totals.npr %}—{% endif %}</td>
                             </tr>
                             <tr>
                                 <td><span class="section-badge badge-perf">Perf</span> Sales: Performance</td>
                                 <td class="text-right muted">{{ sales_perf_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_totals.aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if sales_perf_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_totals.inr|floatformat:2 }}{% endif %}{% if sales_perf_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_totals.npr|floatformat:2 }}{% endif %}{% if not sales_perf_totals.inr and not sales_perf_totals.npr %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_totals.aed|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-inr">{% if sales_perf_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_totals.inr|floatformat:2|intcomma }}{% endif %}{% if sales_perf_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not sales_perf_totals.inr and not sales_perf_totals.npr %}—{% endif %}</td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr>
                                 <td><strong>Gross Payroll</strong></td>
                                 <td class="text-right num">{{ final_rows|length }}</td>
-                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2 }}</td>
-                                <td class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2 }}{% else %}—{% endif %}</td>
+                                <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -913,23 +913,23 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                                     </svg>
                                 </td>
                                 <td class="muted">{{ row.department }}</td>
-                                <td class="text-right num">{{ row.payroll_net|floatformat:2 }}</td>
-                                <td class="text-right num val-negative"{% if row.total_deductions > 0 and not row.is_paid %} style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;" onclick="openDeductionBreakdown('{{ row.employee_type }}','{{ row.employee.id }}')" title="Click for itemized breakdown"{% endif %}>{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2 }}{% else %}—{% endif %}</td>
-                                <td class="text-right num val-positive">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2 }}{% else %}—{% endif %}</td>
-                                <td class="text-right num" style="color:#7c3aed;">{% if row.carryover_in > 0 %}-{{ row.carryover_in|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num" style="color:#b45309;">{% if row.carryover_out > 0 %}→ {{ row.carryover_out|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num">{{ row.payroll_net|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-negative"{% if row.total_deductions > 0 and not row.is_paid %} style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;" onclick="openDeductionBreakdown('{{ row.employee_type }}','{{ row.employee.id }}')" title="Click for itemized breakdown"{% endif %}>{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+                                <td class="text-right num val-positive">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+                                <td class="text-right num" style="color:#7c3aed;">{% if row.carryover_in > 0 %}-{{ row.carryover_in|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num" style="color:#b45309;">{% if row.carryover_out > 0 %}→ {{ row.carryover_out|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num val-blue" style="font-size:0.95rem;">
                                     {% if row.currency == 'AED' %}
-                                    <span class="csym csym-aed">AED</span> {{ row.final_salary|floatformat:2 }}
+                                    <span class="csym csym-aed">AED</span> {{ row.final_salary|floatformat:2|intcomma }}
                                     {% if row.is_paid %}<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;opacity:0.6;margin-left:3px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>{% endif %}
                                     {% else %}<span class="muted">—</span>{% endif %}
                                 </td>
                                 <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}" style="font-size:0.95rem;">
                                     {% if row.currency == 'INR' %}
-                                    <span class="csym csym-inr">₹</span> {{ row.final_salary|floatformat:2 }}
+                                    <span class="csym csym-inr">₹</span> {{ row.final_salary|floatformat:2|intcomma }}
                                     {% if row.is_paid %}<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;opacity:0.6;margin-left:3px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>{% endif %}
                                     {% elif row.currency == 'NPR' %}
-                                    <span class="csym csym-npr">Rs.</span> {{ row.final_salary|floatformat:2 }}
+                                    <span class="csym csym-npr">Rs.</span> {{ row.final_salary|floatformat:2|intcomma }}
                                     {% if row.is_paid %}<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;opacity:0.6;margin-left:3px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>{% endif %}
                                     {% else %}<span class="muted">—</span>{% endif %}
                                 </td>
@@ -955,13 +955,13 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <tr>
                                 <td></td>
                                 <td colspan="2"><strong>Total</strong></td>
-                                <td id="tfoot-payroll-net" class="text-right num">{{ final_rows|dictsumby:"payroll_net"|floatformat:2 }}</td>
-                                <td id="tfoot-total-ded" class="text-right num val-negative">{{ final_rows|dictsumby:"total_deductions"|floatformat:2 }}</td>
-                                <td id="tfoot-total-add" class="text-right num val-positive">{{ final_rows|dictsumby:"total_additions"|floatformat:2 }}</td>
-                                <td id="tfoot-co-in" class="text-right num" style="color:#7c3aed;">{{ final_rows|dictsumby:"carryover_in"|floatformat:2 }}</td>
-                                <td id="tfoot-co-out" class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2 }}</td>
-                                <td id="tfoot-final-aed" class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2 }}</td>
-                                <td id="tfoot-final-inr" class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2 }}{% endif %}{% if final_total_npr %} <span class="csym csym-npr">Rs.</span> {{ final_total_npr|floatformat:2 }}{% endif %}{% if not final_total_inr and not final_total_npr %}—{% endif %}</td>
+                                <td id="tfoot-payroll-net" class="text-right num">{{ final_rows|dictsumby:"payroll_net"|floatformat:2|intcomma }}</td>
+                                <td id="tfoot-total-ded" class="text-right num val-negative">{{ final_rows|dictsumby:"total_deductions"|floatformat:2|intcomma }}</td>
+                                <td id="tfoot-total-add" class="text-right num val-positive">{{ final_rows|dictsumby:"total_additions"|floatformat:2|intcomma }}</td>
+                                <td id="tfoot-co-in" class="text-right num" style="color:#7c3aed;">{{ final_rows|dictsumby:"carryover_in"|floatformat:2|intcomma }}</td>
+                                <td id="tfoot-co-out" class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2|intcomma }}</td>
+                                <td id="tfoot-final-aed" class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2|intcomma }}</td>
+                                <td id="tfoot-final-inr" class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2|intcomma }}{% endif %}{% if final_total_npr %} <span class="csym csym-npr">Rs.</span> {{ final_total_npr|floatformat:2|intcomma }}{% endif %}{% if not final_total_inr and not final_total_npr %}—{% endif %}</td>
                                 <td></td>
                                 <td></td>
                             </tr>
@@ -996,8 +996,8 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         <tr data-visa="{{ grp.key }}">
                             <td><strong>{{ grp.label }}</strong></td>
                             <td class="text-right num">{{ grp.count }}</td>
-                            <td class="text-right num val-blue">{% if grp.total_aed %}<span class="csym csym-aed">AED</span> {{ grp.total_aed|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                            <td class="text-right num val-inr">{% if grp.total_inr %}<span class="csym csym-inr">₹</span> {{ grp.total_inr|floatformat:2 }}{% endif %}{% if grp.total_npr %} <span class="csym csym-npr">Rs.</span> {{ grp.total_npr|floatformat:2 }}{% endif %}{% if not grp.total_inr and not grp.total_npr %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="text-right num val-blue">{% if grp.total_aed %}<span class="csym csym-aed">AED</span> {{ grp.total_aed|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="text-right num val-inr">{% if grp.total_inr %}<span class="csym csym-inr">₹</span> {{ grp.total_inr|floatformat:2|intcomma }}{% endif %}{% if grp.total_npr %} <span class="csym csym-npr">Rs.</span> {{ grp.total_npr|floatformat:2|intcomma }}{% endif %}{% if not grp.total_inr and not grp.total_npr %}<span class="muted">—</span>{% endif %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -1006,8 +1006,8 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         <tr style="border-top:2px solid var(--border);font-weight:600;">
                             <td><strong>Total</strong></td>
                             <td class="text-right num">{{ total_count }}</td>
-                            <td class="text-right num val-blue">{% if total_aed %}<span class="csym csym-aed">AED</span> {{ total_aed|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                            <td class="text-right num val-inr">{% if total_inr %}<span class="csym csym-inr">₹</span> {{ total_inr|floatformat:2 }}{% endif %}{% if total_npr %} <span class="csym csym-npr">Rs.</span> {{ total_npr|floatformat:2 }}{% endif %}{% if not total_inr and not total_npr %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="text-right num val-blue">{% if total_aed %}<span class="csym csym-aed">AED</span> {{ total_aed|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td class="text-right num val-inr">{% if total_inr %}<span class="csym csym-inr">₹</span> {{ total_inr|floatformat:2|intcomma }}{% endif %}{% if total_npr %} <span class="csym csym-npr">Rs.</span> {{ total_npr|floatformat:2|intcomma }}{% endif %}{% if not total_inr and not total_npr %}<span class="muted">—</span>{% endif %}</td>
                         </tr>
                         {% endwith %}
                     </tfoot>
@@ -1031,19 +1031,19 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 {% if unpaid_total_aed %}
                 <div class="sov-card" style="border-color:#ef4444;">
                     <div class="sov-label" style="color:#ef4444;">Total Unpaid (AED)</div>
-                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ unpaid_total_aed|floatformat:2 }}</div>
+                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-aed" style="font-size:0.75rem;">AED</span> {{ unpaid_total_aed|floatformat:2|intcomma }}</div>
                 </div>
                 {% endif %}
                 {% if unpaid_total_inr %}
                 <div class="sov-card" style="border-color:#ef4444;">
                     <div class="sov-label" style="color:#ef4444;">Total Unpaid (INR)</div>
-                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ unpaid_total_inr|floatformat:2 }}</div>
+                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-inr" style="font-size:0.75rem;">₹</span> {{ unpaid_total_inr|floatformat:2|intcomma }}</div>
                 </div>
                 {% endif %}
                 {% if unpaid_total_npr %}
                 <div class="sov-card" style="border-color:#ef4444;">
                     <div class="sov-label" style="color:#ef4444;">Total Unpaid (NPR)</div>
-                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ unpaid_total_npr|floatformat:2 }}</div>
+                    <div class="sov-value" style="color:#ef4444;"><span class="csym csym-npr" style="font-size:0.75rem;">Rs.</span> {{ unpaid_total_npr|floatformat:2|intcomma }}</div>
                 </div>
                 {% endif %}
             </div>
@@ -1070,9 +1070,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
             <!-- Grand total (same across all three grouping views, shown once) -->
             <div class="unpaid-grand-total">
                 <span>Grand Total ({{ unpaid_unique_employees }} employees)</span>
-                {% if unpaid_total_aed %}<span style="color:#ef4444;"><span class="csym csym-aed">AED</span> {{ unpaid_total_aed|floatformat:2 }}</span>{% endif %}
-                {% if unpaid_total_inr %}<span class="val-inr"><span class="csym csym-inr">₹</span> {{ unpaid_total_inr|floatformat:2 }}</span>{% endif %}
-                {% if unpaid_total_npr %}<span class="val-npr"><span class="csym csym-npr">Rs.</span> {{ unpaid_total_npr|floatformat:2 }}</span>{% endif %}
+                {% if unpaid_total_aed %}<span style="color:#ef4444;"><span class="csym csym-aed">AED</span> {{ unpaid_total_aed|floatformat:2|intcomma }}</span>{% endif %}
+                {% if unpaid_total_inr %}<span class="val-inr"><span class="csym csym-inr">₹</span> {{ unpaid_total_inr|floatformat:2|intcomma }}</span>{% endif %}
+                {% if unpaid_total_npr %}<span class="val-npr"><span class="csym csym-npr">Rs.</span> {{ unpaid_total_npr|floatformat:2|intcomma }}</span>{% endif %}
             </div>
         </div><!-- end section-card -->
         </div><!-- end ssub-unpaid -->
@@ -1095,9 +1095,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 </div>
                 <span class="muted">{{ admin_inhouse_rows|length }} employee{{ admin_inhouse_rows|length|pluralize }}</span>
                 <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</span>
-                    {% if admin_inhouse_totals.inr %}<span class="s-inr">₹ {{ admin_inhouse_totals.inr|floatformat:2 }}</span>{% endif %}
-                    {% if admin_inhouse_totals.npr %}<span class="s-npr">Rs. {{ admin_inhouse_totals.npr|floatformat:2 }}</span>{% endif %}
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2|intcomma }}</span>
+                    {% if admin_inhouse_totals.inr %}<span class="s-inr">₹ {{ admin_inhouse_totals.inr|floatformat:2|intcomma }}</span>{% endif %}
+                    {% if admin_inhouse_totals.npr %}<span class="s-npr">Rs. {{ admin_inhouse_totals.npr|floatformat:2|intcomma }}</span>{% endif %}
                 </div>
                 <a class="btn-xlsx" href="?format=xlsx&tab=admin-inhouse&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
@@ -1129,19 +1129,19 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             {% if row.employee.designation %}<div class="muted">{{ row.employee.designation }}</div>{% endif %}
                             {% if row.employee.payroll_type == 'performance' %}<span class="badge-perf section-badge">Performance</span>{% endif %}
                         </td>
-                        <td class="text-right num">{{ row.salary|floatformat:0 }}</td>
+                        <td class="text-right num">{{ row.salary|floatformat:0|intcomma }}</td>
                         <td class="text-right num">{{ row.full_days }}</td>
                         <td class="text-right num">{{ row.half_days }}</td>
                         <td class="text-right num {% if row.absent_days > 0 %}val-negative{% endif %}">{{ row.absent_days }}</td>
                         <td class="text-right num {% if row.late_days > 0 %}val-negative{% endif %}">{{ row.late_days }}{% if row.late_half_days > 0 %}<span class="muted"> (×{{ row.late_half_days }}½)</span>{% endif %}</td>
-                        <td class="text-right num {% if row.deduction > 0 %}val-negative{% endif %}">{{ row.deduction|floatformat:2 }}</td>
-                        <td class="text-right num {% if row.incentives > 0 %}val-positive{% endif %}">{{ row.incentives|floatformat:2 }}</td>
-                        <td class="text-right num {% if row.reductions > 0 %}val-negative{% endif %}">{{ row.reductions|floatformat:2 }}</td>
+                        <td class="text-right num {% if row.deduction > 0 %}val-negative{% endif %}">{{ row.deduction|floatformat:2|intcomma }}</td>
+                        <td class="text-right num {% if row.incentives > 0 %}val-positive{% endif %}">{{ row.incentives|floatformat:2|intcomma }}</td>
+                        <td class="text-right num {% if row.reductions > 0 %}val-negative{% endif %}">{{ row.reductions|floatformat:2|intcomma }}</td>
                         <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
-                            <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','inhouse','{{ row.employee.name }}')">{{ row.commission|floatformat:2 }}</button>
+                            <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','inhouse','{{ row.employee.name }}')">{{ row.commission|floatformat:2|intcomma }}</button>
                         </td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','inhouse','{{ row.employee.name }}')">+ Adjust</button>
@@ -1157,12 +1157,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                     <tr>
                         <td><strong>Total</strong></td>
                         <td></td><td></td><td></td><td></td><td></td>
-                        <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"deduction"|floatformat:2 }}</td>
-                        <td class="text-right num val-positive">{{ admin_inhouse_rows|dictsumby:"incentives"|floatformat:2 }}</td>
-                        <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"reductions"|floatformat:2 }}</td>
-                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"commission"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_inhouse_totals.inr|floatformat:2 }}{% endif %}{% if admin_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_inhouse_totals.npr|floatformat:2 }}{% endif %}{% if not admin_inhouse_totals.inr and not admin_inhouse_totals.npr %}—{% endif %}</td>
+                        <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-positive">{{ admin_inhouse_rows|dictsumby:"incentives"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"reductions"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"commission"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_inhouse_totals.aed|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-inr">{% if admin_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_inhouse_totals.inr|floatformat:2|intcomma }}{% endif %}{% if admin_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_inhouse_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not admin_inhouse_totals.inr and not admin_inhouse_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -1187,9 +1187,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 </div>
                 <span class="muted">{{ admin_remote_rows|length }} employee{{ admin_remote_rows|length|pluralize }}</span>
                 <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</span>
-                    {% if admin_remote_totals.inr %}<span class="s-inr">₹ {{ admin_remote_totals.inr|floatformat:2 }}</span>{% endif %}
-                    {% if admin_remote_totals.npr %}<span class="s-npr">Rs. {{ admin_remote_totals.npr|floatformat:2 }}</span>{% endif %}
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2|intcomma }}</span>
+                    {% if admin_remote_totals.inr %}<span class="s-inr">₹ {{ admin_remote_totals.inr|floatformat:2|intcomma }}</span>{% endif %}
+                    {% if admin_remote_totals.npr %}<span class="s-npr">Rs. {{ admin_remote_totals.npr|floatformat:2|intcomma }}</span>{% endif %}
                 </div>
                 <a class="btn-xlsx" href="?format=xlsx&tab=admin-remote&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
@@ -1217,24 +1217,24 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
                         </td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}—{% endif %}</td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
                         <td class="text-right num">
                             {% if row.is_fixed_salary %}
-                                {% if row.absent_days is not None %}{{ row.absent_days|add:0|floatformat:0 }}{% endif %}
+                                {% if row.absent_days is not None %}{{ row.absent_days|add:0|floatformat:0|intcomma }}{% endif %}
                             {% elif row.is_attendance_based %}
                                 {{ row.present_days }}{% if row.half_days %} + {{ row.half_days }}½{% endif %}
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-right num {% if row.absent_days > 0 %}val-negative{% endif %}">
-                            {% if row.absent_days is not None %}{{ row.absent_days|floatformat:1 }}{% else %}—{% endif %}
+                            {% if row.absent_days is not None %}{{ row.absent_days|floatformat:1|intcomma }}{% else %}—{% endif %}
                         </td>
                         <td class="text-right num {% if row.deduction > 0 %}val-negative{% endif %}">
-                            {% if row.deduction %}{{ row.deduction|floatformat:2 }}{% else %}—{% endif %}
+                            {% if row.deduction %}{{ row.deduction|floatformat:2|intcomma }}{% else %}—{% endif %}
                         </td>
-                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
-                        <td class="text-right num val-negative">{{ row.reductions|floatformat:2 }}</td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-negative">{{ row.reductions|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','remote','{{ row.employee.name }}')">+ Adjust</button>
@@ -1248,12 +1248,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td><td></td>
-                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"absent_days"|floatformat:1 }}</td>
-                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"deduction"|floatformat:2 }}</td>
-                        <td class="text-right num val-positive">{{ admin_remote_rows|dictsumby:"incentives"|floatformat:2 }}</td>
-                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"reductions"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_remote_totals.inr|floatformat:2 }}{% endif %}{% if admin_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_remote_totals.npr|floatformat:2 }}{% endif %}{% if not admin_remote_totals.inr and not admin_remote_totals.npr %}—{% endif %}</td>
+                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"absent_days"|floatformat:1|intcomma }}</td>
+                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-positive">{{ admin_remote_rows|dictsumby:"incentives"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"reductions"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ admin_remote_totals.aed|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-inr">{% if admin_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ admin_remote_totals.inr|floatformat:2|intcomma }}{% endif %}{% if admin_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ admin_remote_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not admin_remote_totals.inr and not admin_remote_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -1278,9 +1278,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 </div>
                 <span class="muted">{{ sales_fixed_rows|length }} employee{{ sales_fixed_rows|length|pluralize }}</span>
                 <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</span>
-                    {% if sales_fixed_totals.inr %}<span class="s-inr">₹ {{ sales_fixed_totals.inr|floatformat:2 }}</span>{% endif %}
-                    {% if sales_fixed_totals.npr %}<span class="s-npr">Rs. {{ sales_fixed_totals.npr|floatformat:2 }}</span>{% endif %}
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2|intcomma }}</span>
+                    {% if sales_fixed_totals.inr %}<span class="s-inr">₹ {{ sales_fixed_totals.inr|floatformat:2|intcomma }}</span>{% endif %}
+                    {% if sales_fixed_totals.npr %}<span class="s-npr">Rs. {{ sales_fixed_totals.npr|floatformat:2|intcomma }}</span>{% endif %}
                 </div>
                 <a class="btn-xlsx" href="?format=xlsx&tab=sales-fixed&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
@@ -1319,22 +1319,22 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <span class="type-inhouse">In-House</span>
                             {% endif %}
                         </td>
-                        <td class="text-right num">{{ row.salary|floatformat:0 }}</td>
+                        <td class="text-right num">{{ row.salary|floatformat:0|intcomma }}</td>
                         <td class="text-right num">
                             {% if row.is_fixed_salary %}
                                 {% with present=row.absent_days %}—{% endwith %}
                             {% elif row.present_days %}{{ row.present_days }}{% if row.half_days %} + {{ row.half_days }}½{% endif %}
                             {% else %}—{% endif %}
                         </td>
-                        <td class="text-right num {% if row.absent_days > 0 %}val-negative{% endif %}">{{ row.absent_days|floatformat:1 }}</td>
-                        <td class="text-right num {% if row.deduction > 0 %}val-negative{% endif %}">{{ row.deduction|floatformat:2 }}</td>
+                        <td class="text-right num {% if row.absent_days > 0 %}val-negative{% endif %}">{{ row.absent_days|floatformat:1|intcomma }}</td>
+                        <td class="text-right num {% if row.deduction > 0 %}val-negative{% endif %}">{{ row.deduction|floatformat:2|intcomma }}</td>
                         <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
-                            <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">{{ row.commission|floatformat:2 }}</button>
+                            <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">{{ row.commission|floatformat:2|intcomma }}</button>
                         </td>
-                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
-                        <td class="text-right num val-negative">{{ row.reductions|floatformat:2 }}</td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-negative">{{ row.reductions|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">+ Adjust</button>
@@ -1348,13 +1348,13 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td><td></td><td></td>
-                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"absent_days"|floatformat:1 }}</td>
-                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"deduction"|floatformat:2 }}</td>
-                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"commission"|floatformat:2 }}</td>
-                        <td class="text-right num val-positive">{{ sales_fixed_rows|dictsumby:"incentives"|floatformat:2 }}</td>
-                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"reductions"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_fixed_totals.inr|floatformat:2 }}{% endif %}{% if sales_fixed_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_fixed_totals.npr|floatformat:2 }}{% endif %}{% if not sales_fixed_totals.inr and not sales_fixed_totals.npr %}—{% endif %}</td>
+                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"absent_days"|floatformat:1|intcomma }}</td>
+                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"commission"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-positive">{{ sales_fixed_rows|dictsumby:"incentives"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"reductions"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_fixed_totals.aed|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-inr">{% if sales_fixed_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_fixed_totals.inr|floatformat:2|intcomma }}{% endif %}{% if sales_fixed_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_fixed_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not sales_fixed_totals.inr and not sales_fixed_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -1406,15 +1406,15 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <span class="type-remote">Remote</span>
                             {% if row.target_achieved %}<span class="section-badge badge-perf" title="Hit 4-account target — paid full salary regardless of attendance">Target Hit</span>{% endif %}
                         </td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num">{% if row.daily_rate %}{{ row.daily_rate|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num">{% if row.daily_rate %}{{ row.daily_rate|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.leave_days > 0 %}val-negative{% endif %}">{{ row.leave_days }}</td>
                         <td class="text-right num">{{ row.half_days }}</td>
                         <td class="text-right num">{{ row.proportional_days }}</td>
                         <td class="text-right num val-positive">{{ row.full_days }}</td>
                         <td class="text-right num muted">{{ row.non_working_days }}</td>
                         <td class="text-right num val-blue">
-                            <span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {{ row.net_payroll_test|floatformat:2 }}
+                            <span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {{ row.net_payroll_test|floatformat:2|intcomma }}
                         </td>
                     </tr>
                     {% empty %}
@@ -1431,8 +1431,8 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"full_days" }}</td>
                         <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"non_working_days" }}</td>
                         <td class="text-right num val-blue">
-                            <span class="csym csym-aed">AED</span> {{ sales_perf_test_totals.test_net_aed|floatformat:2 }}
-                            {% if sales_perf_test_totals.test_net_inr %}<div class="muted"><span class="csym csym-inr">₹</span> {{ sales_perf_test_totals.test_net_inr|floatformat:2 }}</div>{% endif %}
+                            <span class="csym csym-aed">AED</span> {{ sales_perf_test_totals.test_net_aed|floatformat:2|intcomma }}
+                            {% if sales_perf_test_totals.test_net_inr %}<div class="muted"><span class="csym csym-inr">₹</span> {{ sales_perf_test_totals.test_net_inr|floatformat:2|intcomma }}</div>{% endif %}
                         </td>
                     </tr>
                 </tfoot>
@@ -1457,9 +1457,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 </div>
                 <span class="muted">{{ sales_perf_inhouse_rows|length }} employee{{ sales_perf_inhouse_rows|length|pluralize }}</span>
                 <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_perf_inhouse_totals.aed|floatformat:2 }}</span>
-                    {% if sales_perf_inhouse_totals.inr %}<span class="s-inr">₹ {{ sales_perf_inhouse_totals.inr|floatformat:2 }}</span>{% endif %}
-                    {% if sales_perf_inhouse_totals.npr %}<span class="s-npr">Rs. {{ sales_perf_inhouse_totals.npr|floatformat:2 }}</span>{% endif %}
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_perf_inhouse_totals.aed|floatformat:2|intcomma }}</span>
+                    {% if sales_perf_inhouse_totals.inr %}<span class="s-inr">₹ {{ sales_perf_inhouse_totals.inr|floatformat:2|intcomma }}</span>{% endif %}
+                    {% if sales_perf_inhouse_totals.npr %}<span class="s-npr">Rs. {{ sales_perf_inhouse_totals.npr|floatformat:2|intcomma }}</span>{% endif %}
                 </div>
                 <a class="btn-xlsx" href="?format=xlsx&tab=sales-perf-inhouse&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
@@ -1491,9 +1491,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             {% if row.is_attendance_based %}<span class="muted">Att. Scaled</span>{% endif %}
                         </td>
                         <td><span class="type-inhouse">In-House</span></td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.combined_deductions > 0 %}val-negative{% endif %}">
-                            {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}
+                            {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}
                         </td>
                         {% for count in row.bank_counts_list %}
                         <td class="text-right num {% if count > 0 %}val-positive{% endif %}">{% if count %}{{ count }}{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -1501,11 +1501,11 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         <td class="muted text-right">—</td>
                         {% endfor %}
                         <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
-                            {% if row.commission > 0 %}<span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {% endif %}{{ row.commission|floatformat:2 }}
+                            {% if row.commission > 0 %}<span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {% endif %}{{ row.commission|floatformat:2|intcomma }}
                         </td>
-                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">Edit</button>
@@ -1520,12 +1520,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td><td></td>
-                        <td class="text-right num val-negative">{{ sales_perf_inhouse_rows|dictsumby:"combined_deductions"|floatformat:2 }}</td>
+                        <td class="text-right num val-negative">{{ sales_perf_inhouse_rows|dictsumby:"combined_deductions"|floatformat:2|intcomma }}</td>
                         {% for total in sales_perf_inhouse_bank_totals %}<td class="text-right num">{{ total }}</td>{% endfor %}
-                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"commission"|floatformat:2 }}</td>
-                        <td class="text-right num val-positive">{{ sales_perf_inhouse_rows|dictsumby:"incentives"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_inhouse_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if sales_perf_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_inhouse_totals.inr|floatformat:2 }}{% endif %}{% if sales_perf_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_inhouse_totals.npr|floatformat:2 }}{% endif %}{% if not sales_perf_inhouse_totals.inr and not sales_perf_inhouse_totals.npr %}—{% endif %}</td>
+                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"commission"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-positive">{{ sales_perf_inhouse_rows|dictsumby:"incentives"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_inhouse_totals.aed|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-inr">{% if sales_perf_inhouse_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_inhouse_totals.inr|floatformat:2|intcomma }}{% endif %}{% if sales_perf_inhouse_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_inhouse_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not sales_perf_inhouse_totals.inr and not sales_perf_inhouse_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -1546,9 +1546,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
             <div style="display:flex;gap:12px;align-items:center;">
                 <span class="muted">{{ sales_perf_remote_rows|length }} employee{{ sales_perf_remote_rows|length|pluralize }}</span>
                 <div class="curr-split">
-                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_perf_remote_totals.aed|floatformat:2 }}</span>
-                    {% if sales_perf_remote_totals.inr %}<span class="s-inr">₹ {{ sales_perf_remote_totals.inr|floatformat:2 }}</span>{% endif %}
-                    {% if sales_perf_remote_totals.npr %}<span class="s-npr">Rs. {{ sales_perf_remote_totals.npr|floatformat:2 }}</span>{% endif %}
+                    <span class="s-aed">AED <span class="csym csym-aed">AED</span> {{ sales_perf_remote_totals.aed|floatformat:2|intcomma }}</span>
+                    {% if sales_perf_remote_totals.inr %}<span class="s-inr">₹ {{ sales_perf_remote_totals.inr|floatformat:2|intcomma }}</span>{% endif %}
+                    {% if sales_perf_remote_totals.npr %}<span class="s-npr">Rs. {{ sales_perf_remote_totals.npr|floatformat:2|intcomma }}</span>{% endif %}
                 </div>
                 <a class="btn-xlsx" href="?format=xlsx&tab=sales-perf-remote&month={{ selected_month }}&year={{ selected_year }}">&#8595; XLSX</a>
             </div>
@@ -1586,9 +1586,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             {% elif row.is_attendance_based %}<span class="muted">Att. Scaled</span>{% endif %}
                         </td>
                         <td><span class="type-remote">Remote</span></td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.combined_deductions > 0 %}val-negative{% endif %}">
-                            {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}
+                            {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}
                         </td>
                         {% for count in row.bank_counts_list %}
                         <td class="text-right num {% if count > 0 %}val-positive{% endif %}">{% if count %}{{ count }}{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -1596,11 +1596,11 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         <td class="muted text-right">—</td>
                         {% endfor %}
                         <td class="text-right num {% if row.commission > 0 %}val-positive{% endif %}">
-                            {% if row.commission > 0 %}<span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {% endif %}{{ row.commission|floatformat:2 }}
+                            {% if row.commission > 0 %}<span class="csym {% if row.currency == 'INR' %}csym-inr{% elif row.currency == 'NPR' %}csym-npr{% else %}csym-aed{% endif %}">{% if row.currency == 'INR' %}₹{% elif row.currency == 'NPR' %}Rs.{% else %}AED{% endif %}</span> {% endif %}{{ row.commission|floatformat:2|intcomma }}
                         </td>
-                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2 }}</td>
-                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2 }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2 }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num val-positive">{{ row.incentives|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
                             {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
                             <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">Edit</button>
@@ -1615,12 +1615,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td><td></td>
-                        <td class="text-right num val-negative">{{ sales_perf_remote_rows|dictsumby:"combined_deductions"|floatformat:2 }}</td>
+                        <td class="text-right num val-negative">{{ sales_perf_remote_rows|dictsumby:"combined_deductions"|floatformat:2|intcomma }}</td>
                         {% for total in sales_perf_remote_bank_totals %}<td class="text-right num">{{ total }}</td>{% endfor %}
-                        <td class="text-right num">{{ sales_perf_remote_rows|dictsumby:"commission"|floatformat:2 }}</td>
-                        <td class="text-right num val-positive">{{ sales_perf_remote_rows|dictsumby:"incentives"|floatformat:2 }}</td>
-                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_remote_totals.aed|floatformat:2 }}</td>
-                        <td class="text-right num val-inr">{% if sales_perf_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_remote_totals.inr|floatformat:2 }}{% endif %}{% if sales_perf_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_remote_totals.npr|floatformat:2 }}{% endif %}{% if not sales_perf_remote_totals.inr and not sales_perf_remote_totals.npr %}—{% endif %}</td>
+                        <td class="text-right num">{{ sales_perf_remote_rows|dictsumby:"commission"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-positive">{{ sales_perf_remote_rows|dictsumby:"incentives"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ sales_perf_remote_totals.aed|floatformat:2|intcomma }}</td>
+                        <td class="text-right num val-inr">{% if sales_perf_remote_totals.inr %}<span class="csym csym-inr">₹</span> {{ sales_perf_remote_totals.inr|floatformat:2|intcomma }}{% endif %}{% if sales_perf_remote_totals.npr %} <span class="csym csym-npr">Rs.</span> {{ sales_perf_remote_totals.npr|floatformat:2|intcomma }}{% endif %}{% if not sales_perf_remote_totals.inr and not sales_perf_remote_totals.npr %}—{% endif %}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -1648,11 +1648,11 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
             </div>
             <div class="ded-stat">
                 <div class="ded-stat-label">Active this month — deductions</div>
-                <div class="ded-stat-value val-negative">&minus; {{ deduction_groups|dictsumby:"active_deduction"|floatformat:2 }}</div>
+                <div class="ded-stat-value val-negative">&minus; {{ deduction_groups|dictsumby:"active_deduction"|floatformat:2|intcomma }}</div>
             </div>
             <div class="ded-stat">
                 <div class="ded-stat-label">Active this month — additions</div>
-                <div class="ded-stat-value val-positive">+ {{ deduction_groups|dictsumby:"active_addition"|floatformat:2 }}</div>
+                <div class="ded-stat-value val-positive">+ {{ deduction_groups|dictsumby:"active_addition"|floatformat:2|intcomma }}</div>
             </div>
             <div class="ded-stat">
                 <div class="ded-stat-label">Total entries on record</div>
@@ -1683,15 +1683,15 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         {% if group.active_count %}<span class="ded-pill ded-pill-active">{{ group.active_count }} active this month</span>{% endif %}
                         {% if group.pending_count %}<span class="ded-pill ded-pill-pending">{{ group.pending_count }} pending recovery</span>{% endif %}
                         <span class="muted">{{ group.entry_count }} entr{{ group.entry_count|pluralize:"y,ies" }}</span>
-                        <span class="ded-group-net {% if group.lifetime_net < 0 %}val-negative{% elif group.lifetime_net > 0 %}val-positive{% endif %}">{% if group.lifetime_net > 0 %}+{% endif %}{{ group.lifetime_net|floatformat:2 }}</span>
+                        <span class="ded-group-net {% if group.lifetime_net < 0 %}val-negative{% elif group.lifetime_net > 0 %}val-positive{% endif %}">{% if group.lifetime_net > 0 %}+{% endif %}{{ group.lifetime_net|floatformat:2|intcomma }}</span>
                     </div>
                 </button>
                 <div class="ded-group-body">
                     <div class="ded-group-summary">
-                        <div><span class="muted">Lifetime deducted</span><strong class="val-negative">&minus; {{ group.lifetime_deduction|floatformat:2 }}</strong></div>
-                        <div><span class="muted">Lifetime added</span><strong class="val-positive">+ {{ group.lifetime_addition|floatformat:2 }}</strong></div>
-                        <div><span class="muted">This month net</span><strong class="{% if group.active_net < 0 %}val-negative{% elif group.active_net > 0 %}val-positive{% endif %}">{% if group.active_net > 0 %}+{% endif %}{{ group.active_net|floatformat:2 }}</strong></div>
-                        {% if group.carryover_in %}<div><span class="muted">Carried over in</span><strong class="val-negative">&minus; {{ group.carryover_in|floatformat:2 }}</strong></div>{% endif %}
+                        <div><span class="muted">Lifetime deducted</span><strong class="val-negative">&minus; {{ group.lifetime_deduction|floatformat:2|intcomma }}</strong></div>
+                        <div><span class="muted">Lifetime added</span><strong class="val-positive">+ {{ group.lifetime_addition|floatformat:2|intcomma }}</strong></div>
+                        <div><span class="muted">This month net</span><strong class="{% if group.active_net < 0 %}val-negative{% elif group.active_net > 0 %}val-positive{% endif %}">{% if group.active_net > 0 %}+{% endif %}{{ group.active_net|floatformat:2|intcomma }}</strong></div>
+                        {% if group.carryover_in %}<div><span class="muted">Carried over in</span><strong class="val-negative">&minus; {{ group.carryover_in|floatformat:2|intcomma }}</strong></div>{% endif %}
                         <button type="button" class="btn-chip" style="margin-left:auto;" onclick="openAddDedModal('{{ group.employee.id }}','{{ group.employee_type }}')">+ Add entry</button>
                     </div>
                     <div class="table-wrap" style="max-height:none;">
@@ -1720,7 +1720,7 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                                 </td>
                                 <td class="muted">{{ entry.note|default:"—" }}</td>
                                 <td class="text-right num">
-                                    {{ entry.total_amount|floatformat:2 }}
+                                    {{ entry.total_amount|floatformat:2|intcomma }}
                                     {% if entry.split_months > 1 %}<div class="muted">&divide; {{ entry.split_months }} months</div>{% endif %}
                                 </td>
                                 <td class="muted">
@@ -1729,9 +1729,9 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                                 </td>
                                 <td class="text-right num">
                                     {% if entry.entry_type == 'deduction' %}
-                                    <span class="val-negative">-{{ entry.installment_amount|floatformat:2 }}</span>
+                                    <span class="val-negative">-{{ entry.installment_amount|floatformat:2|intcomma }}</span>
                                     {% else %}
-                                    <span class="val-positive">+{{ entry.installment_amount|floatformat:2 }}</span>
+                                    <span class="val-positive">+{{ entry.installment_amount|floatformat:2|intcomma }}</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-center">
@@ -1799,14 +1799,14 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
             {% if carryover_pending_aed %}
             <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 18px;min-width:150px;">
                 <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#be123c;margin-bottom:4px;">Deduction Balance (AED)</div>
-                <div style="font-size:1.1rem;font-weight:700;color:#9f1239;font-family:monospace;">{{ carryover_pending_aed|floatformat:2 }}</div>
+                <div style="font-size:1.1rem;font-weight:700;color:#9f1239;font-family:monospace;">{{ carryover_pending_aed|floatformat:2|intcomma }}</div>
                 <div style="font-size:0.72rem;color:#be123c;margin-top:2px;">to be recovered from salaries</div>
             </div>
             {% endif %}
             {% if carryover_pending_inr %}
             <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 18px;min-width:150px;">
                 <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#be123c;margin-bottom:4px;">Deduction Balance (INR)</div>
-                <div style="font-size:1.1rem;font-weight:700;color:#9f1239;font-family:monospace;">₹ {{ carryover_pending_inr|floatformat:2 }}</div>
+                <div style="font-size:1.1rem;font-weight:700;color:#9f1239;font-family:monospace;">₹ {{ carryover_pending_inr|floatformat:2|intcomma }}</div>
                 <div style="font-size:0.72rem;color:#be123c;margin-top:2px;">to be recovered from salaries</div>
             </div>
             {% endif %}
@@ -1877,11 +1877,11 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         </td>
                         <td class="text-right num" style="color:#1e293b;">
                             {% if co.currency == 'INR' %}₹{% elif co.currency == 'NPR' %}Rs.{% else %}<span class="csym csym-aed">AED</span>{% endif %}
-                            {{ co.overflow_amount|floatformat:2 }}
+                            {{ co.overflow_amount|floatformat:2|intcomma }}
                         </td>
                         <td class="text-right num" style="color:#16a34a;">
                             {% if co.applied_amount > 0 %}
-                                −{% if co.currency == 'INR' %}₹{% elif co.currency == 'NPR' %}Rs.{% else %}<span class="csym csym-aed">AED</span>{% endif %}{{ co.applied_amount|floatformat:2 }}
+                                −{% if co.currency == 'INR' %}₹{% elif co.currency == 'NPR' %}Rs.{% else %}<span class="csym csym-aed">AED</span>{% endif %}{{ co.applied_amount|floatformat:2|intcomma }}
                             {% else %}
                                 <span class="muted">—</span>
                             {% endif %}
@@ -1890,7 +1890,7 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             {% if co.status == 'skipped' %}
                                 Waived
                             {% elif co.remaining > 0 %}
-                                −{% if co.currency == 'INR' %}₹{% elif co.currency == 'NPR' %}Rs.{% else %}<span class="csym csym-aed">AED</span>{% endif %}{{ co.remaining|floatformat:2 }}
+                                −{% if co.currency == 'INR' %}₹{% elif co.currency == 'NPR' %}Rs.{% else %}<span class="csym csym-aed">AED</span>{% endif %}{{ co.remaining|floatformat:2|intcomma }}
                             {% else %}
                                 ✓ Nil
                             {% endif %}
@@ -2197,18 +2197,18 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                     <div style="margin-bottom:10px;color:#64748b;">{{ carryover_pending_count }} pending / partial balance{{ carryover_pending_count|pluralize }} of {{ ledger_carryovers_count }} total record{{ ledger_carryovers_count|pluralize }}</div>
                     <div style="display:flex;justify-content:space-between;padding:4px 0;">
                         <span class="muted">Outstanding (AED)</span>
-                        <span style="font-weight:600;">AED {{ carryover_pending_aed|floatformat:2 }}</span>
+                        <span style="font-weight:600;">AED {{ carryover_pending_aed|floatformat:2|intcomma }}</span>
                     </div>
                     {% if carryover_pending_inr %}
                     <div style="display:flex;justify-content:space-between;padding:4px 0;">
                         <span class="muted">Outstanding (INR)</span>
-                        <span style="font-weight:600;">INR {{ carryover_pending_inr|floatformat:2 }}</span>
+                        <span style="font-weight:600;">INR {{ carryover_pending_inr|floatformat:2|intcomma }}</span>
                     </div>
                     {% endif %}
                     {% if carryover_pending_npr %}
                     <div style="display:flex;justify-content:space-between;padding:4px 0;">
                         <span class="muted">Outstanding (NPR)</span>
-                        <span style="font-weight:600;">NPR {{ carryover_pending_npr|floatformat:2 }}</span>
+                        <span style="font-weight:600;">NPR {{ carryover_pending_npr|floatformat:2|intcomma }}</span>
                     </div>
                     {% endif %}
                 </div>

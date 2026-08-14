@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}
-{% load static %}
+{% load static humanize %}
 
 {% block title %}Management Dashboard {{ month_name }} {{ year }} · Taamul{% endblock %}
 {% block page_title %}Management Dashboard — {{ month_name }} {{ year }}{% endblock %}
@@ -183,16 +183,16 @@
         </div>
         <div class="kpi-card">
             <div class="k">Revenue</div>
-            <div class="v orange">AED {{ kpis.total_revenue|floatformat:0 }}</div>
+            <div class="v orange">AED {{ kpis.total_revenue|floatformat:0|intcomma }}</div>
         </div>
         <div class="kpi-card">
             <div class="k">Total Cost</div>
-            <div class="v">AED {{ kpis.total_cost|floatformat:0 }}</div>
+            <div class="v">AED {{ kpis.total_cost|floatformat:0|intcomma }}</div>
         </div>
         <div class="kpi-card">
             <div class="k">Contribution</div>
             <div class="v {% if kpis.total_contribution >= 0 %}pos{% else %}neg{% endif %}">
-                AED {{ kpis.total_contribution|floatformat:0 }}
+                AED {{ kpis.total_contribution|floatformat:0|intcomma }}
             </div>
             <div class="sub">
                 ROI {% if kpis.overall_roi is not None %}{{ kpis.overall_roi }}%{% else %}—{% endif %}
@@ -260,9 +260,9 @@
                     <tr>
                         <td style="font-weight:600;">{{ r.name }}</td>
                         <td>{{ r.team|default:'—' }}</td>
-                        <td class="num">{{ r.revenue|floatformat:0 }}</td>
-                        <td class="num">{{ r.total_cost|floatformat:0 }}</td>
-                        <td class="num {% if r.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">{{ r.contribution|floatformat:0 }}</td>
+                        <td class="num">{{ r.revenue|floatformat:0|intcomma }}</td>
+                        <td class="num">{{ r.total_cost|floatformat:0|intcomma }}</td>
+                        <td class="num {% if r.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">{{ r.contribution|floatformat:0|intcomma }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -279,9 +279,9 @@
                     <tr>
                         <td style="font-weight:600;">{{ r.name }}</td>
                         <td>{{ r.team|default:'—' }}</td>
-                        <td class="num">{{ r.revenue|floatformat:0 }}</td>
-                        <td class="num">{{ r.total_cost|floatformat:0 }}</td>
-                        <td class="num {% if r.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">{{ r.contribution|floatformat:0 }}</td>
+                        <td class="num">{{ r.revenue|floatformat:0|intcomma }}</td>
+                        <td class="num">{{ r.total_cost|floatformat:0|intcomma }}</td>
+                        <td class="num {% if r.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">{{ r.contribution|floatformat:0|intcomma }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -340,7 +340,7 @@
                 </div>
                 <div class="dh-box">
                     <div class="k">Outstanding (AED)</div>
-                    <div class="v">{{ data_health.rec_outstanding|floatformat:0 }}</div>
+                    <div class="v">{{ data_health.rec_outstanding|floatformat:0|intcomma }}</div>
                 </div>
             </div>
             {% if data_health.low_completeness %}

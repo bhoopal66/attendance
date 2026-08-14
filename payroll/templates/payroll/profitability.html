@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}
-{% load static %}
+{% load static humanize %}
 
 {% block title %}Profitability {{ month_name }} {{ year }} · Taamul{% endblock %}
 {% block page_title %}Profitability — {{ month_name }} {{ year }}{% endblock %}
@@ -125,18 +125,18 @@
     <div class="summary-grid">
         <div class="sum-card">
             <div class="k">Revenue</div>
-            <div class="v orange">AED {{ summary.total_revenue|floatformat:2 }}</div>
+            <div class="v orange">AED {{ summary.total_revenue|floatformat:2|intcomma }}</div>
             <div class="sub">{{ summary.total_accounts }} funded accounts</div>
         </div>
         <div class="sum-card">
             <div class="k">Total Cost</div>
-            <div class="v">AED {{ summary.total_cost|floatformat:2 }}</div>
+            <div class="v">AED {{ summary.total_cost|floatformat:2|intcomma }}</div>
             <div class="sub">salary + employer + commission</div>
         </div>
         <div class="sum-card">
             <div class="k">Contribution</div>
             <div class="v {% if summary.total_contribution >= 0 %}pos{% else %}neg{% endif %}">
-                AED {{ summary.total_contribution|floatformat:2 }}
+                AED {{ summary.total_contribution|floatformat:2|intcomma }}
             </div>
             <div class="sub">revenue − total cost</div>
         </div>
@@ -179,10 +179,10 @@
                     <td style="font-weight:600;">{{ t.team }}</td>
                     <td class="num">{{ t.members }}</td>
                     <td class="num">{{ t.accounts }}</td>
-                    <td class="num">{{ t.revenue|floatformat:2 }}</td>
-                    <td class="num">{{ t.total_cost|floatformat:2 }}</td>
+                    <td class="num">{{ t.revenue|floatformat:2|intcomma }}</td>
+                    <td class="num">{{ t.total_cost|floatformat:2|intcomma }}</td>
                     <td class="num {% if t.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">
-                        {{ t.contribution|floatformat:2 }}
+                        {{ t.contribution|floatformat:2|intcomma }}
                     </td>
                     <td>
                         {% if t.roi_pct is not None %}
@@ -230,16 +230,16 @@
                     </td>
                     <td>{{ r.team|default:'—' }}</td>
                     <td class="num">{{ r.accounts }}</td>
-                    <td class="num">{{ r.revenue|floatformat:2 }}</td>
+                    <td class="num">{{ r.revenue|floatformat:2|intcomma }}</td>
                     {% if r.fx_missing %}
                     <td colspan="7"><span class="fx-tag">No {{ r.currency }} exchange rate for {{ month_name }} {{ year }}</span></td>
                     {% else %}
-                    <td class="num">{{ r.salary_aed|floatformat:2 }}</td>
-                    <td class="num">{{ r.employer_cost_aed|floatformat:2 }}</td>
-                    <td class="num">{{ r.commission_aed|floatformat:2 }}</td>
-                    <td class="num">{{ r.total_cost|floatformat:2 }}</td>
+                    <td class="num">{{ r.salary_aed|floatformat:2|intcomma }}</td>
+                    <td class="num">{{ r.employer_cost_aed|floatformat:2|intcomma }}</td>
+                    <td class="num">{{ r.commission_aed|floatformat:2|intcomma }}</td>
+                    <td class="num">{{ r.total_cost|floatformat:2|intcomma }}</td>
                     <td class="num {% if r.contribution >= 0 %}contrib-pos{% else %}contrib-neg{% endif %}">
-                        {{ r.contribution|floatformat:2 }}
+                        {{ r.contribution|floatformat:2|intcomma }}
                     </td>
                     <td>
                         {% if r.roi_pct is not None %}
@@ -247,7 +247,7 @@
                         {% else %}<span class="roi-badge none">—</span>{% endif %}
                     </td>
                     <td class="num">
-                        {% if r.cost_per_account is not None %}{{ r.cost_per_account|floatformat:2 }}{% else %}—{% endif %}
+                        {% if r.cost_per_account is not None %}{{ r.cost_per_account|floatformat:2|intcomma }}{% else %}—{% endif %}
                     </td>
                     {% endif %}
                 </tr>

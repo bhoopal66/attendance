@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}
-{% load static %}
+{% load static humanize %}
 
 {% block title %}Payslip History — Taamul{% endblock %}
 {% block page_title %}Payslip History{% endblock %}
@@ -310,7 +310,7 @@
                     <td>{{ row.department|default:"—" }}</td>
                     <td>{{ row.designation|default:"—" }}</td>
                     <td>{{ row.month_name }} {{ row.record.year }}</td>
-                    <td class="amt-cell text-right">{{ row.currency }} {{ row.final_salary|floatformat:2 }}</td>
+                    <td class="amt-cell text-right">{{ row.currency }} {{ row.final_salary|floatformat:2|intcomma }}</td>
                     <td>{{ row.paid_at|date:"d M Y, H:i" }}</td>
                     <td>{{ row.paid_by|default:"—" }}</td>
                     <td class="text-center">

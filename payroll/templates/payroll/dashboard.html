@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}
-{% load static %}
+{% load static humanize %}
 
 {% block title %}Payroll - {{ month_name }} {{ selected_year }}{% endblock %}
 
@@ -1479,26 +1479,26 @@
                 {% if is_frozen %}<span style="margin-left:10px;padding:3px 10px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;vertical-align:middle;">LOCKED</span>{% endif %}
             </div>
             {% if final_total_inr > 0 %}
-            <div class="grand-total-amount">AED {{ final_total_combined_aed|floatformat:2 }}</div>
-            <div style="font-size:0.85rem;font-weight:500;font-family:'SF Mono','Monaco',monospace;opacity:0.7;margin-top:4px;">AED {{ final_total_aed|floatformat:2 }} + INR {{ final_total_inr|floatformat:2 }}</div>
+            <div class="grand-total-amount">AED {{ final_total_combined_aed|floatformat:2|intcomma }}</div>
+            <div style="font-size:0.85rem;font-weight:500;font-family:'SF Mono','Monaco',monospace;opacity:0.7;margin-top:4px;">AED {{ final_total_aed|floatformat:2|intcomma }} + INR {{ final_total_inr|floatformat:2|intcomma }}</div>
             {% else %}
-            <div class="grand-total-amount">AED {{ final_total_aed|floatformat:2 }}</div>
+            <div class="grand-total-amount">AED {{ final_total_aed|floatformat:2|intcomma }}</div>
             {% endif %}
         </div>
         <div class="grand-total-breakdown">
             <div class="breakdown-item">
                 <div class="label">Attendance-Based</div>
-                <div class="value">AED {{ total_admin|floatformat:2 }}</div>
+                <div class="value">AED {{ total_admin|floatformat:2|intcomma }}</div>
             </div>
             <div class="breakdown-item">
                 <div class="label">Performance-Based</div>
-                <div class="value">AED {{ total_sales_aed|floatformat:2 }}{% if total_sales_inr %} · INR {{ total_sales_inr|floatformat:2 }}{% endif %}</div>
+                <div class="value">AED {{ total_sales_aed|floatformat:2|intcomma }}{% if total_sales_inr %} · INR {{ total_sales_inr|floatformat:2|intcomma }}{% endif %}</div>
             </div>
 
             {% if s3_net_aed != 0 or s3_net_inr != 0 %}
             <div class="breakdown-item">
                 <div class="label">Net Deductions/Additions</div>
-                <div class="value">{% if s3_net_aed != 0 %}{% if s3_net_aed >= 0 %}+{% endif %}AED {{ s3_net_aed|floatformat:2 }}{% endif %}{% if s3_net_aed != 0 and s3_net_inr != 0 %} · {% endif %}{% if s3_net_inr != 0 %}{% if s3_net_inr >= 0 %}+{% endif %}INR {{ s3_net_inr|floatformat:2 }}{% endif %}</div>
+                <div class="value">{% if s3_net_aed != 0 %}{% if s3_net_aed >= 0 %}+{% endif %}AED {{ s3_net_aed|floatformat:2|intcomma }}{% endif %}{% if s3_net_aed != 0 and s3_net_inr != 0 %} · {% endif %}{% if s3_net_inr != 0 %}{% if s3_net_inr >= 0 %}+{% endif %}INR {{ s3_net_inr|floatformat:2|intcomma }}{% endif %}</div>
             </div>
             {% endif %}
             <div class="breakdown-item">
@@ -1541,7 +1541,7 @@
                     Attendance-Based Payroll
                 </span>
             </span>
-            <span class="section-total">AED {{ total_admin|floatformat:2 }}</span>
+            <span class="section-total">AED {{ total_admin|floatformat:2|intcomma }}</span>
         </div>
 
         {% if admin_data %}
@@ -1569,10 +1569,10 @@
                         {% if item.employee.designation %}<div class="employee-designation">{{ item.employee.designation }}</div>{% endif %}
                     </td>
                     <td class="col-loc text-muted" style="font-size:0.8rem;">{{ item.employee.location|default:"—" }}</td>
-                    <td class="text-right mono col-salary-comp">{{ item.basic_salary|floatformat:0 }}</td>
-                    <td class="text-right mono col-salary-comp">{{ item.housing_allowance|floatformat:0 }}</td>
-                    <td class="text-right mono col-salary-comp">{{ item.transport_allowance|floatformat:0 }}</td>
-                    <td class="text-right mono col-gross" style="font-weight:600;">{{ item.salary|floatformat:0 }}</td>
+                    <td class="text-right mono col-salary-comp">{{ item.basic_salary|floatformat:0|intcomma }}</td>
+                    <td class="text-right mono col-salary-comp">{{ item.housing_allowance|floatformat:0|intcomma }}</td>
+                    <td class="text-right mono col-salary-comp">{{ item.transport_allowance|floatformat:0|intcomma }}</td>
+                    <td class="text-right mono col-gross" style="font-weight:600;">{{ item.salary|floatformat:0|intcomma }}</td>
                     <td class="text-right col-mid">
                         {% if item.paid_leave_days > 0 %}
                             <span style="color:#3b82f6;font-weight:600;">{{ item.paid_leave_days }}</span>
@@ -1582,14 +1582,14 @@
                         {% endif %}
                     </td>
                     <td class="text-right mono col-mid {% if item.deduction > 0 %}text-red{% else %}text-muted{% endif %}">
-                        {% if item.deduction > 0 %}-{{ item.deduction|floatformat:2 }}
+                        {% if item.deduction > 0 %}-{{ item.deduction|floatformat:2|intcomma }}
                         <div class="days-breakdown">{{ item.total_deduction_days }}d{% if item.late_days %} · {{ item.late_days }}late{% endif %}</div>
                         {% else %}—{% endif %}
                     </td>
                     <td class="text-right mono col-mid {% if item.commission > 0 %}text-green{% else %}text-muted{% endif %}">
-                        {% if item.commission > 0 %}+{{ item.commission|floatformat:2 }}{% else %}—{% endif %}
+                        {% if item.commission > 0 %}+{{ item.commission|floatformat:2|intcomma }}{% else %}—{% endif %}
                     </td>
-                    <td class="text-right mono col-net text-blue">{{ item.currency }} {{ item.net_payroll|floatformat:2 }}</td>
+                    <td class="text-right mono col-net text-blue">{{ item.currency }} {{ item.net_payroll|floatformat:2|intcomma }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -1604,7 +1604,7 @@
                     <td class="col-mid"></td>
                     <td class="col-mid"></td>
                     <td class="col-mid"></td>
-                    <td class="text-right mono col-net text-blue">AED {{ total_admin|floatformat:2 }}</td>
+                    <td class="text-right mono col-net text-blue">AED {{ total_admin|floatformat:2|intcomma }}</td>
                 </tr>
             </tfoot>
         </table>
@@ -1629,7 +1629,7 @@
                     Performance-Based Payroll
                 </span>
             </span>
-            <span class="section-total">AED {{ total_sales_aed|floatformat:2 }}{% if total_sales_inr %} · INR {{ total_sales_inr|floatformat:2 }}{% endif %}</span>
+            <span class="section-total">AED {{ total_sales_aed|floatformat:2|intcomma }}{% if total_sales_inr %} · INR {{ total_sales_inr|floatformat:2|intcomma }}{% endif %}</span>
         </div>
 
         {% if all_sales_data %}
@@ -1651,7 +1651,7 @@
                         {% for bank in banks %}
                         <th class="sheet-th-bank">
                             {{ bank.name }}
-                            <div class="bank-rate-label">AED {{ bank.per_account_charge|floatformat:0 }}/acc{% if bank.inr_per_account_charge %} · INR {{ bank.inr_per_account_charge|floatformat:0 }}/acc{% endif %}</div>
+                            <div class="bank-rate-label">AED {{ bank.per_account_charge|floatformat:0|intcomma }}/acc{% if bank.inr_per_account_charge %} · INR {{ bank.inr_per_account_charge|floatformat:0|intcomma }}/acc{% endif %}</div>
                         </th>
                         {% endfor %}
                         <th class="sheet-th-total">Total Salary</th>
@@ -1693,20 +1693,20 @@
                         {% endfor %}
                         <td class="sheet-td-total" id="total-{{ item.employee_type }}-{{ item.employee.id }}" data-currency="{{ item.currency }}"
                             data-amount="{% if item.is_fixed_salary or item.is_attendance_based %}{{ item.net_payroll|floatformat:2 }}{% else %}{{ item.commission|floatformat:2 }}{% endif %}"
-                            {% if item.is_attendance_based %}title="Salary {{ item.currency }} {{ item.salary|floatformat:2 }} | Daily {{ item.daily_rate|floatformat:2 }}&#10;Present {{ item.present_days }} | Half {{ item.half_days }} | Absent {{ item.absent_days }}&#10;Deduction {{ item.deduction|floatformat:2 }}"{% endif %}>
+                            {% if item.is_attendance_based %}title="Salary {{ item.currency }} {{ item.salary|floatformat:2|intcomma }} | Daily {{ item.daily_rate|floatformat:2|intcomma }}&#10;Present {{ item.present_days }} | Half {{ item.half_days }} | Absent {{ item.absent_days }}&#10;Deduction {{ item.deduction|floatformat:2|intcomma }}"{% endif %}>
                             {% if item.is_fixed_salary or item.is_attendance_based %}
-                            {{ item.currency }} {{ item.net_payroll|floatformat:2 }}
+                            {{ item.currency }} {{ item.net_payroll|floatformat:2|intcomma }}
                             {% if item.is_attendance_based %}
                             <div style="font-size:0.65rem;font-weight:400;color:#64748b;margin-top:2px;line-height:1.2;">
                                 P{{ item.present_days }}·H{{ item.half_days }}·A{{ item.absent_days }}
                             </div>
                             {% endif %}
                             {% else %}
-                            {{ item.currency }} {{ item.commission|floatformat:2 }}
+                            {{ item.currency }} {{ item.commission|floatformat:2|intcomma }}
                             {% endif %}
                         </td>
                         <td class="sheet-td-aed" data-aed-amount="{{ item.net_payroll_aed|floatformat:2 }}">
-                            AED {{ item.net_payroll_aed|floatformat:2 }}
+                            AED {{ item.net_payroll_aed|floatformat:2|intcomma }}
                         </td>
                     </tr>
                     {% endfor %}
@@ -1718,12 +1718,12 @@
                         {% for bank in banks %}
                         <td class="sheet-td-bank text-right mono" id="col-total-{{ bank.id }}" rowspan="{% if total_sales_commission_inr %}2{% else %}1{% endif %}" style="font-weight:600;color:#475569;vertical-align:middle;">—</td>
                         {% endfor %}
-                        <td class="sheet-td-total" id="grand-sales-total-aed">AED {{ total_sales_commission_aed|floatformat:2 }}</td>
-                        <td class="sheet-td-aed" id="grand-sales-total-all-aed" rowspan="{% if total_sales_commission_inr %}2{% else %}1{% endif %}" style="vertical-align:middle;">AED {{ total_sales_all_aed|floatformat:2 }}</td>
+                        <td class="sheet-td-total" id="grand-sales-total-aed">AED {{ total_sales_commission_aed|floatformat:2|intcomma }}</td>
+                        <td class="sheet-td-aed" id="grand-sales-total-all-aed" rowspan="{% if total_sales_commission_inr %}2{% else %}1{% endif %}" style="vertical-align:middle;">AED {{ total_sales_all_aed|floatformat:2|intcomma }}</td>
                     </tr>
                     {% if total_sales_commission_inr %}
                     <tr>
-                        <td class="sheet-td-total" id="grand-sales-total-inr" style="color:#0369a1;">INR {{ total_sales_commission_inr|floatformat:2 }}</td>
+                        <td class="sheet-td-total" id="grand-sales-total-inr" style="color:#0369a1;">INR {{ total_sales_commission_inr|floatformat:2|intcomma }}</td>
                     </tr>
                     {% endif %}
                 </tfoot>
@@ -1756,7 +1756,7 @@
                     {% for bank in banks %}
                     <th class="sheet-th-bank">
                         {{ bank.name }}
-                        <div class="bank-rate-label">{{ bank.per_account_charge|floatformat:0 }}/acc</div>
+                        <div class="bank-rate-label">{{ bank.per_account_charge|floatformat:0|intcomma }}/acc</div>
                     </th>
                     {% endfor %}
                     <th class="sheet-th-total">Commission</th>
@@ -1780,7 +1780,7 @@
                     </td>
                     {% endfor %}
                     <td class="sheet-td-total" id="admin-total-inhouse-{{ item.employee.id }}" data-currency="{{ item.currency }}">
-                        {{ item.currency }} {{ item.commission|floatformat:2 }}
+                        {{ item.currency }} {{ item.commission|floatformat:2|intcomma }}
                     </td>
                 </tr>
                 {% endfor %}
@@ -1790,7 +1790,7 @@
                     <td class="sheet-td-name" style="font-weight:700;font-size:0.8rem;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Total</td>
                     <td class="sheet-td-dept"></td>
                     {% for bank in banks %}<td class="sheet-td-bank"></td>{% endfor %}
-                    <td class="sheet-td-total" id="grand-admin-comm-total">AED {{ total_admin_commission|floatformat:2 }}</td>
+                    <td class="sheet-td-total" id="grand-admin-comm-total">AED {{ total_admin_commission|floatformat:2|intcomma }}</td>
                 </tr>
             </tfoot>
         </table>
@@ -1822,7 +1822,7 @@
             </span>
             <span style="display:flex;align-items:center;gap:16px;">
                 <span class="section-total" style="font-size:1rem;">
-                    {% if s3_total_ded_aed > 0 %}<span style="color:#fca5a5;">-AED {{ s3_total_ded_aed|floatformat:2 }}</span>{% endif %}{% if s3_total_ded_aed > 0 and s3_total_ded_inr > 0 %}<span style="color:#fca5a5;"> · </span>{% endif %}{% if s3_total_ded_inr > 0 %}<span style="color:#fca5a5;">-INR {{ s3_total_ded_inr|floatformat:2 }}</span>{% endif %}
+                    {% if s3_total_ded_aed > 0 %}<span style="color:#fca5a5;">-AED {{ s3_total_ded_aed|floatformat:2|intcomma }}</span>{% endif %}{% if s3_total_ded_aed > 0 and s3_total_ded_inr > 0 %}<span style="color:#fca5a5;"> · </span>{% endif %}{% if s3_total_ded_inr > 0 %}<span style="color:#fca5a5;">-INR {{ s3_total_ded_inr|floatformat:2|intcomma }}</span>{% endif %}
                 </span>
                 {% if not is_frozen %}
                 <button class="btn-upload" onclick="openDeductionModal()" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.3);">
@@ -1863,20 +1863,20 @@
                     <td class="ded-td-name">
                         <div class="employee-name">
                             {{ row.employee.name }}
-                            {% if row.carryover_in > 0 %}<span class="co-badge" title="Carryover from previous month">+{{ row.carryover_in|floatformat:2 }} CO</span>{% endif %}
+                            {% if row.carryover_in > 0 %}<span class="co-badge" title="Carryover from previous month">+{{ row.carryover_in|floatformat:2|intcomma }} CO</span>{% endif %}
                         </div>
                         <div class="employee-designation">
                             {% if row.employee_type == 'remote' %}Remote{% else %}{{ row.employee.department|default:"In-House" }}{% endif %}
                             <span class="curr-badge{% if row.currency == 'INR' %} inr{% endif %}">{{ row.currency }}</span>
                         </div>
                     </td>
-                    <td class="{% if row.advance == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.advance|floatformat:2 }}</td>
-                    <td class="{% if row.visa_status_change == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.visa_status_change|floatformat:2 }}</td>
-                    <td class="{% if row.clawback == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.clawback|floatformat:2 }}</td>
-                    <td class="{% if row.is_inhouse %}ded-td-auto {% endif %}{% if row.leave_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.leave_deduction|floatformat:2 }}</td>
-                    <td class="{% if row.is_inhouse %}ded-td-auto {% endif %}{% if row.late_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.late_deduction|floatformat:2 }}</td>
-                    <td class="{% if row.other_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.other_deduction|floatformat:2 }}</td>
-                    <td class="ded-td-total-ded">{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2 }}{% else %}<span class="ded-zero">0.00</span>{% endif %}</td>
+                    <td class="{% if row.advance == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.advance|floatformat:2|intcomma }}</td>
+                    <td class="{% if row.visa_status_change == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.visa_status_change|floatformat:2|intcomma }}</td>
+                    <td class="{% if row.clawback == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.clawback|floatformat:2|intcomma }}</td>
+                    <td class="{% if row.is_inhouse %}ded-td-auto {% endif %}{% if row.leave_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.leave_deduction|floatformat:2|intcomma }}</td>
+                    <td class="{% if row.is_inhouse %}ded-td-auto {% endif %}{% if row.late_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.late_deduction|floatformat:2|intcomma }}</td>
+                    <td class="{% if row.other_deduction == 0 %}ded-zero{% else %}ded-val-red{% endif %}">{{ row.other_deduction|floatformat:2|intcomma }}</td>
+                    <td class="ded-td-total-ded">{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}<span class="ded-zero">0.00</span>{% endif %}</td>
                     <td style="text-align:center;background:transparent;">
                         {% if not is_frozen %}<button class="btn-adj-sm" onclick="openDeductionModal({{ row.employee.id }}, '{{ row.employee_type }}')">+</button>{% endif %}
                     </td>
@@ -1887,7 +1887,7 @@
                 <tr>
                     <td class="ded-td-name" style="font-weight:700;">Totals</td>
                     <td colspan="6"></td>
-                    <td class="ded-td-total-ded">{% if s3_total_ded_aed > 0 %}-AED {{ s3_total_ded_aed|floatformat:2 }}{% endif %}{% if s3_total_ded_inr > 0 %}{% if s3_total_ded_aed > 0 %}<br>{% endif %}-INR {{ s3_total_ded_inr|floatformat:2 }}{% endif %}{% if s3_total_ded_aed == 0 and s3_total_ded_inr == 0 %}0.00{% endif %}</td>
+                    <td class="ded-td-total-ded">{% if s3_total_ded_aed > 0 %}-AED {{ s3_total_ded_aed|floatformat:2|intcomma }}{% endif %}{% if s3_total_ded_inr > 0 %}{% if s3_total_ded_aed > 0 %}<br>{% endif %}-INR {{ s3_total_ded_inr|floatformat:2|intcomma }}{% endif %}{% if s3_total_ded_aed == 0 and s3_total_ded_inr == 0 %}0.00{% endif %}</td>
                     <td></td>
                 </tr>
             </tfoot>
@@ -1926,12 +1926,12 @@
                         <span class="adj-badge {% if item.entry_type == 'deduction' %}reduction{% else %}incentive{% endif %}">{{ item.category_display }}</span>
                     </td>
                     <td class="text-right mono" style="white-space:nowrap;">
-                        {% if item.entry_type == 'deduction' %}<span class="text-red">{{ item.total_amount|floatformat:2 }}</span>{% else %}<span class="text-green">{{ item.total_amount|floatformat:2 }}</span>{% endif %}
+                        {% if item.entry_type == 'deduction' %}<span class="text-red">{{ item.total_amount|floatformat:2|intcomma }}</span>{% else %}<span class="text-green">{{ item.total_amount|floatformat:2|intcomma }}</span>{% endif %}
                         <span class="curr-badge{% if item.currency == 'INR' %} inr{% endif %}">{{ item.currency }}</span>
                     </td>
                     <td style="text-align:center;font-size:0.85rem;">{{ item.split_months }}</td>
                     <td class="text-right mono" style="font-size:0.82rem;color:#64748b;white-space:nowrap;">
-                        {% if item.split_months > 1 %}{{ item.installment_amount|floatformat:2 }}/mo{% else %}—{% endif %}
+                        {% if item.split_months > 1 %}{{ item.installment_amount|floatformat:2|intcomma }}/mo{% else %}—{% endif %}
                     </td>
                     <td style="white-space:nowrap;font-size:0.8rem;color:#475569;">
                         {{ item.start_month_name }} {{ item.start_year }}{% if item.split_months > 1 %} → {{ item.end_month_name }} {{ item.end_year }}{% endif %}
@@ -1991,7 +1991,7 @@
                             <div class="co-cell-detail co-cell-overflow">
                                 <div class="co-cell-top">
                                     <span class="co-cell-type-label">Overflow</span>
-                                    <span class="co-cell-total">{{ cell.amount|floatformat:2 }}</span>
+                                    <span class="co-cell-total">{{ cell.amount|floatformat:2|intcomma }}</span>
                                 </div>
                                 {% if cell.advance_items %}
                                 <div class="co-cat-group">
@@ -2000,7 +2000,7 @@
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ adv.note }}">{{ adv.note }}</span>
                                         <span style="display:flex;align-items:center;gap:2px;flex-shrink:0;">
-                                            <span class="co-cat-amt ded">-{{ adv.amount|floatformat:2 }}</span>
+                                            <span class="co-cat-amt ded">-{{ adv.amount|floatformat:2|intcomma }}</span>
                                             <a href="{% url 'advance_voucher' %}?entry_id={{ adv.entry_id }}&year={{ selected_year }}&month={{ forloop.parentloop.counter }}" title="Print Payment Voucher" class="co-voucher-btn" target="_blank">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:11px;height:11px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                                             </a>
@@ -2015,7 +2015,7 @@
                                     {% for cat, amt in cell.breakdown_ded.items %}
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ cat }}">{{ cat }}</span>
-                                        <span class="co-cat-amt ded">-{{ amt|floatformat:2 }}</span>
+                                        <span class="co-cat-amt ded">-{{ amt|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -2026,7 +2026,7 @@
                                     {% for cat, amt in cell.breakdown_add.items %}
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ cat }}">{{ cat }}</span>
-                                        <span class="co-cat-amt add">+{{ amt|floatformat:2 }}</span>
+                                        <span class="co-cat-amt add">+{{ amt|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -2036,7 +2036,7 @@
                                     <div class="co-cat-group-label ded">Carryover from {{ cell.incoming_carryover.from_month_name }} {{ cell.incoming_carryover.from_year }}</div>
                                     <div class="co-cat-row">
                                         <span class="co-cat-name">Previous overflow</span>
-                                        <span class="co-cat-amt ded">-{{ cell.incoming_carryover.amount|floatformat:2 }}</span>
+                                        <span class="co-cat-amt ded">-{{ cell.incoming_carryover.amount|floatformat:2|intcomma }}</span>
                                     </div>
                                 </div>
                                 {% endif %}
@@ -2052,7 +2052,7 @@
                             <div class="co-cell-detail co-cell-carryover">
                                 <div class="co-cell-top">
                                     <span class="co-cell-type-label">Carried</span>
-                                    <span class="co-cell-total">{{ cell.overflow|floatformat:2 }}</span>
+                                    <span class="co-cell-total">{{ cell.overflow|floatformat:2|intcomma }}</span>
                                 </div>
                                 {% if cell.advance_items %}
                                 <div class="co-cat-group">
@@ -2060,7 +2060,7 @@
                                     {% for adv in cell.advance_items %}
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ adv.note }}">{{ adv.note }}</span>
-                                        <span class="co-cat-amt ded">-{{ adv.amount|floatformat:2 }}</span>
+                                        <span class="co-cat-amt ded">-{{ adv.amount|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -2071,7 +2071,7 @@
                                     {% for cat, amt in cell.breakdown_ded.items %}
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ cat }}">{{ cat }}</span>
-                                        <span class="co-cat-amt ded">-{{ amt|floatformat:2 }}</span>
+                                        <span class="co-cat-amt ded">-{{ amt|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -2082,7 +2082,7 @@
                                     {% for cat, amt in cell.breakdown_add.items %}
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ cat }}">{{ cat }}</span>
-                                        <span class="co-cat-amt add">+{{ amt|floatformat:2 }}</span>
+                                        <span class="co-cat-amt add">+{{ amt|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -2091,12 +2091,12 @@
                                     <div class="co-cat-group-label co">Applied</div>
                                     <div class="co-cat-row">
                                         <span class="co-cat-name">Deducted</span>
-                                        <span class="co-cat-amt ded">-{{ cell.applied|floatformat:2 }}</span>
+                                        <span class="co-cat-amt ded">-{{ cell.applied|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% if cell.remaining > 0 %}
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" style="color:#dc2626;font-weight:600;">Pending</span>
-                                        <span class="co-cat-amt ded">{{ cell.remaining|floatformat:2 }}</span>
+                                        <span class="co-cat-amt ded">{{ cell.remaining|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -2120,7 +2120,7 @@
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ adv.note }}">{{ adv.note }}</span>
                                         <span style="display:flex;align-items:center;gap:2px;flex-shrink:0;">
-                                            <span class="co-cat-amt ded">-{{ adv.amount|floatformat:2 }}</span>
+                                            <span class="co-cat-amt ded">-{{ adv.amount|floatformat:2|intcomma }}</span>
                                             <a href="{% url 'advance_voucher' %}?entry_id={{ adv.entry_id }}&year={{ selected_year }}&month={{ forloop.parentloop.counter }}" title="Print Payment Voucher" class="co-voucher-btn" target="_blank">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:11px;height:11px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                                             </a>
@@ -2135,7 +2135,7 @@
                                     {% for cat, amt in cell.breakdown_ded.items %}
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ cat }}">{{ cat }}</span>
-                                        <span class="co-cat-amt ded">-{{ amt|floatformat:2 }}</span>
+                                        <span class="co-cat-amt ded">-{{ amt|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -2146,7 +2146,7 @@
                                     {% for cat, amt in cell.breakdown_add.items %}
                                     <div class="co-cat-row">
                                         <span class="co-cat-name" title="{{ cat }}">{{ cat }}</span>
-                                        <span class="co-cat-amt add">+{{ amt|floatformat:2 }}</span>
+                                        <span class="co-cat-amt add">+{{ amt|floatformat:2|intcomma }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -2205,7 +2205,7 @@
             </span>
             <span style="display:flex;align-items:center;gap:16px;">
                 <span class="section-total" style="font-size:1rem;">
-                    {% if s3_total_add_aed > 0 %}<span style="color:#a7f3d0;">+AED {{ s3_total_add_aed|floatformat:2 }}</span>{% endif %}{% if s3_total_add_aed > 0 and s3_total_add_inr > 0 %}<span style="color:#a7f3d0;"> · </span>{% endif %}{% if s3_total_add_inr > 0 %}<span style="color:#a7f3d0;">+INR {{ s3_total_add_inr|floatformat:2 }}</span>{% endif %}
+                    {% if s3_total_add_aed > 0 %}<span style="color:#a7f3d0;">+AED {{ s3_total_add_aed|floatformat:2|intcomma }}</span>{% endif %}{% if s3_total_add_aed > 0 and s3_total_add_inr > 0 %}<span style="color:#a7f3d0;"> · </span>{% endif %}{% if s3_total_add_inr > 0 %}<span style="color:#a7f3d0;">+INR {{ s3_total_add_inr|floatformat:2|intcomma }}</span>{% endif %}
                 </span>
                 {% if not is_frozen %}
                 <button class="btn-upload" onclick="openDeductionModal()" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.3);">
@@ -2235,10 +2235,10 @@
                         <div class="employee-name">{{ row.employee.name }}</div>
                         <div class="employee-designation">{% if row.employee_type == 'remote' %}Remote{% else %}{{ row.employee.department|default:"In-House" }}{% endif %}</div>
                     </td>
-                    <td class="{% if row.last_month_balance == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.last_month_balance|floatformat:2 }}</td>
-                    <td class="{% if row.paid_leave == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.paid_leave|floatformat:2 }}</td>
-                    <td class="{% if row.other_addition == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.other_addition|floatformat:2 }}</td>
-                    <td class="ded-td-total-add">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2 }}{% else %}<span class="ded-zero">0.00</span>{% endif %}</td>
+                    <td class="{% if row.last_month_balance == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.last_month_balance|floatformat:2|intcomma }}</td>
+                    <td class="{% if row.paid_leave == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.paid_leave|floatformat:2|intcomma }}</td>
+                    <td class="{% if row.other_addition == 0 %}ded-zero{% else %}ded-val-green{% endif %}">{{ row.other_addition|floatformat:2|intcomma }}</td>
+                    <td class="ded-td-total-add">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2|intcomma }}{% else %}<span class="ded-zero">0.00</span>{% endif %}</td>
                     <td style="text-align:center;background:transparent;">
                         {% if not is_frozen %}<button class="btn-adj-sm" onclick="openDeductionModal({{ row.employee.id }}, '{{ row.employee_type }}')">+</button>{% endif %}
                     </td>
@@ -2249,7 +2249,7 @@
                 <tr>
                     <td class="ded-td-name" style="font-weight:700;">Totals</td>
                     <td colspan="2"></td>
-                    <td class="ded-td-total-add">{% if s3_total_add_aed > 0 %}+AED {{ s3_total_add_aed|floatformat:2 }}{% endif %}{% if s3_total_add_inr > 0 %}{% if s3_total_add_aed > 0 %}<br>{% endif %}+INR {{ s3_total_add_inr|floatformat:2 }}{% endif %}{% if s3_total_add_aed == 0 and s3_total_add_inr == 0 %}0.00{% endif %}</td>
+                    <td class="ded-td-total-add">{% if s3_total_add_aed > 0 %}+AED {{ s3_total_add_aed|floatformat:2|intcomma }}{% endif %}{% if s3_total_add_inr > 0 %}{% if s3_total_add_aed > 0 %}<br>{% endif %}+INR {{ s3_total_add_inr|floatformat:2|intcomma }}{% endif %}{% if s3_total_add_aed == 0 and s3_total_add_inr == 0 %}0.00{% endif %}</td>
                     <td></td>
                 </tr>
             </tfoot>
@@ -2273,9 +2273,9 @@
             </span>
             <span style="display:flex;align-items:center;gap:16px;">
                 {% if final_total_inr > 0 %}
-                <span class="section-total" style="font-size:0.9rem;">INR {{ final_total_inr|floatformat:2 }}</span>
+                <span class="section-total" style="font-size:0.9rem;">INR {{ final_total_inr|floatformat:2|intcomma }}</span>
                 {% endif %}
-                <span class="section-total">AED {{ final_total_aed|floatformat:2 }}</span>
+                <span class="section-total">AED {{ final_total_aed|floatformat:2|intcomma }}</span>
             </span>
         </div>
 
@@ -2302,16 +2302,16 @@
                     </td>
                     <td class="col-loc text-muted" style="font-size:0.8rem;">{{ row.department }}</td>
                     <td class="text-right mono">
-                        {% if row.payroll_net > 0 %}{{ row.payroll_net|floatformat:2 }}{% else %}<span class="text-muted">0.00</span>{% endif %}
+                        {% if row.payroll_net > 0 %}{{ row.payroll_net|floatformat:2|intcomma }}{% else %}<span class="text-muted">0.00</span>{% endif %}
                     </td>
                     <td class="text-right mono {% if row.total_deductions > 0 %}text-red{% else %}text-muted{% endif %}">
-                        {% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2 }}{% else %}0.00{% endif %}
+                        {% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}0.00{% endif %}
                     </td>
                     <td class="text-right mono {% if row.total_additions > 0 %}text-green{% else %}text-muted{% endif %}">
-                        {% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2 }}{% else %}0.00{% endif %}
+                        {% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2|intcomma }}{% else %}0.00{% endif %}
                     </td>
                     <td class="text-right mono" style="font-weight:700;font-size:0.95rem;">
-                        <span style="color:{% if row.final_salary > 0 %}#1e40af{% elif row.final_salary < 0 %}#dc2626{% else %}#94a3b8{% endif %};">{{ row.currency }} {{ row.final_salary|floatformat:2 }}</span>
+                        <span style="color:{% if row.final_salary > 0 %}#1e40af{% elif row.final_salary < 0 %}#dc2626{% else %}#94a3b8{% endif %};">{{ row.currency }} {{ row.final_salary|floatformat:2|intcomma }}</span>
                     </td>
                     <td style="text-align:center;padding:6px 4px;">
                         <a href="/payroll/payslip/{{ row.employee_type }}/{{ row.employee.id }}/?month={{ selected_month }}&year={{ selected_year }}"
@@ -2331,8 +2331,8 @@
                     <td></td>
                     <td></td>
                     <td class="text-right mono" style="font-weight:700;font-size:1rem;">
-                        <span style="color:#1e40af;">AED {{ final_total_aed|floatformat:2 }}</span>
-                        {% if final_total_inr > 0 %}<br><span style="color:#1e40af;font-size:0.85rem;">INR {{ final_total_inr|floatformat:2 }}</span>{% endif %}
+                        <span style="color:#1e40af;">AED {{ final_total_aed|floatformat:2|intcomma }}</span>
+                        {% if final_total_inr > 0 %}<br><span style="color:#1e40af;font-size:0.85rem;">INR {{ final_total_inr|floatformat:2|intcomma }}</span>{% endif %}
                     </td>
                     <td></td>
                 </tr>

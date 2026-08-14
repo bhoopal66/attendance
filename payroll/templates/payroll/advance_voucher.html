@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+{% load humanize %}
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -243,7 +244,7 @@
     <div class="v-row">
       <span class="v-label">Amount ({{ emp.currency }})</span>
       <span class="v-colon">:</span>
-      <span class="v-value amount">{{ emp.currency }} {{ entry.total_amount|floatformat:0 }}/-</span>
+      <span class="v-value amount">{{ emp.currency }} {{ entry.total_amount|floatformat:0|intcomma }}/-</span>
     </div>
     <div class="v-row">
       <span class="v-label">Mode of payment</span>
@@ -255,7 +256,7 @@
   {% if entry.split_months > 1 %}
   <div class="v-install-note">
     Instalment {{ entry.installment_num }} of {{ entry.split_months }} &nbsp;·&nbsp;
-    {{ emp.currency }} {{ entry.installment_amount|floatformat:2 }} / month
+    {{ emp.currency }} {{ entry.installment_amount|floatformat:2|intcomma }} / month
   </div>
   {% endif %}
 

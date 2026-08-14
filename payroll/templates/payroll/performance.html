@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}
-{% load static %}
+{% load static humanize %}
 
 {% block title %}Team Performance {{ month_name }} {{ year }} · Taamul{% endblock %}
 {% block page_title %}Team Performance — {{ month_name }} {{ year }}{% endblock %}
@@ -150,7 +150,7 @@
         </div>
         <div class="sum-card">
             <div class="k">Derived Revenue</div>
-            <div class="v orange">AED {{ summary.total_revenue|floatformat:2 }}</div>
+            <div class="v orange">AED {{ summary.total_revenue|floatformat:2|intcomma }}</div>
             <div class="sub">from bank revenue rates</div>
         </div>
         <div class="sum-card">
@@ -195,7 +195,7 @@
                         </div>
                         {% else %}<span style="color:var(--text-secondary);">—</span>{% endif %}
                     </td>
-                    <td class="num revenue-cell">{{ t.revenue|floatformat:2 }}</td>
+                    <td class="num revenue-cell">{{ t.revenue|floatformat:2|intcomma }}</td>
                     <td><span class="perf-status {{ t.status }}">{{ t.status_label }}</span></td>
                 </tr>
                 {% endfor %}
@@ -251,7 +251,7 @@
                         </div>
                         {% else %}<span style="color:var(--text-secondary);">—</span>{% endif %}
                     </td>
-                    <td class="num revenue-cell">{{ r.revenue|floatformat:2 }}</td>
+                    <td class="num revenue-cell">{{ r.revenue|floatformat:2|intcomma }}</td>
                     <td class="cell-status"><span class="perf-status {{ r.status }}">{{ r.status_label }}</span></td>
                 </tr>
                 {% endfor %}
