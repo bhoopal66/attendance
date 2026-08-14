@@ -10,6 +10,18 @@ from django.db import models
 from attendance.models import Employee
 
 
+PAYMENT_METHOD_CHOICES = [
+    ('wps', 'WPS'),
+    ('bank_transfer', 'Bank Transfer'),
+    ('cash', 'Cash'),
+]
+
+# Deduction categories that the Phase E6 detailed table groups under a single
+# "Other" column. Kept here next to the category list itself so the two can
+# never drift apart: every category must appear in exactly one displayed column,
+# or the itemized columns stop reconciling to the Deductions total.
+OTHER_DEDUCTION_CATEGORIES = ['visa_status_change', 'clawback', 'other_deduction']
+
 DEDUCTION_CATEGORY_CHOICES = [
     # Deductions
     ('advance', 'Advance'),
@@ -542,12 +554,62 @@ class PaidSalaryRecord(models.Model):
         help_text="Full payroll snapshot at time of payment: attendance, deductions, commission, bank submissions, final salary",
     )
 
+    # ---- Phase E6: payment execution -------------------------------------
+    # These record HOW the locked figure above was actually settled. They never
+    # alter final_salary or snapshot — those remain the immutable computed
+    # payroll. amount_paid is what left the business; final_salary is what was
+    # owed. The two are equal for a full payment and differ for a partial one.
+    amount_paid = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text=(
+            "Amount actually disbursed. Equals final_salary for a full payment, "
+            "less for a partial one. NULL only on rows created before partial "
+            "payments existed — those are treated as paid in full."
+        ),
+    )
+    payment_method = models.CharField(
+        max_length=20, choices=PAYMENT_METHOD_CHOICES, blank=True,
+        help_text=(
+            "How the disbursement was made. 'bank_transfer' is labelled with the "
+            "employee's visa provider at display time. Blank on legacy rows."
+        ),
+    )
+    payment_date = models.DateField(
+        null=True, blank=True,
+        help_text=(
+            "Value date of the disbursement. Distinct from paid_at, which is the "
+            "timestamp the record was created in the system."
+        ),
+    )
+
     class Meta:
         ordering = ['-year', '-month']
 
     def __str__(self):
         emp = self.employee or self.remote_employee
         return f"Paid {self.month}/{self.year} — {emp.name if emp else '?'} ({self.final_salary} {self.currency})"
+
+    @property
+    def effective_amount_paid(self):
+        """What was actually disbursed, resolving legacy NULLs to a full payment.
+
+        Rows created before Phase E6 carry no amount_paid but were only ever
+        created by a full "Mark as Paid", so the full computed salary is the
+        honest reading — not zero, which would misreport settled historical
+        months as unpaid.
+        """
+        return self.final_salary if self.amount_paid is None else self.amount_paid
+
+    @property
+    def is_partial(self):
+        """True when less than the full computed salary was disbursed."""
+        return self.effective_amount_paid < self.final_salary
+
+    @property
+    def balance_due(self):
+        """Outstanding amount still owed on this month's salary. Never negative —
+        an overpayment is not a negative balance, it is a separate matter."""
+        return max(Decimal('0.00'), self.final_salary - self.effective_amount_paid)
 
 
 # ============================================================

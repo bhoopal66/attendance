@@ -431,6 +431,74 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 .e1-status-paid { background: #16a34a; }
 .e1-status-unpaid { background: #dc2626; }
 
+/* ===================== Phase E6 — payment execution ===================== */
+.e6-status-partial { background: #d97706; }
+
+/* Grouped DEDUCTIONS header over the itemized columns */
+#finalTable thead .e6-grp {
+    background: #fdf3ec; color: #9a3412; font-size: 0.66rem; letter-spacing: 0.8px;
+    border-bottom: 2px solid #f5c9a8;
+}
+#finalTable thead .e6-sub { font-size: 0.66rem; background: #fffaf6; }
+
+/* A category deliberately excluded from this employee's Deductions total.
+   Rendered as an en-dash, visually lighter than a real zero, so it never
+   reads as "0.00 deducted". */
+.e6-na { opacity: 0.35; font-weight: 400; }
+
+.e6-badge-partial {
+    display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.66rem;
+    font-weight: 700; background: #fef3c7; color: #92400e; letter-spacing: 0.3px;
+}
+tr.e6-partial-row { background: #fffcf5; }
+
+.e6-method {
+    display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 0.68rem;
+    font-weight: 600; background: #f1f5f9; color: #334155; white-space: nowrap;
+}
+.e6-method-wps { background: #dcfce7; color: #166534; }
+.e6-method-bank_transfer { background: #e0e7ff; color: #3730a3; }
+.e6-method-cash { background: #fef3c7; color: #92400e; }
+.e6-adv-badge {
+    display: inline-block; margin-left: 4px; padding: 2px 7px; border-radius: 20px;
+    font-size: 0.62rem; font-weight: 700; background: #ede9fe; color: #5b21b6;
+}
+
+/* Filter bar */
+.e6-filter-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 20px; border-bottom: 1px solid #e8edf3; background: #fbfcfe;
+}
+.e6-chip-group { display: inline-flex; border: 1px solid #dbe3ec; border-radius: 8px; overflow: hidden; }
+.e6-chip {
+    padding: 5px 14px; font-size: 0.76rem; font-weight: 600; border: none; cursor: pointer;
+    background: #fff; color: #64748b; border-right: 1px solid #e8edf3;
+}
+.e6-chip:last-child { border-right: none; }
+.e6-chip:hover { background: #f5f7fa; }
+.e6-chip.active { background: #F97316; color: #fff; }
+.e6-select {
+    padding: 5px 10px; font-size: 0.76rem; border: 1px solid #dbe3ec; border-radius: 8px;
+    background: #fff; color: #334155; cursor: pointer;
+}
+.e6-balance {
+    margin-left: auto; padding: 5px 14px; border-radius: 8px; font-size: 0.78rem;
+    background: #fef2f2; color: #b91c1c;
+}
+
+/* Mark-as-Paid modal */
+.e6-pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.e6-pay-grid label { display: block; font-size: 0.74rem; font-weight: 600; color: #475569; margin-bottom: 4px; }
+.e6-pay-grid input, .e6-pay-grid select {
+    width: 100%; padding: 7px 10px; font-size: 0.82rem; border: 1px solid #dbe3ec; border-radius: 7px;
+}
+.e6-amt-table { width: 100%; font-size: 0.8rem; }
+.e6-amt-table input { width: 110px; padding: 4px 8px; text-align: right; border: 1px solid #dbe3ec; border-radius: 6px; }
+.e6-wps-warn {
+    margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.75rem;
+    background: #fffbeb; border-left: 3px solid #f59e0b; color: #78350f;
+}
+
 /* ---- Summary sub-navigation (keeps the Summary tab from dumping everything at once) ---- */
 .subtab-bar {
     display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 16px;
@@ -760,18 +828,33 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         </thead>
                         <tbody>
                             <tr>
-                                <td><span class="e1-status-dot e1-status-paid"></span>Paid</td>
+                                <td><span class="e1-status-dot e1-status-paid"></span>Paid in full</td>
                                 <td class="text-right num" style="font-weight:700;">{{ payment_status_summary.paid_count }}</td>
                                 <td class="text-right num val-blue">{{ payment_status_summary.paid_aed|floatformat:2|intcomma }}</td>
                             </tr>
                             <tr>
-                                <td><span class="e1-status-dot e1-status-unpaid"></span>Unpaid</td>
+                                <td>
+                                    <span class="e1-status-dot e6-status-partial"></span>Partially paid
+                                    {% if payment_status_summary.partial_count %}
+                                    <div class="muted" style="font-size:0.68rem;margin-left:16px;">{{ payment_status_summary.partial_paid_aed|floatformat:2|intcomma }} of {{ payment_status_summary.partial_owed_aed|floatformat:2|intcomma }} disbursed</div>
+                                    {% endif %}
+                                </td>
+                                <td class="text-right num" style="font-weight:700;">{{ payment_status_summary.partial_count }}</td>
+                                <td class="text-right num" style="color:#b45309;">{{ payment_status_summary.partial_paid_aed|floatformat:2|intcomma }}</td>
+                            </tr>
+                            <tr>
+                                <td><span class="e1-status-dot e1-status-unpaid"></span>Unpaid / pending</td>
                                 <td class="text-right num" style="font-weight:700;">{{ payment_status_summary.unpaid_count }}</td>
                                 <td class="text-right num val-negative">{{ payment_status_summary.unpaid_aed|floatformat:2|intcomma }}</td>
                             </tr>
                         </tbody>
                         <tfoot>
-                            <tr><td>Balance to pay</td><td class="text-right num">—</td><td class="text-right num val-negative">{{ payment_status_summary.unpaid_aed|floatformat:2|intcomma }}</td></tr>
+                            {% comment %}
+                            Balance = unpaid rows in full PLUS the outstanding remainder of
+                            partially-paid rows. Before Phase E6 this was just the unpaid
+                            total, which now would understate what is still owed.
+                            {% endcomment %}
+                            <tr><td title="Unpaid salaries in full, plus the outstanding balance on partially-paid ones">Balance to pay</td><td class="text-right num">—</td><td class="text-right num val-negative" style="font-weight:700;">{{ payment_status_summary.balance_aed|floatformat:2|intcomma }}</td></tr>
                         </tfoot>
                     </table>
                 </div>
@@ -871,30 +954,64 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         <input type="text" id="finalTableSearch" placeholder="Search by name…" oninput="filterFinalTableByName(this.value)">
                     </div>
                 </div>
+                <!-- Phase E6: status / category / provider filter bar -->
+                <div class="e6-filter-bar">
+                    <div class="e6-chip-group">
+                        <button type="button" class="e6-chip active" data-status="all" onclick="e6SetStatusFilter(this,'all')">All</button>
+                        <button type="button" class="e6-chip" data-status="paid" onclick="e6SetStatusFilter(this,'paid')">Paid</button>
+                        <button type="button" class="e6-chip" data-status="partial" onclick="e6SetStatusFilter(this,'partial')">Partial</button>
+                        <button type="button" class="e6-chip" data-status="unpaid" onclick="e6SetStatusFilter(this,'unpaid')">Unpaid</button>
+                    </div>
+                    <select class="e6-select" id="e6CategoryFilter" onchange="e6SetCategoryFilter(this.value)">
+                        <option value="all">All categories</option>
+                        {% for sec in final_sections %}<option value="{{ sec }}">{{ sec }}</option>{% endfor %}
+                    </select>
+                    <select class="e6-select" id="e6ProviderFilter" onchange="e6SetProviderFilter(this.value)">
+                        <option value="all">All Providers</option>
+                        <option value="Jumbo">Jumbo</option>
+                        <option value="OnTime">OnTime</option>
+                        <option value="Taamul">Taamul</option>
+                        <option value="own">Taamul Own Visa</option>
+                    </select>
+                    <div class="e6-balance" title="Unpaid salaries in full, plus the outstanding balance on partially-paid ones">
+                        Balance to pay: <strong><span class="csym csym-aed">AED</span> {{ payment_status_summary.balance_aed|floatformat:2|intcomma }}</strong>
+                    </div>
+                </div>
                 <div class="table-wrap">
                     <table id="finalTable">
                         <thead>
                             <tr>
-                                <th style="width:32px;"></th>
-                                <th>Employee</th>
-                                <th>Section</th>
-                                <th class="text-right">Net Payroll</th>
-                                <th class="text-right">Deductions</th>
-                                <th class="text-right">Additions</th>
-                                <th class="text-right" style="color:#7c3aed;">Carryover In</th>
-                                <th class="text-right" style="color:#b45309;">Carryover Out</th>
-                                <th class="text-right th-aed">Final (AED)</th>
-                                <th class="text-right th-inr" title="₹ = INR (blue) · Rs. = NPR (amber)">Final (INR/NPR)</th>
-                                <th class="text-center">Status</th>
-                                <th class="text-center">Payslip</th>
+                                <th style="width:32px;" rowspan="2"></th>
+                                <th rowspan="2">Employee</th>
+                                <th rowspan="2">Section</th>
+                                <th class="text-right" rowspan="2">Net Payroll</th>
+                                <th class="text-center e6-grp" colspan="6" title="Every deduction category, itemized. These columns always sum exactly to the Total.">DEDUCTIONS</th>
+                                <th class="text-right" rowspan="2">Additions</th>
+                                <th class="text-right" rowspan="2" style="color:#b45309;">Carryover Out</th>
+                                <th class="text-right th-aed" rowspan="2">Final (AED)</th>
+                                <th class="text-right th-inr" rowspan="2" title="₹ = INR (blue) · Rs. = NPR (amber)">Final (INR/NPR)</th>
+                                <th class="text-center" rowspan="2">Status</th>
+                                <th class="text-center" rowspan="2">Date Paid</th>
+                                <th class="text-center" rowspan="2">Method</th>
+                                <th class="text-center" rowspan="2">Payslip</th>
+                            </tr>
+                            <tr>
+                                <th class="text-right e6-sub">Late</th>
+                                <th class="text-right e6-sub">Leave</th>
+                                <th class="text-right e6-sub">Advance</th>
+                                <th class="text-right e6-sub" title="Visa status change, clawback and other deductions combined">Other</th>
+                                <th class="text-right e6-sub" style="color:#7c3aed;">Carryover</th>
+                                <th class="text-right e6-sub">Total</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in final_rows %}
-                            <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}"
+                            <tr class="row-{{ row.currency|lower }}{% if row.is_paid %} paid-row{% endif %}{% if row.pay_status == 'partial' %} e6-partial-row{% endif %}"
                                 data-emp-id="{{ row.employee.id }}"
                                 data-emp-type="{{ row.employee_type }}"
                                 data-visa="{{ row.employee.visa_provider|default:'own' }}"
+                                data-pay-status="{{ row.pay_status|default:'unpaid' }}"
+                                data-section="{{ row.department }}"
                                 data-payroll-net="{{ row.payroll_net }}"
                                 data-total-ded="{{ row.total_deductions }}"
                                 data-total-add="{{ row.total_additions }}"
@@ -914,9 +1031,21 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                                 </td>
                                 <td class="muted">{{ row.department }}</td>
                                 <td class="text-right num">{{ row.payroll_net|floatformat:2|intcomma }}</td>
-                                <td class="text-right num val-negative"{% if row.total_deductions > 0 and not row.is_paid %} style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;" onclick="openDeductionBreakdown('{{ row.employee_type }}','{{ row.employee.id }}')" title="Click for itemized breakdown"{% endif %}>{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+                                {% comment %}
+                                Phase E6 itemized deductions. A None value (rendered as a
+                                greyed dash with an explanatory tooltip) means the category is
+                                deliberately excluded from this employee's Deductions total —
+                                Late and Leave are already priced into Net Payroll for Admin
+                                and fixed-salary in-house staff, so showing a figure here would
+                                read as a second deduction for the same absence.
+                                {% endcomment %}
+                                <td class="text-right num val-negative">{% if row.ded_cols.late is None %}<span class="muted e6-na" title="Already reflected in Net Payroll — this employee's salary is scaled by attendance, so late time is not deducted a second time">–</span>{% elif row.ded_cols.late > 0 %}-{{ row.ded_cols.late|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-negative">{% if row.ded_cols.leave is None %}<span class="muted e6-na" title="Already reflected in Net Payroll — this employee's salary is scaled by attendance, so leave is not deducted a second time">–</span>{% elif row.ded_cols.leave > 0 %}-{{ row.ded_cols.leave|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-negative">{% if row.ded_cols.advance is None %}<span class="muted e6-na">–</span>{% elif row.ded_cols.advance > 0 %}-{{ row.ded_cols.advance|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-negative">{% if row.ded_cols.other > 0 %}-{{ row.ded_cols.other|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num" style="color:#7c3aed;">{% if row.ded_cols.carryover > 0 %}-{{ row.ded_cols.carryover|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-negative" style="font-weight:600;{% if row.total_deductions > 0 and not row.is_paid %}cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;{% endif %}"{% if row.total_deductions > 0 and not row.is_paid %} onclick="openDeductionBreakdown('{{ row.employee_type }}','{{ row.employee.id }}')" title="Click for itemized breakdown"{% endif %}>{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
                                 <td class="text-right num val-positive">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
-                                <td class="text-right num" style="color:#7c3aed;">{% if row.carryover_in > 0 %}-{{ row.carryover_in|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num" style="color:#b45309;">{% if row.carryover_out > 0 %}→ {{ row.carryover_out|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num val-blue" style="font-size:0.95rem;">
                                     {% if row.currency == 'AED' %}
@@ -934,20 +1063,27 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                                     {% else %}<span class="muted">—</span>{% endif %}
                                 </td>
                                 <td class="text-center">
-                                    {% if row.is_paid %}
+                                    {% if row.pay_status == 'partial' %}
+                                    <span class="e6-badge-partial" style="cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="Partially disbursed — balance still outstanding">&#189; PARTIAL</span>
+                                    <div class="muted" style="font-size:0.68rem;margin-top:2px;">{{ row.amount_paid|floatformat:2|intcomma }} of {{ row.final_salary|floatformat:2|intcomma }}</div>
+                                    <div style="font-size:0.68rem;margin-top:1px;color:#dc2626;font-weight:600;">balance {{ row.balance_due|floatformat:2|intcomma }}</div>
+                                    <button class="unmark-btn" onclick="unmarkPaid(this)" title="Remove paid lock">Unmark</button>
+                                    {% elif row.is_paid %}
                                     <span class="paid-badge" style="cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span>
-                                    <div class="muted" style="font-size:0.68rem;margin-top:2px;">{{ row.paid_at|date:"d M Y" }}{% if row.paid_by %} · {{ row.paid_by }}{% endif %}</div>
+                                    <div class="muted" style="font-size:0.68rem;margin-top:2px;">{{ row.paid_by }}</div>
                                     <button class="unmark-btn" onclick="unmarkPaid(this)" title="Remove paid lock">Unmark</button>
                                     {% else %}
                                     <span class="muted" style="font-size:0.75rem;">Unpaid</span>
                                     {% endif %}
                                 </td>
+                                <td class="text-center muted" style="font-size:0.72rem;white-space:nowrap;">{% if row.payment_date %}{{ row.payment_date|date:"d M Y" }}{% else %}—{% endif %}</td>
+                                <td class="text-center" style="font-size:0.72rem;white-space:nowrap;">{% if row.payment_method_label %}<span class="e6-method e6-method-{{ row.payment_method }}">{{ row.payment_method_label }}</span>{% if row.pay_status == 'partial' and row.payment_method == 'wps' %}<span class="e6-adv-badge" title="WPS shortfall was recorded as an advance and is scheduled for recovery next month">&#177; Advance</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-center">
                                     <a href="{% url 'download_payslip' row.employee_type row.employee.id %}?month={{ selected_month }}&year={{ selected_year }}" class="adj-btn" style="text-decoration:none;" target="_blank">Payslip</a>
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr class="empty-row"><td colspan="12">No employees found</td></tr>
+                            <tr class="empty-row"><td colspan="18">No employees found</td></tr>
                             {% endfor %}
                         </tbody>
                         {% if final_rows %}
@@ -956,12 +1092,18 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                                 <td></td>
                                 <td colspan="2"><strong>Total</strong></td>
                                 <td id="tfoot-payroll-net" class="text-right num">{{ final_rows|dictsumby:"payroll_net"|floatformat:2|intcomma }}</td>
-                                <td id="tfoot-total-ded" class="text-right num val-negative">{{ final_rows|dictsumby:"total_deductions"|floatformat:2|intcomma }}</td>
-                                <td id="tfoot-total-add" class="text-right num val-positive">{{ final_rows|dictsumby:"total_additions"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.late"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.leave"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.advance"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.other"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-co-in" class="text-right num" style="color:#7c3aed;">{{ final_rows|dictsumby:"carryover_in"|floatformat:2|intcomma }}</td>
+                                <td id="tfoot-total-ded" class="text-right num val-negative" style="font-weight:700;">{{ final_rows|dictsumby:"total_deductions"|floatformat:2|intcomma }}</td>
+                                <td id="tfoot-total-add" class="text-right num val-positive">{{ final_rows|dictsumby:"total_additions"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-co-out" class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-final-aed" class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-final-inr" class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2|intcomma }}{% endif %}{% if final_total_npr %} <span class="csym csym-npr">Rs.</span> {{ final_total_npr|floatformat:2|intcomma }}{% endif %}{% if not final_total_inr and not final_total_npr %}—{% endif %}</td>
+                                <td></td>
+                                <td></td>
                                 <td></td>
                                 <td></td>
                             </tr>
@@ -1108,6 +1250,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                     <tr>
                         <th>Name</th>
                         <th class="text-right">Salary</th>
+                        <th class="text-right">Basic</th>
+                        <th class="text-right">Housing</th>
+                        <th class="text-right">Transport</th>
+                        <th class="text-right">Phone</th>
+                        <th class="text-right">Other</th>
+                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Salary column">Gross Total</th>
                         <th class="text-right">Full Days</th>
                         <th class="text-right">Half Days</th>
                         <th class="text-right">Absent</th>
@@ -1129,7 +1277,22 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             {% if row.employee.designation %}<div class="muted">{{ row.employee.designation }}</div>{% endif %}
                             {% if row.employee.payroll_type == 'performance' %}<span class="badge-perf section-badge">Performance</span>{% endif %}
                         </td>
-                        <td class="text-right num">{{ row.salary|floatformat:0|intcomma }}</td>
+                        <td class="text-right num">{{ row.salary|floatformat:0|intcomma }}{% if not row.has_salary_structure %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div>{% endif %}</td>
+                        {% if row.has_salary_structure %}
+                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        {% else %}
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        {% endif %}
                         <td class="text-right num">{{ row.full_days }}</td>
                         <td class="text-right num">{{ row.half_days }}</td>
                         <td class="text-right num {% if row.absent_days > 0 %}val-negative{% endif %}">{{ row.absent_days }}</td>
@@ -1149,14 +1312,21 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="13">No Admin in-house employees found</td></tr>
+                    <tr class="empty-row"><td colspan="19">No Admin in-house employees found</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if admin_inhouse_rows %}
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td>
-                        <td></td><td></td><td></td><td></td><td></td>
+                        <td></td>
+                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_inhouse_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:700;">{{ admin_inhouse_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td></td><td></td><td></td><td></td>
                         <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
                         <td class="text-right num val-positive">{{ admin_inhouse_rows|dictsumby:"incentives"|floatformat:2|intcomma }}</td>
                         <td class="text-right num val-negative">{{ admin_inhouse_rows|dictsumby:"reductions"|floatformat:2|intcomma }}</td>
@@ -1200,6 +1370,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                     <tr>
                         <th>Name</th>
                         <th class="text-right">Salary</th>
+                        <th class="text-right">Basic</th>
+                        <th class="text-right">Housing</th>
+                        <th class="text-right">Transport</th>
+                        <th class="text-right">Phone</th>
+                        <th class="text-right">Other</th>
+                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Salary column">Gross Total</th>
                         <th class="text-right">Present Days</th>
                         <th class="text-right">Absent Days</th>
                         <th class="text-right">Deduction</th>
@@ -1217,7 +1393,22 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <div>{{ row.employee.name }}</div>
                             <span class="curr-{{ row.currency|lower }}">{{ row.currency }}</span>
                         </td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}—{% endif %}{% if row.is_estimated %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split of the salary, not itemized payroll data.">estimated split</div>{% endif %}</td>
+                        {% if row.has_salary_structure %}
+                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        {% else %}
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        {% endif %}
                         <td class="text-right num">
                             {% if row.is_fixed_salary %}
                                 {% if row.absent_days is not None %}{{ row.absent_days|add:0|floatformat:0|intcomma }}{% endif %}
@@ -1241,13 +1432,20 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="10">No Admin remote employees found — set department to "Admin" on the remote employee's profile</td></tr>
+                    <tr class="empty-row"><td colspan="16">No Admin remote employees found — set department to "Admin" on the remote employee's profile</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if admin_remote_rows %}
                 <tfoot>
                     <tr>
-                        <td><strong>Total</strong></td><td></td><td></td>
+                        <td><strong>Total</strong></td><td></td>
+                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ admin_remote_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ admin_remote_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td></td>
                         <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"absent_days"|floatformat:1|intcomma }}</td>
                         <td class="text-right num val-negative">{{ admin_remote_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
                         <td class="text-right num val-positive">{{ admin_remote_rows|dictsumby:"incentives"|floatformat:2|intcomma }}</td>
@@ -1292,6 +1490,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         <th>Name</th>
                         <th>Type</th>
                         <th class="text-right">Salary</th>
+                        <th class="text-right">Basic</th>
+                        <th class="text-right">Housing</th>
+                        <th class="text-right">Transport</th>
+                        <th class="text-right">Phone</th>
+                        <th class="text-right">Other</th>
+                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Salary column">Gross Total</th>
                         <th class="text-right">Present Days</th>
                         <th class="text-right">Absent Days</th>
                         <th class="text-right">Deduction</th>
@@ -1319,7 +1523,22 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <span class="type-inhouse">In-House</span>
                             {% endif %}
                         </td>
-                        <td class="text-right num">{{ row.salary|floatformat:0|intcomma }}</td>
+                        <td class="text-right num">{{ row.salary|floatformat:0|intcomma }}{% if not row.has_salary_structure and row.employee_type == 'inhouse' %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div>{% elif row.is_estimated %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split of the salary, not itemized payroll data.">estimated split</div>{% endif %}</td>
+                        {% if row.has_salary_structure %}
+                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        {% else %}
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        {% endif %}
                         <td class="text-right num">
                             {% if row.is_fixed_salary %}
                                 {% with present=row.absent_days %}—{% endwith %}
@@ -1341,13 +1560,20 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="12">No fixed-salary sales employees found</td></tr>
+                    <tr class="empty-row"><td colspan="18">No fixed-salary sales employees found</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if sales_fixed_rows %}
                 <tfoot>
                     <tr>
-                        <td><strong>Total</strong></td><td></td><td></td><td></td>
+                        <td><strong>Total</strong></td><td></td><td></td>
+                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_fixed_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ sales_fixed_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td></td>
                         <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"absent_days"|floatformat:1|intcomma }}</td>
                         <td class="text-right num val-negative">{{ sales_fixed_rows|dictsumby:"deduction"|floatformat:2|intcomma }}</td>
                         <td class="text-right num">{{ sales_fixed_rows|dictsumby:"commission"|floatformat:2|intcomma }}</td>
@@ -1387,6 +1613,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                     <tr>
                         <th>Name</th>
                         <th class="text-right">Salary</th>
+                        <th class="text-right">Basic</th>
+                        <th class="text-right">Housing</th>
+                        <th class="text-right">Transport</th>
+                        <th class="text-right">Phone</th>
+                        <th class="text-right">Other</th>
+                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Salary column">Gross Total</th>
                         <th class="text-right">Daily Rate</th>
                         <th class="text-right">Leave Days</th>
                         <th class="text-right">Half Days</th>
@@ -1406,7 +1638,22 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             <span class="type-remote">Remote</span>
                             {% if row.target_achieved %}<span class="section-badge badge-perf" title="Hit 4-account target — paid full salary regardless of attendance">Target Hit</span>{% endif %}
                         </td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}{% if row.is_estimated %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split of the salary, not itemized payroll data.">estimated split</div>{% endif %}</td>
+                        {% if row.has_salary_structure %}
+                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        {% else %}
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        {% endif %}
                         <td class="text-right num">{% if row.daily_rate %}{{ row.daily_rate|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.leave_days > 0 %}val-negative{% endif %}">{{ row.leave_days }}</td>
                         <td class="text-right num">{{ row.half_days }}</td>
@@ -1418,13 +1665,20 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="9">No remote performance-based sales employees found</td></tr>
+                    <tr class="empty-row"><td colspan="15">No remote performance-based sales employees found</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if sales_perf_test_rows %}
                 <tfoot>
                     <tr>
-                        <td><strong>Total</strong></td><td></td><td></td>
+                        <td><strong>Total</strong></td><td></td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ sales_perf_test_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
+                        <td></td>
                         <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"leave_days" }}</td>
                         <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"half_days" }}</td>
                         <td class="text-right num">{{ sales_perf_test_rows|dictsumby:"proportional_days" }}</td>
@@ -1471,6 +1725,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         <th>Name</th>
                         <th>Type</th>
                         <th class="text-right">Base Salary</th>
+                        <th class="text-right">Basic</th>
+                        <th class="text-right">Housing</th>
+                        <th class="text-right">Transport</th>
+                        <th class="text-right">Phone</th>
+                        <th class="text-right">Other</th>
+                        <th class="text-right" title="Basic + Housing + Transport + Phone + Other — matches the Base Salary column">Gross Total</th>
                         <th class="text-right">Deductions</th>
                         {% for bank in banks %}<th class="text-right">{{ bank.name }}</th>{% endfor %}
                         <th class="text-right">Commission</th>
@@ -1491,7 +1751,22 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                             {% if row.is_attendance_based %}<span class="muted">Att. Scaled</span>{% endif %}
                         </td>
                         <td><span class="type-inhouse">In-House</span></td>
-                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td class="text-right num">{% if row.salary %}{{ row.salary|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}{% if not row.has_salary_structure %}<div class="muted" style="font-size:0.62rem;white-space:nowrap;" title="No approved salary structure on file for this employee — breakdown not available">&#9888; no structure</div>{% endif %}</td>
+                        {% if row.has_salary_structure %}
+                        <td class="text-right num">{{ row.basic_salary|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.housing_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.transport_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.phone_allowance|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ row.other_allowance_amt|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ row.salary|floatformat:2|intcomma }}</td>
+                        {% else %}
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        <td class="text-right muted">—</td>
+                        {% endif %}
                         <td class="text-right num {% if row.combined_deductions > 0 %}val-negative{% endif %}">
                             {% if row.combined_deductions %}{{ row.combined_deductions|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}
                         </td>
@@ -1513,13 +1788,19 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
                         </td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="10">No performance-based in-house sales employees found</td></tr>
+                    <tr class="empty-row"><td colspan="16">No performance-based in-house sales employees found</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if sales_perf_inhouse_rows %}
                 <tfoot>
                     <tr>
                         <td><strong>Total</strong></td><td></td><td></td>
+                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"basic_salary"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"housing_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"transport_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"phone_allowance"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"other_allowance_amt"|floatformat:2|intcomma }}</td>
+                        <td class="text-right num" style="font-weight:600;">{{ sales_perf_inhouse_rows|dictsumby:"salary"|floatformat:2|intcomma }}</td>
                         <td class="text-right num val-negative">{{ sales_perf_inhouse_rows|dictsumby:"combined_deductions"|floatformat:2|intcomma }}</td>
                         {% for total in sales_perf_inhouse_bank_totals %}<td class="text-right num">{{ total }}</td>{% endfor %}
                         <td class="text-right num">{{ sales_perf_inhouse_rows|dictsumby:"commission"|floatformat:2|intcomma }}</td>
@@ -2163,6 +2444,64 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 </div>
 
 <!-- Deductions & Carryovers Ledger Summary Modal (Phase E4) -->
+<!-- ===================== Phase E6: Mark as Paid ===================== -->
+<div class="modal-overlay" id="e6PayModal">
+    <div class="modal" style="min-width:560px;max-width:680px;max-height:85vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div class="modal-title">Mark as Paid — <span id="e6PayCount"></span></div>
+            <span class="modal-close" onclick="closeModal('e6PayModal')">✕</span>
+        </div>
+
+        <div class="e6-pay-grid">
+            <div>
+                <label for="e6PayMethod">Payment method</label>
+                <select id="e6PayMethod" onchange="e6RecalcPayTotals()">
+                    <option value="wps">WPS</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="cash">Cash</option>
+                </select>
+            </div>
+            <div>
+                <label for="e6PayDate">Date paid</label>
+                <input type="date" id="e6PayDate">
+            </div>
+        </div>
+
+        <div style="font-size:0.74rem;font-weight:600;color:#475569;margin-bottom:6px;">
+            Amount disbursed <span class="muted" style="font-weight:400;">— leave at the full figure for a normal payment</span>
+        </div>
+        <div class="table-wrap" style="max-height:280px;">
+            <table class="e6-amt-table">
+                <thead>
+                    <tr><th>Employee</th><th class="text-right">Net salary</th><th class="text-right">Paying now</th></tr>
+                </thead>
+                <tbody id="e6PayRows"></tbody>
+            </table>
+        </div>
+
+        <div id="e6PayTotals" style="margin-top:12px;font-size:0.82rem;color:#334155;"></div>
+
+        <div class="e6-wps-warn" id="e6WpsWarn" style="display:none;">
+            <strong>WPS shortfall.</strong> The difference between the net salary and the amount
+            disbursed will be recorded as an <strong>advance</strong> against each affected employee
+            and scheduled for automatic recovery from next month's payroll. If next month cannot
+            fully recover it, the balance rolls forward through the existing carryover mechanism.
+        </div>
+        <div class="e6-wps-warn" id="e6PartialWarn" style="display:none;">
+            <strong>Partial payment.</strong> The unpaid remainder stays outstanding as a balance
+            against each affected employee. No advance is raised — only WPS shortfalls do that.
+        </div>
+
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e8edf3;font-size:0.75rem;color:#64748b;">
+            The full payroll will be re-computed and locked permanently. This cannot be undone without an explicit unmark.
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('e6PayModal')">Cancel</button>
+            <button type="button" class="btn btn-success btn-sm" id="e6PaySubmitBtn" onclick="e6SubmitPayment()">&#10003; Confirm Payment</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="ledgerSummaryModal">
     <div class="modal" style="min-width:560px;max-width:720px;max-height:85vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -2353,12 +2692,29 @@ function filterFinalTableByName(val) {
     _applyFinalTableFilters();
 }
 
+/* ---- Phase E6: status / category / provider filters ---- */
+var _e6Status = 'all', _e6Category = 'all', _e6Provider = 'all';
+
+function e6SetStatusFilter(btn, status) {
+    _e6Status = status;
+    document.querySelectorAll('.e6-chip').forEach(c => c.classList.toggle('active', c === btn));
+    _applyFinalTableFilters();
+}
+function e6SetCategoryFilter(v) { _e6Category = v; _applyFinalTableFilters(); }
+function e6SetProviderFilter(v) { _e6Provider = v; _applyFinalTableFilters(); }
+
 function _applyFinalTableFilters() {
     document.querySelectorAll('#finalTable tbody tr[data-visa]').forEach(row => {
+        // The pre-existing Visa Breakdown filter and the new Provider dropdown
+        // both narrow by visa provider; they are ANDed rather than one
+        // overriding the other, so neither can silently widen the other's scope.
         const visaMatch = (_activeVisaFilter === 'all' || row.dataset.visa === _activeVisaFilter);
+        const provMatch = (_e6Provider === 'all' || row.dataset.visa === _e6Provider);
+        const statusMatch = (_e6Status === 'all' || (row.dataset.payStatus || 'unpaid') === _e6Status);
+        const catMatch = (_e6Category === 'all' || row.dataset.section === _e6Category);
         const nameCell = row.children[1];
         const nameMatch = !_activeNameSearch || (nameCell && nameCell.textContent.toLowerCase().includes(_activeNameSearch));
-        row.style.display = (visaMatch && nameMatch) ? '' : 'none';
+        row.style.display = (visaMatch && provMatch && statusMatch && catMatch && nameMatch) ? '' : 'none';
     });
     _updateFinalTotals();
 }
@@ -2752,26 +3108,100 @@ function updateSelectedCount() {
         n > 0 && n === document.querySelectorAll('.final-row-cb').length;
 }
 
-async function markSelectedPaid() {
+/* ---- Phase E6: Mark as Paid with method / date / per-employee amount ----
+   Opens a modal instead of a bare confirm. Amounts default to the full figure,
+   so the common "pay everyone in full" path is still two clicks; editing an
+   amount downward is what creates a partial payment. */
+var _e6PaySelection = [];
+
+function markSelectedPaid() {
     const checked = document.querySelectorAll('.final-row-cb:checked');
     if (!checked.length) { alert('Please select at least one employee.'); return; }
-    const employees = [];
-    const names = [];
+    _e6PaySelection = [];
     checked.forEach(cb => {
         const tr = cb.closest('tr');
-        employees.push({ id: parseInt(tr.dataset.empId), type: tr.dataset.empType });
-        names.push(tr.querySelector('td:nth-child(2)')?.textContent?.trim() || tr.dataset.empId);
+        _e6PaySelection.push({
+            id: parseInt(tr.dataset.empId),
+            type: tr.dataset.empType,
+            name: tr.querySelector('td:nth-child(2)')?.textContent?.trim() || tr.dataset.empId,
+            full: parseFloat(tr.dataset.finalSalary || 0),
+            currency: tr.dataset.currency || 'AED',
+        });
     });
-    const label = employees.length > 1 ? `${employees.length} employees` : names[0];
-    if (!await confirmDialog('Mark as Paid', `Mark as Paid for ${label}?\n\nThe full payroll will be re-computed and locked permanently. This cannot be undone without explicit unmark.`, { okLabel: 'Mark as Paid' })) return;
-    const r = await fetch('/payroll/api/mark-paid/', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
-        body: JSON.stringify({ year: SELECTED_YEAR, month: SELECTED_MONTH, employees }),
+
+    const today = new Date();
+    const iso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0')
+              + '-' + String(today.getDate()).padStart(2, '0');
+    document.getElementById('e6PayDate').value = iso;
+    document.getElementById('e6PayMethod').value = 'wps';
+
+    document.getElementById('e6PayCount').textContent =
+        _e6PaySelection.length > 1 ? `${_e6PaySelection.length} employees` : _e6PaySelection[0].name;
+
+    const rows = _e6PaySelection.map((e, i) => `
+        <tr>
+            <td>${e.name}</td>
+            <td class="text-right muted">${e.currency} ${e.full.toFixed(2)}</td>
+            <td class="text-right">
+                <input type="number" step="0.01" min="0" max="${e.full}"
+                       value="${e.full.toFixed(2)}" data-idx="${i}"
+                       class="e6-amt-input" oninput="e6RecalcPayTotals()">
+            </td>
+        </tr>`).join('');
+    document.getElementById('e6PayRows').innerHTML = rows;
+    e6RecalcPayTotals();
+    openModal('e6PayModal');
+}
+
+function e6RecalcPayTotals() {
+    let owed = 0, paying = 0;
+    document.querySelectorAll('#e6PayRows .e6-amt-input').forEach(inp => {
+        const e = _e6PaySelection[parseInt(inp.dataset.idx)];
+        owed += e.full;
+        let v = parseFloat(inp.value);
+        if (isNaN(v) || v < 0) v = 0;
+        if (v > e.full) { v = e.full; inp.value = v.toFixed(2); }
+        paying += v;
     });
-    const data = await r.json();
-    if (data.success) { location.reload(); }
-    else { alert(data.error || 'Failed to mark as paid.'); }
+    const short = Math.round((owed - paying) * 100) / 100;
+    document.getElementById('e6PayTotals').innerHTML =
+        `Disbursing <strong>${paying.toFixed(2)}</strong> of <strong>${owed.toFixed(2)}</strong>`
+        + (short > 0 ? ` &middot; <span style="color:#b91c1c;font-weight:700;">shortfall ${short.toFixed(2)}</span>` : '');
+    const isWps = document.getElementById('e6PayMethod').value === 'wps';
+    document.getElementById('e6WpsWarn').style.display = (short > 0 && isWps) ? '' : 'none';
+    document.getElementById('e6PartialWarn').style.display = (short > 0 && !isWps) ? '' : 'none';
+}
+
+async function e6SubmitPayment() {
+    const method = document.getElementById('e6PayMethod').value;
+    const payDate = document.getElementById('e6PayDate').value;
+    if (!payDate) { alert('Please choose a payment date.'); return; }
+
+    const employees = _e6PaySelection.map((e, i) => {
+        const inp = document.querySelector(`#e6PayRows .e6-amt-input[data-idx="${i}"]`);
+        let v = parseFloat(inp.value);
+        if (isNaN(v) || v < 0) v = 0;
+        return { id: e.id, type: e.type, amount: v.toFixed(2) };
+    });
+
+    const btn = document.getElementById('e6PaySubmitBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+        const r = await fetch('/payroll/api/mark-paid/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+            body: JSON.stringify({
+                year: SELECTED_YEAR, month: SELECTED_MONTH, employees,
+                payment_method: method, payment_date: payDate,
+            }),
+        });
+        const data = await r.json();
+        if (data.success) { location.reload(); }
+        else { alert(data.error || 'Failed to mark as paid.'); btn.disabled = false; btn.textContent = '✓ Confirm Payment'; }
+    } catch (err) {
+        alert('Failed to mark as paid: ' + err);
+        btn.disabled = false; btn.textContent = '✓ Confirm Payment';
+    }
 }
 
 async function unmarkPaid(btn) {

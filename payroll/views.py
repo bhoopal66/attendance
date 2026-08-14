@@ -37,7 +37,7 @@ from attendance.views.utils import (
     get_bridge_sunday_days,
     SALES_PERFORMANCE_V2_START, compute_sales_performance_v2_days,
 )
-from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, PaidSalaryRecord, CommissionTierSettings, DEDUCTION_CATEGORY_CHOICES
+from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, PaidSalaryRecord, CommissionTierSettings, DEDUCTION_CATEGORY_CHOICES, PAYMENT_METHOD_CHOICES, OTHER_DEDUCTION_CATEGORIES, PayrollNote
 from .services import get_effective_salary_structure
 from .services import convert_employee_deduction_currency
 
@@ -441,6 +441,58 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'commission': round(commission, 2),
         'net_payroll': round(net_payroll, 2),
     }
+
+
+def _attach_gross_breakdown(row, period_end):
+    """Populate Basic/Housing/Transport/Phone/Other on a payroll row dict
+    (Phase E5). In-house employees use their real approved SalaryStructure —
+    the same source the individual Payslip page already draws from. Remote
+    employees have no SalaryStructure model at all, so fall back to the same
+    40/60 Basic/Other estimate already used for remote payslips elsewhere,
+    and only when the row actually has a salary figure to split — flagged
+    is_estimated so the template can mark it clearly as not itemized.
+    Rows with neither (no approved in-house structure, or no salary concept
+    at all — e.g. pure-commission Sales Performance rows) get
+    has_salary_structure=False so the template shows a dash instead of a
+    fabricated number.
+    """
+    emp = row.get('employee')
+    salary = row.get('salary')
+    if row.get('employee_type') == 'inhouse' and emp is not None:
+        structure = get_effective_salary_structure(emp, period_end)
+        if structure:
+            row['basic_salary'] = float(structure.basic)
+            row['housing_allowance'] = float(structure.housing)
+            row['transport_allowance'] = float(structure.transport)
+            row['phone_allowance'] = float(structure.phone)
+            row['other_allowance_amt'] = float(structure.other_allowance)
+            row['has_salary_structure'] = True
+            row['is_estimated'] = False
+        else:
+            row['basic_salary'] = 0.0
+            row['housing_allowance'] = 0.0
+            row['transport_allowance'] = 0.0
+            row['phone_allowance'] = 0.0
+            row['other_allowance_amt'] = 0.0
+            row['has_salary_structure'] = False
+            row['is_estimated'] = False
+        return
+    if salary:
+        row['basic_salary'] = round(salary * 0.40, 2)
+        row['housing_allowance'] = 0.0
+        row['transport_allowance'] = 0.0
+        row['phone_allowance'] = 0.0
+        row['other_allowance_amt'] = round(salary * 0.60, 2)
+        row['has_salary_structure'] = True
+        row['is_estimated'] = True
+    else:
+        row['basic_salary'] = 0.0
+        row['housing_allowance'] = 0.0
+        row['transport_allowance'] = 0.0
+        row['phone_allowance'] = 0.0
+        row['other_allowance_amt'] = 0.0
+        row['has_salary_structure'] = False
+        row['is_estimated'] = False
 
 
 def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None, total_holidays=0, period_start=None, period_end=None):
@@ -3670,9 +3722,9 @@ def payroll_test_dashboard(request):
     admin_remote_rows = []
     for emp in admin_remote_emps:
         p_start, p_end, p_days, p_hols = _emp_period(emp)
-        admin_remote_rows.append(
-            _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
-        )
+        _row = _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        _attach_gross_breakdown(_row, p_end)
+        admin_remote_rows.append(_row)
 
     # Table 3: Sales - Fixed Salary (is_fixed_salary=True)
     sales_fixed_inhouse_emps = list(Employee.objects.filter(
@@ -3687,14 +3739,14 @@ def payroll_test_dashboard(request):
     sales_fixed_rows = []
     for emp in sales_fixed_inhouse_emps:
         p_start, p_end, p_days, p_hols = _emp_period(emp)
-        sales_fixed_rows.append(
-            _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
-        )
+        _row = _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        _attach_gross_breakdown(_row, p_end)
+        sales_fixed_rows.append(_row)
     for emp in sales_fixed_remote_emps:
         p_start, p_end, p_days, p_hols = _emp_period(emp)
-        sales_fixed_rows.append(
-            _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
-        )
+        _row = _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        _attach_gross_breakdown(_row, p_end)
+        sales_fixed_rows.append(_row)
 
     # Table 4: Sales - Performance Based (is_fixed_salary=False)
     sales_perf_inhouse_emps = list(Employee.objects.filter(
@@ -3709,14 +3761,14 @@ def payroll_test_dashboard(request):
     sales_perf_rows = []
     for emp in sales_perf_inhouse_emps:
         p_start, p_end, p_days, p_hols = _emp_period(emp)
-        sales_perf_rows.append(
-            _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
-        )
+        _row = _get_sales_payroll_row(emp, selected_year, selected_month, 'inhouse', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        _attach_gross_breakdown(_row, p_end)
+        sales_perf_rows.append(_row)
     for emp in sales_perf_remote_emps:
         p_start, p_end, p_days, p_hols = _emp_period(emp)
-        sales_perf_rows.append(
-            _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
-        )
+        _row = _get_sales_payroll_row(emp, selected_year, selected_month, 'remote', banks, p_days, p_hols, period_start=p_start, period_end=p_end)
+        _attach_gross_breakdown(_row, p_end)
+        sales_perf_rows.append(_row)
 
     # Table 4 (reference): Sales - Performance TEST — talktime-proportional daily
     # pay ("Method 2"), remote employees only. sales_perf_rows above already uses
@@ -3727,6 +3779,7 @@ def payroll_test_dashboard(request):
     for emp in sales_perf_remote_emps:
         p_start, p_end, p_days, p_hols = _emp_period(emp)
         test_row = _get_sales_performance_test_row(emp, p_start, p_end, p_days, p_hols, year=selected_year, month=selected_month)
+        _attach_gross_breakdown(test_row, p_end)
         live_row = _get_sales_payroll_row(
             emp, selected_year, selected_month, 'remote', banks, p_days, p_hols,
             period_start=p_start, period_end=p_end,
@@ -3972,6 +4025,26 @@ def payroll_test_dashboard(request):
             'items': {c: _categories.get(c, 0.0) for c in _ded_for_total if _categories.get(c, 0.0)},
             'carryover_in': carryover_in,
         })
+        # ---- Phase E6: itemized deduction columns --------------------------
+        # Only categories inside _ded_for_total are shown as figures. Late and
+        # Leave fall OUT of that set for Admin/fixed-salary in-house staff,
+        # because their attendance is already priced into net_payroll — showing
+        # a number there would read as a second deduction for the same absence
+        # and the columns would no longer sum to the Deductions total.
+        # `_shown` is therefore the single source of truth for both the value
+        # and whether the cell is a figure or a greyed dash.
+        def _ded_col(cat):
+            return _categories.get(cat, 0.0) if cat in _ded_for_total else None
+        _other_total = round(sum(
+            _categories.get(c, 0.0) for c in OTHER_DEDUCTION_CATEGORIES if c in _ded_for_total
+        ), 2)
+        ded_cols = {
+            'late': _ded_col('late_deduction'),
+            'leave': _ded_col('leave_deduction'),
+            'advance': _ded_col('advance'),
+            'other': _other_total,
+            'carryover': carryover_in,
+        }
         final_rows.append({
             'employee': emp, 'employee_type': 'inhouse',
             'department': emp.department or 'In-House', 'currency': emp.currency,
@@ -3979,6 +4052,7 @@ def payroll_test_dashboard(request):
             'total_additions': total_add, 'final_salary': final_salary,
             'carryover_in': carryover_in, 'carryover_out': carryover_out,
             'ded_breakdown_json': ded_breakdown_json,
+            'ded_cols': ded_cols,
         })
 
     for emp in all_payroll_remote:
@@ -4018,6 +4092,26 @@ def payroll_test_dashboard(request):
             'items': {c: _categories.get(c, 0.0) for c in _ded_for_total if _categories.get(c, 0.0)},
             'carryover_in': carryover_in,
         })
+        # ---- Phase E6: itemized deduction columns --------------------------
+        # Only categories inside _ded_for_total are shown as figures. Late and
+        # Leave fall OUT of that set for Admin/fixed-salary in-house staff,
+        # because their attendance is already priced into net_payroll — showing
+        # a number there would read as a second deduction for the same absence
+        # and the columns would no longer sum to the Deductions total.
+        # `_shown` is therefore the single source of truth for both the value
+        # and whether the cell is a figure or a greyed dash.
+        def _ded_col(cat):
+            return _categories.get(cat, 0.0) if cat in _ded_for_total else None
+        _other_total = round(sum(
+            _categories.get(c, 0.0) for c in OTHER_DEDUCTION_CATEGORIES if c in _ded_for_total
+        ), 2)
+        ded_cols = {
+            'late': _ded_col('late_deduction'),
+            'leave': _ded_col('leave_deduction'),
+            'advance': _ded_col('advance'),
+            'other': _other_total,
+            'carryover': carryover_in,
+        }
         final_rows.append({
             'employee': emp, 'employee_type': 'remote',
             'department': getattr(emp, 'department', 'Remote') or 'Remote', 'currency': emp.currency,
@@ -4025,6 +4119,7 @@ def payroll_test_dashboard(request):
             'total_additions': total_add, 'final_salary': final_salary,
             'carryover_in': carryover_in, 'carryover_out': carryover_out,
             'ded_breakdown_json': ded_breakdown_json,
+            'ded_cols': ded_cols,
         })
 
     # Load full paid salary snapshots and overlay onto all rows
@@ -4077,11 +4172,29 @@ def payroll_test_dashboard(request):
         rec = paid_records.get(key)
         if not rec or not rec.snapshot:
             row['is_paid'] = False
+            row['is_partial'] = False
+            row['pay_status'] = 'unpaid'
+            row['amount_paid'] = 0.0
+            row['balance_due'] = row.get('final_salary', 0.0)
+            row['payment_method'] = ''
+            row['payment_method_label'] = ''
+            row['payment_date'] = None
             continue
         snap = rec.snapshot
         row['is_paid'] = True
         row['paid_at'] = rec.paid_at
         row['paid_by'] = rec.paid_by
+        # ---- Phase E6: payment execution -------------------------------
+        # is_paid stays True for a partial payment — the row IS locked and
+        # must keep behaving as locked everywhere else in the page. The new
+        # pay_status carries the three-way distinction for display only.
+        row['is_partial'] = rec.is_partial
+        row['pay_status'] = 'partial' if rec.is_partial else 'paid'
+        row['amount_paid'] = float(rec.effective_amount_paid)
+        row['balance_due'] = float(rec.balance_due)
+        row['payment_method'] = rec.payment_method
+        row['payment_method_label'] = _payment_method_label(rec.payment_method, row['employee'])
+        row['payment_date'] = rec.payment_date or (rec.paid_at.date() if rec.paid_at else None)
         row['paid_snapshot'] = snap
         row['paid_snapshot_json'] = json.dumps(snap)
         row['payroll_net'] = snap.get('net_payroll', row.get('payroll_net', 0))
@@ -4090,6 +4203,21 @@ def payroll_test_dashboard(request):
         row['carryover_in'] = snap.get('carryover_in', row.get('carryover_in', 0))
         row['carryover_out'] = snap.get('carryover_out', row.get('carryover_out', 0))
         row['final_salary'] = snap.get('final_salary', row.get('final_salary', 0))
+        # Itemized deduction columns must read from the locked snapshot once a
+        # month is paid, same as every other figure on this row. The None-mask
+        # (which categories are excluded from the total) is a property of the
+        # employee's department/salary type rather than of the payment, so the
+        # live mask still applies — only the amounts come from the lock.
+        _snap_cat = snap.get('deductions_breakdown')
+        _live_cols = row.get('ded_cols')
+        if _snap_cat and _live_cols:
+            row['ded_cols'] = {
+                'late': None if _live_cols['late'] is None else _snap_cat.get('late_deduction', 0.0),
+                'leave': None if _live_cols['leave'] is None else _snap_cat.get('leave_deduction', 0.0),
+                'advance': None if _live_cols['advance'] is None else _snap_cat.get('advance', 0.0),
+                'other': round(sum(_snap_cat.get(c, 0.0) or 0.0 for c in OTHER_DEDUCTION_CATEGORIES), 2),
+                'carryover': snap.get('carryover_in', 0) or 0,
+            }
 
     final_total_aed = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'AED'), 2)
     final_total_inr = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'INR'), 2)
@@ -4852,15 +4980,40 @@ def payroll_test_dashboard(request):
     for _wf_cat in _wf_categories:
         _wf_cat['pct'] = round((_wf_cat['count'] / _wf_total_employees * 100), 1) if _wf_total_employees else 0
 
+    # ---- Phase E6: three-way payment status --------------------------------
+    # "Paid" now means paid IN FULL. A partially-paid employee is its own
+    # bucket, reported as amount disbursed against amount owed, and the balance
+    # to pay is the sum of every outstanding amount — unpaid rows in full, plus
+    # the still-owed remainder of partial ones. Before E6 the balance was just
+    # the unpaid total, which would now understate what the business still owes.
+    _full = [r for r in final_rows if r.get('pay_status') == 'paid']
+    _part = [r for r in final_rows if r.get('pay_status') == 'partial']
+    _none = [r for r in final_rows if r.get('pay_status', 'unpaid') == 'unpaid']
+
+    def _sum(rows, field, currency):
+        return round(sum(r.get(field, 0) or 0 for r in rows if r['currency'] == currency), 2)
+
     payment_status_summary = {
-        'paid_count': sum(1 for r in final_rows if r.get('is_paid')),
-        'unpaid_count': sum(1 for r in final_rows if not r.get('is_paid')),
-        'paid_aed': round(sum(r['final_salary'] for r in final_rows if r.get('is_paid') and r['currency'] == 'AED'), 2),
-        'paid_inr': round(sum(r['final_salary'] for r in final_rows if r.get('is_paid') and r['currency'] == 'INR'), 2),
-        'paid_npr': round(sum(r['final_salary'] for r in final_rows if r.get('is_paid') and r['currency'] == 'NPR'), 2),
-        'unpaid_aed': round(sum(r['final_salary'] for r in final_rows if not r.get('is_paid') and r['currency'] == 'AED'), 2),
-        'unpaid_inr': round(sum(r['final_salary'] for r in final_rows if not r.get('is_paid') and r['currency'] == 'INR'), 2),
-        'unpaid_npr': round(sum(r['final_salary'] for r in final_rows if not r.get('is_paid') and r['currency'] == 'NPR'), 2),
+        'paid_count': len(_full),
+        'partial_count': len(_part),
+        'unpaid_count': len(_none),
+        'paid_aed': _sum(_full, 'final_salary', 'AED'),
+        'paid_inr': _sum(_full, 'final_salary', 'INR'),
+        'paid_npr': _sum(_full, 'final_salary', 'NPR'),
+        # For partials: what actually went out, and what it was owed against.
+        'partial_paid_aed': _sum(_part, 'amount_paid', 'AED'),
+        'partial_owed_aed': _sum(_part, 'final_salary', 'AED'),
+        'partial_paid_inr': _sum(_part, 'amount_paid', 'INR'),
+        'partial_owed_inr': _sum(_part, 'final_salary', 'INR'),
+        'partial_paid_npr': _sum(_part, 'amount_paid', 'NPR'),
+        'partial_owed_npr': _sum(_part, 'final_salary', 'NPR'),
+        'unpaid_aed': _sum(_none, 'final_salary', 'AED'),
+        'unpaid_inr': _sum(_none, 'final_salary', 'INR'),
+        'unpaid_npr': _sum(_none, 'final_salary', 'NPR'),
+        # Balance still to pay = unpaid in full + unrecovered remainder of partials.
+        'balance_aed': round(_sum(_none, 'final_salary', 'AED') + _sum(_part, 'balance_due', 'AED'), 2),
+        'balance_inr': round(_sum(_none, 'final_salary', 'INR') + _sum(_part, 'balance_due', 'INR'), 2),
+        'balance_npr': round(_sum(_none, 'final_salary', 'NPR') + _sum(_part, 'balance_due', 'NPR'), 2),
     }
 
     # ---- Phase E4: Deductions & Carryovers ledger summary modal ----
@@ -4963,11 +5116,119 @@ def payroll_test_dashboard(request):
         'ledger_deductions_count': len(all_deductions_list),
         'ledger_carryovers_count': len(carryover_schedule),
         'payment_status_summary': payment_status_summary,
+        # Phase E6: distinct sections present in final_rows, for the category
+        # filter dropdown. Derived from the rows themselves rather than a fixed
+        # list, so a new department never silently drops out of the filter.
+        'final_sections': sorted({r['department'] for r in final_rows if r.get('department')}),
         # Phase E4 — Deductions & Carryovers ledger summary modal
         'ledger_deduction_categories': ledger_deduction_categories,
         'ledger_deduction_entries': _ledger_deduction_entries,
         'ledger_addition_entries': _ledger_addition_entries,
     })
+
+
+def _payment_method_label(method, emp):
+    """Human label for a payment method (Phase E6).
+
+    Bank Transfer is qualified with the employee's manpower visa provider —
+    'Bank Transfer (Jumbo)' — because in practice that is what distinguishes
+    one transfer run from another. Own-visa employees have no provider set, so
+    they stay plain 'Bank Transfer' rather than showing an empty bracket.
+    """
+    if not method:
+        return ''
+    if method != 'bank_transfer':
+        return dict(PAYMENT_METHOD_CHOICES).get(method, method)
+    provider = getattr(emp, 'visa_provider', None)
+    return f'Bank Transfer ({provider})' if provider else 'Bank Transfer'
+
+
+def _sync_wps_shortfall_advance(emp, emp_type, year, month, final_salary,
+                                amount_paid, payment_method, actor):
+    """Phase E6 — WPS shortfall becomes a recoverable advance.
+
+    When an employee's WPS-registered salary is lower than their computed net
+    salary, the bank can only disburse the registered figure. The difference is
+    not a missing payment — the business still owes it — so it is booked as an
+    'advance' DeductionEntry starting the following month, where the existing
+    deduction/carryover machinery recovers it automatically. If that month also
+    cannot absorb it, the standing carryover logic rolls the balance forward on
+    its own; nothing extra is needed here.
+
+    Only WPS does this. A short Cash or Bank Transfer payment is a deliberate
+    part-payment decision, not a registration ceiling, so it simply leaves a
+    pending balance (see PaidSalaryRecord.balance_due).
+
+    Idempotent by design: mark_paid_salary uses update_or_create and can be
+    re-run on the same employee/month (e.g. correcting an amount). The entry is
+    therefore keyed by a deterministic marker in `note` and updated in place —
+    re-running never stacks duplicate advances, and correcting a payment upward
+    to the full amount removes the advance entirely.
+    """
+    marker = f'[wps-shortfall:{year}-{month:02d}]'
+    emp_filter = (
+        {'employee': emp, 'remote_employee': None} if emp_type == 'inhouse'
+        else {'remote_employee': emp, 'employee': None}
+    )
+    existing = DeductionEntry.objects.filter(
+        category='advance', note__startswith=marker, **emp_filter
+    ).first()
+
+    shortfall = final_salary - amount_paid
+    if payment_method != 'wps' or shortfall <= 0:
+        # No shortfall (or no longer a WPS payment): retract any advance this
+        # same month previously raised, so a corrected payment doesn't leave a
+        # phantom deduction hanging over next month.
+        if existing:
+            existing.delete()
+            logger.info(
+                'WPS shortfall advance retracted for %s %s/%s (now settled in full)',
+                emp.name, month, year,
+            )
+        return
+
+    # Recover starting the month after the one being paid.
+    _next_idx = year * 12 + (month - 1) + 1
+    _rec_year, _rec_month = divmod(_next_idx, 12)
+    _rec_month += 1
+
+    note_text = (
+        f'{marker} Auto-raised: WPS disbursed {amount_paid} of {final_salary} '
+        f'{emp.currency} for {month}/{year}. Shortfall recorded as an advance '
+        f'for recovery from {_rec_month}/{_rec_year} payroll.'
+    )
+
+    if existing:
+        existing.total_amount = shortfall
+        existing.start_year = _rec_year
+        existing.start_month = _rec_month
+        existing.note = note_text
+        existing.currency = emp.currency
+        existing.save(update_fields=[
+            'total_amount', 'start_year', 'start_month', 'note', 'currency',
+        ])
+    else:
+        DeductionEntry.objects.create(
+            category='advance',
+            total_amount=shortfall,
+            currency=emp.currency,
+            split_months=1,
+            start_year=_rec_year,
+            start_month=_rec_month,
+            note=note_text,
+            **emp_filter,
+        )
+
+    # Surface it on the employee's Notes & Timeline so the shortfall is visible
+    # where payroll staff actually look, not only in the deductions ledger.
+    PayrollNote.objects.create(
+        text=(
+            f'WPS shortfall {shortfall} {emp.currency} recorded as an advance — '
+            f'auto-recovery scheduled for {_rec_month}/{_rec_year}.'
+        ),
+        created_by=actor or 'system',
+        **emp_filter,
+    )
 
 
 @login_required
@@ -4984,9 +5245,41 @@ def mark_paid_salary(request):
         data = json.loads(request.body)
         year = int(data['year'])
         month = int(data['month'])
-        emp_list = data['employees']  # [{id, type}]
+        emp_list = data['employees']  # [{id, type, amount?}]
     except (KeyError, ValueError, json.JSONDecodeError) as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+    # ---- Phase E6: payment execution details --------------------------------
+    # Method and value date apply to the whole batch (one "Mark as Paid" action
+    # settles a selection the same way); the disbursed amount is per employee,
+    # since a partial payment is an individual decision. An omitted amount means
+    # "pay in full", which keeps every pre-E6 caller working unchanged.
+    payment_method = (data.get('payment_method') or '').strip()
+    _valid_methods = {m[0] for m in PAYMENT_METHOD_CHOICES}
+    if payment_method and payment_method not in _valid_methods:
+        return JsonResponse({'error': f'Unknown payment method: {payment_method}'}, status=400)
+
+    payment_date = None
+    if data.get('payment_date'):
+        try:
+            payment_date = datetime.datetime.strptime(data['payment_date'], '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'payment_date must be YYYY-MM-DD'}, status=400)
+
+    # Per-employee disbursed amount, keyed the same way as the employee list.
+    # A blank/absent value is full payment; a negative one is rejected outright
+    # rather than silently clamped, since it would corrupt the balance figures.
+    amount_by_key = {}
+    for e in emp_list:
+        if e.get('amount') in (None, ''):
+            continue
+        try:
+            amt = Decimal(str(e['amount']))
+        except (ArithmeticError, ValueError, TypeError):
+            return JsonResponse({'error': f"Invalid amount for employee {e.get('id')}"}, status=400)
+        if amt < 0:
+            return JsonResponse({'error': 'Paid amount cannot be negative'}, status=400)
+        amount_by_key[(e['type'], int(e['id']))] = amt
 
     inhouse_ids = {int(e['id']) for e in emp_list if e['type'] == 'inhouse'}
     remote_ids = {int(e['id']) for e in emp_list if e['type'] == 'remote'}
@@ -5111,28 +5404,43 @@ def mark_paid_salary(request):
             'final_salary': final_salary,
         }
 
+        # ---- Phase E6: what was actually disbursed --------------------------
+        # Default to the full computed salary so an unspecified amount behaves
+        # exactly as "Mark as Paid" always has. An amount above the computed
+        # salary is capped rather than rejected: over-disbursement is a real
+        # thing that happens, but recording it here would make balance_due
+        # negative and corrupt the "balance to pay" totals.
+        _final_dec = Decimal(str(final_salary))
+        _amount_paid = amount_by_key.get((emp_type, emp.id), _final_dec)
+        if _amount_paid > _final_dec:
+            _amount_paid = _final_dec
+
+        _defaults = {
+            'final_salary': _final_dec,
+            'currency': emp.currency,
+            'paid_by': request.user.username,
+            'paid_at': now_utc,
+            'snapshot': snapshot,
+            'amount_paid': _amount_paid,
+            'payment_method': payment_method,
+            'payment_date': payment_date or now_utc.date(),
+        }
+
         if emp_type == 'inhouse':
             PaidSalaryRecord.objects.update_or_create(
                 employee_id=emp.id, remote_employee=None, year=year, month=month,
-                defaults={
-                    'final_salary': Decimal(str(final_salary)),
-                    'currency': emp.currency,
-                    'paid_by': request.user.username,
-                    'paid_at': now_utc,
-                    'snapshot': snapshot,
-                },
+                defaults=_defaults,
             )
         else:
             PaidSalaryRecord.objects.update_or_create(
                 remote_employee_id=emp.id, employee=None, year=year, month=month,
-                defaults={
-                    'final_salary': Decimal(str(final_salary)),
-                    'currency': emp.currency,
-                    'paid_by': request.user.username,
-                    'paid_at': now_utc,
-                    'snapshot': snapshot,
-                },
+                defaults=_defaults,
             )
+
+        _sync_wps_shortfall_advance(
+            emp, emp_type, year, month, _final_dec, _amount_paid,
+            payment_method, request.user.username,
+        )
 
     # Process inhouse employees
     if inhouse_ids:
