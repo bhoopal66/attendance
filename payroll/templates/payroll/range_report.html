@@ -92,8 +92,15 @@
     text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary);
     border-bottom: 1px solid var(--border-color); white-space: nowrap;
 }
-.rr-table td { padding: 9px 14px; border-bottom: 0.5px solid var(--border-color); vertical-align: middle; }
+.rr-table td { padding: 9px 14px; border-bottom: 1px solid #f2f5f9; vertical-align: middle; }
 .rr-table td.num { text-align: right; font-family: monospace; }
+
+/* Phase E11 — matching hairline grid (see test_dashboard.html). */
+/* 1px, not 0.5px: Chromium clamps cell borders to one physical pixel, so
+   thinness comes from the lighter tint rather than the declared width. */
+.rr-table th, .rr-table td { border-right: 1px solid #f2f5f9; }
+.rr-table th:last-child, .rr-table td:last-child { border-right: none; }
+
 .rr-table .val-negative { color: #DC2626; }
 .rr-table .val-positive { color: #16A34A; }
 .rr-months-badge {
