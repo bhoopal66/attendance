@@ -51,6 +51,40 @@ def _parse_int(value, default):
         return default
 
 
+def _shift_month(year, month, delta):
+    """Return (year, month) shifted by `delta` months, wrapping across years."""
+    idx = year * 12 + (month - 1) + delta
+    y, m = divmod(idx, 12)
+    return y, m + 1
+
+
+def _build_presets(today):
+    """Phase E7 quick-range presets.
+
+    The 'last N months' windows are inclusive of the current month, and the
+    arithmetic wraps years — in February, "last 3 months" correctly reaches
+    back to December of the previous year rather than clamping at January.
+    """
+    presets = []
+    for label, back in (('Last 3 months', 2), ('Last 6 months', 5)):
+        fy, fm = _shift_month(today.year, today.month, -back)
+        presets.append({
+            'label': label,
+            'query': (f'mode=range&from_month={fm}&from_year={fy}'
+                      f'&to_month={today.month}&to_year={today.year}'),
+        })
+    presets.append({
+        'label': 'This year',
+        'query': f'mode=annual&annual_year={today.year}',
+    })
+    presets.append({
+        'label': 'Since joining',
+        'query': 'mode=since_joining',
+        'note': 'per employee',
+    })
+    return presets
+
+
 @login_required
 @user_passes_test(section_required('payroll'), login_url='/report/')
 @require_http_methods(['GET'])
@@ -78,7 +112,36 @@ def range_report(request):
         if 1 <= m <= 12
     })
 
-    if mode == 'multi' and selected_months:
+    annual_year = _parse_int(request.GET.get('annual_year'), today.year)
+    today_idx = today.year * 12 + (today.month - 1)
+    annual_end_month = today.month if annual_year == today.year else 12
+
+    if mode == 'annual':
+        # ---- Phase E7: Annual (year to date) ----
+        # A completed year runs Jan–Dec; the current year stops at the current
+        # month, so an employee never reads as "3 of 12 months" in August purely
+        # because the rest of the year has not happened yet.
+        total_months_in_range = annual_end_month
+        candidates = PaidSalaryRecord.objects.filter(
+            year=annual_year, month__lte=annual_end_month,
+        ).select_related('employee', 'remote_employee')
+        records = list(candidates)
+        period_label = (
+            f'{MONTH_NAMES[1]} – {MONTH_NAMES[annual_end_month]} {annual_year}'
+            + (' (year to date)' if annual_year == today.year else '')
+        )
+    elif mode == 'since_joining':
+        # ---- Phase E7: Since joining ----
+        # Every month ever paid, up to the current one. The window is entirely
+        # per-employee here, so total_months_in_range is only a display fallback
+        # — the real denominator is computed per row below.
+        candidates = PaidSalaryRecord.objects.filter(
+            year__lte=today.year,
+        ).select_related('employee', 'remote_employee')
+        records = [r for r in candidates if (r.year * 12 + (r.month - 1)) <= today_idx]
+        total_months_in_range = 0
+        period_label = 'Since each employee joined'
+    elif mode == 'multi' and selected_months:
         # ---- Phase E3: Multiple Months — arbitrary months within one year ----
         total_months_in_range = len(selected_months)
         candidates = PaidSalaryRecord.objects.filter(
@@ -122,6 +185,7 @@ def range_report(request):
                 'department': snap.get('department') or getattr(emp, 'department', '') or '',
                 'currency': r.currency,
                 'currency_mismatch': False,
+                'joining_date': getattr(emp, 'joining_date', None),
                 'months_included': 0,
                 'net_payroll': 0.0,
                 'total_deductions': 0.0,
@@ -145,8 +209,38 @@ def range_report(request):
 
     rows = sorted(by_emp.values(), key=lambda x: x['employee_name'].lower())
     for row in rows:
-        row['months_total'] = total_months_in_range
-        row['is_complete'] = row['months_included'] >= total_months_in_range
+        # ---- Phase E7: per-employee denominator ----
+        # In the fixed-window modes every employee is measured against the same
+        # span. In Annual and Since-joining the span starts at the employee's
+        # own joining date, so someone who joined in June is not reported as
+        # "3 of 8 months" — they were only ever owed 3.
+        _join = row.get('joining_date')
+        if mode == 'annual':
+            if _join and _join.year == annual_year:
+                _start_month = min(max(_join.month, 1), annual_end_month)
+            elif _join and _join.year > annual_year:
+                _start_month = annual_end_month + 1  # joined after this year → nothing owed
+            else:
+                _start_month = 1
+            row['months_total'] = max(0, annual_end_month - _start_month + 1)
+            row['window_note'] = (
+                f'from {MONTH_NAMES[_start_month]} (joined {_join:%d %b %Y})'
+                if _join and _join.year == annual_year and _start_month > 1 else ''
+            )
+        elif mode == 'since_joining':
+            if _join:
+                _join_idx = _join.year * 12 + (_join.month - 1)
+                row['months_total'] = max(0, today_idx - _join_idx + 1)
+                row['window_note'] = f'joined {_join:%d %b %Y}'
+            else:
+                # No joining date recorded — the denominator is unknowable, so
+                # report what was found rather than inventing a target.
+                row['months_total'] = row['months_included']
+                row['window_note'] = 'no joining date on file'
+        else:
+            row['months_total'] = total_months_in_range
+            row['window_note'] = ''
+        row['is_complete'] = row['months_included'] >= row['months_total']
         nonzero_categories = {c: v for c, v in row['categories'].items() if v}
         # Pre-serialized for the client-side breakdown modal — do not render
         # the Python dict directly in the template, it is not valid JS/JSON.
@@ -172,6 +266,11 @@ def range_report(request):
         'to_month_name': MONTH_NAMES[to_month],
         'multi_year': multi_year,
         'selected_months': selected_months,
+        'annual_year': annual_year,
+        # Phase E7 presets — computed here rather than in the template so the
+        # month arithmetic wraps across year boundaries correctly (a "last 3
+        # months" link in February must reach back into the previous year).
+        'presets': _build_presets(today),
         'period_label': period_label,
         'total_months_in_range': total_months_in_range,
         'rows': rows,

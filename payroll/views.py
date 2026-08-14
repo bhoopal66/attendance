@@ -4219,6 +4219,53 @@ def payroll_test_dashboard(request):
                 'carryover': snap.get('carryover_in', 0) or 0,
             }
 
+    # ---- Phase E6b: category label + Gross Pay breakdown on the summary table ----
+    # Both are copied from the per-category rows rather than recomputed, so the
+    # summary table and the five category tabs can never show different figures
+    # for the same employee. An employee absent from every category list (should
+    # not happen, but the summary is built from a wider query) simply falls back
+    # to a plain label and no breakdown, rather than a fabricated one.
+    _cat_label_by_emp = {}
+    _gross_by_emp = {}
+    # sales_perf_rows is split into its in-house/remote lists further down, so
+    # the label is derived from employee_type here rather than referencing those
+    # lists before they exist.
+    for _rows, _label in (
+        (admin_inhouse_rows, 'Admin: In-House'),
+        (admin_remote_rows, 'Admin: Remote'),
+        (sales_fixed_rows, 'Sales: Fixed'),
+        (sales_perf_rows, None),
+    ):
+        for _r in _rows:
+            _k = (_r['employee_type'], _r['employee'].id)
+            if _label is None:
+                _cat_label_by_emp[_k] = (
+                    'Sales Perf: In-House' if _r['employee_type'] == 'inhouse'
+                    else 'Sales Perf: Remote'
+                )
+            else:
+                _cat_label_by_emp[_k] = _label
+            if _r.get('has_salary_structure') is not None:
+                _gross_by_emp[_k] = {
+                    'basic': _r.get('basic_salary', 0.0),
+                    'housing': _r.get('housing_allowance', 0.0),
+                    'transport': _r.get('transport_allowance', 0.0),
+                    'phone': _r.get('phone_allowance', 0.0),
+                    'other': _r.get('other_allowance_amt', 0.0),
+                    'total': _r.get('salary', 0.0),
+                    'has_structure': _r.get('has_salary_structure', False),
+                    'is_estimated': _r.get('is_estimated', False),
+                }
+
+    for row in final_rows:
+        _k = (row['employee_type'], row['employee'].id)
+        row['category_label'] = _cat_label_by_emp.get(_k) or row.get('department') or '—'
+        row['category_slug'] = _cat_label_by_emp.get(_k, '').lower().replace(': ', '-').replace(' ', '-') or 'other'
+        row['gross'] = _gross_by_emp.get(_k)
+        # Two-letter initials for the avatar chip, from the employee's own name.
+        _parts = [p for p in (row['employee'].name or '').split() if p]
+        row['initials'] = ((_parts[0][0] if _parts else '?') + (_parts[1][0] if len(_parts) > 1 else '')).upper()
+
     final_total_aed = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'AED'), 2)
     final_total_inr = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'INR'), 2)
     final_total_npr = round(sum(r['final_salary'] for r in final_rows if r['currency'] == 'NPR'), 2)

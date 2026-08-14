@@ -441,6 +441,49 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 }
 #finalTable thead .e6-sub { font-size: 0.66rem; background: #fffaf6; }
 
+/* Gross Pay group header — visually distinct from DEDUCTIONS so the eye can
+   separate "what was earned" from "what was taken off" at a glance. */
+#finalTable thead .e6-grp-gross {
+    background: #eef7f1; color: #14663f; border-bottom: 2px solid #a8d8bf;
+}
+#finalTable thead .e6-sub-gross { background: #f7fcf9; }
+#finalTable thead .e6-grp-inc { background: #f4f1fd; color: #4a3aa7; }
+
+/* Employee cell — avatar chip + name + staff code */
+.e6-emp { display: flex; align-items: center; gap: 9px; }
+.e6-avatar {
+    flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.66rem; font-weight: 700; color: #fff; letter-spacing: 0.3px;
+    background: #94a3b8;
+}
+.e6-emp-txt { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.e6-emp-name { font-weight: 600; white-space: nowrap; }
+.e6-emp-code { font-size: 0.64rem; color: #94a3b8; letter-spacing: 0.3px; }
+
+/* Category pill + matching avatar colour, one hue per section so a row's
+   category is readable from the avatar alone when scrolled horizontally. */
+.e6-cat {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 0.68rem; font-weight: 600; white-space: nowrap;
+    background: #f1f5f9; color: #475569;
+}
+.e6-cat-admin-in-house      { background: #fdeee6; color: #b4460f; }
+.e6-av-admin-in-house       { background: #eb6834; }
+.e6-cat-admin-remote        { background: #e3f7ef; color: #0f7350; }
+.e6-av-admin-remote         { background: #1baf7a; }
+.e6-cat-sales-fixed         { background: #fdf3d9; color: #8a5c06; }
+.e6-av-sales-fixed          { background: #b5790a; }
+.e6-cat-sales-perf-remote   { background: #fce8ef; color: #a03259; }
+.e6-av-sales-perf-remote    { background: #d15d8a; }
+.e6-cat-sales-perf-in-house { background: #e4f5e4; color: #046004; }
+.e6-av-sales-perf-in-house  { background: #008300; }
+
+.e6-badge-unpaid {
+    display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.66rem;
+    font-weight: 700; background: #fee2e2; color: #b91c1c; letter-spacing: 0.3px;
+}
+
 /* A category deliberately excluded from this employee's Deductions total.
    Rendered as an en-dash, visually lighter than a real zero, so it never
    reads as "0.00 deducted". */
@@ -983,19 +1026,26 @@ tr.e6-partial-row { background: #fffcf5; }
                             <tr>
                                 <th style="width:32px;" rowspan="2"></th>
                                 <th rowspan="2">Employee</th>
-                                <th rowspan="2">Section</th>
-                                <th class="text-right" rowspan="2">Net Payroll</th>
-                                <th class="text-center e6-grp" colspan="6" title="Every deduction category, itemized. These columns always sum exactly to the Total.">DEDUCTIONS</th>
-                                <th class="text-right" rowspan="2">Additions</th>
-                                <th class="text-right" rowspan="2" style="color:#b45309;">Carryover Out</th>
-                                <th class="text-right th-aed" rowspan="2">Final (AED)</th>
-                                <th class="text-right th-inr" rowspan="2" title="₹ = INR (blue) · Rs. = NPR (amber)">Final (INR/NPR)</th>
+                                <th rowspan="2">Category</th>
                                 <th class="text-center" rowspan="2">Status</th>
+                                <th class="text-center e6-grp e6-grp-gross" colspan="6" title="Salary structure components. These columns sum to the Gross Total.">GROSS PAY</th>
+                                <th class="text-right" rowspan="2" title="Gross pay after attendance scaling — the base the deductions below apply to">Net Payroll</th>
+                                <th class="text-center e6-grp" colspan="6" title="Every deduction category, itemized. These columns always sum exactly to the Total.">DEDUCTIONS</th>
+                                <th class="text-right e6-grp e6-grp-inc" rowspan="2">Incentives</th>
+                                <th class="text-right" rowspan="2" style="color:#b45309;">Carryover Out</th>
+                                <th class="text-right th-aed" rowspan="2">Net Salary (AED)</th>
+                                <th class="text-right th-inr" rowspan="2" title="₹ = INR (blue) · Rs. = NPR (amber)">Net Salary (INR/NPR)</th>
                                 <th class="text-center" rowspan="2">Date Paid</th>
                                 <th class="text-center" rowspan="2">Method</th>
                                 <th class="text-center" rowspan="2">Payslip</th>
                             </tr>
                             <tr>
+                                <th class="text-right e6-sub e6-sub-gross">Basic</th>
+                                <th class="text-right e6-sub e6-sub-gross">Housing</th>
+                                <th class="text-right e6-sub e6-sub-gross">Transport</th>
+                                <th class="text-right e6-sub e6-sub-gross">Phone</th>
+                                <th class="text-right e6-sub e6-sub-gross">Other</th>
+                                <th class="text-right e6-sub e6-sub-gross">Total</th>
                                 <th class="text-right e6-sub">Late</th>
                                 <th class="text-right e6-sub">Leave</th>
                                 <th class="text-right e6-sub">Advance</th>
@@ -1024,12 +1074,52 @@ tr.e6-partial-row { background: #fffcf5; }
                                     <input type="checkbox" class="final-row-cb" onchange="updateSelectedCount()">
                                     {% endif %}
                                 </td>
-                                <td>{{ row.employee.name }}
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-left:5px;opacity:0.45;cursor:pointer;" onclick="openNotesTimeline('{{ row.employee_type }}','{{ row.employee.id }}','{{ row.employee.name|escapejs }}')" title="Notes &amp; Timeline">
-                                        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
-                                    </svg>
+                                <td>
+                                    <div class="e6-emp">
+                                        <span class="e6-avatar e6-av-{{ row.category_slug }}">{{ row.initials }}</span>
+                                        <span class="e6-emp-txt">
+                                            <span class="e6-emp-name">{{ row.employee.name }}<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-left:5px;opacity:0.45;cursor:pointer;" onclick="openNotesTimeline('{{ row.employee_type }}','{{ row.employee.id }}','{{ row.employee.name|escapejs }}')" title="Notes &amp; Timeline"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></span>
+                                            {% if row.employee.tcr_id %}<span class="e6-emp-code">{{ row.employee.tcr_id }}</span>{% endif %}
+                                        </span>
+                                    </div>
                                 </td>
-                                <td class="muted">{{ row.department }}</td>
+                                <td><span class="e6-cat e6-cat-{{ row.category_slug }}">{{ row.category_label }}</span></td>
+                                <td class="text-center">
+                                    {% if row.pay_status == 'partial' %}
+                                    <span class="e6-badge-partial" style="cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="Partially disbursed — balance still outstanding">&#189; Partial</span>
+                                    <div class="muted" style="font-size:0.66rem;margin-top:2px;white-space:nowrap;">{{ row.amount_paid|floatformat:2|intcomma }} of {{ row.final_salary|floatformat:2|intcomma }}</div>
+                                    <div style="font-size:0.66rem;color:#dc2626;font-weight:600;">balance {{ row.balance_due|floatformat:2|intcomma }}</div>
+                                    <button class="unmark-btn" onclick="unmarkPaid(this)" title="Remove paid lock">Unmark</button>
+                                    {% elif row.is_paid %}
+                                    <span class="paid-badge" style="cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; Paid</span>
+                                    <div class="muted" style="font-size:0.66rem;margin-top:2px;">{{ row.paid_by }}</div>
+                                    <button class="unmark-btn" onclick="unmarkPaid(this)" title="Remove paid lock">Unmark</button>
+                                    {% else %}
+                                    <span class="e6-badge-unpaid">! Unpaid</span>
+                                    {% endif %}
+                                </td>
+                                {% comment %}
+                                Gross Pay — the same approved SalaryStructure figures the
+                                category tabs and the payslip use, copied across rather than
+                                recomputed so the two views can never disagree. No structure
+                                on file, or no salary concept at all, renders as dashes rather
+                                than a fabricated split.
+                                {% endcomment %}
+                                {% if row.gross and row.gross.has_structure %}
+                                <td class="text-right num">{{ row.gross.basic|floatformat:2|intcomma }}</td>
+                                <td class="text-right num">{% if row.gross.housing %}{{ row.gross.housing|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num">{% if row.gross.transport %}{{ row.gross.transport|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num">{% if row.gross.phone %}{{ row.gross.phone|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num">{% if row.gross.other %}{{ row.gross.other|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num" style="font-weight:700;">{{ row.gross.total|floatformat:2|intcomma }}{% if row.gross.is_estimated %}<div class="muted" style="font-size:0.6rem;white-space:nowrap;font-weight:400;" title="Remote employees have no formal salary structure on file — this is an estimated 40% Basic / 60% Other split, not itemized payroll data.">estimated</div>{% endif %}</td>
+                                {% else %}
+                                <td class="text-right muted">—</td>
+                                <td class="text-right muted">—</td>
+                                <td class="text-right muted">—</td>
+                                <td class="text-right muted">—</td>
+                                <td class="text-right muted">—</td>
+                                <td class="text-right muted">—</td>
+                                {% endif %}
                                 <td class="text-right num">{{ row.payroll_net|floatformat:2|intcomma }}</td>
                                 {% comment %}
                                 Phase E6 itemized deductions. A None value (rendered as a
@@ -1062,20 +1152,6 @@ tr.e6-partial-row { background: #fffcf5; }
                                     {% if row.is_paid %}<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;opacity:0.6;margin-left:3px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>{% endif %}
                                     {% else %}<span class="muted">—</span>{% endif %}
                                 </td>
-                                <td class="text-center">
-                                    {% if row.pay_status == 'partial' %}
-                                    <span class="e6-badge-partial" style="cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="Partially disbursed — balance still outstanding">&#189; PARTIAL</span>
-                                    <div class="muted" style="font-size:0.68rem;margin-top:2px;">{{ row.amount_paid|floatformat:2|intcomma }} of {{ row.final_salary|floatformat:2|intcomma }}</div>
-                                    <div style="font-size:0.68rem;margin-top:1px;color:#dc2626;font-weight:600;">balance {{ row.balance_due|floatformat:2|intcomma }}</div>
-                                    <button class="unmark-btn" onclick="unmarkPaid(this)" title="Remove paid lock">Unmark</button>
-                                    {% elif row.is_paid %}
-                                    <span class="paid-badge" style="cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span>
-                                    <div class="muted" style="font-size:0.68rem;margin-top:2px;">{{ row.paid_by }}</div>
-                                    <button class="unmark-btn" onclick="unmarkPaid(this)" title="Remove paid lock">Unmark</button>
-                                    {% else %}
-                                    <span class="muted" style="font-size:0.75rem;">Unpaid</span>
-                                    {% endif %}
-                                </td>
                                 <td class="text-center muted" style="font-size:0.72rem;white-space:nowrap;">{% if row.payment_date %}{{ row.payment_date|date:"d M Y" }}{% else %}—{% endif %}</td>
                                 <td class="text-center" style="font-size:0.72rem;white-space:nowrap;">{% if row.payment_method_label %}<span class="e6-method e6-method-{{ row.payment_method }}">{{ row.payment_method_label }}</span>{% if row.pay_status == 'partial' and row.payment_method == 'wps' %}<span class="e6-adv-badge" title="WPS shortfall was recorded as an advance and is scheduled for recovery next month">&#177; Advance</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-center">
@@ -1083,14 +1159,20 @@ tr.e6-partial-row { background: #fffcf5; }
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr class="empty-row"><td colspan="18">No employees found</td></tr>
+                            <tr class="empty-row"><td colspan="24">No employees found</td></tr>
                             {% endfor %}
                         </tbody>
                         {% if final_rows %}
                         <tfoot>
                             <tr>
                                 <td></td>
-                                <td colspan="2"><strong>Total</strong></td>
+                                <td colspan="3"><strong>Total</strong></td>
+                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.basic"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.housing"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.transport"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.phone"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num">{{ final_rows|dictsumby_nested:"gross.other"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num" style="font-weight:700;">{{ final_rows|dictsumby_nested:"gross.total"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-payroll-net" class="text-right num">{{ final_rows|dictsumby:"payroll_net"|floatformat:2|intcomma }}</td>
                                 <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.late"|floatformat:2|intcomma }}</td>
                                 <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.leave"|floatformat:2|intcomma }}</td>
@@ -1102,7 +1184,6 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <td id="tfoot-co-out" class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-final-aed" class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-final-inr" class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2|intcomma }}{% endif %}{% if final_total_npr %} <span class="csym csym-npr">Rs.</span> {{ final_total_npr|floatformat:2|intcomma }}{% endif %}{% if not final_total_inr and not final_total_npr %}—{% endif %}</td>
-                                <td></td>
                                 <td></td>
                                 <td></td>
                                 <td></td>

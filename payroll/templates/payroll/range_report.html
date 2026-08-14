@@ -115,6 +115,16 @@
 .rr-modal-close { cursor: pointer; color: var(--text-secondary); font-size: 1rem; }
 .rr-modal table { width: 100%; border-collapse: collapse; font-size: .83rem; }
 .rr-modal td { padding: 6px 4px; }
+
+/* ── Phase E7: quick presets + per-employee window note ─────────────── */
+.rr-presets { display: flex; gap: .5rem; flex-wrap: wrap; margin: -0.35rem 0 1rem; }
+.rr-presets a {
+    padding: 4px 12px; border-radius: 20px; font-size: .76rem; font-weight: 600;
+    text-decoration: none; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+}
+.rr-presets a:hover { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+.rr-preset-note { font-weight: 400; opacity: .7; }
+.rr-window-note { font-size: .64rem; color: var(--text-secondary); margin-top: 3px; }
 </style>
 {% endblock %}
 
@@ -124,7 +134,36 @@
     <!-- ── Mode tabs (Phase E3) ─────────────────────────────────────────── -->
     <div class="rr-mode-tabs">
         <button type="button" class="rr-mode-tab {% if mode == 'range' %}active{% endif %}" onclick="rrSwitchMode('range')">Range</button>
+        <button type="button" class="rr-mode-tab {% if mode == 'annual' %}active{% endif %}" onclick="rrSwitchMode('annual')">Annual</button>
         <button type="button" class="rr-mode-tab {% if mode == 'multi' %}active{% endif %}" onclick="rrSwitchMode('multi')">Multiple Months</button>
+        <button type="button" class="rr-mode-tab {% if mode == 'since_joining' %}active{% endif %}" onclick="window.location.search='?mode=since_joining'">Since Joining</button>
+    </div>
+
+    <!-- ── Quick presets (Phase E7) ─────────────────────────────────────── -->
+    <div class="rr-presets">
+        {% for p in presets %}
+        <a href="?{{ p.query }}">{{ p.label }}{% if p.note %} <span class="rr-preset-note">({{ p.note }})</span>{% endif %}</a>
+        {% endfor %}
+    </div>
+
+    <!-- ── Annual picker (Phase E7) ─────────────────────────────────────── -->
+    <div id="rrAnnualPanel" {% if mode != 'annual' %}style="display:none;"{% endif %}>
+    <form class="rr-picker" method="get">
+        <input type="hidden" name="mode" value="annual">
+        <div class="rr-field">
+            <label>Year</label>
+            <select name="annual_year">
+                {% for y in year_choices %}
+                <option value="{{ y }}" {% if y == annual_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit">Apply</button>
+        <div class="rr-quicklinks">
+            <span style="font-size:.76rem;color:var(--text-secondary);">The current year stops at this month. An employee who joined mid-year is measured from their joining month, not from January.</span>
+            <a href="{% url 'payroll_dashboard' %}">← Back to Dashboard</a>
+        </div>
+    </form>
     </div>
 
     <!-- ── Range picker ─────────────────────────────────────────────────── -->
@@ -243,6 +282,7 @@
                         <span class="rr-months-badge {% if row.is_complete %}complete{% else %}partial{% endif %}">
                             {{ row.months_included }} of {{ row.months_total }}
                         </span>
+                        {% if row.window_note %}<div class="rr-window-note" title="This employee's window starts at their joining date, so the total above is what they were actually owed — not the full period.">{{ row.window_note }}</div>{% endif %}
                     </td>
                     <td class="num">{{ row.currency }} {{ row.net_payroll|floatformat:2|intcomma }}</td>
                     <td class="num val-negative">{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
@@ -320,6 +360,7 @@ function rrSwitchMode(m) {
         btn.classList.toggle('active', btn.getAttribute('onclick') === "rrSwitchMode('" + m + "')");
     });
     document.getElementById('rrRangePanel').style.display = (m === 'range') ? '' : 'none';
+    document.getElementById('rrAnnualPanel').style.display = (m === 'annual') ? '' : 'none';
     document.getElementById('rrMultiPanel').style.display = (m === 'multi') ? '' : 'none';
 }
 
