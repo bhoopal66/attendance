@@ -47,11 +47,13 @@
 .rr-mode-tab.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
 .rr-multi-panel { flex-direction: column; align-items: stretch; }
 .rr-month-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .5rem; max-width: 520px; }
-.rr-month-chip {
+/* Scoped with .rr-multi-panel so this beats the pre-existing ".rr-picker button"
+   rule above (higher specificity) — otherwise every chip renders as "selected". */
+.rr-multi-panel .rr-month-chip {
     background: var(--surface-color); border: 1px solid var(--border-color); color: var(--text-primary);
     border-radius: 8px; padding: 8px 0; font-size: .82rem; font-weight: 600; cursor: pointer; text-align: center;
 }
-.rr-month-chip.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+.rr-multi-panel .rr-month-chip.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
 
 /* ── Grand total cards ────────────────────────────────────────────────── */
 .rr-kpi-grid {
