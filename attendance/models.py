@@ -1,3 +1,4 @@
+import datetime
 import logging
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -192,8 +193,83 @@ class BaseEmployee(models.Model):
         help_text="Manpower visa provider; leave blank for own-visa employees"
     )
 
+    # ── Compliance block ──────────────────────────────────────────────────
+    # The identity documents themselves (Emirates ID, passport, UAE visa,
+    # labour card, medical insurance — number, issue date, expiry, scan and HR
+    # verification) live in EmployeeDocument and are NOT duplicated here.
+    # One number, one place. What follows is only what the document records
+    # cannot express.
+
+    VISA_TYPE_CHOICES = [
+        ('employment', 'Employment Visa'),
+        ('investor',   'Investor / Partner Visa'),
+        ('golden',     'Golden Visa'),
+        ('dependent',  'Dependent Visa'),
+        ('freelance',  'Freelance Permit'),
+        ('other',      'Other'),
+    ]
+    visa_type = models.CharField(
+        max_length=20, choices=VISA_TYPE_CHOICES, blank=True, default='',
+        help_text="Category of UAE visa. The number and expiry live on the "
+                  "employee's UAE Visa document record, not here.",
+    )
+
+    CONTRACT_LIMITED = 'limited'
+    CONTRACT_UNLIMITED = 'unlimited'
+    CONTRACT_TYPE_CHOICES = [
+        (CONTRACT_LIMITED,   'Limited'),
+        (CONTRACT_UNLIMITED, 'Unlimited (legacy)'),
+    ]
+    contract_type = models.CharField(
+        max_length=20, choices=CONTRACT_TYPE_CHOICES, blank=True, default='',
+        help_text="Gratuity computation basis. Deliberately blank by default: "
+                  "an unrecorded contract type must read as unknown, never as "
+                  "a guess, because the guess would change an end-of-service "
+                  "figure without anyone deciding to.",
+    )
+
+    probation_end_date = models.DateField(
+        null=True, blank=True,
+        help_text="Leave blank to use joining date + 90 days. Set it only when "
+                  "the real end date differs — a stored value always wins, and "
+                  "is shown as confirmed rather than inferred.",
+    )
+
+    taamul_connect_user_id = models.CharField(
+        max_length=100, blank=True, default='', db_index=True,
+        help_text="TaamulConnect user ID — API sync key and the handle used to "
+                  "provision or revoke access.",
+    )
+
+    commission_plan_code = models.CharField(
+        max_length=30, blank=True, default='', db_index=True,
+        help_text="Bridge to the DSA commission engine. Not applicable to "
+                  "Admin-department staff.",
+    )
+
+    # Assigned partner banks are a link table in the payroll app
+    # (payroll.EmployeePartnerBank), not a field here: the relation carries its
+    # own data (which bank is primary, when it was assigned) and Bank lives in
+    # payroll, which already imports attendance rather than the reverse.
+
+    compliance_reviewed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When this employee's compliance record was last confirmed "
+                  "correct by a human.",
+    )
+    compliance_reviewed_by = models.CharField(
+        max_length=150, blank=True, default='',
+        help_text="Who confirmed it.",
+    )
+
+    # ── End Compliance block ──────────────────────────────────────────────
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    PROBATION_DAYS = 90
+    PROBATION_REVIEW_DAY = 75
+    COMPLIANCE_REVIEW_INTERVAL_DAYS = 90
 
     class Meta:
         abstract = True
@@ -201,11 +277,78 @@ class BaseEmployee(models.Model):
     def __str__(self):
         return self.name
 
+    # ── Compliance derived values ─────────────────────────────────────────
+    # Every one of these is COMPUTED. Nothing below writes a date into the
+    # database, because a written default is indistinguishable from a date
+    # somebody checked.
+
+    @property
+    def probation_end(self):
+        """The stored probation end date, or joining_date + 90 days."""
+        if self.probation_end_date:
+            return self.probation_end_date
+        if self.joining_date:
+            return self.joining_date + datetime.timedelta(days=self.PROBATION_DAYS)
+        return None
+
+    @property
+    def probation_is_inferred(self):
+        """True when the date above was derived rather than recorded."""
+        return not self.probation_end_date and self.joining_date is not None
+
+    @property
+    def probation_review_due(self):
+        """Day 75 — when the review has to happen to beat the deadline."""
+        if not self.joining_date:
+            return None
+        if self.probation_end_date:
+            return self.probation_end_date - datetime.timedelta(
+                days=self.PROBATION_DAYS - self.PROBATION_REVIEW_DAY)
+        return self.joining_date + datetime.timedelta(days=self.PROBATION_REVIEW_DAY)
+
+    def probation_state(self, today=None):
+        """'none' | 'review_due' | 'in_probation' | 'passed'."""
+        today = today or datetime.date.today()
+        end = self.probation_end
+        if end is None:
+            return 'none'
+        if today > end:
+            return 'passed'
+        due = self.probation_review_due
+        if due is not None and today >= due:
+            return 'review_due'
+        return 'in_probation'
+
+    @property
+    def compliance_review_due_date(self):
+        if not self.compliance_reviewed_at:
+            return None
+        return (self.compliance_reviewed_at.date()
+                + datetime.timedelta(days=self.COMPLIANCE_REVIEW_INTERVAL_DAYS))
+
+    def compliance_review_state(self, today=None):
+        """'never' | 'due' | 'current'.
+
+        'never' is not the same as 'due'. A record nobody has ever checked is a
+        different problem from one that was checked and has gone stale, and the
+        watchlist should be able to say which.
+        """
+        today = today or datetime.date.today()
+        due = self.compliance_review_due_date
+        if due is None:
+            return 'never'
+        return 'due' if today >= due else 'current'
+
     def clean(self):
         super().clean()
         if self.leaving_date and self.joining_date and self.leaving_date < self.joining_date:
             raise ValidationError({
                 'leaving_date': "Leaving date cannot be before joining date."
+            })
+        if self.probation_end_date and self.joining_date and \
+                self.probation_end_date < self.joining_date:
+            raise ValidationError({
+                'probation_end_date': "Probation cannot end before the joining date."
             })
 
 
