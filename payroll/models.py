@@ -40,6 +40,14 @@ DEDUCTION_CATEGORY_CHOICES = [
     ('other_addition', 'Others'),
 ]
 
+#: Ordered fallbacks used when the DeductionType table is unavailable.
+#: Order matters - it drives column order and the order of summation.
+_DEDUCTION_CATS_ORDERED = [
+    'advance', 'visa_status_change', 'clawback', 'leave_deduction',
+    'late_deduction', 'other_deduction',
+]
+_ADDITION_CATS_ORDERED = ['last_month_balance', 'paid_leave', 'other_addition']
+
 _DEDUCTION_CATS = {
     'advance', 'visa_status_change', 'clawback', 'leave_deduction',
     'late_deduction', 'other_deduction',
@@ -191,6 +199,34 @@ def other_rollup_codes():
         return list(OTHER_DEDUCTION_CATEGORIES)
     return [c for c, _n, t, _a, _m, rollup, _col in rows
             if t == 'deduction' and rollup]
+
+
+def deduction_column_codes():
+    """Ordered deduction codes for the dashboard's per-category aggregation.
+
+    THIS EXISTS BECAUSE A HARD-CODED LIST CRASHED PRODUCTION.
+    The dashboard built its per-employee totals as
+    `cat = {c: 0.0 for c in _ALL_CATS}` over a fixed nine-item list, then did
+    `cat[entry.category] += ...`. The moment a real entry carried a code added
+    from the Deduction Types page - which Phase 2 exists to allow - that line
+    raised KeyError and the whole payroll month returned 500.
+
+    Two lessons, both encoded here: the aggregation must come from the same
+    source as the menu, and the accumulation must never index a dict it does
+    not own. Callers use `cat.get(code, 0.0)` and tolerate unknown codes.
+    """
+    rows = _deduction_type_rows()
+    if not rows:
+        return list(_DEDUCTION_CATS_ORDERED)
+    return [c for c, _n, t, _a, _m, _r, _col in rows if t == 'deduction']
+
+
+def addition_column_codes():
+    """Ordered addition codes. Same reasoning as deduction_column_codes()."""
+    rows = _deduction_type_rows()
+    if not rows:
+        return list(_ADDITION_CATS_ORDERED)
+    return [c for c, _n, t, _a, _m, _r, _col in rows if t == 'addition']
 
 
 def deduction_type_meta():

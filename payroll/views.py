@@ -43,6 +43,8 @@ from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, Ded
 # unmigrated database behaves exactly as it did before.
 from .models import (
     DeductionType,
+    addition_column_codes,
+    deduction_column_codes,
     deduction_type_groups,
     deduction_type_meta,
     other_rollup_codes,
@@ -1306,8 +1308,10 @@ def payroll_dashboard(request):
         1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
         7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
     }
-    _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
-    _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
+    # Table-backed since a hard-coded list KeyError'd the whole month the
+    # first time a custom type had a real entry. See models.deduction_column_codes.
+    _DED_COLS = deduction_column_codes()
+    _ADD_COLS = addition_column_codes()
     _ALL_CATS = _DED_COLS + _ADD_COLS
     target_idx = selected_year * 12 + (selected_month - 1)
 
@@ -1382,10 +1386,10 @@ def payroll_dashboard(request):
     for emp in _payroll_inhouse:
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
-            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+            cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         for dupe_id in _inhouse_dupe_ids.get(emp.id, []):
             for ded_entry in active_by_emp.get(('inhouse', dupe_id), []):
-                cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+                cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         # Auto-compute leave/late from attendance (skip for performance-based payroll)
         summary = inhouse_summaries.get(emp.id)
         if emp.salary and emp.payroll_type != 'performance':
@@ -1420,10 +1424,10 @@ def payroll_dashboard(request):
     for emp in remote_employees:
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('remote', emp.id), []):
-            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+            cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         for dupe_id in _remote_dupe_ids.get(emp.id, []):
             for ded_entry in active_by_emp.get(('remote', dupe_id), []):
-                cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+                cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         total_ded = round(sum(cat[c] for c in _DED_COLS), 2)
         carryover_in = float(carryover_by_emp.get(('remote', emp.id), 0))
         for dupe_id in _remote_dupe_ids.get(emp.id, []):
@@ -1944,8 +1948,10 @@ def freeze_payroll(request):
         1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
         7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
     }
-    _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
-    _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
+    # Table-backed since a hard-coded list KeyError'd the whole month the
+    # first time a custom type had a real entry. See models.deduction_column_codes.
+    _DED_COLS = deduction_column_codes()
+    _ADD_COLS = addition_column_codes()
     _ALL_CATS = _DED_COLS + _ADD_COLS
     target_idx = year * 12 + (month - 1)
 
@@ -1990,10 +1996,10 @@ def freeze_payroll(request):
     for emp in _payroll_inhouse:
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
-            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+            cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         for dupe_id in _inhouse_dupe_ids.get(emp.id, []):
             for ded_entry in active_by_emp.get(('inhouse', dupe_id), []):
-                cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+                cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         summary = inhouse_summaries.get(emp.id)
         if emp.salary and emp.payroll_type != 'performance':
             daily = float(emp.salary) / days_in_month
@@ -2024,10 +2030,10 @@ def freeze_payroll(request):
     for emp in remote_employees:
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('remote', emp.id), []):
-            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+            cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         for dupe_id in _remote_dupe_ids.get(emp.id, []):
             for ded_entry in active_by_emp.get(('remote', dupe_id), []):
-                cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+                cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         total_ded = round(sum(cat[c] for c in _DED_COLS), 2)
         carryover_in = float(carryover_by_emp.get(('remote', emp.id), 0))
         for dupe_id in _remote_dupe_ids.get(emp.id, []):
@@ -3885,8 +3891,10 @@ def payroll_test_dashboard(request):
     # locked snapshot value to stay consistent with the real Sales: Performance tab.
 
     # ---- Deductions & Additions ----
-    _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
-    _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
+    # Table-backed since a hard-coded list KeyError'd the whole month the
+    # first time a custom type had a real entry. See models.deduction_column_codes.
+    _DED_COLS = deduction_column_codes()
+    _ADD_COLS = addition_column_codes()
     _ALL_CATS = _DED_COLS + _ADD_COLS
     target_idx = selected_year * 12 + (selected_month - 1)
     _mnames = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'}
@@ -4006,7 +4014,7 @@ def payroll_test_dashboard(request):
     for emp in all_payroll_inhouse:
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('inhouse', emp.id), []):
-            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+            cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         # Auto-fill leave/late for attendance-based employees using pre-computed payroll row
         if emp.salary and emp.payroll_type != 'performance':
             emp_p_start, emp_p_end, emp_p_days, _ = _emp_period(emp)
@@ -4035,7 +4043,7 @@ def payroll_test_dashboard(request):
     for emp in all_payroll_remote:
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get(('remote', emp.id), []):
-            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+            cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         carryover_in = carryover_by_emp.get(('remote', emp.id), 0.0)
         total_ded = round(sum(cat[c] for c in _DED_COLS) + carryover_in, 2)
         total_add = round(sum(cat[c] for c in _ADD_COLS), 2)
@@ -5510,8 +5518,10 @@ def mark_paid_salary(request):
 
     banks = list(Bank.objects.filter(is_active=True).order_by('name'))
 
-    _DED_COLS = ['advance', 'visa_status_change', 'clawback', 'leave_deduction', 'late_deduction', 'other_deduction']
-    _ADD_COLS = ['last_month_balance', 'paid_leave', 'other_addition']
+    # Table-backed since a hard-coded list KeyError'd the whole month the
+    # first time a custom type had a real entry. See models.deduction_column_codes.
+    _DED_COLS = deduction_column_codes()
+    _ADD_COLS = addition_column_codes()
     _ALL_CATS = _DED_COLS + _ADD_COLS
     target_idx = year * 12 + (month - 1)
 
@@ -5562,7 +5572,7 @@ def mark_paid_salary(request):
     def _compute_deductions(emp, emp_type, p_start, p_end, p_days):
         cat = {c: 0.0 for c in _ALL_CATS}
         for ded_entry in active_by_emp.get((emp_type, emp.id), []):
-            cat[ded_entry.category] = round(cat[ded_entry.category] + float(ded_entry.installment_amount), 2)
+            cat[ded_entry.category] = round(cat.get(ded_entry.category, 0.0) + float(ded_entry.installment_amount), 2)
         carryover_in = carryover_by_emp.get((emp_type, emp.id), 0.0)
         if emp_type == 'inhouse':
             summary = inhouse_summaries.get(emp.id)
