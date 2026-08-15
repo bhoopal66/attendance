@@ -4401,7 +4401,10 @@ def payroll_test_dashboard(request):
         # answer has to be the same one. `total_additions` above now comes from
         # the lock; leaving `add_cols` holding today's recomputed split would
         # let the columns disagree with the total beside them.
-        _snap_add = snap.get('additions_breakdown')
+        # `deductions_breakdown` is misnamed: `cat` covers EVERY category,
+        # additions among them (see _compute_deductions). So a locked month can
+        # show real itemized additions rather than a row of dashes.
+        _snap_add = snap.get('additions_breakdown') or snap.get('deductions_breakdown')
         if row.get('add_cols') is not None:
             if _snap_add:
                 row['add_cols'] = [
@@ -5703,6 +5706,12 @@ def mark_paid_salary(request):
             'bank_submissions': _build_bank_submissions(row),
             # Deductions & additions breakdown
             'deductions_breakdown': cat,
+            # Leave already priced into net_payroll. Stored so a locked month
+            # can still show it; never added to any total.
+            'paid_leave_value': round(
+                float(row.get('daily_rate') or 0) * float(row.get('paid_leave_days') or 0)
+                + float(row.get('annual_leave_compensation') or 0)
+                - float(row.get('annual_leave_extra_deduction') or 0), 2),
             'carryover_in': carryover_in,
             'total_deductions': total_ded,
             'total_additions': total_add,
