@@ -44,6 +44,7 @@ from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, Ded
 from .models import (
     DeductionType,
     deduction_type_groups,
+    deduction_type_meta,
     other_rollup_codes,
     valid_deduction_codes,
 )
@@ -1154,6 +1155,7 @@ def _deserialize_payroll_context(snapshot, selected_month, selected_year):
         'INR_OVERFLOW_RATE': int(_get_tier_settings('INR')[1]),
         'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
         'DEDUCTION_TYPE_GROUPS': deduction_type_groups(),
+        'DEDUCTION_TYPE_META': deduction_type_meta(),
         'is_frozen': True,
     }
 
@@ -1827,6 +1829,7 @@ def payroll_dashboard(request):
         'frozen_by': None,
         'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
         'DEDUCTION_TYPE_GROUPS': deduction_type_groups(),
+        'DEDUCTION_TYPE_META': deduction_type_meta(),
     }
 
     return render(request, 'payroll/dashboard.html', context)
@@ -4279,14 +4282,35 @@ def payroll_test_dashboard(request):
         # live mask still applies — only the amounts come from the lock.
         _snap_cat = snap.get('deductions_breakdown')
         _live_cols = row.get('ded_cols')
-        if _snap_cat and _live_cols:
-            row['ded_cols'] = {
-                'late': None if _live_cols['late'] is None else _snap_cat.get('late_deduction', 0.0),
-                'leave': None if _live_cols['leave'] is None else _snap_cat.get('leave_deduction', 0.0),
-                'advance': None if _live_cols['advance'] is None else _snap_cat.get('advance', 0.0),
-                'other': round(sum(_snap_cat.get(c, 0.0) or 0.0 for c in _OTHER_CATS), 2),
-                'carryover': snap.get('carryover_in', 0) or 0,
-            }
+        if _live_cols:
+            if _snap_cat:
+                row['ded_cols'] = {
+                    'late': None if _live_cols['late'] is None else _snap_cat.get('late_deduction', 0.0),
+                    'leave': None if _live_cols['leave'] is None else _snap_cat.get('leave_deduction', 0.0),
+                    'advance': None if _live_cols['advance'] is None else _snap_cat.get('advance', 0.0),
+                    'other': round(sum(_snap_cat.get(c, 0.0) or 0.0 for c in _OTHER_CATS), 2),
+                    'carryover': snap.get('carryover_in', 0) or 0,
+                }
+            else:
+                # No itemized breakdown was captured when this month was locked
+                # — true of every PaidSalaryRecord written before Jun 2026.
+                #
+                # Previously this branch simply did nothing, which left the row
+                # reading from two different sources at once: `total_deductions`
+                # above comes from the LOCK, while `ded_cols` still held the
+                # figures recomputed from today's data. Where the two disagree
+                # the row contradicts itself — e.g. Mar 2026 showed an "Other"
+                # figure against a locked total of zero.
+                #
+                # The locked total is authoritative and is not touched. What is
+                # genuinely unknown is how it was split, so the itemized cells
+                # say so instead of printing a live split that disagrees with
+                # the total beside it. None renders as the "not applicable"
+                # dash; `ded_cols_uncaptured` drives the explanatory tooltip.
+                row['ded_cols'] = dict.fromkeys(
+                    ('late', 'leave', 'advance', 'other', 'carryover'), None
+                )
+                row['ded_cols_uncaptured'] = True
 
     # ---- Phase E6b: category label + Gross Pay breakdown on the summary table ----
     # Both are copied from the per-category rows rather than recomputed, so the
@@ -5217,6 +5241,7 @@ def payroll_test_dashboard(request):
         'all_employees_json': all_employees_json,
         'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
         'DEDUCTION_TYPE_GROUPS': deduction_type_groups(),
+        'DEDUCTION_TYPE_META': deduction_type_meta(),
         'carryover_schedule': carryover_schedule,
         'carryover_pending_count': carryover_pending_count,
         'carryover_pending_aed': carryover_pending_aed,

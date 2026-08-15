@@ -8,6 +8,7 @@ from . import views_audit
 from . import views_notes
 from . import views_range_report
 from . import views_deduction_types
+from . import views_loans
 from . import views_debug
 
 urlpatterns = [
@@ -81,6 +82,15 @@ urlpatterns = [
     path('api/deduction-types/save/', views_deduction_types.deduction_type_save, name='deduction_type_save'),
     path('api/deduction-types/toggle/', views_deduction_types.deduction_type_toggle, name='deduction_type_toggle'),
     path('api/deduction-types/delete/', views_deduction_types.deduction_type_delete, name='deduction_type_delete'),
+
+    # Phase 3 — Loans & Salary Advances
+    path('loans/', views_loans.loans, name='loans'),
+    path('api/loans/preview/', views_loans.loan_preview, name='loan_preview'),
+    path('api/loans/save/', views_loans.loan_save, name='loan_save'),
+    path('api/loans/activate/', views_loans.loan_activate, name='loan_activate'),
+    path('api/loans/cancel/', views_loans.loan_cancel, name='loan_cancel'),
+    path('api/loans/waive/', views_loans.loan_waive, name='loan_waive'),
+    path('api/loans/delete/', views_loans.loan_delete, name='loan_delete'),
 
     # Phase D — Range / Annual Report
     path('range-report/', views_range_report.range_report, name='payroll_range_report'),

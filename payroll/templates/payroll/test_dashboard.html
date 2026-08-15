@@ -1331,11 +1331,11 @@ tr.e6-partial-row { background: #fffcf5; }
                                 and fixed-salary in-house staff, so showing a figure here would
                                 read as a second deduction for the same absence.
                                 {% endcomment %}
-                                <td class="text-right num val-negative grp-edge">{% if row.ded_cols.late is None %}<span class="muted e6-na" title="Already reflected in Net Payroll — this employee's salary is scaled by attendance, so late time is not deducted a second time">–</span>{% elif row.ded_cols.late > 0 %}-{{ row.ded_cols.late|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num val-negative">{% if row.ded_cols.leave is None %}<span class="muted e6-na" title="Already reflected in Net Payroll — this employee's salary is scaled by attendance, so leave is not deducted a second time">–</span>{% elif row.ded_cols.leave > 0 %}-{{ row.ded_cols.leave|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num val-negative">{% if row.ded_cols.advance is None %}<span class="muted e6-na">–</span>{% elif row.ded_cols.advance > 0 %}-{{ row.ded_cols.advance|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num val-negative">{% if row.ded_cols.other > 0 %}-{{ row.ded_cols.other|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-                                <td class="text-right num" style="color:#7c3aed;">{% if row.ded_cols.carryover > 0 %}-{{ row.ded_cols.carryover|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-negative grp-edge">{% if row.ded_cols.late is None %}{% if row.ded_cols_uncaptured %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% else %}<span class="muted e6-na" title="Already reflected in Net Payroll — this employee&#39;s salary is scaled by attendance, so late time is not deducted a second time">–</span>{% endif %}{% elif row.ded_cols.late > 0 %}-{{ row.ded_cols.late|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-negative">{% if row.ded_cols.leave is None %}{% if row.ded_cols_uncaptured %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% else %}<span class="muted e6-na" title="Already reflected in Net Payroll — this employee&#39;s salary is scaled by attendance, so leave is not deducted a second time">–</span>{% endif %}{% elif row.ded_cols.leave > 0 %}-{{ row.ded_cols.leave|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-negative">{% if row.ded_cols.advance is None %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% elif row.ded_cols.advance > 0 %}-{{ row.ded_cols.advance|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num val-negative">{% if row.ded_cols.other is None %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% elif row.ded_cols.other > 0 %}-{{ row.ded_cols.other|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num" style="color:#7c3aed;">{% if row.ded_cols.carryover is None %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% elif row.ded_cols.carryover > 0 %}-{{ row.ded_cols.carryover|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num val-negative sub-total" style="font-weight:600;{% if row.total_deductions > 0 and not row.is_paid %}cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;{% endif %}"{% if row.total_deductions > 0 and not row.is_paid %} onclick="openDeductionBreakdown('{{ row.employee_type }}','{{ row.employee.id }}')" title="Click for itemized breakdown"{% endif %}>{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
                                 <td class="text-right num val-positive">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
                                 <td class="text-right num" style="color:#b45309;">{% if row.carryover_out > 0 %}→ {{ row.carryover_out|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -2909,6 +2909,12 @@ PAID_SNAPSHOTS['{{ row.employee_type }}_{{ row.employee.id }}'] = {
 };
 {% endif %}{% endfor %}
 
+/* Deduction Master metadata — {code: {n: name, t: deduction|addition}} —
+   so every JS renderer labels categories from the same source as the server. */
+const DED_TYPE_META = {
+{% for code, name, etype in DEDUCTION_TYPE_META %}    '{{ code|escapejs }}': {n: '{{ name|escapejs }}', t: '{{ etype }}'},
+{% endfor %}};
+
 /* Embed itemized deduction breakdowns (unpaid rows only — paid rows already
    have a full itemized breakdown via PAID_SNAPSHOTS / openPaidDetail) */
 const DED_BREAKDOWN = {};
@@ -3681,19 +3687,24 @@ function openPaidDetail(empId, empType) {
     }
 
     const dedB = s.deductions_breakdown || {};
-    const dedLabels = {
-        advance:'Advance', visa_status_change:'Visa Status Change', clawback:'Clawback',
-        leave_deduction:'Leave Deduction', late_deduction:'Late Deduction', other_deduction:'Other Deduction',
-        last_month_balance:'Last Month Balance', paid_leave:'Paid Leave', other_addition:'Other Addition',
-    };
     let dedRows = '';
-    Object.entries(dedLabels).forEach(([k, label]) => {
+    // Phase 2: labels and deduction/addition direction come from the Deduction
+    // Master (DED_TYPE_META below), not a hard-coded map — a type added on the
+    // Deduction Types page was previously invisible in this modal.
+    Object.entries(DED_TYPE_META).forEach(([k, meta]) => {
         const v = dedB[k];
         if (v && v !== 0) {
-            const isAdd = ['last_month_balance','paid_leave','other_addition'].includes(k);
-            dedRows += row(label, `${isAdd?'+':'−'} ${curr} ${fmt(Math.abs(v))}`, isAdd?'val-positive':'val-negative');
+            const isAdd = meta.t === 'addition';
+            dedRows += row(meta.n, `${isAdd?'+':'−'} ${curr} ${fmt(Math.abs(v))}`, isAdd?'val-positive':'val-negative');
         }
     });
+    // A locked record with a non-zero total but no captured breakdown (every
+    // record before Jun 2026) must not render as though nothing was deducted.
+    const dedTotal = Number(s.total_deductions || 0);
+    if (!dedRows && dedTotal !== 0) {
+        dedRows = row('Itemized breakdown',
+            'not captured when this month was locked', 'muted');
+    }
 
     let paymentRows = '';
     if (rec.payment_splits && rec.payment_splits.length) {

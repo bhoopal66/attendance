@@ -193,6 +193,16 @@ def other_rollup_codes():
             if t == 'deduction' and rollup]
 
 
+def deduction_type_meta():
+    """[(code, name, entry_type), ...] for every type, active or not.
+
+    Includes inactive types deliberately: a paid snapshot can carry a category
+    whose type was deactivated afterwards, and that amount still needs a label.
+    """
+    rows = _deduction_type_rows() or _fallback_rows()
+    return [(c, n, t) for c, n, t, _a, _m, _r, _col in rows]
+
+
 def deduction_type_colours():
     """{code: hex colour} for badge styling. Empty when unseeded."""
     return {c: (col or '#64748b')
@@ -1292,4 +1302,292 @@ class DeductionType(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.code})'
+# ===========================================================================
+# Phase 3 - Loans & Salary Advances
+# ===========================================================================
+
+class Loan(models.Model):
+    """An amount advanced to an employee and recovered from later payroll.
+
+    INTEREST-FREE BY DESIGN. There is no rate, no interest column and no
+    amortisation: the schedule is principal divided across N months, and the
+    instalments sum to the principal exactly. This was a deliberate decision
+    (UAE private-sector employee loans are normally interest-free), and adding
+    interest later means a new migration rather than un-rotting dormant fields.
+
+    HOW THIS REACHES PAYROLL - read this before changing anything
+    ------------------------------------------------------------
+    Activating a loan writes one ordinary `DeductionEntry` per instalment
+    (`split_months=1`, category `loan_repayment`), each linked back to its
+    `LoanInstallment`. Payroll then deducts it through the code path it already
+    uses for every other deduction.
+
+    That is the whole integration. **No payroll calculation code is changed by
+    this phase** - which matters, because the Phase 0 regression baseline has
+    not been captured yet. A loan changes what is deducted only in the same way
+    that adding a deduction by hand does: by creating data, not by altering the
+    engine.
+
+    RELATIONSHIP TO `Recoverable`
+    -----------------------------
+    A loan wraps a `Recoverable` rather than replacing it. `Recoverable` stays
+    the single sub-ledger answering "what does this person owe us" - the
+    employee profile page already reads it. The loan owns the *schedule*; the
+    Recoverable carries the running balance, kept in step by
+    `payroll.services_loans.sync_recoverable`.
+    """
+
+    STATUS_DRAFT = 'draft'
+    STATUS_ACTIVE = 'active'
+    STATUS_SETTLED = 'settled'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_ON_HOLD = 'on_hold'
+
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_SETTLED, 'Settled'),
+        (STATUS_CANCELLED, 'Cancelled'),
+        (STATUS_ON_HOLD, 'On Hold'),
+    ]
+
+    #: Mirrors Recoverable.RECOVERABLE_TYPES so the wrapped ledger row can be
+    #: created with a matching type without a translation table.
+    PURPOSE_CHOICES = [
+        ('advance', 'Salary Advance'),
+        ('visa_cost', 'Visa Cost'),
+        ('asset', 'Asset / Equipment'),
+        ('training', 'Training Cost'),
+        ('air_ticket', 'Air Ticket'),
+        ('relocation', 'Relocation Cost'),
+        ('other', 'Other'),
+    ]
+
+    #: Deduction Master code every loan instalment is posted under. Seeded by
+    #: migration 0030. Kept distinct from 'advance' so a loan instalment is
+    #: never confused with an ad-hoc advance typed in by hand, and so loans can
+    #: be reported on separately.
+    DEDUCTION_CODE = 'loan_repayment'
+
+    reference = models.CharField(
+        max_length=24, unique=True,
+        help_text='Human reference, e.g. LN-2026-0007. Generated on save when blank.',
+    )
+    employee = models.ForeignKey(
+        'attendance.Employee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='loans',
+    )
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='loans',
+    )
+    recoverable = models.OneToOneField(
+        'attendance.Recoverable', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='loan',
+        help_text='The sub-ledger row this loan keeps in step. Created with the loan.',
+    )
+
+    purpose = models.CharField(max_length=30, choices=PURPOSE_CHOICES, default='advance')
+    description = models.CharField(max_length=255)
+    principal = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        help_text='Total amount advanced. Instalments always sum to exactly this.',
+    )
+    currency = models.CharField(
+        max_length=3, default='AED',
+        help_text="Set from the employee's currency when the loan is created.",
+    )
+    installment_count = models.PositiveIntegerField(
+        default=1, help_text='Number of monthly instalments (1 = recovered in full next month).',
+    )
+    first_deduction_year = models.IntegerField()
+    first_deduction_month = models.IntegerField(help_text='1-12')
+
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True,
+        help_text='Draft loans deduct nothing. Activating writes the deduction entries.',
+    )
+    note = models.TextField(blank=True)
+
+    created_by = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    activated_by = models.CharField(max_length=150, blank=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.CharField(max_length=150, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_reason = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['employee', 'status']),
+            models.Index(fields=['remote_employee', 'status']),
+        ]
+
+    # -- identity ----------------------------------------------------------
+
+    @property
+    def person(self):
+        return self.employee or self.remote_employee
+
+    @property
+    def employee_type(self):
+        return 'inhouse' if self.employee_id else 'remote'
+
+    # -- money -------------------------------------------------------------
+
+    @property
+    def total_scheduled(self):
+        """Sum of every instalment. Equals `principal` for a saved schedule."""
+        return sum((i.due_amount for i in self.installments.all()), Decimal('0.00'))
+
+    @property
+    def total_recovered(self):
+        return sum((i.amount_recovered for i in self.installments.all()), Decimal('0.00'))
+
+    @property
+    def total_waived(self):
+        return sum(
+            (i.due_amount for i in self.installments.all()
+             if i.status == LoanInstallment.STATUS_WAIVED),
+            Decimal('0.00'),
+        )
+
+    @property
+    def outstanding(self):
+        """What is still owed: principal less what was recovered or forgiven."""
+        return max(Decimal('0.00'),
+                   self.principal - self.total_recovered - self.total_waived)
+
+    @property
+    def is_closed(self):
+        return self.status in (self.STATUS_SETTLED, self.STATUS_CANCELLED)
+
+    # -- validation --------------------------------------------------------
+
+    def clean(self):
+        super().clean()
+        if self.employee and self.remote_employee:
+            raise ValidationError(
+                'A loan must be linked to either an in-house or remote employee, not both.')
+        if not self.employee and not self.remote_employee:
+            raise ValidationError('A loan must be linked to an employee.')
+        if self.principal is None or self.principal <= 0:
+            raise ValidationError({'principal': 'Principal must be greater than zero.'})
+        if self.installment_count < 1:
+            raise ValidationError({'installment_count': 'There must be at least one instalment.'})
+        if not 1 <= (self.first_deduction_month or 0) <= 12:
+            raise ValidationError({'first_deduction_month': 'Month must be between 1 and 12.'})
+        # A per-instalment amount that rounds to zero means the schedule cannot
+        # represent the principal at all - reject it rather than write a
+        # schedule of 0.00 rows that silently never recovers anything.
+        if self.principal and self.installment_count:
+            if (self.principal / self.installment_count) < Decimal('0.01'):
+                raise ValidationError({
+                    'installment_count':
+                        f'{self.installment_count} instalments of '
+                        f'{self.principal} would be less than 0.01 each.'
+                })
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            self.reference = self._next_reference()
+        super().save(*args, **kwargs)
+
+    def _next_reference(self):
+        """LN-<year>-<sequence>, unique. Falls back to the pk-free random suffix
+        only if the sequence is somehow taken, so a save never fails on this."""
+        year = self.first_deduction_year or 0
+        prefix = f'LN-{year}-'
+        last = (type(self).objects.filter(reference__startswith=prefix)
+                .order_by('-reference').values_list('reference', flat=True).first())
+        seq = 1
+        if last:
+            try:
+                seq = int(last.rsplit('-', 1)[1]) + 1
+            except (IndexError, ValueError):
+                seq = type(self).objects.filter(reference__startswith=prefix).count() + 1
+        for attempt in range(seq, seq + 50):
+            candidate = f'{prefix}{attempt:04d}'
+            if not type(self).objects.filter(reference=candidate).exists():
+                return candidate
+        return f'{prefix}{seq:04d}-{id(self) % 1000:03d}'
+
+    def __str__(self):
+        who = self.person.name if self.person else '?'
+        return f'{self.reference} - {who}: {self.currency} {self.principal}'
+
+
+class LoanInstallment(models.Model):
+    """One scheduled monthly repayment of a Loan.
+
+    The schedule is the authoritative record of what is owed when. Amounts are
+    generated so they sum to the principal EXACTLY - see
+    `payroll.services_loans.build_schedule` for why that needs care.
+
+    `deduction_entry` is the bridge into payroll: when the loan is activated
+    each instalment gets its own `DeductionEntry`, and that is what the payroll
+    calculation actually sees. If the entry is deleted from the deductions
+    screen, this row's link goes null and the instalment reverts to scheduled -
+    it is not silently treated as recovered.
+    """
+
+    STATUS_SCHEDULED = 'scheduled'
+    STATUS_POSTED = 'posted'
+    STATUS_RECOVERED = 'recovered'
+    STATUS_WAIVED = 'waived'
+    STATUS_SKIPPED = 'skipped'
+
+    STATUS_CHOICES = [
+        (STATUS_SCHEDULED, 'Scheduled'),
+        (STATUS_POSTED, 'Posted to payroll'),
+        (STATUS_RECOVERED, 'Recovered'),
+        (STATUS_WAIVED, 'Waived'),
+        (STATUS_SKIPPED, 'Skipped'),
+    ]
+
+    loan = models.ForeignKey(Loan, on_delete=models.CASCADE, related_name='installments')
+    sequence = models.PositiveIntegerField(help_text='1-based position in the schedule.')
+    year = models.IntegerField()
+    month = models.IntegerField(help_text='1-12')
+    due_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    amount_recovered = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_SCHEDULED, db_index=True)
+    deduction_entry = models.ForeignKey(
+        'payroll.DeductionEntry', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='loan_installments',
+        help_text='The payroll deduction this instalment created, if posted.',
+    )
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['loan_id', 'sequence']
+        constraints = [
+            models.UniqueConstraint(fields=['loan', 'sequence'], name='uniq_loan_sequence'),
+            models.UniqueConstraint(fields=['loan', 'year', 'month'], name='uniq_loan_period'),
+        ]
+        indexes = [models.Index(fields=['year', 'month', 'status'])]
+
+    @property
+    def period_index(self):
+        return self.year * 12 + (self.month - 1)
+
+    @property
+    def outstanding(self):
+        if self.status in (self.STATUS_WAIVED, self.STATUS_SKIPPED):
+            return Decimal('0.00')
+        return max(Decimal('0.00'), self.due_amount - self.amount_recovered)
+
+    def clean(self):
+        super().clean()
+        if not 1 <= (self.month or 0) <= 12:
+            raise ValidationError({'month': 'Month must be between 1 and 12.'})
+        if self.due_amount is not None and self.due_amount < 0:
+            raise ValidationError({'due_amount': 'An instalment cannot be negative.'})
+
+    def __str__(self):
+        return f'{self.loan.reference} #{self.sequence} {self.year}/{self.month:02d}: {self.due_amount}'
 

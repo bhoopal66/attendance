@@ -1,0 +1,662 @@
+{% extends 'attendance/base.html' %}
+{% load static humanize %}
+
+{% block title %}Loans &amp; Salary Advances — Payroll{% endblock %}
+{% block page_title %}Loans{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Same idiom as Banks and Deduction Types: cards, badges, modal, with the
+       payroll dashboard's table typography (0.8rem, tabular numerals, #e1e0d9). */
+    .ln-container { padding: 20px; max-width: 1240px; margin: 0 auto; }
+    .ln-header { display:flex; justify-content:space-between; align-items:center;
+                 margin-bottom:18px; flex-wrap:wrap; gap:12px; }
+    .ln-title { font-size:1.4rem; font-weight:700; color:#0f172a; margin:0;
+                display:flex; align-items:center; gap:10px; }
+    .ln-actions { display:flex; gap:10px; align-items:center; }
+
+    .btn-primary { padding:10px 18px; background:#1D4ED8; color:#fff; border:none;
+        border-radius:8px; cursor:pointer; font-weight:500; font-size:0.875rem; }
+    .btn-primary:hover { background:#1E40AF; }
+    .btn-back { padding:9px 16px; background:#f1f5f9; color:#1e293b; border:1px solid #e2e8f0;
+        border-radius:8px; font-size:0.875rem; text-decoration:none; display:inline-flex; }
+    .btn-back:hover { background:#e2e8f0; }
+
+    .ln-stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+    .ln-stat { background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+        padding:10px 16px; font-size:0.78rem; color:#475569; min-width:130px; }
+    .ln-stat strong { display:block; font-size:1.15rem; color:#0f172a;
+        font-variant-numeric:tabular-nums; margin-bottom:2px; }
+
+    .info-banner { background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px;
+        padding:14px 18px; margin-bottom:22px; font-size:0.85rem; color:#1e40af;
+        line-height:1.5; display:flex; gap:10px; align-items:flex-start; }
+
+    .ln-card { background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08);
+        overflow:hidden; margin-bottom:24px; }
+    .ln-toolbar { display:flex; gap:10px; padding:12px 16px; border-bottom:1px solid #e1e0d9;
+        flex-wrap:wrap; align-items:center; }
+    .ln-toolbar input, .ln-toolbar select { padding:7px 10px; border:1px solid #e2e8f0;
+        border-radius:8px; font-size:0.8rem; font-family:inherit; }
+    .ln-toolbar input { min-width:220px; }
+
+    .ln-table-wrap { overflow-x:auto; }
+    .ln-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+    .ln-table th { padding:10px 14px; text-align:left; font-size:0.68rem; font-weight:600;
+        text-transform:uppercase; letter-spacing:0.5px; color:#64748b; background:#f8fafc;
+        border-bottom:1px solid #e1e0d9; white-space:nowrap; }
+    .ln-table td { padding:10px 14px; border-bottom:1px solid #e1e0d9; color:#1e293b;
+        vertical-align:middle; font-variant-numeric:tabular-nums; }
+    .ln-table tbody tr:last-child td { border-bottom:none; }
+    .ln-table tbody tr:hover { background:#fafafa; }
+    .ln-table th.text-right, .ln-table td.text-right { text-align:right; }
+    .ln-table th.text-center, .ln-table td.text-center { text-align:center; }
+
+    .ln-ref { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:0.72rem;
+        color:#64748b; }
+    .ln-emp { font-weight:600; color:#0f172a; }
+    .ln-desc { color:#64748b; font-size:0.74rem; }
+
+    .pill { display:inline-block; padding:2px 9px; border-radius:20px; font-size:0.68rem;
+        font-weight:600; white-space:nowrap; border:1px solid transparent; }
+    .pill-grey  { background:#f1f5f9; color:#64748b; border-color:#e2e8f0; }
+    .pill-blue  { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+    .pill-green { background:#dcfce7; color:#166534; border-color:#bbf7d0; }
+    .pill-amber { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+    .pill-red   { background:#fee2e2; color:#b91c1c; border-color:#fecaca; }
+    .pill-purple{ background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+
+    .bar { height:6px; background:#f1f5f9; border-radius:4px; overflow:hidden;
+        min-width:90px; margin-top:4px; }
+    .bar > span { display:block; height:100%; background:#16a34a; }
+    .bar-note { font-size:0.68rem; color:#94a3b8; }
+
+    .action-btns { display:flex; gap:6px; justify-content:flex-end; }
+    .btn-sm { padding:5px 11px; border-radius:6px; cursor:pointer; font-size:0.75rem;
+        font-weight:500; border:1px solid; }
+    .btn-view   { background:#f8fafc; color:#475569; border-color:#e2e8f0; }
+    .btn-edit   { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+    .btn-go     { background:#dcfce7; color:#166534; border-color:#bbf7d0; }
+    .btn-stop   { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+    .btn-locked { background:#f8fafc; color:#cbd5e1; border-color:#f1f5f9; cursor:not-allowed; }
+
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5);
+        z-index:1000; justify-content:center; align-items:center; backdrop-filter:blur(4px);
+        padding:20px; overflow-y:auto; }
+    .modal-overlay.show { display:flex; }
+    .modal-box { background:#fff; border-radius:16px; width:100%; max-width:660px;
+        box-shadow:0 20px 50px rgba(0,0,0,0.3); max-height:92vh; display:flex; flex-direction:column; }
+    .modal-box.wide { max-width:820px; }
+    .modal-head { padding:16px 24px; border-bottom:1px solid #e2e8f0; display:flex;
+        justify-content:space-between; align-items:center; }
+    .modal-head h3 { margin:0; font-size:1rem; font-weight:700; color:#0f172a; }
+    .modal-close { width:28px; height:28px; background:#f1f5f9; border:none; border-radius:6px;
+        color:#64748b; font-size:1.1rem; cursor:pointer; }
+    .modal-close:hover { background:#fee2e2; color:#dc2626; }
+    .modal-body { padding:20px 24px; overflow-y:auto; }
+
+    .fieldset-label { font-size:0.7rem; font-weight:700; text-transform:uppercase;
+        letter-spacing:0.5px; color:#64748b; margin:18px 0 10px; padding-top:14px;
+        border-top:1px solid #f1f5f9; }
+    .fieldset-label:first-child { margin-top:0; padding-top:0; border-top:none; }
+    .form-row { display:flex; gap:14px; }
+    .form-row > .form-group { flex:1; }
+    .form-group { margin-bottom:14px; }
+    .form-group label { display:block; font-size:0.8rem; color:#334155; margin-bottom:5px;
+        font-weight:500; }
+    .form-group input, .form-group select, .form-group textarea { width:100%; padding:9px 12px;
+        border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; box-sizing:border-box;
+        font-family:inherit; background:#fff; color:#0f172a; }
+    .form-group textarea { resize:vertical; min-height:56px; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+        outline:none; border-color:#1D4ED8; box-shadow:0 0 0 3px rgba(29,78,216,0.08); }
+    .form-group input:disabled, .form-group select:disabled { background:#f8fafc; color:#94a3b8; }
+    .form-hint { font-size:0.72rem; color:#94a3b8; margin-top:4px; line-height:1.45; }
+
+    .sched-preview { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;
+        margin-top:6px; }
+    .sched-preview table { width:100%; border-collapse:collapse; font-size:0.76rem; }
+    .sched-preview th { background:#f8fafc; padding:7px 12px; text-align:left; color:#64748b;
+        font-size:0.66rem; text-transform:uppercase; letter-spacing:0.4px;
+        border-bottom:1px solid #e1e0d9; }
+    .sched-preview td { padding:6px 12px; border-bottom:1px solid #f1f5f9;
+        font-variant-numeric:tabular-nums; }
+    .sched-preview tr:last-child td { border-bottom:none; }
+    .sched-preview .tot td { background:#f8fafc; font-weight:700; border-top:1px solid #e1e0d9; }
+    .sched-scroll { max-height:240px; overflow-y:auto; }
+
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; align-items:center;
+        margin-top:18px; padding-top:16px; border-top:1px solid #f1f5f9; }
+    .btn-cancel { padding:9px 18px; background:#f1f5f9; color:#1e293b; border:1px solid #e2e8f0;
+        border-radius:8px; cursor:pointer; font-size:0.875rem; }
+    .btn-save { padding:9px 20px; background:#1D4ED8; color:#fff; border:none; border-radius:8px;
+        cursor:pointer; font-weight:500; font-size:0.875rem; }
+    .btn-save:hover { background:#1E40AF; }
+    .btn-save:disabled { background:#cbd5e1; cursor:not-allowed; }
+
+    .modal-error { display:none; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c;
+        border-radius:8px; padding:10px 12px; font-size:0.8rem; margin-bottom:14px; }
+    .modal-error.show { display:block; }
+    .modal-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e;
+        border-radius:8px; padding:10px 12px; font-size:0.78rem; margin-bottom:14px;
+        line-height:1.45; }
+
+    .toast { position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:8px;
+        font-size:0.875rem; font-weight:500; z-index:2000; display:none;
+        box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+    .toast.success { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+    .toast.error   { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+    .toast.show    { display:block; }
+
+    .empty-state { padding:48px 20px; text-align:center; color:#94a3b8; font-size:0.9rem; }
+
+    @media (max-width: 860px) {
+        .ln-container { padding:12px; }
+        .ln-header { flex-direction:column; align-items:flex-start; }
+        .ln-table th, .ln-table td { padding:8px 10px; white-space:nowrap; }
+        .ln-desc { display:none; }
+        .form-row { flex-direction:column; gap:0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ln-container">
+
+    <div class="ln-header">
+        <h1 class="ln-title">
+            <svg width="22" height="22" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m9-5a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Loans &amp; Salary Advances
+        </h1>
+        <div class="ln-actions">
+            <a href="{% url 'payroll_dashboard' %}" class="btn-back">← Back to Payroll</a>
+            <button class="btn-primary" onclick="openNew()">+ New Loan</button>
+        </div>
+    </div>
+
+    <div class="ln-stats">
+        <div class="ln-stat"><strong>{{ stat_active }}</strong>active</div>
+        <div class="ln-stat"><strong>{{ stat_draft }}</strong>draft</div>
+        <div class="ln-stat"><strong>{{ stat_settled }}</strong>settled</div>
+        <div class="ln-stat"><strong>AED {{ stat_outstanding|floatformat:2|intcomma }}</strong>outstanding (AED loans)</div>
+    </div>
+
+    <div class="info-banner">
+        <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+            Loans are <strong>interest-free</strong> — the instalments always add up to exactly the amount advanced.
+            A <strong>draft</strong> loan deducts nothing and can be edited freely. <strong>Activating</strong> it writes one
+            payroll deduction per instalment, and from that point the terms are fixed: cancel it and raise a new one
+            rather than changing money that has already moved.
+        </div>
+    </div>
+
+    <div class="ln-card">
+        <div class="ln-toolbar">
+            <input type="search" id="search" placeholder="Search employee, reference or description…" oninput="render()">
+            <select id="statusFilter" onchange="render()">
+                <option value="">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="active" selected>Active</option>
+                <option value="settled">Settled</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            <span class="bar-note" id="countNote"></span>
+        </div>
+        <div class="ln-table-wrap">
+        <table class="ln-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Purpose</th>
+                    <th class="text-right">Principal</th>
+                    <th class="text-center">Instalments</th>
+                    <th class="text-center">First due</th>
+                    <th>Recovered</th>
+                    <th class="text-right">Outstanding</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="loanBody"></tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
+<!-- New / edit loan -->
+<div class="modal-overlay" id="loanModal">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3 id="loanModalTitle">New Loan</h3>
+            <button class="modal-close" onclick="closeLoanModal()">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-error" id="loanError"></div>
+
+            <div class="fieldset-label">Who and what</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Employee</label>
+                    <select id="fEmployee">
+                        <option value="">— Select employee —</option>
+                        {% for e in employees %}<option value="{{ e.type }}:{{ e.id }}" data-currency="{{ e.currency }}">{{ e.name }}{% if e.tcr %} ({{ e.tcr }}){% endif %}{% if e.type == 'remote' %} — remote{% endif %}</option>{% endfor %}
+                    </select>
+                    <div class="form-hint" id="empHint">The loan is recorded in this employee&rsquo;s own currency.</div>
+                </div>
+                <div class="form-group">
+                    <label>Purpose</label>
+                    <select id="fPurpose">
+                        {% for val, label in purpose_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" id="fDescription" maxlength="255" placeholder="e.g. Advance against August salary" autocomplete="off">
+            </div>
+
+            <div class="fieldset-label">Repayment</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Amount advanced</label>
+                    <input type="number" id="fPrincipal" step="0.01" min="0.01" placeholder="0.00" oninput="schedulePreview()">
+                </div>
+                <div class="form-group">
+                    <label>Number of instalments</label>
+                    <input type="number" id="fCount" min="1" max="120" value="1" oninput="schedulePreview()">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>First deducted in</label>
+                    <select id="fMonth" onchange="schedulePreview()"></select>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <select id="fYear" onchange="schedulePreview()"></select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Schedule</label>
+                <div id="schedBox" class="form-hint">Enter an amount and a number of instalments to see the schedule.</div>
+            </div>
+            <div class="form-group">
+                <label>Note <span style="color:#94a3b8;font-weight:400;">(optional)</span></label>
+                <textarea id="fNote" placeholder="Anything worth recording about this loan."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeLoanModal()">Cancel</button>
+                <button class="btn-save" id="btnSaveLoan" onclick="saveLoan()">Save as draft</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loan detail / schedule -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal-box wide">
+        <div class="modal-head">
+            <h3 id="detailTitle">Loan</h3>
+            <button class="modal-close" onclick="closeDetail()">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-error" id="detailError"></div>
+            <div id="detailSummary"></div>
+            <div class="fieldset-label">Repayment schedule</div>
+            <div id="detailSchedule"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeDetail()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+{{ loans|json_script:"loanData" }}
+<script>
+    let LOANS = JSON.parse(document.getElementById('loanData').textContent);
+    let editing = null, detailId = null;
+    const MONTHS = ['January','February','March','April','May','June','July',
+                    'August','September','October','November','December'];
+
+    const csrf = () => (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const money = n => Number(n || 0).toLocaleString(undefined,
+        {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+    function toast(msg, kind) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast ' + (kind || 'success') + ' show';
+        setTimeout(() => t.classList.remove('show'), 3500);
+    }
+
+    const STATUS_PILL = {draft:'pill-grey', active:'pill-blue', settled:'pill-green',
+                         cancelled:'pill-red', on_hold:'pill-amber'};
+
+    function rowHtml(l) {
+        const canEdit = l.status === 'draft';
+        const canActivate = l.status === 'draft';
+        const canCancel = l.status === 'active';
+        return `
+        <tr>
+            <td>
+                <div class="ln-emp">${esc(l.employee_name)}</div>
+                <div class="ln-ref">${esc(l.reference)}${l.employee_type === 'remote' ? ' · remote' : ''}</div>
+            </td>
+            <td>
+                <span class="pill pill-purple">${esc(l.purpose_label)}</span>
+                <div class="ln-desc">${esc(l.description)}</div>
+            </td>
+            <td class="text-right">${esc(l.currency)} ${money(l.principal)}</td>
+            <td class="text-center">${l.installment_count}</td>
+            <td class="text-center">${esc(l.first_period)}</td>
+            <td>
+                ${money(l.recovered)} / ${money(l.principal)}
+                <div class="bar"><span style="width:${Math.min(100, l.progress_pct)}%"></span></div>
+                <div class="bar-note">${l.progress_pct}% recovered${l.waived ? ' · ' + money(l.waived) + ' waived' : ''}</div>
+            </td>
+            <td class="text-right"><strong>${money(l.outstanding)}</strong></td>
+            <td class="text-center"><span class="pill ${STATUS_PILL[l.status] || 'pill-grey'}">${esc(l.status_label)}</span></td>
+            <td>
+                <div class="action-btns">
+                    <button class="btn-sm btn-view" onclick="openDetail(${l.id})">Schedule</button>
+                    ${canEdit ? `<button class="btn-sm btn-edit" onclick="openEdit(${l.id})">Edit</button>` : ''}
+                    ${canActivate ? `<button class="btn-sm btn-go" onclick="activateLoan(${l.id})">Activate</button>` : ''}
+                    ${canCancel ? `<button class="btn-sm btn-stop" onclick="cancelLoan(${l.id})">Cancel</button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+    }
+
+    function render() {
+        const q = document.getElementById('search').value.trim().toLowerCase();
+        const st = document.getElementById('statusFilter').value;
+        const shown = LOANS.filter(l =>
+            (!st || l.status === st) &&
+            (!q || (l.employee_name + ' ' + l.reference + ' ' + l.description).toLowerCase().includes(q)));
+        document.getElementById('loanBody').innerHTML = shown.length
+            ? shown.map(rowHtml).join('')
+            : `<tr><td colspan="9" class="empty-state">${LOANS.length ? 'No loans match this filter.' : 'No loans recorded yet.'}</td></tr>`;
+        document.getElementById('countNote').textContent =
+            `${shown.length} of ${LOANS.length} loan${LOANS.length === 1 ? '' : 's'}`;
+    }
+
+    // ---- form ------------------------------------------------------------
+
+    function fillPeriodSelects() {
+        const now = new Date();
+        const my = document.getElementById('fMonth'), yy = document.getElementById('fYear');
+        my.innerHTML = MONTHS.map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
+        const base = now.getFullYear();
+        yy.innerHTML = [];
+        let opts = '';
+        for (let y = base - 1; y <= base + 3; y++) opts += `<option value="${y}">${y}</option>`;
+        yy.innerHTML = opts;
+        my.value = now.getMonth() + 2 > 12 ? 1 : now.getMonth() + 2;   // next month
+        yy.value = now.getMonth() + 2 > 12 ? base + 1 : base;
+    }
+
+    function setLoanError(msg) {
+        const e = document.getElementById('loanError');
+        if (!msg) { e.classList.remove('show'); e.textContent = ''; return; }
+        e.textContent = msg; e.classList.add('show');
+    }
+
+    let previewTimer = null;
+    function schedulePreview() {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(doPreview, 250);
+    }
+
+    async function doPreview() {
+        const box = document.getElementById('schedBox');
+        const principal = parseFloat(document.getElementById('fPrincipal').value);
+        const count = parseInt(document.getElementById('fCount').value || '0', 10);
+        if (!principal || !count || principal <= 0 || count < 1) {
+            box.className = 'form-hint';
+            box.textContent = 'Enter an amount and a number of instalments to see the schedule.';
+            return;
+        }
+        try {
+            const d = await post('{% url "loan_preview" %}', {
+                principal: principal, installment_count: count,
+                first_year: document.getElementById('fYear').value,
+                first_month: document.getElementById('fMonth').value,
+            });
+            const cur = currentCurrency();
+            box.className = 'sched-preview';
+            box.innerHTML = `<div class="sched-scroll"><table>
+                <thead><tr><th>#</th><th>Month</th><th style="text-align:right">Amount</th></tr></thead>
+                <tbody>${d.schedule.map(r => `<tr><td>${r.sequence}</td><td>${esc(r.period)}</td>
+                    <td style="text-align:right">${cur} ${money(r.due_amount)}</td></tr>`).join('')}
+                <tr class="tot"><td colspan="2">Total</td>
+                    <td style="text-align:right">${cur} ${money(d.total)}</td></tr>
+                </tbody></table></div>`;
+        } catch (e) {
+            box.className = 'form-hint';
+            box.textContent = e.message;
+        }
+    }
+
+    function currentCurrency() {
+        const sel = document.getElementById('fEmployee');
+        const opt = sel.options[sel.selectedIndex];
+        return (opt && opt.dataset.currency) || 'AED';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const sel = document.getElementById('fEmployee');
+        if (sel) sel.addEventListener('change', () => {
+            document.getElementById('empHint').textContent =
+                `Recorded in ${currentCurrency()} — the employee's own currency.`;
+            doPreview();
+        });
+    });
+
+    function openNew() {
+        editing = null;
+        setLoanError('');
+        document.getElementById('loanModalTitle').textContent = 'New Loan';
+        document.getElementById('fEmployee').value = '';
+        document.getElementById('fEmployee').disabled = false;
+        document.getElementById('fPurpose').value = 'advance';
+        document.getElementById('fDescription').value = '';
+        document.getElementById('fPrincipal').value = '';
+        document.getElementById('fCount').value = 1;
+        document.getElementById('fNote').value = '';
+        fillPeriodSelects();
+        document.getElementById('btnSaveLoan').textContent = 'Save as draft';
+        doPreview();
+        document.getElementById('loanModal').classList.add('show');
+        document.getElementById('fEmployee').focus();
+    }
+
+    function openEdit(id) {
+        const l = LOANS.find(x => x.id === id);
+        if (!l) return;
+        editing = l;
+        setLoanError('');
+        document.getElementById('loanModalTitle').textContent = 'Edit ' + l.reference;
+        fillPeriodSelects();
+        document.getElementById('fEmployee').value = `${l.employee_type}:${l.employee_id}`;
+        document.getElementById('fEmployee').disabled = true;   // moving a loan between people would rewrite whose debt it is
+        document.getElementById('fPurpose').value = l.purpose;
+        document.getElementById('fDescription').value = l.description;
+        document.getElementById('fPrincipal').value = l.principal;
+        document.getElementById('fCount').value = l.installment_count;
+        document.getElementById('fMonth').value = l.first_month;
+        document.getElementById('fYear').value = l.first_year;
+        document.getElementById('fNote').value = l.note || '';
+        document.getElementById('btnSaveLoan').textContent = 'Save changes';
+        doPreview();
+        document.getElementById('loanModal').classList.add('show');
+    }
+
+    function closeLoanModal() {
+        document.getElementById('loanModal').classList.remove('show');
+        editing = null;
+    }
+
+    async function post(url, body) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+            body: JSON.stringify(body || {}),
+        });
+        let data = {};
+        try { data = await res.json(); } catch (e) {}
+        if (!res.ok || !data.success) throw new Error(data.error || `Request failed (${res.status})`);
+        return data;
+    }
+
+    function upsert(loan) {
+        const i = LOANS.findIndex(x => x.id === loan.id);
+        if (i >= 0) LOANS[i] = loan; else LOANS.unshift(loan);
+        render();
+    }
+
+    async function saveLoan() {
+        const btn = document.getElementById('btnSaveLoan');
+        setLoanError('');
+        const empVal = document.getElementById('fEmployee').value;
+        const payload = {
+            id: editing ? editing.id : null,
+            purpose: document.getElementById('fPurpose').value,
+            description: document.getElementById('fDescription').value.trim(),
+            principal: document.getElementById('fPrincipal').value,
+            installment_count: document.getElementById('fCount').value,
+            first_year: document.getElementById('fYear').value,
+            first_month: document.getElementById('fMonth').value,
+            note: document.getElementById('fNote').value.trim(),
+        };
+        if (!editing) {
+            if (!empVal) { setLoanError('Choose an employee.'); return; }
+            const [t, id] = empVal.split(':');
+            payload.employee_type = t; payload.employee_id = id;
+        }
+        btn.disabled = true;
+        try {
+            const d = await post('{% url "loan_save" %}', payload);
+            upsert(d.loan);
+            closeLoanModal();
+            toast(editing ? 'Draft updated.' : 'Draft loan created — activate it when you are ready.');
+        } catch (e) { setLoanError(e.message); }
+        finally { btn.disabled = false; }
+    }
+
+    async function activateLoan(id) {
+        const l = LOANS.find(x => x.id === id);
+        if (!l) return;
+        const ok = confirm(
+            `Activate ${l.reference}?\n\n` +
+            `${l.installment_count} deduction${l.installment_count === 1 ? '' : 's'} of ` +
+            `${l.currency} ${money(l.principal / l.installment_count)} will be added to ` +
+            `${l.employee_name}'s payroll, starting ${l.first_period}.\n\n` +
+            `The terms are fixed once activated.`);
+        if (!ok) return;
+        try {
+            const d = await post('{% url "loan_activate" %}', {id: id});
+            upsert(d.loan);
+            toast('Loan activated — deductions scheduled.');
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function cancelLoan(id) {
+        const l = LOANS.find(x => x.id === id);
+        if (!l) return;
+        const reason = prompt(
+            `Cancel ${l.reference}?\n\n` +
+            `Future deductions will be withdrawn. The ${l.currency} ${money(l.recovered)} ` +
+            `already recovered stays recovered.\n\nReason:`);
+        if (reason === null) return;
+        try {
+            const d = await post('{% url "loan_cancel" %}', {id: id, reason: reason});
+            upsert(d.loan);
+            toast(`Loan cancelled — ${d.withdrawn} future deduction${d.withdrawn === 1 ? '' : 's'} withdrawn.`);
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    // ---- detail ----------------------------------------------------------
+
+    const INST_PILL = {scheduled:'pill-grey', posted:'pill-blue', recovered:'pill-green',
+                       waived:'pill-amber', skipped:'pill-grey'};
+
+    function openDetail(id) {
+        const l = LOANS.find(x => x.id === id);
+        if (!l) return;
+        detailId = id;
+        document.getElementById('detailError').classList.remove('show');
+        document.getElementById('detailTitle').textContent = `${l.reference} — ${l.employee_name}`;
+        document.getElementById('detailSummary').innerHTML = `
+            <div class="ln-stats" style="margin-bottom:0">
+                <div class="ln-stat"><strong>${l.currency} ${money(l.principal)}</strong>principal</div>
+                <div class="ln-stat"><strong>${money(l.recovered)}</strong>recovered</div>
+                <div class="ln-stat"><strong>${money(l.waived)}</strong>waived</div>
+                <div class="ln-stat"><strong>${money(l.outstanding)}</strong>outstanding</div>
+            </div>
+            ${l.status === 'draft' ? '<div class="modal-warn" style="margin-top:14px">This loan is a draft — nothing is being deducted yet.</div>' : ''}
+            ${l.closed_reason ? `<div class="modal-warn" style="margin-top:14px">${esc(l.closed_reason)}</div>` : ''}`;
+
+        const canWaive = l.status === 'active';
+        document.getElementById('detailSchedule').innerHTML = `<div class="sched-preview"><div class="sched-scroll"><table>
+            <thead><tr><th>#</th><th>Month</th><th style="text-align:right">Due</th>
+                <th style="text-align:right">Recovered</th><th>Status</th><th></th></tr></thead>
+            <tbody>${l.installments.map(i => `<tr>
+                <td>${i.sequence}</td><td>${esc(i.period)}</td>
+                <td style="text-align:right">${money(i.due_amount)}</td>
+                <td style="text-align:right">${money(i.amount_recovered)}</td>
+                <td><span class="pill ${INST_PILL[i.status] || 'pill-grey'}">${esc(i.status_label)}</span>
+                    ${i.note ? `<div class="bar-note">${esc(i.note)}</div>` : ''}</td>
+                <td style="text-align:right">${canWaive && (i.status === 'scheduled' || i.status === 'posted')
+                    ? `<button class="btn-sm btn-stop" onclick="waive(${i.id})">Waive</button>` : ''}</td>
+            </tr>`).join('')}
+            <tr class="tot"><td colspan="2">Total</td>
+                <td style="text-align:right">${money(l.installments.reduce((a, i) => a + i.due_amount, 0))}</td>
+                <td style="text-align:right">${money(l.recovered)}</td><td colspan="2"></td></tr>
+            </tbody></table></div></div>`;
+        document.getElementById('detailModal').classList.add('show');
+    }
+
+    function closeDetail() {
+        document.getElementById('detailModal').classList.remove('show');
+        detailId = null;
+    }
+
+    async function waive(instId) {
+        const reason = prompt('Waive this instalment? It reduces what the employee owes — it is not a repayment.\n\nReason:');
+        if (reason === null) return;
+        try {
+            const d = await post('{% url "loan_waive" %}', {id: detailId, installment_id: instId, reason: reason});
+            upsert(d.loan);
+            openDetail(d.loan.id);
+            toast('Instalment waived.');
+        } catch (e) {
+            const el = document.getElementById('detailError');
+            el.textContent = e.message; el.classList.add('show');
+        }
+    }
+
+    [['loanModal', closeLoanModal], ['detailModal', closeDetail]].forEach(([id, fn]) => {
+        document.getElementById(id).addEventListener('click', function (e) {
+            if (e.target === this) fn();
+        });
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closeLoanModal(); closeDetail(); }
+    });
+
+    fillPeriodSelects();
+    render();
+</script>
+{% endblock %}

@@ -9,6 +9,8 @@ from .models import (
     EmployeeTarget,
     # Phase 2 — Deduction Master
     DeductionType,
+    # Phase 3 — Loans
+    Loan, LoanInstallment,
 )
 
 
@@ -287,3 +289,33 @@ class DeductionTypeAdmin(admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         return ('code', 'is_system') if obj else ()
+
+
+class LoanInstallmentInline(admin.TabularInline):
+    model = LoanInstallment
+    extra = 0
+    readonly_fields = ('sequence', 'year', 'month', 'due_amount',
+                       'amount_recovered', 'deduction_entry')
+    can_delete = False
+
+
+@admin.register(Loan)
+class LoanAdmin(admin.ModelAdmin):
+    """Support access only.
+
+    The Payroll > Loans page is the intended way to work with these, because it
+    is the only path that keeps the instalment schedule, the payroll deductions
+    and the Recoverable ledger row in step. Editing a loan here changes the
+    header without regenerating any of the three, so the schedule is readonly.
+    """
+    list_display = ('reference', 'person_name', 'purpose', 'principal', 'currency',
+                    'installment_count', 'status', 'created_at')
+    list_filter = ('status', 'purpose', 'currency')
+    search_fields = ('reference', 'description', 'employee__name', 'remote_employee__name')
+    readonly_fields = ('reference', 'recoverable', 'created_at', 'activated_at', 'closed_at')
+    inlines = [LoanInstallmentInline]
+
+    def person_name(self, obj):
+        p = obj.person
+        return p.name if p else '—'
+    person_name.short_description = 'Employee'
