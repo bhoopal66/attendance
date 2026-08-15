@@ -657,21 +657,11 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 .ps-unpaid  { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
 .ps-unpaid:hover { background: #fecaca; }
 
-.pay-toggle { display: inline-flex; border: 1px solid #dbe3ec; border-radius: 6px; overflow: hidden; }
-.pt-btn {
-    padding: 2px 8px; font-size: 0.64rem; font-weight: 700; font-family: inherit;
-    line-height: 1.5; border: none; background: #fff; color: #94a3b8;
-    cursor: pointer; white-space: nowrap;
-}
-.pt-btn + .pt-btn { border-left: 1px solid #e8edf3; }
-.pt-btn:not(:disabled):hover { background: #f5f7fa; color: #475569; }
-.pt-btn:disabled { cursor: default; }
-.pt-paid.on               { background: #16a34a; color: #fff; }
-.pt-paid.on:hover         { background: #15803d; color: #fff; }
-.pt-partial.on             { background: #d97706; color: #fff; }
-.pt-partial.on:hover       { background: #b45309; color: #fff; }
-.pt-unpaid.on             { background: #fee2e2; color: #b91c1c; }
-.pt-unpaid.on:disabled    { background: #fee2e2; color: #b91c1c; }
+/* The .pay-toggle / .pt-* rules that stood here styled the three-button
+   status toggle, replaced by the single .pay-state badge above. No element
+   carries those classes any more — kept as a note rather than dead rules,
+   because CSS nothing matches is indistinguishable from CSS that is simply
+   not working yet, and someone will eventually try to fix it. */
 
 .e6-badge-unpaid {
     display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.66rem;
@@ -1305,15 +1295,6 @@ tr.e6-partial-row { background: #fffcf5; }
                                 </td>
                                 <td class="text-center">
                                     {% comment %}
-                                    Three buttons side by side, not stacked — a genuine
-                                    three-state toggle (Paid / Partial / Unpaid), whichever
-                                    state the row is in is the lit one. Paid and Partial both
-                                    open the pay modal when the row is still unpaid (to make
-                                    the first payment, full or deliberately partial); once
-                                    paid, the lit button opens the detail view instead. Unpaid
-                                    removes the paid lock entirely, from either paid state.
-                                    {% endcomment %}
-                                    {% comment %}
                                     ONE badge, showing the state the row is actually in.
                                     This replaced a three-button toggle that rendered Paid,
                                     Partial and Unpaid on every row with the true one lit —
@@ -1342,7 +1323,6 @@ tr.e6-partial-row { background: #fffcf5; }
                                         Unpaid
                                     </button>
                                     {% endif %}
-                                    </div>
                                 </td>
                                 {% comment %}
                                 Gross Pay — the same approved SalaryStructure figures the
