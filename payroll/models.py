@@ -901,6 +901,19 @@ class PayrollRun(models.Model):
     posted_by    = models.CharField(max_length=150, blank=True)
     posted_at    = models.DateTimeField(null=True, blank=True)
 
+    # ---- Re-run -----------------------------------------------------------
+    # The lifecycle is otherwise forward-only. Re-opening deliberately breaks
+    # that, so it counts itself: a month on its third run is a fact worth
+    # seeing on the page rather than digging out of a log.
+    reopened_count = models.PositiveIntegerField(
+        default=0, help_text='How many times this month has been re-opened and re-run.')
+    reopened_by = models.CharField(max_length=150, blank=True)
+    reopened_at = models.DateTimeField(null=True, blank=True)
+    reopen_reason = models.TextField(
+        blank=True,
+        help_text='Why the month was last re-opened. Required — re-opening discards '
+                  'the locked figures, and that needs an explanation attached to it.')
+
     notes = models.TextField(blank=True, help_text='Free-text notes visible to all payroll staff')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

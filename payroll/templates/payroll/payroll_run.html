@@ -299,7 +299,22 @@
             {% else %}
             <span class="fully-posted-msg">✓ This payroll run is fully posted.</span>
             {% endif %}
+
+            <button class="btn-reopen" id="btn-reopen" onclick="reopenRun()"
+                    title="Delete this month's locked figures and start the run again">
+                ⟲ Re-run this month
+            </button>
         </div>
+
+        {% if run.reopened_count %}
+        <div class="reopen-notice">
+            <strong>Re-run {{ run.reopened_count }}×.</strong>
+            Last re-opened by {{ run.reopened_by }} on {{ run.reopened_at|date:"d M Y, H:i" }}.
+            {% if run.reopen_reason %}<div style="margin-top:4px;">Reason: {{ run.reopen_reason }}</div>{% endif %}
+            The figures below were recalculated after that point and do not match
+            anything issued from an earlier run.
+        </div>
+        {% endif %}
 
         {% if run.notes %}
         <div class="run-notes" style="margin-top:.75rem;">Notes: {{ run.notes }}</div>
@@ -441,6 +456,15 @@
 </div>
 {% endblock %}
 
+<style>
+    .btn-reopen { margin-left:auto; padding:9px 16px; background:#fef2f2; color:#b91c1c;
+        border:1px solid #fecaca; border-radius:8px; cursor:pointer; font-size:.82rem;
+        font-weight:500; }
+    .btn-reopen:hover { background:#fee2e2; }
+    .btn-reopen:disabled { opacity:.6; cursor:not-allowed; }
+    .reopen-notice { margin-top:.75rem; background:#fffbeb; border:1px solid #fde68a;
+        color:#92400e; border-radius:8px; padding:10px 14px; font-size:.82rem; line-height:1.5; }
+</style>
 {% block extra_js %}
 <script>
 (function () {
@@ -475,6 +499,69 @@
             alert('Network error — please try again.');
             btn.disabled = false;
         });
+    };
+
+    window.reopenRun = function () {
+        var btn = document.getElementById('btn-reopen');
+        if (!btn || btn.disabled) return;
+        btn.disabled = true;
+
+        // Step 1 — show exactly what will be destroyed. Asking someone to
+        // confirm a deletion without telling them its size is not consent.
+        fetch(RUN_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+            body: 'action=describe_rerun',
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (json) {
+            if (!json.ok) { alert('Could not read this month: ' + (json.error || '')); btn.disabled = false; return; }
+            var s = json.summary;
+            var lines = [
+                'RE-RUN ' + s.month + '/' + s.year + ' — this cannot be undone.',
+                '',
+                'Current stage: ' + s.run_status_label,
+                'Paid records to be DELETED: ' + s.paid_records,
+            ];
+            for (var c in s.net_totals) lines.push('   net ' + c + ' ' + s.net_totals[c]);
+            for (var d in s.disbursed_totals) lines.push('   disbursed ' + d + ' ' + s.disbursed_totals[d]);
+            if (s.is_frozen) lines.push('Frozen snapshot to be DELETED (frozen by ' + (s.frozen_by || '-') + ')');
+            if (s.paid_records) {
+                lines.push('');
+                lines.push('Any payslip already issued for this month will no longer');
+                lines.push('reconcile against the system.');
+            }
+            lines.push('');
+            lines.push('The run returns to Draft and recalculates from current data.');
+            if (!confirm(lines.join('\n'))) { btn.disabled = false; return; }
+
+            // Step 2 — a typed reason. Recorded on the run and in the audit log.
+            var reason = prompt('Reason for re-running ' + s.month + '/' + s.year + ':');
+            if (reason === null || !reason.trim()) {
+                if (reason !== null) alert('A reason is required.');
+                btn.disabled = false;
+                return;
+            }
+            fetch(RUN_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+                body: 'action=reopen&reason=' + encodeURIComponent(reason.trim()),
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j.ok) {
+                    alert('Re-opened. Deleted ' + j.deleted_paid_records + ' paid record(s)'
+                          + (j.deleted_frozen ? ' and the frozen snapshot' : '')
+                          + '. This month is now at Draft (re-run #' + j.reopened_count + ').');
+                    window.location.reload();
+                } else {
+                    alert('Could not re-open: ' + (j.error || 'unknown error'));
+                    btn.disabled = false;
+                }
+            })
+            .catch(function () { alert('Network error — please try again.'); btn.disabled = false; });
+        })
+        .catch(function () { alert('Network error — please try again.'); btn.disabled = false; });
     };
 
     window.saveNotes = function (event) {

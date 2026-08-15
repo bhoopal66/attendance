@@ -259,6 +259,33 @@ def _handle_transition(request, run):
         )
         return JsonResponse({'ok': True})
 
+    # ── describe_rerun ────────────────────────────────────────────────────────
+    # Read-only. Powers the confirmation dialog: the operator sees exactly what
+    # a re-run destroys before deciding, rather than after.
+    if action == 'describe_rerun':
+        from payroll.services_payroll_rerun import describe_month
+        return JsonResponse({'ok': True, 'summary': describe_month(run.year, run.month)})
+
+    # ── reopen ────────────────────────────────────────────────────────────────
+    # Destructive: deletes this month's locked figures and resets the run to
+    # Draft. Permitted at any stage, including Paid and Posted — an explicit
+    # decision, not an oversight. Requires a typed reason.
+    if action == 'reopen':
+        from payroll.services_payroll_rerun import reopen_run
+        username = request.user.username if request.user.is_authenticated else 'system'
+        try:
+            result = reopen_run(run.year, run.month, username,
+                                request.POST.get('reason', ''))
+        except ValueError as exc:
+            return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
+        return JsonResponse({
+            'ok': True,
+            'deleted_paid_records': result['deleted_paid_records'],
+            'deleted_frozen': result['deleted_frozen'],
+            'reopened_count': result['reopened_count'],
+            'status': result['run'].status,
+        })
+
     # ── advance ───────────────────────────────────────────────────────────────
     if action != 'advance':
         return JsonResponse({'ok': False, 'error': 'Unknown action.'}, status=400)
