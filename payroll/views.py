@@ -4090,10 +4090,13 @@ def payroll_test_dashboard(request):
     # the operator as an incentive. The columns are now driven by the same
     # master the menu is, so a new addition type gets its own column instead
     # of being folded into someone else's name.
-    _add_meta = deduction_type_meta()
+    # deduction_type_meta() returns a LIST OF TUPLES [(code, name, entry_type)],
+    # not a dict. Treating it as a dict raised AttributeError and 500'd this
+    # whole page. The sandbox test passed because it stubbed the meta as a dict
+    # instead of calling the real function — it tested the stub, not the seam.
+    _add_meta = {c: n for c, n, _t in deduction_type_meta()}
     addition_cols_meta = [
-        {'code': c,
-         'name': (_add_meta.get(c) or {}).get('name') or c.replace('_', ' ').title()}
+        {'code': c, 'name': _add_meta.get(c) or c.replace('_', ' ').title()}
         for c in _ADD_COLS
     ]
 
