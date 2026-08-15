@@ -197,14 +197,16 @@
         <div class="ph-card-head">Recent months</div>
         <div class="ph-table-wrap" style="max-height:none;">
             <table class="ph-table">
-                <thead><tr><th>Month</th><th>Days paid</th><th>Status</th><th>Confirmed by</th></tr></thead>
+                <thead><tr><th>Month</th><th>Dates</th><th>Days paid</th><th>Status</th><th>Confirmed by</th><th>Confirmed on</th></tr></thead>
                 <tbody>
                 {% for r in recent %}
                     <tr>
                         <td>{{ r.month_name }} {{ r.year }}</td>
+                        <td>{% for d in r.dates %}<span class="pill pill-grey" style="margin-right:3px;">{{ d }}</span>{% empty %}<span style="color:#cbd5e1">none</span>{% endfor %}</td>
                         <td>{{ r.days }}</td>
                         <td><span class="pill {% if r.status == 'confirmed' %}pill-green{% elif r.status == 'withdrawn' %}pill-red{% else %}pill-grey{% endif %}">{{ r.status }}</span></td>
                         <td>{{ r.confirmed_by|default:"—" }}</td>
+                        <td>{% if r.status == 'withdrawn' and r.withdrawn_at %}<span style="color:#b91c1c;">Withdrawn {{ r.withdrawn_at|date:"d M Y, H:i" }}</span>{% if r.withdrawn_by %}<div class="form-hint">by {{ r.withdrawn_by }}</div>{% endif %}{% elif r.confirmed_at %}{{ r.confirmed_at|date:"d M Y, H:i" }}{% else %}<span style="color:#cbd5e1">—</span>{% endif %}</td>
                     </tr>
                 {% endfor %}
                 </tbody>

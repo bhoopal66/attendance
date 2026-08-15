@@ -75,6 +75,12 @@ def paid_holidays(request):
             'month_name': MONTH_NAMES[d.month] if d.month < len(MONTH_NAMES) else str(d.month),
             'status': d.status, 'days': d.paid_day_count,
             'confirmed_by': d.confirmed_by,
+            # Who signed a month off is only half the record — when they did it
+            # is what lets you line a declaration up against the payroll run.
+            'confirmed_at': d.confirmed_at,
+            'withdrawn_at': d.withdrawn_at,
+            'withdrawn_by': d.withdrawn_by,
+            'dates': d.dates or [],
         } for d in PaidHolidayDeclaration.objects.all()[:12]],
     })
 
