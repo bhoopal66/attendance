@@ -4102,23 +4102,37 @@ def payroll_test_dashboard(request):
         return [round(float(categories.get(m['code'], 0.0) or 0.0), 2)
                 for m in addition_cols_meta]
 
+    # THREE DIFFERENT THINGS, THREE COLUMNS
+    # -------------------------------------
+    # They arrive by three different mechanisms and must never be added
+    # together, because only the first is money added to the payslip:
+    #
+    #   Paid public holiday -> a DeductionEntry addition. REAL MONEY ADDED,
+    #                          so it belongs in the ADDITIONS group and in the
+    #                          totals.
+    #   Paid leave          -> an approved LeaveRequest. Nothing is added; the
+    #                          absence deduction is simply never raised. The
+    #                          figure below is the size of that deduction.
+    #   Annual leave paid   -> an AnnualLeave span at X%. X% of the daily rate
+    #                          is added back INSIDE net_payroll, and the
+    #                          (100-X)% owed on Sundays/holidays is charged.
+    #
+    # The last two are already priced into Net Payroll. They are shown greyed
+    # and excluded from every total, the same treatment the Late and Leave
+    # cells already get for Admin staff, and for the same reason.
+
     def _paid_leave_value(p):
-        """Leave money ALREADY inside Net Payroll. Never added a second time.
-
-        protected  = approved leave days x daily rate, the absence deduction
-                     that was never raised
-        + annual leave compensation, - the Sunday/holiday charge-back
-
-        Displayed greyed and excluded from every total, exactly like the Late
-        and Leave cells are for Admin staff, because it is the same situation:
-        a figure that is real but already priced in.
-        """
+        """Approved-leave days x daily rate: the deduction never raised."""
         if not p:
             return 0.0
         daily = float(p.get('daily_rate') or 0.0)
-        protected = daily * float(p.get('paid_leave_days') or 0.0)
-        return round(protected
-                     + float(p.get('annual_leave_compensation') or 0.0)
+        return round(daily * float(p.get('paid_leave_days') or 0.0), 2)
+
+    def _annual_leave_value(p):
+        """Annual-leave compensation, net of the Sunday/holiday charge-back."""
+        if not p:
+            return 0.0
+        return round(float(p.get('annual_leave_compensation') or 0.0)
                      - float(p.get('annual_leave_extra_deduction') or 0.0), 2)
 
     final_rows = []
@@ -4193,6 +4207,7 @@ def payroll_test_dashboard(request):
             'ded_cols': ded_cols,
             'add_cols': _add_cols(_categories),
             'paid_leave_value': _paid_leave_value(p),
+            'annual_leave_value': _annual_leave_value(p),
         })
 
     for emp in all_payroll_remote:
@@ -4262,6 +4277,7 @@ def payroll_test_dashboard(request):
             'ded_cols': ded_cols,
             'add_cols': _add_cols(_categories),
             'paid_leave_value': _paid_leave_value(p),
+            'annual_leave_value': _annual_leave_value(p),
         })
 
     # Load full paid salary snapshots and overlay onto all rows
@@ -4414,12 +4430,10 @@ def payroll_test_dashboard(request):
             else:
                 row['add_cols'] = [None] * len(addition_cols_meta)
                 row['add_cols_uncaptured'] = True
-        # Paid leave is not part of any total, so a locked month simply has
-        # nothing to say about it rather than a stale live figure.
-        if snap.get('paid_leave_value') is not None:
-            row['paid_leave_value'] = snap.get('paid_leave_value')
-        else:
-            row['paid_leave_value'] = None
+        # Neither leave column is part of any total, so a locked month reads
+        # them from the lock or says nothing — never a stale live figure.
+        row['paid_leave_value'] = snap.get('paid_leave_value')
+        row['annual_leave_value'] = snap.get('annual_leave_value')
 
     # ---- Phase E6b: category label + Gross Pay breakdown on the summary table ----
     # Both are copied from the per-category rows rather than recomputed, so the
@@ -5706,11 +5720,13 @@ def mark_paid_salary(request):
             'bank_submissions': _build_bank_submissions(row),
             # Deductions & additions breakdown
             'deductions_breakdown': cat,
-            # Leave already priced into net_payroll. Stored so a locked month
-            # can still show it; never added to any total.
+            # Leave already priced into net_payroll. Stored separately so a
+            # locked month can still tell approved leave from annual leave;
+            # neither is ever added to a total.
             'paid_leave_value': round(
-                float(row.get('daily_rate') or 0) * float(row.get('paid_leave_days') or 0)
-                + float(row.get('annual_leave_compensation') or 0)
+                float(row.get('daily_rate') or 0) * float(row.get('paid_leave_days') or 0), 2),
+            'annual_leave_value': round(
+                float(row.get('annual_leave_compensation') or 0)
                 - float(row.get('annual_leave_extra_deduction') or 0), 2),
             'carryover_in': carryover_in,
             'total_deductions': total_ded,

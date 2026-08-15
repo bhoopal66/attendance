@@ -532,6 +532,7 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
    printed in brackets and greyed so it cannot be read as a further addition,
    and it is excluded from every total in this table. */
 #finalTable thead .e6-grp-leave { background: #f1f5f9; color: #475569; }
+#finalTable thead .e6-sub-leave { background: #f8fafc; color: #475569; }
 #finalTable .e6-paid-leave { color: #64748b; font-style: italic; }
 
 /* Employee cell — avatar chip + name + staff code */
@@ -1247,7 +1248,7 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <th class="text-right" rowspan="2" title="Gross pay after attendance scaling — the base the deductions below apply to">Net Payroll</th>
                                 <th class="text-center e6-grp" colspan="6" title="Every deduction category, itemized. These columns always sum exactly to the Total.">DEDUCTIONS</th>
                                 <th class="text-center e6-grp e6-grp-inc" colspan="{{ addition_cols_meta|length|add:1 }}" title="Every addition category, itemized. These columns sum exactly to the Total.">ADDITIONS</th>
-                                <th class="text-right e6-grp e6-grp-leave" rowspan="2" title="Leave already paid inside Net Payroll — the absence deduction that was never raised, plus annual-leave compensation. Shown for information only: it is NOT added again and is excluded from every total.">Paid Leave</th>
+                                <th class="text-center e6-grp e6-grp-leave" colspan="2" title="Leave already paid inside Net Payroll. Shown for information only — NOT added again, and excluded from every total on this table. Paid public holidays are different: they are real money added, and appear in ADDITIONS.">PAID LEAVE (already in Net Payroll)</th>
                                 <th class="text-right" rowspan="2" style="color:#b45309;">Carryover Out</th>
                                 <th class="text-right th-aed" rowspan="2">Net Salary (AED)</th>
                                 <th class="text-right th-inr" rowspan="2" title="₹ = INR (blue) · Rs. = NPR (amber)">Net Salary (INR/NPR)</th>
@@ -1269,6 +1270,8 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <th class="text-right e6-sub sub-total">Total</th>
                                 {% for m in addition_cols_meta %}<th class="text-right e6-sub e6-sub-add{% if forloop.first %} grp-edge{% endif %}">{{ m.name }}</th>{% endfor %}
                                 <th class="text-right e6-sub e6-sub-add sub-total">Total</th>
+                                <th class="text-right e6-sub e6-sub-leave grp-edge" title="Approved leave requests — sick, medical, casual or annual. Nothing is added: the absence deduction is simply never raised. This is the size of that deduction.">Approved Leave</th>
+                                <th class="text-right e6-sub e6-sub-leave" title="An Annual Leave span paid at X% — X% of the daily rate added back inside Net Payroll, less the (100−X)% charged on Sundays and holidays inside the span.">Annual Leave</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1378,7 +1381,8 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <td class="text-right num val-negative sub-total" style="font-weight:600;{% if row.total_deductions > 0 and not row.is_paid %}cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;{% endif %}"{% if row.total_deductions > 0 and not row.is_paid %} onclick="openDeductionBreakdown('{{ row.employee_type }}','{{ row.employee.id }}')" title="Click for itemized breakdown"{% endif %}>{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
 {% if row.add_cols %}{% for v in row.add_cols %}<td class="text-right num val-positive{% if forloop.first %} grp-edge{% endif %}">{% if v is None %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% elif v > 0 %}+{{ v|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}{% else %}{% for m in addition_cols_meta %}<td class="text-right num{% if forloop.first %} grp-edge{% endif %}"><span class="muted e6-na" title="No itemized addition breakdown on this row.">–</span></td>{% endfor %}{% endif %}
                                 <td class="text-right num val-positive sub-total" style="font-weight:600;">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
-                                <td class="text-right num e6-paid-leave" title="Already inside Net Payroll — not added again">{% if row.paid_leave_value is None %}<span class="muted e6-na">–</span>{% elif row.paid_leave_value > 0 %}({{ row.paid_leave_value|floatformat:2|intcomma }}){% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num e6-paid-leave grp-edge" title="Approved leave — deduction never raised. Already inside Net Payroll, not added again.">{% if row.paid_leave_value is None %}<span class="muted e6-na">–</span>{% elif row.paid_leave_value > 0 %}({{ row.paid_leave_value|floatformat:2|intcomma }}){% else %}<span class="muted">—</span>{% endif %}</td>
+                                <td class="text-right num e6-paid-leave" title="Annual leave compensation, net of the Sunday/holiday charge-back. Already inside Net Payroll, not added again.">{% if row.annual_leave_value is None %}<span class="muted e6-na">–</span>{% elif row.annual_leave_value != 0 %}({{ row.annual_leave_value|floatformat:2|intcomma }}){% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num" style="color:#b45309;">{% if row.carryover_out > 0 %}→ {{ row.carryover_out|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num val-blue" style="font-size:0.95rem;">
                                     {% if row.currency == 'AED' %}
@@ -1424,7 +1428,8 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <td id="tfoot-total-ded" class="text-right num val-negative" style="font-weight:700;">{{ final_rows|dictsumby:"total_deductions"|floatformat:2|intcomma }}</td>
 {% if addition_col_totals %}{% for t in addition_col_totals %}<td class="text-right num val-positive{% if forloop.first %} grp-edge{% endif %}">{{ t|floatformat:2|intcomma }}</td>{% endfor %}{% else %}{% for m in addition_cols_meta %}<td class="text-right num"></td>{% endfor %}{% endif %}
                                 <td id="tfoot-total-add" class="text-right num val-positive" style="font-weight:700;">{{ final_rows|dictsumby:"total_additions"|floatformat:2|intcomma }}</td>
-                                <td class="text-right num e6-paid-leave">{{ final_rows|dictsumby:"paid_leave_value"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num e6-paid-leave grp-edge">{{ final_rows|dictsumby:"paid_leave_value"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num e6-paid-leave">{{ final_rows|dictsumby:"annual_leave_value"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-co-out" class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-final-aed" class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-final-inr" class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2|intcomma }}{% endif %}{% if final_total_npr %} <span class="csym csym-npr">Rs.</span> {{ final_total_npr|floatformat:2|intcomma }}{% endif %}{% if not final_total_inr and not final_total_npr %}—{% endif %}</td>
