@@ -527,6 +527,12 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 }
 #finalTable thead .e6-sub-gross { background: #f7fcf9; }
 #finalTable thead .e6-grp-inc { background: #f4f1fd; color: #4a3aa7; }
+#finalTable thead .e6-sub-add { background: #faf8ff; color: #4a3aa7; }
+/* Paid leave is real money, but it is already inside Net Payroll. It is
+   printed in brackets and greyed so it cannot be read as a further addition,
+   and it is excluded from every total in this table. */
+#finalTable thead .e6-grp-leave { background: #f1f5f9; color: #475569; }
+#finalTable .e6-paid-leave { color: #64748b; font-style: italic; }
 
 /* Employee cell — avatar chip + name + staff code */
 .e6-emp { display: flex; align-items: center; gap: 9px; }
@@ -1240,7 +1246,8 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <th class="text-center e6-grp e6-grp-gross" colspan="5" title="Salary structure components. These columns sum to the Gross Total.">GROSS PAY</th>
                                 <th class="text-right" rowspan="2" title="Gross pay after attendance scaling — the base the deductions below apply to">Net Payroll</th>
                                 <th class="text-center e6-grp" colspan="6" title="Every deduction category, itemized. These columns always sum exactly to the Total.">DEDUCTIONS</th>
-                                <th class="text-right e6-grp e6-grp-inc" rowspan="2">Incentives</th>
+                                <th class="text-center e6-grp e6-grp-inc" colspan="{{ addition_cols_meta|length|add:1 }}" title="Every addition category, itemized. These columns sum exactly to the Total.">ADDITIONS</th>
+                                <th class="text-right e6-grp e6-grp-leave" rowspan="2" title="Leave already paid inside Net Payroll — the absence deduction that was never raised, plus annual-leave compensation. Shown for information only: it is NOT added again and is excluded from every total.">Paid Leave</th>
                                 <th class="text-right" rowspan="2" style="color:#b45309;">Carryover Out</th>
                                 <th class="text-right th-aed" rowspan="2">Net Salary (AED)</th>
                                 <th class="text-right th-inr" rowspan="2" title="₹ = INR (blue) · Rs. = NPR (amber)">Net Salary (INR/NPR)</th>
@@ -1260,6 +1267,8 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <th class="text-right e6-sub" title="Visa status change, clawback and other deductions combined">Other</th>
                                 <th class="text-right e6-sub" style="color:#7c3aed;">Carryover</th>
                                 <th class="text-right e6-sub sub-total">Total</th>
+                                {% for m in addition_cols_meta %}<th class="text-right e6-sub e6-sub-add{% if forloop.first %} grp-edge{% endif %}">{{ m.name }}</th>{% endfor %}
+                                <th class="text-right e6-sub e6-sub-add sub-total">Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1367,7 +1376,9 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <td class="text-right num val-negative">{% if row.ded_cols.other is None %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% elif row.ded_cols.other > 0 %}-{{ row.ded_cols.other|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num" style="color:#7c3aed;">{% if row.ded_cols.carryover is None %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% elif row.ded_cols.carryover > 0 %}-{{ row.ded_cols.carryover|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num val-negative sub-total" style="font-weight:600;{% if row.total_deductions > 0 and not row.is_paid %}cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;{% endif %}"{% if row.total_deductions > 0 and not row.is_paid %} onclick="openDeductionBreakdown('{{ row.employee_type }}','{{ row.employee.id }}')" title="Click for itemized breakdown"{% endif %}>{% if row.total_deductions > 0 %}-{{ row.total_deductions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
-                                <td class="text-right num val-positive">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+                                {% for v in row.add_cols %}<td class="text-right num val-positive{% if forloop.first %} grp-edge{% endif %}">{% if v is None %}<span class="muted e6-na" title="Itemized breakdown was not captured when this month was locked. The total beside it is the locked figure and is authoritative; how it was split is not recorded.">–</span>{% elif v > 0 %}+{{ v|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}
+                                <td class="text-right num val-positive sub-total" style="font-weight:600;">{% if row.total_additions > 0 %}+{{ row.total_additions|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+                                <td class="text-right num e6-paid-leave" title="Already inside Net Payroll — not added again">{% if row.paid_leave_value is None %}<span class="muted e6-na">–</span>{% elif row.paid_leave_value > 0 %}({{ row.paid_leave_value|floatformat:2|intcomma }}){% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num" style="color:#b45309;">{% if row.carryover_out > 0 %}→ {{ row.carryover_out|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                                 <td class="text-right num val-blue" style="font-size:0.95rem;">
                                     {% if row.currency == 'AED' %}
@@ -1411,7 +1422,9 @@ tr.e6-partial-row { background: #fffcf5; }
                                 <td class="text-right num val-negative">{{ final_rows|dictsumby_nested:"ded_cols.other"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-co-in" class="text-right num" style="color:#7c3aed;">{{ final_rows|dictsumby:"carryover_in"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-total-ded" class="text-right num val-negative" style="font-weight:700;">{{ final_rows|dictsumby:"total_deductions"|floatformat:2|intcomma }}</td>
-                                <td id="tfoot-total-add" class="text-right num val-positive">{{ final_rows|dictsumby:"total_additions"|floatformat:2|intcomma }}</td>
+                                {% for t in addition_col_totals %}<td class="text-right num val-positive{% if forloop.first %} grp-edge{% endif %}">{{ t|floatformat:2|intcomma }}</td>{% endfor %}
+                                <td id="tfoot-total-add" class="text-right num val-positive" style="font-weight:700;">{{ final_rows|dictsumby:"total_additions"|floatformat:2|intcomma }}</td>
+                                <td class="text-right num e6-paid-leave">{{ final_rows|dictsumby:"paid_leave_value"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-co-out" class="text-right num" style="color:#b45309;">{{ final_rows|dictsumby:"carryover_out"|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-final-aed" class="text-right num val-blue"><span class="csym csym-aed">AED</span> {{ final_total_aed|floatformat:2|intcomma }}</td>
                                 <td id="tfoot-final-inr" class="text-right num val-inr">{% if final_total_inr %}<span class="csym csym-inr">₹</span> {{ final_total_inr|floatformat:2|intcomma }}{% endif %}{% if final_total_npr %} <span class="csym csym-npr">Rs.</span> {{ final_total_npr|floatformat:2|intcomma }}{% endif %}{% if not final_total_inr and not final_total_npr %}—{% endif %}</td>

@@ -4083,6 +4083,44 @@ def payroll_test_dashboard(request):
         ('remote', r) for e, r in _paid_keys_this_month if r
     }
 
+    # ---- Phase E10: additions, itemized -------------------------------
+    # The Summary table used to collapse every addition into a single column
+    # labelled "Incentives". Once the deductions module introduced more
+    # addition types, that label became false: a paid holiday was reported to
+    # the operator as an incentive. The columns are now driven by the same
+    # master the menu is, so a new addition type gets its own column instead
+    # of being folded into someone else's name.
+    _add_meta = deduction_type_meta()
+    addition_cols_meta = [
+        {'code': c,
+         'name': (_add_meta.get(c) or {}).get('name') or c.replace('_', ' ').title()}
+        for c in _ADD_COLS
+    ]
+
+    def _add_cols(categories):
+        categories = categories or {}
+        return [round(float(categories.get(m['code'], 0.0) or 0.0), 2)
+                for m in addition_cols_meta]
+
+    def _paid_leave_value(p):
+        """Leave money ALREADY inside Net Payroll. Never added a second time.
+
+        protected  = approved leave days x daily rate, the absence deduction
+                     that was never raised
+        + annual leave compensation, - the Sunday/holiday charge-back
+
+        Displayed greyed and excluded from every total, exactly like the Late
+        and Leave cells are for Admin staff, because it is the same situation:
+        a figure that is real but already priced in.
+        """
+        if not p:
+            return 0.0
+        daily = float(p.get('daily_rate') or 0.0)
+        protected = daily * float(p.get('paid_leave_days') or 0.0)
+        return round(protected
+                     + float(p.get('annual_leave_compensation') or 0.0)
+                     - float(p.get('annual_leave_extra_deduction') or 0.0), 2)
+
     final_rows = []
     for emp in all_payroll_inhouse:
         key = ('inhouse', emp.id)
@@ -4153,6 +4191,8 @@ def payroll_test_dashboard(request):
             'carryover_in': carryover_in, 'carryover_out': carryover_out,
             'ded_breakdown_json': ded_breakdown_json,
             'ded_cols': ded_cols,
+            'add_cols': _add_cols(_categories),
+            'paid_leave_value': _paid_leave_value(p),
         })
 
     for emp in all_payroll_remote:
@@ -4220,6 +4260,8 @@ def payroll_test_dashboard(request):
             'carryover_in': carryover_in, 'carryover_out': carryover_out,
             'ded_breakdown_json': ded_breakdown_json,
             'ded_cols': ded_cols,
+            'add_cols': _add_cols(_categories),
+            'paid_leave_value': _paid_leave_value(p),
         })
 
     # Load full paid salary snapshots and overlay onto all rows
@@ -4354,6 +4396,27 @@ def payroll_test_dashboard(request):
                     ('late', 'leave', 'advance', 'other', 'carryover'), None
                 )
                 row['ded_cols_uncaptured'] = True
+
+        # The itemized ADDITION columns face exactly the same problem, and the
+        # answer has to be the same one. `total_additions` above now comes from
+        # the lock; leaving `add_cols` holding today's recomputed split would
+        # let the columns disagree with the total beside them.
+        _snap_add = snap.get('additions_breakdown')
+        if row.get('add_cols') is not None:
+            if _snap_add:
+                row['add_cols'] = [
+                    round(float(_snap_add.get(m['code'], 0.0) or 0.0), 2)
+                    for m in addition_cols_meta
+                ]
+            else:
+                row['add_cols'] = [None] * len(addition_cols_meta)
+                row['add_cols_uncaptured'] = True
+        # Paid leave is not part of any total, so a locked month simply has
+        # nothing to say about it rather than a stale live figure.
+        if snap.get('paid_leave_value') is not None:
+            row['paid_leave_value'] = snap.get('paid_leave_value')
+        else:
+            row['paid_leave_value'] = None
 
     # ---- Phase E6b: category label + Gross Pay breakdown on the summary table ----
     # Both are copied from the per-category rows rather than recomputed, so the
@@ -5263,6 +5326,16 @@ def payroll_test_dashboard(request):
         'all_deductions_list': all_deductions_list,
         'deduction_groups': deduction_groups,
         'final_rows': final_rows,
+        # Phase E10 — itemized addition columns. The footer totals are computed
+        # here rather than in the template because the column set is dynamic:
+        # a `dictsumby` per hard-coded name is exactly what made the old single
+        # "Incentives" column impossible to extend without editing markup.
+        'addition_cols_meta': addition_cols_meta,
+        'addition_col_totals': [
+            round(sum((r.get('add_cols') or [0] * len(addition_cols_meta))[i] or 0.0
+                      for r in final_rows), 2)
+            for i in range(len(addition_cols_meta))
+        ],
         'final_total_aed': final_total_aed,
         'final_total_inr': final_total_inr,
         'final_total_npr': final_total_npr,
