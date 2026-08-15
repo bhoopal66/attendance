@@ -21,8 +21,8 @@ from ..models import (
     RemoteCallRecord, RemoteEmployee,
 )
 from .utils import (
-    get_employee_shift_for_date, get_saturday_shift, superuser_required,
-    has_section_access, section_required,
+    get_approved_leave_days, get_employee_shift_for_date, get_saturday_shift,
+    superuser_required, has_section_access, section_required,
 )
 
 logger = logging.getLogger('attendance')
@@ -184,11 +184,47 @@ def recalculate_monthly_summary(employee, year, month):
         date__month=month
     ).order_by('date')
 
+    _, days_in_month = calendar.monthrange(year, month)
     month_start = datetime.date(year, month, 1)
+    month_end = datetime.date(year, month, days_in_month)
     shift_start, shift_end = get_employee_shift_for_date(employee, month_start)
     sat_shift_start, sat_shift_end = get_saturday_shift()
 
-    working_days = records.count()
+    from ..models import Holiday
+    holiday_dates = set(
+        Holiday.objects.filter(
+            date__gte=month_start, date__lte=month_end
+        ).values_list('date', flat=True)
+    )
+    # THE DIVERGENCE THIS FIXES
+    # -------------------------
+    # This function used to count `records.count()` as working days and
+    # compute leave as `total_workdays - working_days`, with Holiday dates
+    # left in the workday total and approved leave never subtracted. So every
+    # single-record edit overwrote the summary written by
+    # `manage.py recalculate_summaries` with a figure that charged the
+    # employee for leave that had been approved. The two must agree, and the
+    # command is the authority: what follows mirrors it exactly.
+    approved_leave_days = get_approved_leave_days(employee, month_start, month_end)
+
+    working_days = 0
+    paid_leave_count = 0
+    for record in records:
+        if record.date.day in approved_leave_days:
+            if record.date.weekday() != 6 and record.date not in holiday_dates:
+                paid_leave_count += 1
+            continue
+        if record.date.weekday() == 6 or record.date in holiday_dates:
+            continue
+        working_days += 1
+
+    # Approved leave with no attendance record at all still counts as paid.
+    for day_num in approved_leave_days:
+        _d = datetime.date(year, month, day_num)
+        if (_d.weekday() != 6 and _d not in holiday_dates
+                and not records.filter(date=_d).exists()):
+            paid_leave_count += 1
+
     late_days = 0
     arrived_after_noon_days = 0
     grace_uses = 0  # tracks how many times the 10-min grace has been used this month
@@ -225,23 +261,16 @@ def recalculate_monthly_summary(employee, year, month):
         if record.first_in and record.first_in.hour >= 12 and not is_saturday:
             arrived_after_noon_days += 1
 
-    _, days_in_month = calendar.monthrange(year, month)
     total_workdays = sum(
         1 for day in range(1, days_in_month + 1)
         if datetime.date(year, month, day).weekday() != 6
+        and datetime.date(year, month, day) not in holiday_dates
     )
 
-    leave_days = max(0, total_workdays - working_days)
+    leave_days = max(0, total_workdays - working_days - paid_leave_count)
 
     # Add Sundays and custom holidays within AnnualLeave periods so the
     # stored leave_days matches the full calendar duration of the leave.
-    from ..models import Holiday
-    month_end = datetime.date(year, month, days_in_month)
-    holiday_dates = set(
-        Holiday.objects.filter(
-            date__year=year, date__month=month
-        ).values_list('date', flat=True)
-    )
     for al in AnnualLeave.objects.filter(
         employee=employee,
         start_date__lte=month_end,
