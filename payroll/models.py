@@ -1590,4 +1590,198 @@ class LoanInstallment(models.Model):
 
     def __str__(self):
         return f'{self.loan.reference} #{self.sequence} {self.year}/{self.month:02d}: {self.due_amount}'
+# ===========================================================================
+# Phase 4 - Deduction rules & limits
+# ===========================================================================
+
+class DeductionRule(models.Model):
+    """A configurable ceiling on what may be deducted from an employee.
+
+    NOTHING IS ENFORCED UNTIL SOMEBODY ENABLES A RULE.
+    No rule is seeded, and `is_active` defaults to False. That is deliberate:
+    statutory deduction limits are a legal question, and inventing a percentage
+    and shipping it switched on would be worse than having no engine at all -
+    the figure would look authoritative, be wrong, and quietly cap real
+    salaries. `legal_reference` is required before a rule can be activated, so
+    every enforced ceiling can be traced to the instrument it came from.
+
+    WHAT A RULE CAN SEE - read this before trusting a result
+    -------------------------------------------------------
+    Rules are evaluated against **recorded deduction entries**: `DeductionEntry`
+    rows (which includes every loan instalment, since loans post as entries) and
+    incoming carryover.
+
+    They do NOT see attendance-derived leave and late deductions. Those are
+    computed inside `payroll/views.py` at render time and never stored as
+    entries, so this engine cannot read them without invoking the payroll
+    calculation - which Phase 1 exists to make possible and has not finished
+    doing. A rule that says "no more than X% of basic" therefore means "of the
+    recorded deductions", and the check screen says so. Treating it as a total
+    payroll cap would overstate the headroom an employee actually has.
+
+    BASIS
+    -----
+    `basic` and `gross` come from the employee's approved `SalaryStructure` -
+    the contractual figures, which is what a statutory limit is normally
+    expressed against, and which do not move with attendance.
+
+    Remote employees have no `SalaryStructure`. Their `salary` field is used as
+    gross; `basic` is simply unknown for them. A rule on a basis that cannot be
+    resolved is reported as **unevaluated**, never as passed. Silently passing a
+    rule you could not evaluate is the one failure mode that makes a limits
+    engine actively dangerous.
+    """
+
+    SCOPE_ALL = 'all'
+    SCOPE_TYPE = 'type'
+    SCOPE_LOANS = 'loans'
+    SCOPE_CHOICES = [
+        (SCOPE_ALL, 'All recorded deductions combined'),
+        (SCOPE_TYPE, 'One deduction type'),
+        (SCOPE_LOANS, 'Loan instalments only'),
+    ]
+
+    BASIS_BASIC = 'basic'
+    BASIS_GROSS = 'gross'
+    BASIS_CHOICES = [
+        (BASIS_BASIC, 'Basic salary'),
+        (BASIS_GROSS, 'Gross salary'),
+    ]
+
+    APPLIES_ALL = 'all'
+    APPLIES_INHOUSE = 'inhouse'
+    APPLIES_REMOTE = 'remote'
+    APPLIES_CHOICES = [
+        (APPLIES_ALL, 'All employees'),
+        (APPLIES_INHOUSE, 'In-house only'),
+        (APPLIES_REMOTE, 'Remote only'),
+    ]
+
+    ENFORCE_WARN = 'warn'
+    ENFORCE_BLOCK = 'block'
+    ENFORCE_CHOICES = [
+        (ENFORCE_WARN, 'Warn - allow, but flag it'),
+        (ENFORCE_BLOCK, 'Block - refuse the entry'),
+    ]
+
+    code = models.SlugField(max_length=40, unique=True)
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+
+    scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default=SCOPE_ALL)
+    deduction_code = models.CharField(
+        max_length=30, blank=True,
+        help_text="DeductionType code this rule limits. Only used when scope is "
+                  "'One deduction type'.",
+    )
+    basis = models.CharField(max_length=10, choices=BASIS_CHOICES, default=BASIS_BASIC)
+    max_percent = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        help_text='Ceiling as a percentage of the basis, e.g. 25.000.',
+    )
+    max_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text='Absolute ceiling. Applied alongside the percentage; whichever '
+                  'is lower binds.',
+    )
+    amount_currency = models.CharField(
+        max_length=3, default='AED',
+        help_text='Currency of max_amount. The rule is skipped for employees paid '
+                  'in another currency rather than converted at an assumed rate.',
+    )
+
+    applies_to = models.CharField(max_length=10, choices=APPLIES_CHOICES, default=APPLIES_ALL)
+    department = models.CharField(
+        max_length=100, blank=True,
+        help_text='Limit to one department. Blank means every department.',
+    )
+
+    enforcement = models.CharField(
+        max_length=10, choices=ENFORCE_CHOICES, default=ENFORCE_WARN,
+        help_text="'Warn' records the breach and lets the entry through. "
+                  "'Block' refuses it.",
+    )
+    is_active = models.BooleanField(
+        default=False,
+        help_text='Off by default. A rule enforces nothing until this is on.',
+    )
+    legal_reference = models.CharField(
+        max_length=255, blank=True,
+        help_text='The law, ministerial resolution or company policy this ceiling '
+                  'comes from. Required before the rule can be activated.',
+    )
+
+    effective_from_year = models.IntegerField()
+    effective_from_month = models.IntegerField(help_text='1-12')
+    effective_to_year = models.IntegerField(null=True, blank=True)
+    effective_to_month = models.IntegerField(null=True, blank=True, help_text='1-12')
+
+    created_by = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.CharField(max_length=150, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_active', 'name']
+        verbose_name = 'Deduction Rule'
+        verbose_name_plural = 'Deduction Rules'
+
+    def is_effective_in(self, year, month):
+        idx = year * 12 + (month - 1)
+        start = self.effective_from_year * 12 + (self.effective_from_month - 1)
+        if idx < start:
+            return False
+        if self.effective_to_year and self.effective_to_month:
+            end = self.effective_to_year * 12 + (self.effective_to_month - 1)
+            if idx > end:
+                return False
+        return True
+
+    @property
+    def ceiling_label(self):
+        bits = []
+        if self.max_percent is not None:
+            pct = self.max_percent.normalize()
+            bits.append(f'{pct}% of {self.get_basis_display().lower()}')
+        if self.max_amount is not None:
+            bits.append(f'{self.amount_currency} {self.max_amount}')
+        return ' or '.join(bits) if bits else 'no ceiling set'
+
+    def clean(self):
+        super().clean()
+        if self.code:
+            self.code = self.code.strip().lower()
+        if self.max_percent is None and self.max_amount is None:
+            raise ValidationError('Set a percentage ceiling, an amount ceiling, or both.')
+        if self.max_percent is not None and not (0 < self.max_percent <= 100):
+            raise ValidationError({'max_percent': 'Percentage must be above 0 and at most 100.'})
+        if self.max_amount is not None and self.max_amount <= 0:
+            raise ValidationError({'max_amount': 'Amount ceiling must be above zero.'})
+        if self.scope == self.SCOPE_TYPE and not self.deduction_code:
+            raise ValidationError({'deduction_code': 'Choose which deduction type this rule limits.'})
+        if self.scope != self.SCOPE_TYPE:
+            self.deduction_code = ''
+        if not 1 <= (self.effective_from_month or 0) <= 12:
+            raise ValidationError({'effective_from_month': 'Month must be between 1 and 12.'})
+        if (self.effective_to_year is None) != (self.effective_to_month is None):
+            raise ValidationError({'effective_to_month': 'Give both an end year and an end month, or neither.'})
+        if self.effective_to_month is not None and not 1 <= self.effective_to_month <= 12:
+            raise ValidationError({'effective_to_month': 'Month must be between 1 and 12.'})
+        if self.effective_to_year is not None:
+            start = self.effective_from_year * 12 + (self.effective_from_month - 1)
+            end = self.effective_to_year * 12 + (self.effective_to_month - 1)
+            if end < start:
+                raise ValidationError({'effective_to_year': 'The end of the period is before its start.'})
+        # The guard that keeps invented law out of production.
+        if self.is_active and not (self.legal_reference or '').strip():
+            raise ValidationError({
+                'legal_reference':
+                    'Give the law, resolution or policy this ceiling comes from '
+                    'before switching it on. An enforced limit with no source '
+                    'cannot be defended to an employee or an auditor.'
+            })
+
+    def __str__(self):
+        state = 'active' if self.is_active else 'inactive'
+        return f'{self.name} ({self.ceiling_label}) - {state}'
 
