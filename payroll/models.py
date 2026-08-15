@@ -2113,3 +2113,129 @@ class SundayEntitlementRecord(models.Model):
         who = self.person.name if self.person else '?'
         tail = f' (overridden from {self.system_calculated_count})' if self.is_overridden else ''
         return f'{who} {self.year}/{self.month:02d}: {self.final_count}/{self.total_sundays}{tail}'
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Compliance — commission plans and partner bank assignment
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class CommissionPlan(models.Model):
+    """The picklist behind an employee's commission plan code.
+
+    A TABLE, not a hard-coded tuple. The last hard-coded category list in this
+    app took the whole January payroll down with a KeyError the first time
+    somebody used a value that was not in it. A plan code is exactly the same
+    kind of value: business adds one, nobody edits Python.
+
+    This is the bridge to the DSA commission engine. It deliberately holds no
+    rates — the engine owns those. Storing them here as well would create a
+    second answer to "what does this plan pay".
+    """
+
+    code = models.CharField(
+        max_length=30, unique=True,
+        help_text='Short code stored on the employee, e.g. DSA-STD-2026',
+    )
+    name = models.CharField(max_length=120, help_text='Human-readable plan name')
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Inactive plans stay on employees already using them but '
+                  'cannot be picked for anyone new.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['code']
+        verbose_name = 'Commission Plan'
+        verbose_name_plural = 'Commission Plans'
+
+    def __str__(self):
+        return f'{self.code} — {self.name}'
+
+
+class EmployeePartnerBank(models.Model):
+    """Which partner banks an employee is assigned to.
+
+    A link table rather than a ManyToMany field because the relation carries
+    its own facts — which bank is primary, when it was assigned, by whom — and
+    because it must follow the dual-employee FK pattern. A single `employee_id`
+    would silently exclude every remote employee, and the remote sales team is
+    precisely the population this field exists for.
+
+    Drives RO target setting and links to the commission plan.
+    """
+
+    employee = models.ForeignKey(
+        'attendance.Employee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='partner_banks',
+        help_text='In-house employee (leave blank for remote)',
+    )
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='partner_banks',
+        help_text='Remote employee (leave blank for in-house)',
+    )
+    bank = models.ForeignKey(
+        Bank, on_delete=models.PROTECT, related_name='assigned_employees',
+        help_text='PROTECT, not CASCADE: deleting a bank must not silently '
+                  'unassign the people working it.',
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text='The bank this employee is chiefly targeted against.',
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.CharField(max_length=150, blank=True, default='')
+
+    class Meta:
+        verbose_name = 'Employee Partner Bank'
+        verbose_name_plural = 'Employee Partner Banks'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'bank'],
+                condition=models.Q(employee__isnull=False),
+                name='uniq_inhouse_partner_bank',
+            ),
+            models.UniqueConstraint(
+                fields=['remote_employee', 'bank'],
+                condition=models.Q(remote_employee__isnull=False),
+                name='uniq_remote_partner_bank',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['employee'], name='pay_epb_emp_idx'),
+            models.Index(fields=['remote_employee'], name='pay_epb_remote_idx'),
+        ]
+
+    def __str__(self):
+        person = self.employee or self.remote_employee
+        return f'{person.name if person else "?"} → {self.bank.name}'
+
+    @property
+    def employee_type(self):
+        return 'inhouse' if self.employee_id else 'remote'
+
+    @property
+    def person(self):
+        return self.employee or self.remote_employee
+
+    def clean(self):
+        super().clean()
+        if self.employee_id and self.remote_employee_id:
+            raise ValidationError(
+                'A partner bank assignment must belong to either an in-house or '
+                'a remote employee, not both.'
+            )
+        if not self.employee_id and not self.remote_employee_id:
+            raise ValidationError(
+                'A partner bank assignment must belong to an employee.'
+            )
+        person = self.person
+        if person is not None and (person.department or '') == 'Admin':
+            raise ValidationError(
+                'Partner banks do not apply to Admin-department staff — they '
+                'carry no RO target and no commission plan.'
+            )
