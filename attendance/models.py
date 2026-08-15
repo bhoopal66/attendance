@@ -1558,6 +1558,29 @@ class UserProfile(models.Model):
         default=False,
         help_text="Grants access to the custom User Management page (in addition to Django Admin)."
     )
+    ROLE_NONE = ''
+    ROLE_HR_ADMIN = 'hr_admin'
+    ROLE_EXEC_DIRECTOR = 'exec_director'
+    ROLE_MANAGER = 'manager'
+    ROLE_IT = 'it'
+    ROLE_CHOICES = [
+        (ROLE_NONE, '— none —'),
+        (ROLE_HR_ADMIN, 'HR Admin'),
+        (ROLE_EXEC_DIRECTOR, 'Executive Director'),
+        (ROLE_MANAGER, 'Manager'),
+        (ROLE_IT, 'IT'),
+    ]
+    role = models.CharField(
+        max_length=20, choices=ROLE_CHOICES, default=ROLE_NONE, blank=True,
+        db_index=True,
+        help_text=(
+            "Business role. Governs which employee compliance fields this user "
+            "may see, separately from which pages they may open. A user with no "
+            "role sees no identity numbers, no bank details and no commission "
+            "fields, however many sidebar sections they have been granted."
+        ),
+    )
+
     sections_restricted = models.BooleanField(
         default=False,
         help_text="When enabled, this user only sees the sidebar pages listed in Allowed Sections, "

@@ -38,6 +38,17 @@ def _grouped_nav_permissions():
     return groups
 
 
+def _clean_role(raw):
+    """Only a role from the model's own choices is accepted.
+
+    An unrecognised string must fall back to no role, never to a granted one:
+    a typo in a request body should cost visibility, not hand it out.
+    """
+    valid = {c for c, _label in UserProfile.ROLE_CHOICES}
+    value = (raw or '').strip()
+    return value if value in valid else UserProfile.ROLE_NONE
+
+
 @login_required
 @user_passes_test(it_admin_required)
 def user_management(request):
@@ -50,6 +61,7 @@ def user_management(request):
         'superuser_count': users.filter(is_superuser=True).count(),
         'active_count': users.filter(is_active=True).count(),
         'nav_permission_groups': _grouped_nav_permissions(),
+        'role_choices': UserProfile.ROLE_CHOICES,
     }
     return render(request, 'attendance/user_management.html', context)
 
@@ -92,6 +104,7 @@ def create_user(request):
     )
     UserProfile.objects.create(
         user=user,
+        role=_clean_role(data.get('role')),
         is_it_admin=bool(data.get('is_it_admin', False)),
         sections_restricted=bool(data.get('sections_restricted', False)),
         allowed_sections=_clean_allowed_sections(data.get('allowed_sections')),
@@ -147,8 +160,20 @@ def update_user(request, user_id):
 
     user.save()
 
-    if 'is_it_admin' in data or 'sections_restricted' in data or 'allowed_sections' in data:
+    if ('is_it_admin' in data or 'sections_restricted' in data
+            or 'allowed_sections' in data or 'role' in data):
         profile, _ = UserProfile.objects.get_or_create(user=user)
+        if 'role' in data:
+            _old_role = profile.role
+            profile.role = _clean_role(data.get('role'))
+            if _old_role != profile.role:
+                # A role change alters who can read identity numbers and bank
+                # details. That is exactly the kind of grant an auditor asks
+                # about later, so it is logged on its own line.
+                logger.warning(
+                    "COMPLIANCE ROLE CHANGE: '%s' %s -> %s by %s",
+                    user.username, _old_role or 'none',
+                    profile.role or 'none', request.user.username)
         if 'is_it_admin' in data:
             profile.is_it_admin = bool(data.get('is_it_admin'))
         if 'sections_restricted' in data:

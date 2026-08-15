@@ -162,6 +162,7 @@
                         data-is-active="{{ u.is_active|yesno:'1,0' }}"
                         data-is-staff="{{ u.is_staff|yesno:'1,0' }}"
                         data-is-superuser="{{ u.is_superuser|yesno:'1,0' }}"
+                        data-role="{{ u.profile.role|default:'' }}"
                         data-is-it-admin="{{ u.profile.is_it_admin|yesno:'1,0' }}"
                         data-sections-restricted="{{ u.profile.sections_restricted|yesno:'1,0' }}"
                         data-allowed-sections="{{ u.profile.allowed_sections|join:',' }}">
@@ -180,6 +181,7 @@
                         <td class="td-roles">
                             {% if u.is_superuser %}<span class="role-badge superuser">Superuser</span>{% endif %}
                             {% if u.is_staff and not u.is_superuser %}<span class="role-badge staff">Staff</span>{% endif %}
+                            {% if u.profile.role %}<span class="role-badge">{{ u.profile.get_role_display }}</span>{% endif %}
                             {% if u.profile.is_it_admin %}<span class="role-badge itadmin">IT Admin</span>{% endif %}
                             {% if u.profile.sections_restricted %}<span class="role-badge restricted">Restricted ({{ u.profile.allowed_sections|length }})</span>{% endif %}
                             <span class="role-badge {% if u.is_active %}active{% else %}inactive{% endif %}">{% if u.is_active %}Active{% else %}Inactive{% endif %}</span>
@@ -241,6 +243,22 @@
                 <label class="um-check"><input type="checkbox" id="userIsStaff"> Staff (Django-level flag; does not by itself grant Django Admin access)</label>
                 <label class="um-check"><input type="checkbox" id="userIsSuperuser"> Superuser (required to log into the admin panel at all)</label>
                 <label class="um-check"><input type="checkbox" id="userIsItAdmin"> IT Admin (access to Django Admin and this User Management page)</label>
+            </div>
+
+            <div style="margin-top:14px;">
+                <label style="display:block;font-size:0.8rem;color:#334155;margin-bottom:5px;font-weight:600;">Business role</label>
+                <select id="userRole" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;">
+                    {% for value, label in role_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+                <div style="font-size:0.75rem;color:#64748b;margin-top:6px;line-height:1.5;">
+                    Governs which <strong>employee compliance fields</strong> this user may read — identity
+                    numbers, bank details, contract type, probation, commission. This is separate from the
+                    page access below: granting a sidebar page does <strong>not</strong> grant identity data.
+                    A user with no role sees none of it, even a superuser.
+                </div>
+            </div>
+
+            <div>
                 <label class="um-check"><input type="checkbox" id="userSectionsRestricted" onchange="togglePermsPanel()"> Restrict sidebar access to specific pages</label>
             </div>
 
@@ -280,6 +298,7 @@
             is_active: row.dataset.isActive === '1',
             is_staff: row.dataset.isStaff === '1',
             is_superuser: row.dataset.isSuperuser === '1',
+            role: row.dataset.role || '',
             is_it_admin: row.dataset.isItAdmin === '1',
             sections_restricted: row.dataset.sectionsRestricted === '1',
             allowed_sections: row.dataset.allowedSections ? row.dataset.allowedSections.split(',') : [],
@@ -328,6 +347,7 @@
         document.getElementById('userIsStaff').checked = false;
         document.getElementById('userIsSuperuser').checked = false;
         document.getElementById('userIsItAdmin').checked = false;
+        document.getElementById('userRole').value = '';
         document.getElementById('userSectionsRestricted').checked = false;
         setAllowedSectionChecks([]);
         togglePermsPanel();
@@ -351,6 +371,7 @@
         document.getElementById('userIsStaff').checked = u.is_staff;
         document.getElementById('userIsSuperuser').checked = u.is_superuser;
         document.getElementById('userIsItAdmin').checked = u.is_it_admin;
+        document.getElementById('userRole').value = u.role || '';
         document.getElementById('userSectionsRestricted').checked = u.sections_restricted;
         setAllowedSectionChecks(u.allowed_sections);
         togglePermsPanel();
@@ -371,6 +392,7 @@
             is_active: document.getElementById('userIsActive').checked,
             is_staff: document.getElementById('userIsStaff').checked,
             is_superuser: document.getElementById('userIsSuperuser').checked,
+            role: document.getElementById('userRole').value,
             is_it_admin: document.getElementById('userIsItAdmin').checked,
             sections_restricted: document.getElementById('userSectionsRestricted').checked,
             allowed_sections: getAllowedSectionChecks(),
