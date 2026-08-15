@@ -72,6 +72,41 @@ def is_confirmed(year, month):
     return bool(d and d.status == PaidHolidayDeclaration.STATUS_CONFIRMED)
 
 
+def pay_period(year, month):
+    """The default 21st-20th window a declaration for this month lives in.
+
+    Every declared date must fall inside it. Nothing else defines "this
+    month" for payroll purposes, so nothing else may define it here.
+    """
+    from .services_payroll_engine import get_pay_period
+
+    class _Default:
+        salary_cycle_start_day = 21
+    return get_pay_period(_Default(), year, month)
+
+
+def out_of_period(year, month, dates):
+    """Declared dates that do not belong to this month's pay period.
+
+    THIS EXISTS BECAUSE A DATE IN AUGUST WAS ONCE SAVED AS THE JANUARY
+    DECLARATION. Nothing rejected it, so January paid a holiday that had not
+    happened yet. A date outside the period is a typo, never an instruction:
+    the fix is to refuse it, not to pay it.
+    """
+    period = pay_period(year, month)
+    bad = []
+    for d in dates or []:
+        try:
+            dt = datetime.date.fromisoformat(d) if isinstance(d, str) else d
+        except (TypeError, ValueError):
+            bad.append({'date': str(d), 'reason': 'not a valid date'})
+            continue
+        if not (period.start <= dt <= period.end):
+            bad.append({'date': dt.isoformat(),
+                        'reason': f'outside the pay period {period.start} to {period.end}'})
+    return bad
+
+
 def suggested_dates(year, month):
     """Public holidays already recorded inside this month's default pay period.
 
@@ -79,11 +114,7 @@ def suggested_dates(year, month):
     the same `Holiday` table the attendance calculation uses, so the two cannot
     disagree about which days are holidays.
     """
-    from .services_payroll_engine import get_pay_period
-
-    class _Default:
-        salary_cycle_start_day = 21
-    period = get_pay_period(_Default(), year, month)
+    period = pay_period(year, month)
     rows = Holiday.objects.filter(date__gte=period.start, date__lte=period.end).order_by('date')
     return [{'date': h.date.isoformat(), 'name': h.name,
              'is_sunday': h.date.weekday() == 6} for h in rows]
@@ -191,6 +222,13 @@ def confirm(year, month, dates, actor='', note=''):
         raise ValueError(
             f'Paid holidays for {month:02d}/{year} are already confirmed. '
             'Withdraw that declaration first — confirming again would pay everyone twice.')
+
+    bad = out_of_period(year, month, dates)
+    if bad:
+        detail = '; '.join(f"{b['date']} ({b['reason']})" for b in bad)
+        raise ValueError(
+            f'These dates do not belong to {month:02d}/{year}: {detail}. '
+            'Nothing was saved.')
 
     dtype = DeductionType.objects.filter(
         code=PaidHolidayDeclaration.DEDUCTION_CODE).first()

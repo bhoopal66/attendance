@@ -18,6 +18,7 @@ from django.views.decorators.http import require_http_methods
 from attendance.views.utils import MONTH_NAMES, get_selected_month_year, section_required
 
 from . import services_paid_holidays as svc
+from . import services_paid_leave as leave_svc
 from .models import DeductionType, PaidHolidayDeclaration
 
 logger = logging.getLogger('payroll')
@@ -107,6 +108,8 @@ def preview(request):
                             status=500)
 
     totals = {k: float(v) for k, v in svc.totals_by_currency(awards).items()}
+    # Surfaced so the operator sees a stray date before Apply, not after payday.
+    bad_dates = svc.out_of_period(year, month, dates)
     payable = [d for d in dates if d not in
                {s for s in dates if _is_sunday(s)}]
     return JsonResponse({
@@ -117,6 +120,7 @@ def preview(request):
         'sundays': [d for d in dates if _is_sunday(d)],
         'eligible': sum(1 for a in awards if not a['skipped']),
         'skipped': sum(1 for a in awards if a['skipped']),
+        'out_of_period': bad_dates,
     })
 
 
@@ -172,3 +176,51 @@ def withdraw(request):
                                  reason=(data.get('reason') or '').strip())
     return JsonResponse({'success': True, 'removed': removed, 'kept': kept,
                          'declaration': _decl_payload(decl)})
+
+
+@login_required
+@user_passes_test(section_required('payroll'), login_url='/report/')
+@require_http_methods(["POST"])
+def paid_leave(request):
+    """What leave already did to this month's pay. Writes nothing, ever.
+
+    This endpoint has no counterpart that commits, and that is deliberate:
+    paid leave is applied by the payroll engine at the moment it is marked.
+    Anything written here would pay the same day a second time.
+    """
+    try:
+        data = json.loads(request.body or '{}')
+        year, month = int(data.get('year')), int(data.get('month'))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+    try:
+        rows = leave_svc.month_view(year, month)
+    except Exception as exc:
+        logger.exception('Paid leave view failed')
+        return JsonResponse({'success': False,
+                             'error': f'Could not read this month\'s leave: {exc}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'rows': [{
+            'name': r['name'], 'tcr': r['tcr'], 'type': r['employee_type'],
+            'section': r['section'], 'currency': r['currency'],
+            'daily_rate': r['daily_rate'],
+            'approved_leave_days': r['approved_leave_days'],
+            'annual_leave_days': r['annual_leave_days'],
+            'protected': r['protected'], 'compensation': r['compensation'],
+            'extra_deduction': r['extra_deduction'], 'net_effect': r['net_effect'],
+            'absent_days': r['absent_days'],
+            'remote_note': r['remote_note'],
+            'spans': [{
+                'kind': sp['kind'], 'label': sp['label'],
+                'start': sp['start'].isoformat(), 'end': sp['end'].isoformat(),
+                'days_in_period': sp['days_in_period'],
+                'paid_pct': sp['paid_pct'],
+                'rejoining': sp['rejoining'].isoformat() if sp.get('rejoining') else '',
+                'note': sp['note'],
+            } for sp in r['spans']],
+        } for r in rows],
+        'totals': leave_svc.totals_by_currency(rows),
+    })

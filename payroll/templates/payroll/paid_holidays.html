@@ -125,9 +125,11 @@
     </div>
     {% else %}
     <div class="banner banner-info">
-        <strong>Not yet confirmed for {{ month_name }} {{ year }}.</strong>
-        Pick the dates being paid, preview what each employee receives, then confirm.
-        <strong>Confirming with no dates is a valid answer</strong> — it records “no paid holidays
+        <strong>Not yet applied for {{ month_name }} {{ year }}.</strong>
+        Every public holiday recorded inside this pay period is already selected below and costed
+        for you — nothing to pick, nothing to preview. Check the figure and press
+        <strong>Apply to payroll</strong>. Adjust the dates only if the recorded holidays are wrong.
+        <strong>Applying with no dates is a valid answer</strong> — it records “no paid holidays
         this month” and clears the reminder on the Payroll Run page.
     </div>
     {% endif %}
@@ -139,6 +141,8 @@
         so a day paid and a day deducted are the same size. Anyone with no gross this month
         (commission-only staff) is skipped rather than paid from a made-up rate.
     </div>
+
+    <div class="banner banner-bad" id="badDates" style="display:none;"></div>
 
     <div class="ph-card">
         <div class="ph-card-head">Dates being paid</div>
@@ -160,9 +164,9 @@
         <div class="ph-card-head">Who gets what</div>
         <div class="ph-card-body" style="padding-bottom:0;">
             <div class="ph-stats" id="previewStats">
-                <div class="ph-stat"><strong>—</strong>run a preview</div>
+                <div class="ph-stat"><strong>…</strong>costing this month</div>
             </div>
-            <button class="btn btn-secondary" onclick="runPreview()" id="btnPreview">Preview</button>
+            <div class="form-hint" id="liveHint">Recalculates by itself whenever the dates change.</div>
         </div>
         <div class="ph-table-wrap" id="previewWrap" style="display:none;">
             <table class="ph-table">
@@ -178,18 +182,48 @@
     </div>
 
     <div class="ph-card">
-        <div class="ph-card-head">Confirm</div>
+        <div class="ph-card-head">Apply</div>
         <div class="ph-card-body">
             <textarea id="fNote" placeholder="Optional note — which holiday this is, who approved it."></textarea>
-            <div class="form-hint">Confirming writes one Paid Holiday addition per eligible employee, dated {{ month_name }} {{ year }}. Every entry is an ordinary addition and can be deleted individually from the Deductions tab.</div>
+            <div class="form-hint">Applying writes one Paid Holiday addition per eligible employee, dated {{ month_name }} {{ year }}. Every entry is an ordinary addition and can be deleted individually from the Deductions tab, or removed in one go by withdrawing this declaration.</div>
             <div style="display:flex;gap:10px;margin-top:14px;">
                 {% if declaration and declaration.status == 'confirmed' %}
                 <button class="btn btn-danger" onclick="withdrawDecl()">Withdraw this declaration</button>
                 {% else %}
-                <button class="btn btn-primary" id="btnConfirm" onclick="confirmDecl()">Confirm and apply</button>
+                <button class="btn btn-primary" id="btnConfirm" onclick="confirmDecl()">Apply to payroll</button>
+                <button class="btn btn-secondary" onclick="runPreview()">Recalculate</button>
                 {% endif %}
             </div>
         </div>
+    </div>
+
+    <div class="ph-card">
+        <div class="ph-card-head">Paid leave — already applied, nothing to do</div>
+        <div class="ph-card-body" style="padding-bottom:0;">
+            <div class="banner banner-info" style="margin:0 0 14px;">
+                Employee paid leave needs no button. An approved leave request is left out of the
+                absent-day count the moment it is approved, so no deduction is ever raised for it;
+                annual leave at X% adds X% of the daily rate back per working day and charges the
+                rest on the Sundays inside the span. <strong>This table is a mirror of what already
+                happened</strong> — it writes nothing. Adding a paid-leave entry on top would pay
+                the same day twice.
+            </div>
+            <div class="ph-stats" id="leaveStats">
+                <div class="ph-stat"><strong>…</strong>reading this month</div>
+            </div>
+        </div>
+        <div class="ph-table-wrap" id="leaveWrap" style="display:none;">
+            <table class="ph-table">
+                <thead><tr>
+                    <th>Employee</th><th>Leave in this period</th>
+                    <th class="r">Days</th><th class="r">Daily rate</th>
+                    <th class="r">Not deducted</th><th class="r">Compensated</th>
+                    <th class="r">Charged back</th><th class="r">Net effect</th>
+                </tr></thead>
+                <tbody id="leaveBody"></tbody>
+            </table>
+        </div>
+        <div class="totals" id="leaveTotals" style="display:none;"></div>
     </div>
 
     {% if recent %}
@@ -227,7 +261,12 @@
     const SUGGESTED = JSON.parse(document.getElementById('suggestedData').textContent) || [];
     const DECL = JSON.parse(document.getElementById('declData').textContent);
     const CONFIRMED = !!(DECL && DECL.status === 'confirmed');
-    let DATES = (DECL && DECL.dates) ? DECL.dates.slice() : [];
+    // Pre-filled from the Holiday master. The operator does not pick dates;
+    // they correct them, and only if the recorded holidays are wrong.
+    let DATES = (DECL && DECL.dates && DECL.dates.length)
+        ? DECL.dates.slice()
+        : SUGGESTED.map(h => h.date);
+    let previewTimer = null;
 
     const csrf = () => (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -272,20 +311,24 @@
         if (!v) return;
         if (DATES.includes(v)) { toast('That date is already listed.', 'error'); return; }
         DATES.push(v); document.getElementById('newDate').value = '';
-        renderDates(); clearPreview();
+        renderDates(); schedulePreview();
     }
-    function removeDate(d) { DATES = DATES.filter(x => x !== d); renderDates(); clearPreview(); }
+    function removeDate(d) { DATES = DATES.filter(x => x !== d); renderDates(); schedulePreview(); }
     function loadSuggested() {
         if (!SUGGESTED.length) { toast('No public holidays are recorded in this pay period.', 'error'); return; }
         SUGGESTED.forEach(h => { if (!DATES.includes(h.date)) DATES.push(h.date); });
-        renderDates(); clearPreview();
+        renderDates(); schedulePreview();
         toast(`Added ${SUGGESTED.length} recorded holiday date(s).`);
     }
-    function clearPreview() {
-        document.getElementById('previewWrap').style.display = 'none';
-        document.getElementById('totalsBar').style.display = 'none';
+    // Every date change re-costs the month by itself. A figure on screen is
+    // always the figure for the dates on screen — never a stale one from an
+    // earlier selection the operator has since changed.
+    function schedulePreview() {
         document.getElementById('previewStats').innerHTML =
-            '<div class="ph-stat"><strong>—</strong>run a preview</div>';
+            '<div class="ph-stat"><strong>…</strong>recalculating</div>';
+        document.getElementById('btnConfirm') && (document.getElementById('btnConfirm').disabled = true);
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(runPreview, 250);
     }
 
     async function post(url, body) {
@@ -298,8 +341,9 @@
     }
 
     async function runPreview() {
-        const btn = document.getElementById('btnPreview');
-        btn.disabled = true; btn.textContent = 'Calculating…';
+        clearTimeout(previewTimer);
+        const apply = document.getElementById('btnConfirm');
+        if (apply) apply.disabled = true;
         try {
             const d = await post('{% url "paid_holiday_preview" %}',
                                  {year: YEAR, month: MONTH, dates: DATES});
@@ -325,15 +369,33 @@
                 ? 'Total to be added: ' + t.map(([c, v]) => `<b>${esc(c)} ${money(v)}</b>`).join(' · ')
                 : 'Nothing would be added.';
             document.getElementById('totalsBar').style.display = '';
-        } catch (e) { toast(e.message, 'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Preview'; }
+
+            // A date outside the pay period is a typo. Say so before Apply,
+            // not after payday — this is the bug that put an August date on
+            // the January declaration.
+            const bad = document.getElementById('badDates');
+            if (d.out_of_period && d.out_of_period.length) {
+                bad.innerHTML = '<strong>These dates do not belong to this pay period '
+                    + 'and will be refused:</strong> '
+                    + d.out_of_period.map(b => `${esc(b.date)} — ${esc(b.reason)}`).join('; ');
+                bad.style.display = '';
+            } else {
+                bad.style.display = 'none';
+            }
+            if (apply) apply.disabled = false;
+        } catch (e) {
+            toast(e.message, 'error');
+            document.getElementById('previewStats').innerHTML =
+                '<div class="ph-stat"><strong>—</strong>could not cost this month</div>';
+            if (apply) apply.disabled = false;
+        }
     }
 
     async function confirmDecl() {
         const payable = DATES.filter(d => !isSunday(d)).length;
         const msg = payable === 0
             ? `Confirm that ${'{{ month_name }}'} ${YEAR} has NO paid holidays?\n\nNothing will be paid. This clears the reminder on the Payroll Run page.`
-            : `Confirm ${payable} paid day(s) for ${'{{ month_name }}'} ${YEAR}?\n\nA Paid Holiday addition will be written for every eligible employee. Preview first if you haven't.`;
+            : `Apply ${payable} paid day(s) for ${'{{ month_name }}'} ${YEAR}?\n\nA Paid Holiday addition will be written for every eligible employee, at the amounts shown on screen.`;
         if (!confirm(msg)) return;
         const btn = document.getElementById('btnConfirm');
         btn.disabled = true; btn.textContent = 'Applying…';
@@ -345,7 +407,7 @@
             setTimeout(() => location.reload(), 1200);
         } catch (e) {
             toast(e.message, 'error');
-            btn.disabled = false; btn.textContent = 'Confirm and apply';
+            btn.disabled = false; btn.textContent = 'Apply to payroll';
         }
     }
 
@@ -359,6 +421,57 @@
         } catch (e) { toast(e.message, 'error'); }
     }
 
+    async function loadPaidLeave() {
+        try {
+            const d = await post('{% url "paid_leave_view" %}', {year: YEAR, month: MONTH});
+            const rows = d.rows || [];
+            if (!rows.length) {
+                document.getElementById('leaveStats').innerHTML =
+                    '<div class="ph-stat"><strong>0</strong>employees on leave this period</div>';
+                return;
+            }
+            const totals = d.totals || {};
+            document.getElementById('leaveStats').innerHTML =
+                `<div class="ph-stat"><strong>${rows.length}</strong>employees with leave</div>` +
+                Object.entries(totals).map(([c, t]) =>
+                    `<div class="ph-stat"><strong>${esc(c)} ${money(t.net_effect)}</strong>net effect of leave</div>`
+                ).join('');
+            document.getElementById('leaveBody').innerHTML = rows.map(r => {
+                const spans = (r.spans || []).map(sp =>
+                    `<div style="font-size:0.75rem;color:#475569;">${esc(sp.label)}
+                        <span style="color:#94a3b8;">${esc(sp.start)} → ${esc(sp.end)}</span>
+                        ${sp.paid_pct < 100 ? `<span class="pill pill-amber">${sp.paid_pct}% paid</span>` : ''}
+                        ${sp.rejoining ? `<span class="pill pill-grey">back ${esc(sp.rejoining)}</span>` : ''}
+                     </div>`).join('') ||
+                    '<span style="color:#94a3b8;font-size:0.75rem;">no span recorded — figures come from the payroll row</span>';
+                return `
+                <tr>
+                    <td>${esc(r.name)}${r.type === 'remote' ? ' <span class="pill pill-grey">remote</span>' : ''}
+                        ${r.remote_note ? `<div style="font-size:0.7rem;color:#b45309;">${esc(r.remote_note)}</div>` : ''}</td>
+                    <td>${spans}</td>
+                    <td class="r">${r.approved_leave_days || 0}${r.annual_leave_days ? ` <span class="pill pill-grey">${r.annual_leave_days} annual</span>` : ''}</td>
+                    <td class="r">${money(r.daily_rate)}</td>
+                    <td class="r">${money(r.protected)}</td>
+                    <td class="r">${money(r.compensation)}</td>
+                    <td class="r">${r.extra_deduction ? '-' + money(r.extra_deduction) : '—'}</td>
+                    <td class="r"><strong>${esc(r.currency)} ${money(r.net_effect)}</strong></td>
+                </tr>`;
+            }).join('');
+            document.getElementById('leaveWrap').style.display = '';
+            const t = Object.entries(totals);
+            document.getElementById('leaveTotals').innerHTML = t.map(([c, v]) =>
+                `<b>${esc(c)}</b> — ${money(v.protected)} never deducted · ${money(v.compensation)} compensated · ${money(v.extra_deduction)} charged back`
+            ).join(' &nbsp;·&nbsp; ');
+            document.getElementById('leaveTotals').style.display = '';
+        } catch (e) {
+            document.getElementById('leaveStats').innerHTML =
+                `<div class="ph-stat"><strong>—</strong>${esc(e.message)}</div>`;
+        }
+    }
+
     renderDates();
+    // Cost the month on arrival. The operator lands on a finished figure.
+    runPreview();
+    loadPaidLeave();
 </script>
 {% endblock %}

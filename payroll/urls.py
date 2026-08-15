@@ -106,6 +106,8 @@ urlpatterns = [
     path('api/paid-holidays/preview/', views_paid_holidays.preview, name='paid_holiday_preview'),
     path('api/paid-holidays/confirm/', views_paid_holidays.confirm, name='paid_holiday_confirm'),
     path('api/paid-holidays/withdraw/', views_paid_holidays.withdraw, name='paid_holiday_withdraw'),
+    # Paid Leave — read-only mirror of what the engine already applied
+    path('api/paid-leave/', views_paid_holidays.paid_leave, name='paid_leave_view'),
 
     # Workforce headcount by month
     path('headcount/', views_headcount.headcount, name='headcount'),
