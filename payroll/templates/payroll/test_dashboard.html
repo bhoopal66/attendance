@@ -635,6 +635,21 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
    and Partial both open the pay modal while unpaid, to make the first
    payment in either mode). This is the single biggest row-height saving on
    this table — the Status cell was what set the height of every row. */
+/* Single-state badge. The table shows what IS, not a menu of what could be —
+   the three-button toggle it replaced lit one of three on every row, so two
+   thirds of the Status column was always false. */
+.pay-state {
+    padding: 3px 10px; font-size: 0.66rem; font-weight: 700; font-family: inherit;
+    line-height: 1.5; border: 1px solid transparent; border-radius: 20px;
+    cursor: pointer; white-space: nowrap; letter-spacing: 0.2px;
+}
+.ps-paid    { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+.ps-paid:hover { background: #bbf7d0; }
+.ps-partial { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.ps-partial:hover { background: #fde68a; }
+.ps-unpaid  { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.ps-unpaid:hover { background: #fecaca; }
+
 .pay-toggle { display: inline-flex; border: 1px solid #dbe3ec; border-radius: 6px; overflow: hidden; }
 .pt-btn {
     padding: 2px 8px; font-size: 0.64rem; font-weight: 700; font-family: inherit;
@@ -1286,20 +1301,35 @@ tr.e6-partial-row { background: #fffcf5; }
                                     paid, the lit button opens the detail view instead. Unpaid
                                     removes the paid lock entirely, from either paid state.
                                     {% endcomment %}
-                                    <div class="pay-toggle">
-                                        <button type="button"
-                                            class="pt-btn pt-paid{% if row.pay_status == 'paid' %} on{% endif %}"
-                                            {% if row.pay_status == 'paid' %}onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}. Click for detail."{% elif not row.is_paid %}onclick="markRowPaid(this)" title="Mark this employee as paid"{% else %}disabled title="Already partially paid — see the Partial button"{% endif %}>
-                                            &#10003; Paid
-                                        </button><button type="button"
-                                            class="pt-btn pt-partial{% if row.pay_status == 'partial' %} on{% endif %}"
-                                            {% if row.pay_status == 'partial' %}onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} of {{ row.final_salary|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }}. Click for detail."{% elif not row.is_paid %}onclick="markRowPaid(this)" title="Mark this employee as partially paid"{% else %}disabled title="Already paid in full"{% endif %}>
-                                            &#189; Partial
-                                        </button><button type="button"
-                                            class="pt-btn pt-unpaid{% if not row.is_paid %} on{% endif %}"
-                                            {% if row.is_paid %}onclick="unmarkPaid(this)" title="Remove the paid lock and return this row to live recalculation"{% else %}disabled title="Not yet paid"{% endif %}>
-                                            Unpaid
-                                        </button>
+                                    {% comment %}
+                                    ONE badge, showing the state the row is actually in.
+                                    This replaced a three-button toggle that rendered Paid,
+                                    Partial and Unpaid on every row with the true one lit —
+                                    which meant every row displayed two states it was not in,
+                                    and the eye had to find the highlighted one to read the
+                                    status. Every action is still reachable: an unpaid badge
+                                    opens the pay modal, a paid or partial badge opens the
+                                    payment detail, and the detail carries the unmark control.
+                                    {% endcomment %}
+                                    {% if row.pay_status == 'paid' %}
+                                    <button type="button" class="pay-state ps-paid"
+                                        onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')"
+                                        title="Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}{% if row.paid_at %} on {{ row.paid_at|date:"d M Y" }}{% endif %}. Click for detail.">
+                                        &#10003; Paid
+                                    </button>
+                                    {% elif row.pay_status == 'partial' %}
+                                    <button type="button" class="pay-state ps-partial"
+                                        onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')"
+                                        title="Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} of {{ row.final_salary|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }} due. Click for detail.">
+                                        &#189; Partial
+                                    </button>
+                                    {% else %}
+                                    <button type="button" class="pay-state ps-unpaid"
+                                        onclick="markRowPaid(this)"
+                                        title="Not yet paid. Click to record a payment.">
+                                        Unpaid
+                                    </button>
+                                    {% endif %}
                                     </div>
                                 </td>
                                 {% comment %}
@@ -2649,6 +2679,13 @@ tr.e6-partial-row { background: #fffcf5; }
             <span class="modal-close" onclick="closeModal('paidDetailModal')">✕</span>
         </div>
         <div id="paidDetailContent" style="font-size:0.85rem;"></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;">
+            <button type="button" class="unmark-btn" id="paidDetailUnmark"
+                    style="font-size:0.75rem;padding:6px 12px;"
+                    onclick="unmarkFromDetail()">
+                Remove paid lock
+            </button>
+        </div>
     </div>
 </div>
 
@@ -3647,6 +3684,26 @@ async function e6SubmitPayment(intent) {
     }
 }
 
+/* Unmark from inside the payment detail — the only route now that the Status
+   cell shows a single badge. Same endpoint and same confirmation as before. */
+async function unmarkFromDetail() {
+    if (!_paidDetailContext) return;
+    const { empId, empType } = _paidDetailContext;
+    const title = document.getElementById('paidDetailTitle')?.textContent || 'this employee';
+    if (!await confirmDialog('Remove Paid Lock',
+        `Remove paid lock for ${title}?\n\nAll values will revert to live recalculation.`,
+        { okLabel: 'Remove Lock' })) return;
+    const r = await fetch('/payroll/api/unmark-paid/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+        body: JSON.stringify({ year: SELECTED_YEAR, month: SELECTED_MONTH,
+                               employees: [{id: parseInt(empId), type: empType}] }),
+    });
+    const data = await r.json();
+    if (data.success) { location.reload(); }
+    else { alert(data.error || 'Failed to unmark.'); }
+}
+
 async function unmarkPaid(btn) {
     const tr = btn.closest('tr');
     const empId = parseInt(tr.dataset.empId);
@@ -3664,10 +3721,15 @@ async function unmarkPaid(btn) {
 }
 
 /* ---- Paid Snapshot Detail Modal ---- */
+var _paidDetailContext = null;
+
 function openPaidDetail(empId, empType) {
     const key = `${empType}_${empId}`;
     const rec = PAID_SNAPSHOTS[key];
     if (!rec) { alert('Snapshot data not found.'); return; }
+    // Remembered so the unmark button in this modal knows what it is undoing;
+    // it has no table row to read the ids off, unlike the old toggle button.
+    _paidDetailContext = { empId: empId, empType: empType };
     const s = rec.snap;
 
     const curr = s.currency === 'INR' ? '₹' : (s.currency === 'NPR' ? 'Rs.' : 'AED');
