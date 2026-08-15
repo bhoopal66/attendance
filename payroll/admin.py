@@ -13,6 +13,8 @@ from .models import (
     Loan, LoanInstallment,
     # Phase 4 — Rules & limits
     DeductionRule,
+    # Paid Holidays
+    PaidHolidayDeclaration, PaidHolidayAward,
 )
 
 
@@ -335,3 +337,22 @@ class DeductionRuleAdmin(admin.ModelAdmin):
                     'enforcement', 'is_active')
     list_filter = ('is_active', 'enforcement', 'scope', 'applies_to', 'basis')
     search_fields = ('code', 'name', 'description', 'legal_reference')
+
+
+class PaidHolidayAwardInline(admin.TabularInline):
+    model = PaidHolidayAward
+    extra = 0
+    readonly_fields = ('employee', 'remote_employee', 'days', 'gross_used',
+                       'period_days', 'daily_rate', 'amount', 'currency',
+                       'deduction_entry', 'skipped', 'skip_reason')
+    can_delete = False
+
+
+@admin.register(PaidHolidayDeclaration)
+class PaidHolidayDeclarationAdmin(admin.ModelAdmin):
+    """Support access. Use Payroll > Paid Holidays to confirm or withdraw —
+    that is the only path that also creates or removes the payroll additions."""
+    list_display = ('year', 'month', 'status', 'paid_day_count', 'confirmed_by', 'confirmed_at')
+    list_filter = ('status', 'year')
+    readonly_fields = ('confirmed_by', 'confirmed_at', 'withdrawn_by', 'withdrawn_at')
+    inlines = [PaidHolidayAwardInline]

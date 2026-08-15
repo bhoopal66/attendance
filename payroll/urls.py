@@ -10,6 +10,7 @@ from . import views_range_report
 from . import views_deduction_types
 from . import views_loans
 from . import views_rules
+from . import views_paid_holidays
 from . import views_debug
 
 urlpatterns = [
@@ -98,6 +99,12 @@ urlpatterns = [
     path('api/rules/save/', views_rules.rule_save, name='rule_save'),
     path('api/rules/toggle/', views_rules.rule_toggle, name='rule_toggle'),
     path('api/rules/delete/', views_rules.rule_delete, name='rule_delete'),
+
+    # Paid Holidays — monthly declaration
+    path('paid-holidays/', views_paid_holidays.paid_holidays, name='paid_holidays'),
+    path('api/paid-holidays/preview/', views_paid_holidays.preview, name='paid_holiday_preview'),
+    path('api/paid-holidays/confirm/', views_paid_holidays.confirm, name='paid_holiday_confirm'),
+    path('api/paid-holidays/withdraw/', views_paid_holidays.withdraw, name='paid_holiday_withdraw'),
 
     # Phase D — Range / Annual Report
     path('range-report/', views_range_report.range_report, name='payroll_range_report'),

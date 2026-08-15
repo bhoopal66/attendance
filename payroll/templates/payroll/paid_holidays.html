@@ -1,0 +1,362 @@
+{% extends 'attendance/base.html' %}
+{% load static humanize %}
+
+{% block title %}Paid Holidays — Payroll{% endblock %}
+{% block page_title %}Paid Holidays{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ph-container { padding:20px; max-width:1180px; margin:0 auto; }
+    .ph-header { display:flex; justify-content:space-between; align-items:center;
+        margin-bottom:18px; flex-wrap:wrap; gap:12px; }
+    .ph-title { font-size:1.4rem; font-weight:700; color:#0f172a; margin:0;
+        display:flex; align-items:center; gap:10px; }
+    .btn-back { padding:9px 16px; background:#f1f5f9; color:#1e293b; border:1px solid #e2e8f0;
+        border-radius:8px; font-size:0.875rem; text-decoration:none; display:inline-flex; }
+
+    .banner { border-radius:10px; padding:14px 18px; margin-bottom:18px; font-size:0.85rem;
+        line-height:1.55; }
+    .banner-info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
+    .banner-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+    .banner-ok   { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+    .banner-bad  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+
+    .ph-card { background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08);
+        overflow:hidden; margin-bottom:22px; }
+    .ph-card-head { padding:14px 18px; border-bottom:1px solid #e1e0d9; font-size:0.75rem;
+        font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#64748b; }
+    .ph-card-body { padding:18px; }
+
+    .date-row { display:flex; align-items:center; gap:10px; padding:9px 0;
+        border-bottom:1px solid #f8fafc; }
+    .date-row:last-child { border-bottom:none; }
+    .date-row input[type=checkbox] { width:16px; height:16px; accent-color:#1D4ED8; cursor:pointer; }
+    .date-row .d { font-variant-numeric:tabular-nums; font-weight:600; color:#0f172a; min-width:110px; }
+    .date-row .n { color:#64748b; font-size:0.82rem; flex:1; }
+
+    .add-row { display:flex; gap:10px; margin-top:14px; align-items:flex-end; }
+    .add-row input[type=date] { padding:9px 12px; border:1px solid #e2e8f0; border-radius:8px;
+        font-size:0.85rem; font-family:inherit; }
+    .btn { padding:9px 16px; border-radius:8px; cursor:pointer; font-size:0.85rem;
+        font-weight:500; border:1px solid transparent; }
+    .btn-secondary { background:#f1f5f9; color:#1e293b; border-color:#e2e8f0; }
+    .btn-primary { background:#1D4ED8; color:#fff; }
+    .btn-primary:hover { background:#1E40AF; }
+    .btn-primary:disabled { background:#cbd5e1; cursor:not-allowed; }
+    .btn-danger { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+    .btn-x { background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1rem; }
+    .btn-x:hover { color:#dc2626; }
+
+    .ph-stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+    .ph-stat { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px;
+        font-size:0.78rem; color:#475569; min-width:120px; }
+    .ph-stat strong { display:block; font-size:1.15rem; color:#0f172a;
+        font-variant-numeric:tabular-nums; margin-bottom:2px; }
+
+    .ph-table-wrap { overflow-x:auto; max-height:460px; overflow-y:auto; }
+    .ph-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+    .ph-table th { padding:9px 12px; text-align:left; font-size:0.66rem; font-weight:600;
+        text-transform:uppercase; letter-spacing:0.5px; color:#64748b; background:#f8fafc;
+        border-bottom:1px solid #e1e0d9; position:sticky; top:0; }
+    .ph-table td { padding:8px 12px; border-bottom:1px solid #e1e0d9; color:#1e293b;
+        font-variant-numeric:tabular-nums; }
+    .ph-table tbody tr:last-child td { border-bottom:none; }
+    .ph-table tr.skip td { opacity:0.6; }
+    .ph-table th.r, .ph-table td.r { text-align:right; }
+
+    .pill { display:inline-block; padding:2px 9px; border-radius:20px; font-size:0.68rem;
+        font-weight:600; border:1px solid transparent; white-space:nowrap; }
+    .pill-grey  { background:#f1f5f9; color:#64748b; border-color:#e2e8f0; }
+    .pill-green { background:#dcfce7; color:#166534; border-color:#bbf7d0; }
+    .pill-amber { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+    .pill-red   { background:#fee2e2; color:#b91c1c; border-color:#fecaca; }
+
+    .totals { display:flex; gap:14px; flex-wrap:wrap; padding:14px 18px; background:#f8fafc;
+        border-top:1px solid #e1e0d9; font-size:0.85rem; }
+    .totals b { font-variant-numeric:tabular-nums; }
+
+    .form-hint { font-size:0.74rem; color:#94a3b8; margin-top:6px; line-height:1.45; }
+    textarea { width:100%; padding:9px 12px; border:1px solid #e2e8f0; border-radius:8px;
+        font-size:0.85rem; box-sizing:border-box; font-family:inherit; min-height:54px; }
+
+    .toast { position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:8px;
+        font-size:0.875rem; font-weight:500; z-index:2000; display:none;
+        box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+    .toast.success { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+    .toast.error   { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+    .toast.show    { display:block; }
+
+    @media (max-width:820px) {
+        .ph-container { padding:12px; }
+        .ph-header { flex-direction:column; align-items:flex-start; }
+        .add-row { flex-direction:column; align-items:stretch; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ph-container">
+
+    <div class="ph-header">
+        <h1 class="ph-title">
+            <svg width="22" height="22" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Paid Holidays — {{ month_name }} {{ year }}
+        </h1>
+        <a href="{% url 'payroll_run_detail' year=year month=month %}" class="btn-back">Payroll Run →</a>
+    </div>
+
+    {% if not type_ok %}
+    <div class="banner banner-bad">
+        <strong>The “{{ type_name }}” deduction type is missing or inactive.</strong>
+        Create or reactivate it on the Deduction Types page first — nothing can be paid without it,
+        and this page will not invent a category.
+    </div>
+    {% endif %}
+
+    {% if declaration and declaration.status == 'confirmed' %}
+    <div class="banner banner-ok">
+        <strong>Confirmed.</strong>
+        {{ declaration.paid_day_count }} payable day{{ declaration.paid_day_count|pluralize }}
+        for {{ month_name }} {{ year }}, signed off by {{ declaration.confirmed_by }}
+        on {{ declaration.confirmed_at }}. The additions are live in this month's payroll.
+        Withdrawing removes them — except for anyone already paid, whose entry stays put.
+    </div>
+    {% else %}
+    <div class="banner banner-info">
+        <strong>Not yet confirmed for {{ month_name }} {{ year }}.</strong>
+        Pick the dates being paid, preview what each employee receives, then confirm.
+        <strong>Confirming with no dates is a valid answer</strong> — it records “no paid holidays
+        this month” and clears the reminder on the Payroll Run page.
+    </div>
+    {% endif %}
+
+    <div class="banner banner-info">
+        Each employee receives <strong>days × (their gross for the month ÷ days in their pay
+        period)</strong>. Sundays are excluded from the day count because a Sunday is never
+        deducted for — and the divisor is the full pay period, the same one absence deduction uses,
+        so a day paid and a day deducted are the same size. Anyone with no gross this month
+        (commission-only staff) is skipped rather than paid from a made-up rate.
+    </div>
+
+    <div class="ph-card">
+        <div class="ph-card-head">Dates being paid</div>
+        <div class="ph-card-body">
+            <div id="dateList"></div>
+            <div class="add-row">
+                <div>
+                    <label style="display:block;font-size:0.8rem;color:#334155;margin-bottom:5px;font-weight:500;">Add a date</label>
+                    <input type="date" id="newDate">
+                </div>
+                <button class="btn btn-secondary" onclick="addDate()">Add</button>
+                <button class="btn btn-secondary" onclick="loadSuggested()">Use recorded holidays</button>
+            </div>
+            <div class="form-hint" id="dateHint"></div>
+        </div>
+    </div>
+
+    <div class="ph-card">
+        <div class="ph-card-head">Who gets what</div>
+        <div class="ph-card-body" style="padding-bottom:0;">
+            <div class="ph-stats" id="previewStats">
+                <div class="ph-stat"><strong>—</strong>run a preview</div>
+            </div>
+            <button class="btn btn-secondary" onclick="runPreview()" id="btnPreview">Preview</button>
+        </div>
+        <div class="ph-table-wrap" id="previewWrap" style="display:none;">
+            <table class="ph-table">
+                <thead><tr>
+                    <th>Employee</th><th>Days</th><th class="r">Gross used</th>
+                    <th class="r">÷ period</th><th class="r">Daily rate</th>
+                    <th class="r">Amount</th><th>Status</th>
+                </tr></thead>
+                <tbody id="previewBody"></tbody>
+            </table>
+        </div>
+        <div class="totals" id="totalsBar" style="display:none;"></div>
+    </div>
+
+    <div class="ph-card">
+        <div class="ph-card-head">Confirm</div>
+        <div class="ph-card-body">
+            <textarea id="fNote" placeholder="Optional note — which holiday this is, who approved it."></textarea>
+            <div class="form-hint">Confirming writes one Paid Holiday addition per eligible employee, dated {{ month_name }} {{ year }}. Every entry is an ordinary addition and can be deleted individually from the Deductions tab.</div>
+            <div style="display:flex;gap:10px;margin-top:14px;">
+                {% if declaration and declaration.status == 'confirmed' %}
+                <button class="btn btn-danger" onclick="withdrawDecl()">Withdraw this declaration</button>
+                {% else %}
+                <button class="btn btn-primary" id="btnConfirm" onclick="confirmDecl()">Confirm and apply</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if recent %}
+    <div class="ph-card">
+        <div class="ph-card-head">Recent months</div>
+        <div class="ph-table-wrap" style="max-height:none;">
+            <table class="ph-table">
+                <thead><tr><th>Month</th><th>Days paid</th><th>Status</th><th>Confirmed by</th></tr></thead>
+                <tbody>
+                {% for r in recent %}
+                    <tr>
+                        <td>{{ r.month_name }} {{ r.year }}</td>
+                        <td>{{ r.days }}</td>
+                        <td><span class="pill {% if r.status == 'confirmed' %}pill-green{% elif r.status == 'withdrawn' %}pill-red{% else %}pill-grey{% endif %}">{{ r.status }}</span></td>
+                        <td>{{ r.confirmed_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+{{ suggested|json_script:"suggestedData" }}
+{{ declaration|json_script:"declData" }}
+<script>
+    const YEAR = {{ year }}, MONTH = {{ month }};
+    const SUGGESTED = JSON.parse(document.getElementById('suggestedData').textContent) || [];
+    const DECL = JSON.parse(document.getElementById('declData').textContent);
+    const CONFIRMED = !!(DECL && DECL.status === 'confirmed');
+    let DATES = (DECL && DECL.dates) ? DECL.dates.slice() : [];
+
+    const csrf = () => (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const money = n => Number(n || 0).toLocaleString(undefined,
+        {minimumFractionDigits:2, maximumFractionDigits:2});
+    const isSunday = iso => { const d = new Date(iso + 'T00:00:00'); return d.getDay() === 0; };
+    const pretty = iso => new Date(iso + 'T00:00:00').toLocaleDateString(undefined,
+        {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+
+    function toast(msg, kind) {
+        const t = document.getElementById('toast');
+        t.textContent = msg; t.className = 'toast ' + (kind || 'success') + ' show';
+        setTimeout(() => t.classList.remove('show'), 4500);
+    }
+
+    function renderDates() {
+        const el = document.getElementById('dateList');
+        if (!DATES.length) {
+            el.innerHTML = '<div style="color:#94a3b8;font-size:0.85rem;padding:8px 0;">' +
+                'No dates selected. Confirming like this records “no paid holidays this month”.</div>';
+        } else {
+            DATES.sort();
+            el.innerHTML = DATES.map(d => `
+                <div class="date-row">
+                    <span class="d">${esc(pretty(d))}</span>
+                    <span class="n">${isSunday(d)
+                        ? '<span class="pill pill-amber">Sunday — not payable, excluded from the count</span>'
+                        : ''}</span>
+                    ${CONFIRMED ? '' : `<button class="btn-x" onclick="removeDate('${d}')" title="Remove">&#x2715;</button>`}
+                </div>`).join('');
+        }
+        const payable = DATES.filter(d => !isSunday(d)).length;
+        const sundays = DATES.length - payable;
+        document.getElementById('dateHint').textContent =
+            `${payable} payable day${payable === 1 ? '' : 's'}` +
+            (sundays ? ` · ${sundays} Sunday${sundays === 1 ? '' : 's'} excluded` : '');
+    }
+
+    function addDate() {
+        const v = document.getElementById('newDate').value;
+        if (!v) return;
+        if (DATES.includes(v)) { toast('That date is already listed.', 'error'); return; }
+        DATES.push(v); document.getElementById('newDate').value = '';
+        renderDates(); clearPreview();
+    }
+    function removeDate(d) { DATES = DATES.filter(x => x !== d); renderDates(); clearPreview(); }
+    function loadSuggested() {
+        if (!SUGGESTED.length) { toast('No public holidays are recorded in this pay period.', 'error'); return; }
+        SUGGESTED.forEach(h => { if (!DATES.includes(h.date)) DATES.push(h.date); });
+        renderDates(); clearPreview();
+        toast(`Added ${SUGGESTED.length} recorded holiday date(s).`);
+    }
+    function clearPreview() {
+        document.getElementById('previewWrap').style.display = 'none';
+        document.getElementById('totalsBar').style.display = 'none';
+        document.getElementById('previewStats').innerHTML =
+            '<div class="ph-stat"><strong>—</strong>run a preview</div>';
+    }
+
+    async function post(url, body) {
+        const res = await fetch(url, {method:'POST',
+            headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},
+            body: JSON.stringify(body || {})});
+        let d = {}; try { d = await res.json(); } catch (e) {}
+        if (!res.ok || !d.success) throw new Error(d.error || `Request failed (${res.status})`);
+        return d;
+    }
+
+    async function runPreview() {
+        const btn = document.getElementById('btnPreview');
+        btn.disabled = true; btn.textContent = 'Calculating…';
+        try {
+            const d = await post('{% url "paid_holiday_preview" %}',
+                                 {year: YEAR, month: MONTH, dates: DATES});
+            document.getElementById('previewStats').innerHTML = `
+                <div class="ph-stat"><strong>${d.payable_days}</strong>payable days</div>
+                <div class="ph-stat"><strong>${d.eligible}</strong>employees credited</div>
+                <div class="ph-stat"><strong>${d.skipped}</strong>skipped</div>`;
+            document.getElementById('previewBody').innerHTML = d.awards.map(a => `
+                <tr class="${a.skipped ? 'skip' : ''}">
+                    <td>${esc(a.name)}${a.type === 'remote' ? ' <span class="pill pill-grey">remote</span>' : ''}</td>
+                    <td>${a.skipped ? '—' : a.days}</td>
+                    <td class="r">${a.skipped ? '—' : money(a.gross_used)}</td>
+                    <td class="r">${a.skipped ? '—' : a.period_days}</td>
+                    <td class="r">${a.skipped ? '—' : money(a.daily_rate)}</td>
+                    <td class="r"><strong>${a.skipped ? '—' : esc(a.currency) + ' ' + money(a.amount)}</strong></td>
+                    <td>${a.skipped
+                        ? `<span class="pill pill-amber">skipped</span> <span style="color:#94a3b8;font-size:0.72rem">${esc(a.skip_reason)}</span>`
+                        : '<span class="pill pill-green">will be credited</span>'}</td>
+                </tr>`).join('');
+            document.getElementById('previewWrap').style.display = '';
+            const t = Object.entries(d.totals);
+            document.getElementById('totalsBar').innerHTML = t.length
+                ? 'Total to be added: ' + t.map(([c, v]) => `<b>${esc(c)} ${money(v)}</b>`).join(' · ')
+                : 'Nothing would be added.';
+            document.getElementById('totalsBar').style.display = '';
+        } catch (e) { toast(e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Preview'; }
+    }
+
+    async function confirmDecl() {
+        const payable = DATES.filter(d => !isSunday(d)).length;
+        const msg = payable === 0
+            ? `Confirm that ${'{{ month_name }}'} ${YEAR} has NO paid holidays?\n\nNothing will be paid. This clears the reminder on the Payroll Run page.`
+            : `Confirm ${payable} paid day(s) for ${'{{ month_name }}'} ${YEAR}?\n\nA Paid Holiday addition will be written for every eligible employee. Preview first if you haven't.`;
+        if (!confirm(msg)) return;
+        const btn = document.getElementById('btnConfirm');
+        btn.disabled = true; btn.textContent = 'Applying…';
+        try {
+            const d = await post('{% url "paid_holiday_confirm" %}',
+                {year: YEAR, month: MONTH, dates: DATES,
+                 note: document.getElementById('fNote').value.trim()});
+            toast(`Confirmed — ${d.created} employee(s) credited. Reloading…`);
+            setTimeout(() => location.reload(), 1200);
+        } catch (e) {
+            toast(e.message, 'error');
+            btn.disabled = false; btn.textContent = 'Confirm and apply';
+        }
+    }
+
+    async function withdrawDecl() {
+        const reason = prompt('Withdraw this declaration?\n\nThe additions will be removed, except for anyone already paid — their entry stays, because that money has gone.\n\nReason:');
+        if (reason === null) return;
+        try {
+            const d = await post('{% url "paid_holiday_withdraw" %}', {id: DECL.id, reason: reason});
+            toast(`Withdrawn — ${d.removed} removed, ${d.kept} left in place. Reloading…`);
+            setTimeout(() => location.reload(), 1400);
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    renderDates();
+</script>
+{% endblock %}

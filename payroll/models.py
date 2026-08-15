@@ -1784,4 +1784,169 @@ class DeductionRule(models.Model):
     def __str__(self):
         state = 'active' if self.is_active else 'inactive'
         return f'{self.name} ({self.ceiling_label}) - {state}'
+# ===========================================================================
+# Paid Holidays - monthly declaration
+# ===========================================================================
+
+class PaidHolidayDeclaration(models.Model):
+    """One month's paid-holiday decision.
+
+    Exists so the payroll run can tell "nobody has looked at this yet" apart
+    from "looked at it, no holidays this month". Without a record of the
+    second, the pre-run check would flag every quiet month, and a check that
+    cries wolf is one people learn to click past.
+
+    Confirming a declaration generates one `PaidHoliday` addition entry per
+    eligible employee, exactly as if each had been typed in by hand. The
+    entries are ordinary `DeductionEntry` rows, so payroll picks them up
+    through the path it already uses and no calculation code changes.
+
+    A declaration with an empty `dates` list is a valid, meaningful answer:
+    "no paid holidays this month". It generates nothing and clears the check.
+    """
+
+    STATUS_DRAFT = 'draft'
+    STATUS_CONFIRMED = 'confirmed'
+    STATUS_WITHDRAWN = 'withdrawn'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_CONFIRMED, 'Confirmed'),
+        (STATUS_WITHDRAWN, 'Withdrawn'),
+    ]
+
+    #: The deduction type awards are posted under. Created from the Deduction
+    #: Types page; generation refuses to run if it is missing rather than
+    #: inventing a category.
+    DEDUCTION_CODE = 'paid_holiday'
+
+    year = models.IntegerField()
+    month = models.IntegerField(help_text='1-12')
+    dates = models.JSONField(
+        default=list, blank=True,
+        help_text='ISO dates being paid, e.g. ["2026-01-01"]. An empty list is a '
+                  'valid declaration meaning no paid holidays this month.',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES,
+                              default=STATUS_DRAFT, db_index=True)
+    note = models.TextField(blank=True)
+
+    created_by = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    confirmed_by = models.CharField(max_length=150, blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    withdrawn_by = models.CharField(max_length=150, blank=True)
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    withdrawn_reason = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        unique_together = [('year', 'month')]
+        ordering = ['-year', '-month']
+        verbose_name = 'Paid Holiday Declaration'
+        verbose_name_plural = 'Paid Holiday Declarations'
+
+    @property
+    def date_objects(self):
+        import datetime
+        out = []
+        for d in (self.dates or []):
+            try:
+                out.append(datetime.date.fromisoformat(d))
+            except (TypeError, ValueError):
+                continue
+        return sorted(out)
+
+    @property
+    def payable_dates(self):
+        """Declared dates excluding Sundays.
+
+        Sundays are already non-working and are never deducted for, so paying
+        them would credit a day nobody was going to lose. Excluding them here
+        keeps a day paid the same size as a day deducted.
+        """
+        return [d for d in self.date_objects if d.weekday() != 6]
+
+    @property
+    def sunday_dates(self):
+        return [d for d in self.date_objects if d.weekday() == 6]
+
+    @property
+    def paid_day_count(self):
+        return len(self.payable_dates)
+
+    def clean(self):
+        super().clean()
+        if not 1 <= (self.month or 0) <= 12:
+            raise ValidationError({'month': 'Month must be between 1 and 12.'})
+        if self.dates is not None and not isinstance(self.dates, list):
+            raise ValidationError({'dates': 'Dates must be a list.'})
+        import datetime
+        for d in (self.dates or []):
+            try:
+                datetime.date.fromisoformat(d)
+            except (TypeError, ValueError):
+                raise ValidationError({'dates': f'"{d}" is not a valid date (use YYYY-MM-DD).'})
+
+    def __str__(self):
+        return f'Paid holidays {self.year}/{self.month:02d} — {self.paid_day_count} day(s), {self.status}'
+
+
+class PaidHolidayAward(models.Model):
+    """What one employee was granted under a declaration.
+
+    Kept as its own row rather than only writing a `DeductionEntry`, so the
+    working shown to the employee - days, daily rate, gross used - survives.
+    A bare addition of "AED 300" with no explanation is impossible to answer
+    questions about six months later.
+    """
+
+    declaration = models.ForeignKey(
+        PaidHolidayDeclaration, on_delete=models.CASCADE, related_name='awards')
+    employee = models.ForeignKey(
+        'attendance.Employee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='paid_holiday_awards')
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='paid_holiday_awards')
+
+    days = models.PositiveIntegerField(default=0)
+    gross_used = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="The employee's gross for the month, as the daily rate was derived from it.")
+    period_days = models.PositiveIntegerField(
+        default=0, help_text='Days in that employee\'s pay period - the divisor.')
+    daily_rate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    currency = models.CharField(max_length=3, default='AED')
+
+    deduction_entry = models.ForeignKey(
+        'payroll.DeductionEntry', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='paid_holiday_awards')
+
+    skipped = models.BooleanField(default=False)
+    skip_reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['declaration_id', 'id']
+
+    @property
+    def person(self):
+        return self.employee or self.remote_employee
+
+    @property
+    def employee_type(self):
+        return 'inhouse' if self.employee_id else 'remote'
+
+    def clean(self):
+        super().clean()
+        if self.employee and self.remote_employee:
+            raise ValidationError('An award belongs to one employee, not both.')
+        if not self.employee and not self.remote_employee:
+            raise ValidationError('An award must be linked to an employee.')
+
+    def __str__(self):
+        who = self.person.name if self.person else '?'
+        if self.skipped:
+            return f'{who}: skipped ({self.skip_reason})'
+        return f'{who}: {self.days} day(s) x {self.daily_rate} = {self.currency} {self.amount}'
 

@@ -102,6 +102,32 @@ def _build_exception_report(year, month):
             'items':    missing_rates,
         })
 
+    # ── CHECK 3b: Paid holidays not confirmed ────────────────────────────────
+    # A warning, not a blocker: it must not strand a month-end close because
+    # nobody was available to sign it off. It clears once the month has a
+    # confirmed declaration — including a declaration of "no holidays this
+    # month", which is why the check reads the declaration rather than simply
+    # counting paid_holiday entries. Counting entries would flag every quiet
+    # month forever, and a check that cries wolf is one people click past.
+    try:
+        from payroll.services_paid_holidays import declaration_for, suggested_dates
+        _decl = declaration_for(year, month)
+        if _decl is None or _decl.status != 'confirmed':
+            _suggested = suggested_dates(year, month)
+            _items = [f"{h['date']} — {h['name']}" + (' (Sunday, not payable)' if h['is_sunday'] else '')
+                      for h in _suggested] or ['No public holidays recorded in this pay period.']
+            warnings.append({
+                'check':    'Paid holidays not confirmed',
+                'severity': 'warning',
+                'detail':   (f'Paid holidays for {MONTH_NAMES[month]} {year} have not been confirmed. '
+                             'Confirm them on the Paid Holidays page before this run is paid — '
+                             'confirming with no dates is a valid answer and clears this.'),
+                'items':    _items,
+            })
+    except Exception:
+        # A reporting check must never break the run page it is reported on.
+        logger.exception('Paid-holiday check failed — omitted from the exception report')
+
     # ── CHECK 4: Status anomalies ─────────────────────────────────────────────
     # Employees who are exited/inactive but have active deduction entries this month.
     inactive_with_deductions = []
