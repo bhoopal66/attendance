@@ -45,15 +45,17 @@ DJANGO_SETTINGS_MODULE=attendance_project.settings.production gunicorn --bind 0.
 
 This is a **production environment** running on Gunicorn managed by systemd. Do **not** use `manage.py runserver`.
 
+> **⚠️ DO NOT TOUCH PORT 8000.** This working directory (`/home/ubuntu/attendance` / `attendance-staging.service`, port 8001, DB `attendance_db_staging`) is a separate deployment from the main production app at `/var/www/attendance` (`attendance.service`, port 8000, DB `attendance_db`). **Never** run `git pull`, `manage.py migrate`/`makemigrations`, `collectstatic`, or `systemctl restart/stop` against port 8000/`attendance.service`/`/var/www/attendance`, and never touch its database directly. This applies even to generic requests like "update the app," "redeploy," or "make migrations and migrate" — always assume those mean the **port 8001** instance in this directory unless the user explicitly names port 8000 / `/var/www/attendance` / `attendance.service` and confirms they want that instance touched.
+
 ```bash
-# Restart the server (required after code changes)
-sudo systemctl restart attendance
+# Restart the server (required after code changes) — PORT 8001 STAGING ONLY
+sudo systemctl restart attendance-staging
 
 # Check server status
-sudo systemctl status attendance
+sudo systemctl status attendance-staging
 
 # View live logs
-sudo journalctl -u attendance -f
+sudo journalctl -u attendance-staging -f
 ```
 
 No test suite or linting configuration exists yet. Both `attendance/tests.py` and `payroll/tests.py` are empty placeholders.
@@ -96,6 +98,8 @@ Views are split into modules under `attendance/views/`:
 - `annual_leave.py` - Annual leave assignment by admin (paid/unpaid, with `AnnualLeave` model)
 - `shift_management.py` - Special shift periods (e.g., Ramadan reduced hours) via `SpecialShiftPeriod`
 - `api.py` - JSON API endpoints for frontend interactions
+- `employee_profile.py` - Employee 360° profile (`/employees/<person_id>/profile/`): onboarding checklist, employment/salary/employer-cost history, documents, recoverables, and a 12-month performance trend. See [Employee 360° Profile](#employee-360-profile)
+- `user_management.py` - Django auth `User` account management for IT admins (`/user-management/...`), gated by `it_admin_required` rather than `superuser_required`. See [User Management](#user-management)
 
 All view functions are re-exported from `attendance/views/__init__.py`.
 
@@ -136,6 +140,17 @@ Use these instead of the single-employee variants whenever rendering a full mont
 - `Holiday` - Custom holidays (Sundays are auto-detected)
 - `SpecialShiftPeriod` - Date ranges with modified attendance thresholds (e.g., Ramadan)
 
+**Employee 360° Profile (`attendance/models.py`):**
+- `EmploymentHistory` - Auto-diffed log of employment-field changes (designation, department, team, location, employment_status, reporting_manager), written by `employee_profile.py:_save_employment`
+- `SalaryStructure` - Approved salary revisions over time; saving a new one supersedes the prior approved row and syncs `Employee.salary`/`currency`
+- `EmployerCostSetup` - Employer-side cost history per employee (used by payroll profitability calculations, see `services_profitability.py`)
+- `EmployeeDocument` - Uploaded documents (e.g. visa, ID) per employee
+- `Recoverable` - Amounts owed by an employee to the company; can be linked to a `DeductionEntry` for recovery
+
+**Audit & Access Control (`attendance/models.py`):**
+- `AuditLog` - Append-only audit trail for financial/role-changing actions. Deliberately decoupled from FKs (`app_label`/`model_name`/`object_id`/`object_repr` as plain fields, not `GenericForeignKey`) so it survives deletion of the audited row. `changes` is a JSONField of `{field: [old, new]}`. See [Audit Logging](#audit-logging)
+- `UserProfile` - One-to-one with Django `User`; holds `is_it_admin` and per-user nav-section permissions (`allowed_sections`, `sections_restricted` against `NAV_SECTIONS`/`NAV_SECTION_KEYS` in `attendance/views/utils.py`)
+
 **Payroll (`payroll/models.py`):**
 - `PayrollAdjustment` - Monthly incentives/reductions per employee (both in-house and remote)
 - `Bank` - Bank with AED and optional INR per-account charge; `charge_for_currency()` returns the right rate
@@ -146,20 +161,28 @@ Use these instead of the single-employee variants whenever rendering a full mont
 - `GeneratedDocument` - Registry of every payslip/voucher; stable human-readable ref (`PS-XXXXX` / `PV-XXXXX`) via `ref` property
 - `FrozenPayrollMonth` - Immutable JSON snapshot of a fully-computed payroll month; once frozen, dashboard serves from this snapshot instead of recalculating — freeze/unfreeze via `/payroll/api/freeze/` and `/payroll/api/unfreeze/`
 - `PaidSalaryRecord` - Per-employee immutable payroll snapshot created when salary is marked as paid; stores full snapshot (attendance, deductions, commission, bank submissions, final salary) at the moment of payment — mark/unmark via `/payroll/api/mark-paid/` and `/payroll/api/unmark-paid/`
+- `PayrollNote` - Append-only free-text note per employee (dual-FK), created manually via the Notes & Timeline modal
+- `CommissionTierSettings` - Per-currency tiered DSA commission rule (`threshold` + `overflow_rate`); referenced by `Bank.charge_for_currency()`
+- `PayrollRun` - One row per calendar month driving the Phase 9 lifecycle state machine (`draft → review → approved → locked → paid → posted`) via forward-only `advance()`; a control layer above `FrozenPayrollMonth`/`PaidSalaryRecord`, not a replacement for them
+- `EmployeeTarget` - Monthly funded-accounts target per employee (dual-FK); achievement is derived at read time from `BankSubmission`, not stored
 
 ### URL Structure
 
-**Admin Panel:** `/` (upload), `/upload/multiday/` (multi-day Daily Report upload), `/report/` (in-house), `/report/remote/` (remote), `/employees/`, `/on-duty-requests/` (early-leave/on-duty request queue), `/leave-requests/`, `/annual-leave/`, `/special-shifts/`
+**Admin Panel:** `/` (upload), `/upload/multiday/` (multi-day Daily Report upload), `/upload/remote/`, `/upload/remote/monthly/`, `/report/` (in-house, plus `/report/download/` and `/report/download/employee/<id>/`), `/report/remote/` (remote, plus `/report/remote/download/` and `/report/remote/download/employee/<id>/`), `/employees/`, `/employees/<person_id>/profile/` (360° profile), `/on-duty-requests/` (early-leave/on-duty request queue), `/leave-requests/`, `/annual-leave/` (plus `/annual-leave/add/`, `/annual-leave/<id>/delete/`), `/special-shifts/` (plus `/special-shifts/add/`, `/special-shifts/<id>/update/`, `/special-shifts/<id>/delete/`)
 
 **Employee Management:** `/employees/update/`, `/employees/bulk-update/`, `/employees/merge/`, `/employees/delete/`, `/employees/link/`, `/employees/unlink/`
 
+**User Management (IT admin only):** `/user-management/`, `/user-management/create/`, `/user-management/<user_id>/update/`, `/user-management/<user_id>/delete/`
+
 **Employee Portal:** `/portal/` (dashboard), `/portal/login/`, `/portal/logout/`, `/portal/change-password/`, `/portal/early-leave-request/`, `/portal/leave-request/`, `/portal/api/my-requests/`
 
-**APIs:** `/api/attendance/update/`, `/api/remote/attendance/update/`, `/api/pending-count/`, `/api/pending-requests/`, `/request/<id>/data/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/on-duty-requests/approve-all/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`
+**APIs:** `/api/attendance/update/`, `/api/remote/attendance/update/`, `/api/pending-count/`, `/api/pending-requests/`, `/request/<id>/data/`, `/request/<id>/approve/`, `/request/<id>/decline/`, `/on-duty-requests/approve-all/`, `/leave/<id>/approve/`, `/leave/<id>/reject/`, `/set-period/`
 
-**Payroll:** `/payroll/` (comprehensive dashboard, `payroll_test_dashboard` — see below), `/payroll/old/` (legacy dashboard, `payroll_dashboard`), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/<emp_type>/<id>/`, `/payroll/api/submissions/save/`, `/payroll/api/upload-submissions/` (bulk XLSX), `/payroll/api/deductions/add/`, `/payroll/api/deductions/autofill/`, `/payroll/api/recalculate/`, `/payroll/api/exchange-rate/save/`, `/payroll/api/freeze/`, `/payroll/api/unfreeze/`, `/payroll/api/mark-paid/`, `/payroll/api/unmark-paid/`, `/payroll/api/employee/<emp_type>/<id>/update/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/voucher/advance/`
+**Payroll:** `/payroll/` (comprehensive dashboard, `payroll_test_dashboard` — see below), `/payroll/old/` (legacy dashboard, `payroll_dashboard`), `/payroll/employees/` (salary setup), `/payroll/banks/`, `/payroll/api/adjustments/`, `/payroll/api/remote-adjustments/`, `/payroll/api/submissions/<emp_type>/<id>/`, `/payroll/api/submissions/save/`, `/payroll/api/upload-submissions/` (bulk XLSX), `/payroll/api/deductions/add/`, `/payroll/api/deductions/autofill/`, `/payroll/api/recalculate/`, `/payroll/api/exchange-rate/save/`, `/payroll/api/freeze/`, `/payroll/api/unfreeze/`, `/payroll/api/mark-paid/`, `/payroll/api/unmark-paid/`, `/payroll/api/employee/<emp_type>/<id>/update/`, `/payroll/payslip/<emp_type>/<id>/`, `/payroll/payslip-history/`, `/payroll/voucher/advance/`
 
 Note: `/payroll/` and `/payroll/test/` both route to `payroll_test_dashboard` — the "test" dashboard is now the primary one. The original `payroll_dashboard` view lives on at `/payroll/old/` for reference/rollback.
+
+**Payroll — Phase 9–D (each on its own `views_*.py` module, see [Payroll Phase Modules](#payroll-phase-modules)):** `/payroll/run/<year>/<month>/` (Payroll Run lifecycle), `/payroll/performance/<year>/<month>/` (Team Performance), `/payroll/profitability/<year>/<month>/`, `/payroll/management/` and `/payroll/management/<year>/<month>/` (Management Dashboard), `/payroll/audit-log/`, `/payroll/api/notes/<emp_type>/<id>/` and `/payroll/api/notes/add/` (Notes & Timeline), `/payroll/range-report/` (Range/Annual Report), `/payroll/api/debug/snapshot/` (**temporary** — see note below)
 
 ### Authentication
 
@@ -195,6 +218,7 @@ Custom error templates at `attendance/templates/`: `400.html`, `403.html`, `404.
 
 - `attendance/context_processors.py` - `pending_requests_processor` makes pending on-duty request counts available to all templates for authenticated superusers
 - `attendance/templatetags/attendance_extras.py` - Custom template filters: `is_in_list`, `dictsumby` (sums a key across a list of dicts or objects)
+- `attendance/audit.py` - `log_audit()` / `diff_fields()` helpers for writing to `AuditLog`. See [Audit Logging](#audit-logging)
 - `attendance/management/commands/recalculate_summaries.py` - Management command to rebuild monthly summaries
 - `payroll/management/commands/convert_frozen_to_paid.py` - One-time migration converting `FrozenPayrollMonth` snapshots into per-employee `PaidSalaryRecord` entries, for the new dashboard's paid-record overlay; supports `--dry-run`
 
@@ -263,6 +287,40 @@ Helper: `_get_employee_pay_period(cycle_start_day, year, month)` in `payroll/vie
 
 Admins can edit remote call records directly from the remote attendance report. The new API endpoint `POST /api/remote/attendance/update/` (`update_remote_attendance` in `api.py`) accepts `employee_id`, `date`, `talk_minutes`, and `answered_calls`. It upserts a `RemoteCallRecord` and returns the recalculated `attendance_status`. The remote report template renders an edit icon on each day cell and a modal form wired to this endpoint.
 
+### Audit Logging
+
+`attendance.AuditLog` is a cross-app audit trail written to by both apps. `log_audit(actor, action, instance, changes=None, note='')` (`attendance/audit.py`) never raises — failures are caught and logged so a broken audit write can never block the real mutation.
+
+Two wiring styles are used, depending on whether the call site has a real `request.user`:
+- **Explicit calls** (preferred, real actor attribution): `attendance/views/employee_profile.py` (salary/cost/recoverable saves), `attendance/admin.py` (`save_model`/`delete_model` overrides), `payroll/models.py` (`PayrollRun.advance()`).
+- **Signal fallback** (`payroll/signals.py`, wired via `PayrollConfig.ready()`): `pre_save`/`post_save`/`post_delete` on `DeductionEntry` only, logged as `actor='system'`, because that model is edited exclusively from the legacy `payroll/views.py` monolith with no call site that has a real user in scope.
+
+Browse the trail at `/payroll/audit-log/` (`payroll/views_audit.py`, filterable by model/actor/action/date-range).
+
+### Employee 360° Profile
+
+`attendance/views/employee_profile.py:employee_profile(request, person_id)` (`/employees/<person_id>/profile/`) renders a full profile: onboarding checklist, employment/salary/employer-cost history, documents, recoverables sub-ledger, and a 12-month performance trend (lazily imported from `payroll.services_performance.person_trend` inside the function body to avoid an import cycle between the two apps).
+
+POST with `?section=<name>` dispatches to one of 10 section-specific JSON save handlers (`personal`, `contact`, `identity`, `employment`, `salary`, `bank`, `cost`, `document`, `recoverable`, `onboarding`) via `_handle_section_post`. Notably: `_save_employment` auto-diffs tracked fields into `EmploymentHistory`; `_save_salary` supersedes the prior approved `SalaryStructure`, syncs `Employee.salary`/`currency`, and audits the change.
+
+### User Management
+
+`attendance/views/user_management.py` manages Django auth `User` accounts (create/update/delete + paired `UserProfile`) for IT admins, gated by `it_admin_required` (narrower than the general `superuser_required` used elsewhere — requires `UserProfile.is_it_admin`). Guards against removing/self-deleting the last active superuser. Per-user section access is stored on `UserProfile.allowed_sections`/`sections_restricted` against `NAV_SECTIONS`/`NAV_SECTION_KEYS` (`attendance/views/utils.py`) — this is the nav-based permission system that gates access to sections like `'payroll'`, `'management'`, and `'audit_log'` across both apps.
+
+### Payroll Phase Modules
+
+Newer payroll functionality (Phases 9–D) is deliberately kept out of the `payroll/views.py` monolith, each phase in its own `views_*.py` + optional `services_*.py` pair. All follow the same pattern: `@login_required` + `@user_passes_test(section_required('<section>'), login_url='/report/')`, deferred imports inside function bodies, and a locally duplicated `MONTH_NAMES` list per file rather than a shared constant.
+
+- **Phase 9 — Payroll Run** (`views_payroll_run.py`, `/payroll/run/<year>/<month>/`): renders the `PayrollRun` lifecycle page with an "exception centre" (`_build_exception_report`: blockers for missing salary structure/bank details/exchange rate; warnings for inactive employees with active deductions, orphaned `Recoverable`s). POST `action=advance` moves the run forward one stage; `action=save_notes` saves free text.
+- **Phase 10 — Team Performance** (`services_performance.py` + `views_performance.py`, `/payroll/performance/<year>/<month>/`): aggregates `BankSubmission` vs `EmployeeTarget`. `month_performance()` returns rows + team rollups; `person_trend()` returns a 12-month series (consumed by the Employee 360° Profile); `status_for_pct()` buckets into achieved/near/below/no_target.
+- **Phase 11 — Profitability** (`services_profitability.py` + `views_profitability.py`, GET-only, `/payroll/profitability/<year>/<month>/`): Total Cost / Contribution / ROI% / Cost-per-account per agent in AED (Cost = Salary + `EmployerCostSetup` + Commission; revenue from `Bank.revenue_per_account`). Agents whose currency has no `ExchangeRate` for the month are flagged `fx_missing=True` and excluded from AED totals rather than zeroed. Tiered INR/NPR commission is intentionally not modeled here (v1, flat rates only).
+- **Phase 12 — Management Dashboard** (`services_management.py` + `views_management.py`, GET-only, `/payroll/management/` redirects to the current month, `/payroll/management/<year>/<month>/`): rolls up Phases 9–11 into one executive snapshot (`management_snapshot()`) — KPIs, top/bottom performers and contributors, an alerts list, and data-health metrics. Gated by a distinct `'management'` section grant. Does not duplicate business math from the other phases.
+- **Phase 13 — Audit Log** (`views_audit.py`, GET-only, `/payroll/audit-log/`): see [Audit Logging](#audit-logging).
+- **Phase C — Notes & Timeline** (`views_notes.py`, `/payroll/api/notes/...`): builds a merged per-employee timeline from `PayrollNote` rows, `DeductionEntry` audit events (matched via `AuditLog.object_repr` string-prefix — a fragile coupling worth knowing about if audit log formatting ever changes), `PaidSalaryRecord` mark-as-paid events, and `DeductionCarryover` create/skip events.
+- **Phase D — Range/Annual Report** (`views_range_report.py`, GET-only, `/payroll/range-report/`): aggregates already-paid `PaidSalaryRecord.snapshot` JSON across a date range/annual/multi-month/since-joining selection. Deliberately reports only on locked snapshots rather than recomputing, so it can never drift from what was actually paid; each row shows "N of M months included" to surface gaps instead of hiding them.
+- **`services.py`** (shared, no phase of its own): `get_effective_salary_structure()`, currency conversion helpers (`convert_amount()`, `convert_employee_deduction_currency()`) used by both the profile view and payroll views.
+- **`views_debug.py`** (`/payroll/api/debug/snapshot/`) — **temporary, read-only diagnostic** for a Phase D investigation; the file's own docstring and the `urls.py` comment say to delete it (and its one URL line) once the investigation is done. Don't build on top of it.
+
 ### Payroll Dashboard (`/payroll/`, view `payroll_test_dashboard`, template `payroll/test_dashboard.html`)
 
 This is the primary payroll dashboard (both `/payroll/` and `/payroll/test/` route here); it replaced the original dashboard workflow, which is still reachable at `/payroll/old/` (view `payroll_dashboard`) for reference/rollback. Key differences from the old dashboard:
@@ -292,7 +350,7 @@ This is the primary payroll dashboard (both `/payroll/` and `/payroll/test/` rou
 
 ## Payroll Architecture
 
-All payroll logic lives in `payroll/views.py`. Every model (payroll and attendance) uses the dual-FK pattern: `employee` (in-house) and `remote_employee` (remote) — exactly one must be set; `clean()` enforces this.
+The core payroll calculation (dashboards, deductions, commission, freeze/mark-paid, payslips) lives in the `payroll/views.py` monolith, described below. Newer functionality (Phases 9–D: payroll run lifecycle, team performance, profitability, management dashboard, audit log, notes, range report) is intentionally kept out of that file — see [Payroll Phase Modules](#payroll-phase-modules). Every model (payroll and attendance) uses the dual-FK pattern: `employee` (in-house) and `remote_employee` (remote) — exactly one must be set; `clean()` enforces this.
 
 ### Employee Fields That Drive Payroll
 
@@ -370,7 +428,9 @@ Remote: `git@github.com:yadhumanikandan/attendance_system.git`
 
 Deployed on Ubuntu 24.04 with Gunicorn, MySQL, systemd service (`attendance.service`), and WhiteNoise. See `DEPLOYMENT.md` for complete setup guide.
 
-Update process:
+This is the **port 8000 main production app** at `/var/www/attendance` — a separate deployment from this repo's working directory. **Off-limits by default; see the warning under [Production Server](#production-server).** The process below is documented for reference only — do not run it unless the user has explicitly named port 8000 / `attendance.service` / `/var/www/attendance` and confirmed they want it updated.
+
+Update process (port 8000 only — requires explicit user confirmation):
 ```bash
 cd /var/www/attendance
 source venv/bin/activate
@@ -379,4 +439,6 @@ DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py m
 DJANGO_SETTINGS_MODULE=attendance_project.settings.production python manage.py collectstatic --noinput
 sudo systemctl restart attendance
 ```
+
+For routine deploy work in this repo, use the port 8001 staging process instead (`attendance-staging.service`, working dir `/home/ubuntu/attendance`, DB `attendance_db_staging`) — see [Production Server](#production-server).
 

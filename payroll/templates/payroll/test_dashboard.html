@@ -66,6 +66,8 @@
 .btn-danger:hover { background: #fecaca; }
 .btn-success { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
 .btn-success:hover { background: #bbf7d0; }
+.btn-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.btn-warning:hover { background: #fde68a; }
 .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
 .btn-xs { padding: 2px 8px; font-size: 0.72rem; }
 
@@ -627,18 +629,15 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 .e6-badge-unpaid { padding: 1px 8px; }
 .cat-legend { padding: 6px 20px; }
 
-/* ── Phase E12: Paid / Unpaid as a side-by-side pair ───────────────────
-   Replaces the stacked badge + sub-lines + Unmark button. Two buttons on one
-   line: the row's current state is lit, the other is the action. This is the
-   single biggest row-height saving on this table — the Status cell was what
-   set the height of every row.
-
-   Partial lights the Paid side amber. Two buttons cannot express three
-   states, so the disbursed / owed / balance figures moved into that button's
-   tooltip rather than being dropped. */
+/* ── Phase E12: Paid / Partial / Unpaid as a side-by-side trio ─────────
+   Replaces the stacked badge + sub-lines + Unmark button. Three buttons on
+   one line: the row's current state is lit, the others are actions (Paid
+   and Partial both open the pay modal while unpaid, to make the first
+   payment in either mode). This is the single biggest row-height saving on
+   this table — the Status cell was what set the height of every row. */
 .pay-toggle { display: inline-flex; border: 1px solid #dbe3ec; border-radius: 6px; overflow: hidden; }
 .pt-btn {
-    padding: 2px 9px; font-size: 0.66rem; font-weight: 700; font-family: inherit;
+    padding: 2px 8px; font-size: 0.64rem; font-weight: 700; font-family: inherit;
     line-height: 1.5; border: none; background: #fff; color: #94a3b8;
     cursor: pointer; white-space: nowrap;
 }
@@ -647,8 +646,8 @@ tr.row-npr td:first-child { border-left: 3px solid #f59e0b; }
 .pt-btn:disabled { cursor: default; }
 .pt-paid.on               { background: #16a34a; color: #fff; }
 .pt-paid.on:hover         { background: #15803d; color: #fff; }
-.pt-paid.on.partial       { background: #d97706; color: #fff; }
-.pt-paid.on.partial:hover { background: #b45309; color: #fff; }
+.pt-partial.on             { background: #d97706; color: #fff; }
+.pt-partial.on:hover       { background: #b45309; color: #fff; }
 .pt-unpaid.on             { background: #fee2e2; color: #b91c1c; }
 .pt-unpaid.on:disabled    { background: #fee2e2; color: #b91c1c; }
 
@@ -675,6 +674,7 @@ tr.e6-partial-row { background: #fffcf5; }
 .e6-method-wps { background: #dcfce7; color: #166534; }
 .e6-method-bank_transfer { background: #e0e7ff; color: #3730a3; }
 .e6-method-cash { background: #fef3c7; color: #92400e; }
+.e6-method-mixed { background: #ede9fe; color: #5b21b6; }
 .e6-adv-badge {
     display: inline-block; margin-left: 4px; padding: 2px 7px; border-radius: 20px;
     font-size: 0.62rem; font-weight: 700; background: #ede9fe; color: #5b21b6;
@@ -714,6 +714,27 @@ tr.e6-partial-row { background: #fffcf5; }
     margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.75rem;
     background: #fffbeb; border-left: 3px solid #f59e0b; color: #78350f;
 }
+.e6-split-link {
+    display: inline-block; margin-top: 3px; font-size: 0.68rem; font-weight: 600;
+    color: #4F46E5; cursor: pointer; text-decoration: none;
+}
+.e6-split-link:hover { text-decoration: underline; }
+.e6-amt-split { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.e6-split-row { display: flex; align-items: center; gap: 5px; }
+.e6-split-row select {
+    padding: 4px 6px; font-size: 0.74rem; border: 1px solid #dbe3ec; border-radius: 6px; background: #fff;
+}
+.e6-split-row input {
+    width: 90px; padding: 4px 8px; text-align: right; font-size: 0.8rem;
+    border: 1px solid #dbe3ec; border-radius: 6px;
+}
+.e6-split-row .e6-split-remove {
+    cursor: pointer; color: #94a3b8; font-weight: 700; font-size: 0.85rem; padding: 0 2px;
+}
+.e6-split-row .e6-split-remove:hover { color: #b91c1c; }
+.e6-split-actions { display: flex; gap: 8px; font-size: 0.68rem; }
+.e6-split-note { font-size: 0.68rem; }
+.e6-split-note.e6-split-over { color: #b91c1c; font-weight: 700; }
 
 /* ---- Summary sub-navigation (keeps the Summary tab from dumping everything at once) ---- */
 .subtab-bar {
@@ -1257,17 +1278,23 @@ tr.e6-partial-row { background: #fffcf5; }
                                 </td>
                                 <td class="text-center">
                                     {% comment %}
-                                    Two buttons side by side, not stacked. The pair is a
-                                    toggle: whichever state the row is in is the lit one, and
-                                    the other is the action. Partial lights the Paid side in
-                                    amber with the disbursed/owed figures on hover, since two
-                                    buttons cannot show three states on their own.
+                                    Three buttons side by side, not stacked — a genuine
+                                    three-state toggle (Paid / Partial / Unpaid), whichever
+                                    state the row is in is the lit one. Paid and Partial both
+                                    open the pay modal when the row is still unpaid (to make
+                                    the first payment, full or deliberately partial); once
+                                    paid, the lit button opens the detail view instead. Unpaid
+                                    removes the paid lock entirely, from either paid state.
                                     {% endcomment %}
                                     <div class="pay-toggle">
                                         <button type="button"
-                                            class="pt-btn pt-paid{% if row.pay_status == 'paid' %} on{% elif row.pay_status == 'partial' %} on partial{% endif %}"
-                                            {% if row.is_paid %}onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="{% if row.pay_status == 'partial' %}Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} of {{ row.final_salary|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }}. Click for detail.{% else %}Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}. Click for detail.{% endif %}"{% else %}onclick="markRowPaid(this)" title="Mark this employee as paid"{% endif %}>
-                                            {% if row.pay_status == 'partial' %}&#189; Paid{% else %}&#10003; Paid{% endif %}
+                                            class="pt-btn pt-paid{% if row.pay_status == 'paid' %} on{% endif %}"
+                                            {% if row.pay_status == 'paid' %}onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}. Click for detail."{% elif not row.is_paid %}onclick="markRowPaid(this)" title="Mark this employee as paid"{% else %}disabled title="Already partially paid — see the Partial button"{% endif %}>
+                                            &#10003; Paid
+                                        </button><button type="button"
+                                            class="pt-btn pt-partial{% if row.pay_status == 'partial' %} on{% endif %}"
+                                            {% if row.pay_status == 'partial' %}onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} of {{ row.final_salary|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }}. Click for detail."{% elif not row.is_paid %}onclick="markRowPaid(this)" title="Mark this employee as partially paid"{% else %}disabled title="Already paid in full"{% endif %}>
+                                            &#189; Partial
                                         </button><button type="button"
                                             class="pt-btn pt-unpaid{% if not row.is_paid %} on{% endif %}"
                                             {% if row.is_paid %}onclick="unmarkPaid(this)" title="Remove the paid lock and return this row to live recalculation"{% else %}disabled title="Not yet paid"{% endif %}>
@@ -1557,7 +1584,7 @@ tr.e6-partial-row { background: #fffcf5; }
                         <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
-                            {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
+                            {% if row.is_paid %}<span class="{% if row.pay_status == 'partial' %}e6-badge-partial{% else %}paid-badge{% endif %}" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="{% if row.pay_status == 'partial' %}Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }} due. Click for detail.{% else %}Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}. Click for detail.{% endif %}">{% if row.pay_status == 'partial' %}&#189; PARTIAL{% else %}&#10003; PAID{% endif %}</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% else %}<span class="e6-badge-unpaid" style="display:block;margin-bottom:4px;" title="Not yet paid">UNPAID</span>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','inhouse','{{ row.employee.name }}')">+ Adjust</button>
                             <a href="{% url 'download_payslip' 'inhouse' row.employee.id %}?month={{ selected_month }}&year={{ selected_year }}" class="adj-btn" style="text-decoration:none;">Payslip</a>
                         </td>
@@ -1672,7 +1699,7 @@ tr.e6-partial-row { background: #fffcf5; }
                         <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
-                            {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
+                            {% if row.is_paid %}<span class="{% if row.pay_status == 'partial' %}e6-badge-partial{% else %}paid-badge{% endif %}" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="{% if row.pay_status == 'partial' %}Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }} due. Click for detail.{% else %}Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}. Click for detail.{% endif %}">{% if row.pay_status == 'partial' %}&#189; PARTIAL{% else %}&#10003; PAID{% endif %}</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% else %}<span class="e6-badge-unpaid" style="display:block;margin-bottom:4px;" title="Not yet paid">UNPAID</span>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','remote','{{ row.employee.name }}')">+ Adjust</button>
                         </td>
                     </tr>
@@ -1794,7 +1821,7 @@ tr.e6-partial-row { background: #fffcf5; }
                         <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
-                            {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
+                            {% if row.is_paid %}<span class="{% if row.pay_status == 'partial' %}e6-badge-partial{% else %}paid-badge{% endif %}" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="{% if row.pay_status == 'partial' %}Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }} due. Click for detail.{% else %}Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}. Click for detail.{% endif %}">{% if row.pay_status == 'partial' %}&#189; PARTIAL{% else %}&#10003; PAID{% endif %}</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% else %}<span class="e6-badge-unpaid" style="display:block;margin-bottom:4px;" title="Not yet paid">UNPAID</span>{% endif %}
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">+ Adjust</button>
                         </td>
                     </tr>
@@ -2009,7 +2036,7 @@ tr.e6-partial-row { background: #fffcf5; }
                         <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
-                            {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
+                            {% if row.is_paid %}<span class="{% if row.pay_status == 'partial' %}e6-badge-partial{% else %}paid-badge{% endif %}" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="{% if row.pay_status == 'partial' %}Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }} due. Click for detail.{% else %}Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}. Click for detail.{% endif %}">{% if row.pay_status == 'partial' %}&#189; PARTIAL{% else %}&#10003; PAID{% endif %}</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% else %}<span class="e6-badge-unpaid" style="display:block;margin-bottom:4px;" title="Not yet paid">UNPAID</span>{% endif %}
                             <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">Edit</button>
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">+ Adjust</button>
                         </td>
@@ -2107,7 +2134,7 @@ tr.e6-partial-row { background: #fffcf5; }
                         <td class="text-right num val-blue">{% if row.currency == 'AED' %}<span class="csym csym-aed">AED</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-right num {% if row.currency == 'NPR' %}val-npr{% else %}val-inr{% endif %}">{% if row.currency == 'INR' %}<span class="csym csym-inr">₹</span> {{ row.net_payroll|floatformat:2|intcomma }}{% elif row.currency == 'NPR' %}<span class="csym csym-npr">Rs.</span> {{ row.net_payroll|floatformat:2|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
                         <td class="text-center">
-                            {% if row.is_paid %}<span class="paid-badge" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')">&#10003; PAID</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% endif %}
+                            {% if row.is_paid %}<span class="{% if row.pay_status == 'partial' %}e6-badge-partial{% else %}paid-badge{% endif %}" style="margin-bottom:2px;display:block;cursor:pointer;" onclick="openPaidDetail('{{ row.employee.id }}','{{ row.employee_type }}')" title="{% if row.pay_status == 'partial' %}Partially paid — {{ row.amount_paid|floatformat:2|intcomma }} disbursed, balance {{ row.balance_due|floatformat:2|intcomma }} due. Click for detail.{% else %}Paid in full{% if row.paid_by %} by {{ row.paid_by }}{% endif %}. Click for detail.{% endif %}">{% if row.pay_status == 'partial' %}&#189; PARTIAL{% else %}&#10003; PAID{% endif %}</span><div class="muted" style="font-size:0.65rem;margin-bottom:4px;">{{ row.paid_at|date:"d M Y" }}</div>{% else %}<span class="e6-badge-unpaid" style="display:block;margin-bottom:4px;" title="Not yet paid">UNPAID</span>{% endif %}
                             <button class="bank-btn" onclick="openBankModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">Edit</button>
                             <button class="adj-btn" onclick="openAdjModal('{{ row.employee.id }}','{{ row.employee_type }}','{{ row.employee.name }}')">+ Adjust</button>
                         </td>
@@ -2721,7 +2748,33 @@ tr.e6-partial-row { background: #fffcf5; }
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
             <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('e6PayModal')">Cancel</button>
-            <button type="button" class="btn btn-success btn-sm" id="e6PaySubmitBtn" onclick="e6SubmitPayment()">&#10003; Confirm Payment</button>
+            <button type="button" class="btn btn-warning btn-sm" id="e6PayPartialBtn" onclick="e6SubmitPayment('partial')">Mark as Partial</button>
+            <button type="button" class="btn btn-success btn-sm" id="e6PaySubmitBtn" onclick="e6SubmitPayment('full')">&#10003; Confirm Payment</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add a later installment against an already-partial payment -->
+<div class="modal-overlay" id="addPaymentModal">
+    <div class="modal" style="min-width:420px;max-width:480px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div class="modal-title">Add Payment — <span id="apEmpName"></span></div>
+            <span class="modal-close" onclick="closeModal('addPaymentModal')">✕</span>
+        </div>
+        <div style="font-size:0.8rem;color:#64748b;margin-bottom:14px;">
+            Balance due: <strong id="apBalanceDue"></strong>
+        </div>
+        <label for="apPayDate" style="display:block;font-size:0.74rem;font-weight:600;color:#475569;margin-bottom:4px;">Date paid</label>
+        <input type="date" id="apPayDate" style="width:100%;padding:7px 10px;font-size:0.82rem;border:1px solid #dbe3ec;border-radius:7px;margin-bottom:14px;">
+        <div style="font-size:0.74rem;font-weight:600;color:#475569;margin-bottom:6px;">Payment</div>
+        <div class="e6-split-list" id="apSplitList"></div>
+        <div class="e6-split-actions" style="margin-top:6px;">
+            <a class="e6-split-link" href="#" onclick="apAddSplitRow();return false;">+ Add method</a>
+        </div>
+        <div class="e6-split-note" id="apSplitNote" style="margin-top:8px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('addPaymentModal')">Cancel</button>
+            <button type="button" class="btn btn-success btn-sm" id="apSubmitBtn" onclick="apSubmitPayment()">&#10003; Add Payment</button>
         </div>
     </div>
 </div>
@@ -2845,8 +2898,16 @@ const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
 const PAID_SNAPSHOTS = {};
 {% for row in final_rows %}{% if row.is_paid %}
 PAID_SNAPSHOTS['{{ row.employee_type }}_{{ row.employee.id }}'] = {
+    emp_type: '{{ row.employee_type }}',
+    emp_id: {{ row.employee.id }},
     paid_at: '{{ row.paid_at|date:"d M Y, H:i"|escapejs }}',
     paid_by: '{{ row.paid_by|default:""|escapejs }}',
+    payment_method_label: '{{ row.payment_method_label|default:""|escapejs }}',
+    payment_date: '{{ row.payment_date|date:"d M Y"|default:""|escapejs }}',
+    payment_splits: {{ row.payment_splits_json|default:"null"|safe }},
+    amount_paid: {{ row.amount_paid|default:"0" }},
+    balance_due: {{ row.balance_due|default:"0" }},
+    is_partial: {{ row.is_partial|yesno:"true,false" }},
     snap: {{ row.paid_snapshot_json|default:"{}"|safe }}
 };
 {% endif %}{% endfor %}
@@ -3377,9 +3438,20 @@ function openPayModalFor(trs) {
             <td>${e.name}</td>
             <td class="text-right muted">${e.currency} ${e.full.toFixed(2)}</td>
             <td class="text-right">
-                <input type="number" step="0.01" min="0" max="${e.full}"
-                       value="${e.full.toFixed(2)}" data-idx="${i}"
-                       class="e6-amt-input" oninput="e6RecalcPayTotals()">
+                <div class="e6-amt-single" id="e6Single${i}">
+                    <input type="number" step="0.01" min="0" max="${e.full}"
+                           value="${e.full.toFixed(2)}" data-idx="${i}"
+                           class="e6-amt-input" oninput="e6RecalcPayTotals()">
+                    <div><a class="e6-split-link" onclick="e6EnableSplit(${i});return false;" href="#">Split across methods</a></div>
+                </div>
+                <div class="e6-amt-split" id="e6Split${i}" data-active="0" style="display:none;">
+                    <div class="e6-split-list" id="e6SplitList${i}"></div>
+                    <div class="e6-split-actions">
+                        <a class="e6-split-link" onclick="e6AddSplitRow(${i});return false;" href="#">+ Add method</a>
+                        <a class="e6-split-link" onclick="e6DisableSplit(${i});return false;" href="#">Use one method</a>
+                    </div>
+                    <div class="e6-split-note" id="e6SplitNote${i}"></div>
+                </div>
             </td>
         </tr>`).join('');
     document.getElementById('e6PayRows').innerHTML = rows;
@@ -3387,15 +3459,113 @@ function openPayModalFor(trs) {
     openModal('e6PayModal');
 }
 
+/* One employee's disbursement can be split across more than one payment
+   method (e.g. part WPS, part cash). Each row starts in single-amount mode;
+   "Split across methods" swaps it for a small method+amount list that is
+   summed in place of the single input everywhere below. */
+function e6MethodOptions(selected) {
+    return [['wps', 'WPS'], ['bank_transfer', 'Bank Transfer'], ['cash', 'Cash']]
+        .map(([v, label]) => `<option value="${v}"${v === selected ? ' selected' : ''}>${label}</option>`)
+        .join('');
+}
+
+function e6SplitRowHtml(method, amount) {
+    return `
+        <div class="e6-split-row">
+            <select class="e6-split-method" onchange="e6RecalcPayTotals()">${e6MethodOptions(method)}</select>
+            <input type="number" step="0.01" min="0" class="e6-split-amt" value="${amount}" oninput="e6RecalcPayTotals()">
+            <span class="e6-split-remove" onclick="e6RemoveSplitRow(this)" title="Remove this method">&times;</span>
+        </div>`;
+}
+
+function e6EnableSplit(i) {
+    const e = _e6PaySelection[i];
+    document.getElementById('e6Single' + i).style.display = 'none';
+    const splitEl = document.getElementById('e6Split' + i);
+    splitEl.style.display = '';
+    splitEl.dataset.active = '1';
+    const list = document.getElementById('e6SplitList' + i);
+    if (!list.children.length) {
+        const globalMethod = document.getElementById('e6PayMethod').value;
+        const other = globalMethod === 'cash' ? 'bank_transfer' : 'cash';
+        list.insertAdjacentHTML('beforeend', e6SplitRowHtml(globalMethod, e.full.toFixed(2)));
+        list.insertAdjacentHTML('beforeend', e6SplitRowHtml(other, '0.00'));
+    }
+    e6RecalcPayTotals();
+}
+
+function e6AddSplitRow(i) {
+    document.getElementById('e6SplitList' + i).insertAdjacentHTML('beforeend', e6SplitRowHtml('cash', '0.00'));
+    e6RecalcPayTotals();
+}
+
+function e6RemoveSplitRow(el) {
+    const list = el.closest('.e6-split-list');
+    if (list.children.length <= 1) return; // keep at least one method
+    el.closest('.e6-split-row').remove();
+    if (list.closest('.e6-amt-split')) e6RecalcPayTotals();
+    else apRecalc();
+}
+
+function e6DisableSplit(i) {
+    const e = _e6PaySelection[i];
+    let total = 0;
+    document.querySelectorAll(`#e6SplitList${i} .e6-split-amt`).forEach(inp => {
+        const v = parseFloat(inp.value);
+        if (!isNaN(v)) total += v;
+    });
+    const splitEl = document.getElementById('e6Split' + i);
+    splitEl.style.display = 'none';
+    splitEl.dataset.active = '0';
+    document.getElementById('e6SplitList' + i).innerHTML = '';
+    document.getElementById('e6Single' + i).style.display = '';
+    document.querySelector(`.e6-amt-input[data-idx="${i}"]`).value = Math.min(total, e.full).toFixed(2);
+    e6RecalcPayTotals();
+}
+
+function e6RowIsSplit(i) {
+    const splitEl = document.getElementById('e6Split' + i);
+    return !!(splitEl && splitEl.dataset.active === '1');
+}
+
+function e6RowPayingAmount(i) {
+    if (e6RowIsSplit(i)) {
+        let total = 0;
+        document.querySelectorAll(`#e6SplitList${i} .e6-split-amt`).forEach(inp => {
+            let v = parseFloat(inp.value);
+            if (isNaN(v) || v < 0) v = 0;
+            total += v;
+        });
+        return Math.round(total * 100) / 100;
+    }
+    const inp = document.querySelector(`.e6-amt-input[data-idx="${i}"]`);
+    let v = parseFloat(inp.value);
+    if (isNaN(v) || v < 0) v = 0;
+    return v;
+}
+
 function e6RecalcPayTotals() {
     let owed = 0, paying = 0;
-    document.querySelectorAll('#e6PayRows .e6-amt-input').forEach(inp => {
-        const e = _e6PaySelection[parseInt(inp.dataset.idx)];
+    _e6PaySelection.forEach((e, i) => {
         owed += e.full;
-        let v = parseFloat(inp.value);
-        if (isNaN(v) || v < 0) v = 0;
-        if (v > e.full) { v = e.full; inp.value = v.toFixed(2); }
-        paying += v;
+        if (e6RowIsSplit(i)) {
+            const rowTotal = e6RowPayingAmount(i);
+            paying += rowTotal;
+            const note = document.getElementById('e6SplitNote' + i);
+            if (rowTotal > e.full) {
+                note.textContent = `Exceeds net salary by ${(rowTotal - e.full).toFixed(2)}`;
+                note.classList.add('e6-split-over');
+            } else {
+                note.textContent = `${rowTotal.toFixed(2)} of ${e.full.toFixed(2)}`;
+                note.classList.remove('e6-split-over');
+            }
+        } else {
+            const inp = document.querySelector(`.e6-amt-input[data-idx="${i}"]`);
+            let v = parseFloat(inp.value);
+            if (isNaN(v) || v < 0) v = 0;
+            if (v > e.full) { v = e.full; inp.value = v.toFixed(2); }
+            paying += v;
+        }
     });
     const short = Math.round((owed - paying) * 100) / 100;
     document.getElementById('e6PayTotals').innerHTML =
@@ -3406,20 +3576,53 @@ function e6RecalcPayTotals() {
     document.getElementById('e6PartialWarn').style.display = (short > 0 && !isWps) ? '' : 'none';
 }
 
-async function e6SubmitPayment() {
+/* intent: 'full' via Confirm Payment, 'partial' via Mark as Partial. The two
+   buttons submit the same payload — the difference is only a guardrail so a
+   shortfall can't be locked in by the wrong button, and a full payment can't
+   be filed under Mark as Partial by mistake. */
+async function e6SubmitPayment(intent) {
     const method = document.getElementById('e6PayMethod').value;
     const payDate = document.getElementById('e6PayDate').value;
     if (!payDate) { alert('Please choose a payment date.'); return; }
 
+    const anyShort = _e6PaySelection.some((e, i) => e6RowPayingAmount(i) < e.full - 0.005);
+    if (intent === 'full' && anyShort) {
+        alert('One or more employees are being paid less than their net salary. Fix the amounts, or use "Mark as Partial" instead.');
+        return;
+    }
+    if (intent === 'partial' && !anyShort) {
+        alert('Every selected employee is being paid in full — use "Confirm Payment" instead.');
+        return;
+    }
+
     const employees = _e6PaySelection.map((e, i) => {
-        const inp = document.querySelector(`#e6PayRows .e6-amt-input[data-idx="${i}"]`);
+        if (e6RowIsSplit(i)) {
+            const splits = [];
+            document.querySelectorAll(`#e6SplitList${i} .e6-split-row`).forEach(rowEl => {
+                const m = rowEl.querySelector('.e6-split-method').value;
+                let v = parseFloat(rowEl.querySelector('.e6-split-amt').value);
+                if (isNaN(v) || v < 0) v = 0;
+                if (v > 0) splits.push({ method: m, amount: v.toFixed(2) });
+            });
+            return { id: e.id, type: e.type, splits };
+        }
+        const inp = document.querySelector(`.e6-amt-input[data-idx="${i}"]`);
         let v = parseFloat(inp.value);
         if (isNaN(v) || v < 0) v = 0;
         return { id: e.id, type: e.type, amount: v.toFixed(2) };
     });
 
-    const btn = document.getElementById('e6PaySubmitBtn');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    if (employees.some(e => e.splits && !e.splits.length)) {
+        alert('Every split payment needs at least one method with an amount greater than zero.');
+        return;
+    }
+
+    const fullBtn = document.getElementById('e6PaySubmitBtn');
+    const partialBtn = document.getElementById('e6PayPartialBtn');
+    fullBtn.disabled = true; partialBtn.disabled = true;
+    const btn = intent === 'partial' ? partialBtn : fullBtn;
+    const originalText = btn.textContent;
+    btn.textContent = 'Saving…';
     try {
         const r = await fetch('/payroll/api/mark-paid/', {
             method: 'POST',
@@ -3431,10 +3634,13 @@ async function e6SubmitPayment() {
         });
         const data = await r.json();
         if (data.success) { location.reload(); }
-        else { alert(data.error || 'Failed to mark as paid.'); btn.disabled = false; btn.textContent = '✓ Confirm Payment'; }
+        else {
+            alert(data.error || 'Failed to mark as paid.');
+            fullBtn.disabled = false; partialBtn.disabled = false; btn.textContent = originalText;
+        }
     } catch (err) {
         alert('Failed to mark as paid: ' + err);
-        btn.disabled = false; btn.textContent = '✓ Confirm Payment';
+        fullBtn.disabled = false; partialBtn.disabled = false; btn.textContent = originalText;
     }
 }
 
@@ -3492,13 +3698,30 @@ function openPaidDetail(empId, empType) {
         }
     });
 
+    let paymentRows = '';
+    if (rec.payment_splits && rec.payment_splits.length) {
+        const methodLabels = { wps: 'WPS', bank_transfer: 'Bank Transfer', cash: 'Cash' };
+        rec.payment_splits.forEach(sp => {
+            paymentRows += row(methodLabels[sp.method] || sp.method, `${curr} ${fmt(sp.amount)}`);
+        });
+    } else if (rec.payment_method_label) {
+        paymentRows += row('Method', rec.payment_method_label);
+    }
+    if (rec.payment_date) paymentRows += row('Date Paid', rec.payment_date);
+    if (rec.is_partial) {
+        paymentRows += row('Paid So Far', `${curr} ${fmt(rec.amount_paid)}`);
+        paymentRows += row('Balance Due', `${curr} ${fmt(rec.balance_due)}`, 'val-negative');
+    }
+
     document.getElementById('paidDetailTitle').textContent = `${s.employee_name} — ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][SELECTED_MONTH-1]} ${SELECTED_YEAR}`;
     document.getElementById('paidDetailContent').innerHTML = `
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-            <span class="paid-badge">&#10003; PAID</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+            <span class="paid-badge">&#10003; ${rec.is_partial ? 'PARTIALLY PAID' : 'PAID'}</span>
             <span class="muted" style="font-size:0.8rem;">Locked ${rec.paid_at}${rec.paid_by ? ' by ' + rec.paid_by : ''}</span>
+            ${rec.is_partial ? `<button type="button" class="btn btn-success btn-sm" style="margin-left:auto;" onclick="openAddPaymentModal('${empType}', ${empId})">+ Add Payment</button>` : ''}
         </div>
         <table style="width:100%;border-collapse:collapse;">
+            ${paymentRows ? sep('Payment') + paymentRows : ''}
             ${sep('Employee')}
             ${row('Name', s.employee_name)}
             ${row('Department', s.department || '—')}
@@ -3531,6 +3754,92 @@ function openPaidDetail(empId, empType) {
         </table>
     `;
     openModal('paidDetailModal');
+}
+
+/* ---- Add a later installment against a partial payment ----
+   Reuses the same method+amount split-row markup as the Mark-as-Paid modal
+   (e6SplitRowHtml / e6RemoveSplitRow), just against a single employee and a
+   dedicated endpoint that adds to amount_paid instead of recomputing the
+   whole locked snapshot. */
+var _apContext = null;
+
+function openAddPaymentModal(empType, empId) {
+    const key = `${empType}_${empId}`;
+    const rec = PAID_SNAPSHOTS[key];
+    if (!rec) { alert('Payment record not found.'); return; }
+    _apContext = { empType, empId, balance: Number(rec.balance_due), currency: rec.snap.currency || 'AED' };
+
+    document.getElementById('apEmpName').textContent = rec.snap.employee_name || '';
+    document.getElementById('apBalanceDue').textContent = `${_apContext.currency} ${_apContext.balance.toFixed(2)}`;
+
+    const today = new Date();
+    document.getElementById('apPayDate').value = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0')
+        + '-' + String(today.getDate()).padStart(2, '0');
+
+    document.getElementById('apSplitList').innerHTML = e6SplitRowHtml('cash', _apContext.balance.toFixed(2));
+    apRecalc();
+
+    closeModal('paidDetailModal');
+    openModal('addPaymentModal');
+}
+
+function apAddSplitRow() {
+    document.getElementById('apSplitList').insertAdjacentHTML('beforeend', e6SplitRowHtml('cash', '0.00'));
+    apRecalc();
+}
+
+function apRecalc() {
+    let total = 0;
+    document.querySelectorAll('#apSplitList .e6-split-amt').forEach(inp => {
+        let v = parseFloat(inp.value);
+        if (isNaN(v) || v < 0) v = 0;
+        total += v;
+    });
+    total = Math.round(total * 100) / 100;
+    const note = document.getElementById('apSplitNote');
+    const bal = _apContext ? _apContext.balance : 0;
+    if (total > bal + 0.005) {
+        note.textContent = `Exceeds outstanding balance by ${(total - bal).toFixed(2)}`;
+        note.classList.add('e6-split-over');
+    } else {
+        note.textContent = `${total.toFixed(2)} of ${bal.toFixed(2)} balance`;
+        note.classList.remove('e6-split-over');
+    }
+}
+
+async function apSubmitPayment() {
+    if (!_apContext) return;
+    const payDate = document.getElementById('apPayDate').value;
+    if (!payDate) { alert('Please choose a payment date.'); return; }
+
+    const splits = [];
+    document.querySelectorAll('#apSplitList .e6-split-row').forEach(rowEl => {
+        const m = rowEl.querySelector('.e6-split-method').value;
+        let v = parseFloat(rowEl.querySelector('.e6-split-amt').value);
+        if (isNaN(v) || v < 0) v = 0;
+        if (v > 0) splits.push({ method: m, amount: v.toFixed(2) });
+    });
+    if (!splits.length) { alert('Enter at least one payment amount.'); return; }
+
+    const btn = document.getElementById('apSubmitBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+        const r = await fetch('/payroll/api/add-payment/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+            body: JSON.stringify({
+                year: SELECTED_YEAR, month: SELECTED_MONTH,
+                employee_type: _apContext.empType, employee_id: _apContext.empId,
+                splits, payment_date: payDate,
+            }),
+        });
+        const data = await r.json();
+        if (data.success) { location.reload(); }
+        else { alert(data.error || 'Failed to add payment.'); btn.disabled = false; btn.textContent = '✓ Add Payment'; }
+    } catch (err) {
+        alert('Failed to add payment: ' + err);
+        btn.disabled = false; btn.textContent = '✓ Add Payment';
+    }
 }
 
 /* ---- Deduction Itemized Breakdown Modal (Phase B) ---- */

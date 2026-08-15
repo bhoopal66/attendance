@@ -31,3 +31,23 @@ def dictsumby(lst, key):
         except (TypeError, ValueError):
             pass
     return round(total, 2)
+
+
+@register.filter
+def dictsumby_nested(lst, key_path):
+    """Sum the values of a dotted key path (e.g. "ded_cols.late") across a list of dicts/objects."""
+    if not lst:
+        return 0
+    keys = key_path.split('.')
+    total = 0
+    for item in lst:
+        val = item
+        for key in keys:
+            if val is None:
+                break
+            val = val.get(key, None) if isinstance(val, dict) else getattr(val, key, None)
+        try:
+            total += float(val or 0)
+        except (TypeError, ValueError):
+            pass
+    return round(total, 2)

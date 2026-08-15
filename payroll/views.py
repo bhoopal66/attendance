@@ -4146,9 +4146,15 @@ def payroll_test_dashboard(request):
         rec = paid_records.get(key)
         if not rec or not rec.snapshot:
             row['is_paid'] = False
+            row['is_partial'] = False
+            row['pay_status'] = 'unpaid'
             return
         snap = rec.snapshot
         row['is_paid'] = True
+        row['is_partial'] = rec.is_partial
+        row['pay_status'] = 'partial' if rec.is_partial else 'paid'
+        row['amount_paid'] = float(rec.effective_amount_paid)
+        row['balance_due'] = float(rec.balance_due)
         row['paid_at'] = rec.paid_at
         row['paid_by'] = rec.paid_by
         row['paid_snapshot'] = snap
@@ -4189,6 +4195,8 @@ def payroll_test_dashboard(request):
             row['balance_due'] = row.get('final_salary', 0.0)
             row['payment_method'] = ''
             row['payment_method_label'] = ''
+            row['payment_splits'] = None
+            row['payment_splits_json'] = 'null'
             row['payment_date'] = None
             continue
         snap = rec.snapshot
@@ -4204,7 +4212,14 @@ def payroll_test_dashboard(request):
         row['amount_paid'] = float(rec.effective_amount_paid)
         row['balance_due'] = float(rec.balance_due)
         row['payment_method'] = rec.payment_method
-        row['payment_method_label'] = _payment_method_label(rec.payment_method, row['employee'])
+        row['payment_splits'] = rec.payment_splits
+        row['payment_splits_json'] = json.dumps(rec.payment_splits) if rec.payment_splits else 'null'
+        if rec.payment_method == 'mixed' and rec.payment_splits:
+            row['payment_method_label'] = ' + '.join(
+                _payment_method_label(s['method'], row['employee']) for s in rec.payment_splits
+            )
+        else:
+            row['payment_method_label'] = _payment_method_label(rec.payment_method, row['employee'])
         row['payment_date'] = rec.payment_date or (rec.paid_at.date() if rec.paid_at else None)
         row['paid_snapshot'] = snap
         row['paid_snapshot_json'] = json.dumps(snap)
@@ -5326,7 +5341,9 @@ def mark_paid_salary(request):
     # since a partial payment is an individual decision. An omitted amount means
     # "pay in full", which keeps every pre-E6 caller working unchanged.
     payment_method = (data.get('payment_method') or '').strip()
-    _valid_methods = {m[0] for m in PAYMENT_METHOD_CHOICES}
+    # 'mixed' is a derived value (set automatically when an employee's payment
+    # is split across methods below) — never a method someone can pick directly.
+    _valid_methods = {m[0] for m in PAYMENT_METHOD_CHOICES if m[0] != 'mixed'}
     if payment_method and payment_method not in _valid_methods:
         return JsonResponse({'error': f'Unknown payment method: {payment_method}'}, status=400)
 
@@ -5340,8 +5357,40 @@ def mark_paid_salary(request):
     # Per-employee disbursed amount, keyed the same way as the employee list.
     # A blank/absent value is full payment; a negative one is rejected outright
     # rather than silently clamped, since it would corrupt the balance figures.
+    #
+    # An employee may instead carry `splits: [{method, amount}, ...]` — the
+    # same payment settled across more than one method (e.g. part WPS, part
+    # cash). Its total becomes that employee's disbursed amount and overrides
+    # `amount`/the batch-level payment_method for that employee only.
+    _split_date = str(payment_date or datetime.date.today())
+
     amount_by_key = {}
+    splits_by_key = {}
     for e in emp_list:
+        key = (e['type'], int(e['id']))
+        raw_splits = e.get('splits')
+        if raw_splits:
+            parsed = []
+            total = Decimal('0')
+            for s in raw_splits:
+                method = (s.get('method') or '').strip()
+                if method not in _valid_methods:
+                    return JsonResponse({'error': f'Unknown payment method: {method}'}, status=400)
+                try:
+                    amt = Decimal(str(s.get('amount')))
+                except (ArithmeticError, ValueError, TypeError):
+                    return JsonResponse({'error': f"Invalid split amount for employee {e.get('id')}"}, status=400)
+                if amt < 0:
+                    return JsonResponse({'error': 'Paid amount cannot be negative'}, status=400)
+                if amt == 0:
+                    continue
+                parsed.append({'method': method, 'amount': str(amt), 'date': _split_date})
+                total += amt
+            if not parsed:
+                return JsonResponse({'error': f"At least one payment method with an amount is required for employee {e.get('id')}"}, status=400)
+            splits_by_key[key] = parsed
+            amount_by_key[key] = total
+            continue
         if e.get('amount') in (None, ''):
             continue
         try:
@@ -5350,7 +5399,7 @@ def mark_paid_salary(request):
             return JsonResponse({'error': f"Invalid amount for employee {e.get('id')}"}, status=400)
         if amt < 0:
             return JsonResponse({'error': 'Paid amount cannot be negative'}, status=400)
-        amount_by_key[(e['type'], int(e['id']))] = amt
+        amount_by_key[key] = amt
 
     inhouse_ids = {int(e['id']) for e in emp_list if e['type'] == 'inhouse'}
     remote_ids = {int(e['id']) for e in emp_list if e['type'] == 'remote'}
@@ -5486,6 +5535,17 @@ def mark_paid_salary(request):
         if _amount_paid > _final_dec:
             _amount_paid = _final_dec
 
+        # A per-employee split overrides the batch-level method for that
+        # employee only; 'mixed' is set automatically once more than one
+        # distinct method is actually used (a split with every leg on the
+        # same method — e.g. two WPS instalments — stays that single method).
+        _splits = splits_by_key.get((emp_type, emp.id))
+        if _splits:
+            _distinct_methods = {s['method'] for s in _splits}
+            _pm = _distinct_methods.pop() if len(_distinct_methods) == 1 else 'mixed'
+        else:
+            _pm = payment_method
+
         _defaults = {
             'final_salary': _final_dec,
             'currency': emp.currency,
@@ -5493,8 +5553,9 @@ def mark_paid_salary(request):
             'paid_at': now_utc,
             'snapshot': snapshot,
             'amount_paid': _amount_paid,
-            'payment_method': payment_method,
+            'payment_method': _pm,
             'payment_date': payment_date or now_utc.date(),
+            'payment_splits': _splits,
         }
 
         if emp_type == 'inhouse':
@@ -5510,7 +5571,7 @@ def mark_paid_salary(request):
 
         _sync_wps_shortfall_advance(
             emp, emp_type, year, month, _final_dec, _amount_paid,
-            payment_method, request.user.username,
+            _pm, request.user.username,
         )
 
     # Process inhouse employees
@@ -5570,3 +5631,109 @@ def unmark_paid_salary(request):
             PaidSalaryRecord.objects.filter(remote_employee_id=emp_id, year=year, month=month).delete()
 
     return JsonResponse({'success': True})
+
+
+@login_required
+@user_passes_test(section_required('payroll'))
+def add_partial_payment(request):
+    """Record an additional installment against an employee already marked
+    partially paid for a month — without touching the locked payroll snapshot.
+
+    Unlike mark_paid_salary (which recomputes and overwrites the whole row),
+    this only adds to amount_paid and appends to payment_splits, so an earlier
+    partial payment's method/date is preserved alongside the new one. Only
+    valid against a record that is still partial; a fully-paid month has
+    nothing left to add.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+        year = int(data['year'])
+        month = int(data['month'])
+        emp_type = data['employee_type']
+        emp_id = int(data['employee_id'])
+        raw_splits = data['splits']
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    if emp_type not in ('inhouse', 'remote'):
+        return JsonResponse({'error': f'Unknown employee type: {emp_type}'}, status=400)
+
+    payment_date = datetime.date.today()
+    if data.get('payment_date'):
+        try:
+            payment_date = datetime.datetime.strptime(data['payment_date'], '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'payment_date must be YYYY-MM-DD'}, status=400)
+
+    _valid_methods = {m[0] for m in PAYMENT_METHOD_CHOICES if m[0] != 'mixed'}
+    new_splits = []
+    new_total = Decimal('0')
+    for s in raw_splits:
+        method = (s.get('method') or '').strip()
+        if method not in _valid_methods:
+            return JsonResponse({'error': f'Unknown payment method: {method}'}, status=400)
+        try:
+            amt = Decimal(str(s.get('amount')))
+        except (ArithmeticError, ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid payment amount'}, status=400)
+        if amt < 0:
+            return JsonResponse({'error': 'Paid amount cannot be negative'}, status=400)
+        if amt == 0:
+            continue
+        new_splits.append({'method': method, 'amount': str(amt), 'date': str(payment_date)})
+        new_total += amt
+    if not new_splits:
+        return JsonResponse({'error': 'At least one payment method with an amount is required'}, status=400)
+
+    emp_filter = (
+        {'employee_id': emp_id, 'remote_employee': None} if emp_type == 'inhouse'
+        else {'remote_employee_id': emp_id, 'employee': None}
+    )
+    try:
+        rec = PaidSalaryRecord.objects.get(year=year, month=month, **emp_filter)
+    except PaidSalaryRecord.DoesNotExist:
+        return JsonResponse({'error': 'No payment record found for this employee/month — use Mark as Paid first.'}, status=404)
+
+    if not rec.is_partial:
+        return JsonResponse({'error': 'This employee is already paid in full for this month.'}, status=400)
+
+    # A record with no split history yet was paid via a single method — fold
+    # that original payment in as the first entry so the ledger is complete.
+    prior_splits = rec.payment_splits or [{
+        'method': rec.payment_method or 'cash',
+        'amount': str(rec.effective_amount_paid),
+        'date': str(rec.payment_date or (rec.paid_at.date() if rec.paid_at else payment_date)),
+    }]
+    all_splits = prior_splits + new_splits
+
+    combined_total = rec.effective_amount_paid + new_total
+    if combined_total > rec.final_salary:
+        combined_total = rec.final_salary
+
+    distinct_methods = {s['method'] for s in all_splits}
+    new_pm = distinct_methods.pop() if len(distinct_methods) == 1 else 'mixed'
+
+    rec.amount_paid = combined_total
+    rec.payment_method = new_pm
+    rec.payment_splits = all_splits
+    rec.payment_date = payment_date
+    rec.save(update_fields=['amount_paid', 'payment_method', 'payment_splits', 'payment_date'])
+
+    if emp_type == 'inhouse':
+        emp = Employee.objects.filter(id=emp_id).first()
+    else:
+        emp = RemoteEmployee.objects.filter(id=emp_id).first()
+    if emp:
+        _sync_wps_shortfall_advance(
+            emp, emp_type, year, month, rec.final_salary, combined_total,
+            new_pm, request.user.username,
+        )
+
+    return JsonResponse({
+        'success': True,
+        'amount_paid': str(combined_total),
+        'balance_due': str(rec.balance_due),
+        'is_partial': rec.is_partial,
+    })

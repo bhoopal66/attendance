@@ -14,6 +14,9 @@ PAYMENT_METHOD_CHOICES = [
     ('wps', 'WPS'),
     ('bank_transfer', 'Bank Transfer'),
     ('cash', 'Cash'),
+    # Not directly selectable — derived automatically when an employee's
+    # disbursement is split across more than one of the methods above.
+    ('mixed', 'Multiple Methods'),
 ]
 
 # Deduction categories that the Phase E6 detailed table groups under a single
@@ -579,6 +582,15 @@ class PaidSalaryRecord(models.Model):
         help_text=(
             "Value date of the disbursement. Distinct from paid_at, which is the "
             "timestamp the record was created in the system."
+        ),
+    )
+    payment_splits = models.JSONField(
+        null=True, blank=True,
+        help_text=(
+            "When the disbursement was split across more than one payment method, "
+            "the itemized [{method, amount}, ...] breakdown; amounts sum to "
+            "amount_paid. NULL when a single method covered the whole payment — "
+            "payment_method/amount_paid alone are authoritative in that case."
         ),
     )
 

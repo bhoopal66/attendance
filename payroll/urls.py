@@ -57,6 +57,7 @@ urlpatterns = [
     # Mark as Paid / Unmark
     path('api/mark-paid/', views.mark_paid_salary, name='mark_paid_salary'),
     path('api/unmark-paid/', views.unmark_paid_salary, name='unmark_paid_salary'),
+    path('api/add-payment/', views.add_partial_payment, name='add_partial_payment'),
 
     # Phase 9 — Payroll Run lifecycle
     path('run/<int:year>/<int:month>/', views_payroll_run.payroll_run_detail, name='payroll_run_detail'),
