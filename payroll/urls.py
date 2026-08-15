@@ -7,6 +7,7 @@ from . import views_management
 from . import views_audit
 from . import views_notes
 from . import views_range_report
+from . import views_deduction_types
 from . import views_debug
 
 urlpatterns = [
@@ -74,6 +75,12 @@ urlpatterns = [
     # Phase C — Per-employee Notes & Timeline
     path('api/notes/<str:emp_type>/<int:employee_id>/', views_notes.get_employee_notes, name='get_employee_notes'),
     path('api/notes/add/', views_notes.add_employee_note, name='add_employee_note'),
+
+    # Phase 2 — Deduction Master (configurable deduction/addition types)
+    path('deduction-types/', views_deduction_types.deduction_types, name='deduction_types'),
+    path('api/deduction-types/save/', views_deduction_types.deduction_type_save, name='deduction_type_save'),
+    path('api/deduction-types/toggle/', views_deduction_types.deduction_type_toggle, name='deduction_type_toggle'),
+    path('api/deduction-types/delete/', views_deduction_types.deduction_type_delete, name='deduction_type_delete'),
 
     # Phase D — Range / Annual Report
     path('range-report/', views_range_report.range_report, name='payroll_range_report'),

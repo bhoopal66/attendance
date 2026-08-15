@@ -7,6 +7,8 @@ from .models import (
     PayrollRun,
     # Phase 10 — Targets & Revenue
     EmployeeTarget,
+    # Phase 2 — Deduction Master
+    DeductionType,
 )
 
 
@@ -265,3 +267,23 @@ class EmployeeTargetAdmin(admin.ModelAdmin):
             obj.created_by = request.user.username
         obj.updated_by = request.user.username
         super().save_model(request, obj, form, change)
+
+
+@admin.register(DeductionType)
+class DeductionTypeAdmin(admin.ModelAdmin):
+    """Deduction Master.
+
+    The Payroll > Deduction Types page is the intended way to edit these; this
+    registration exists for support access. `code` and `is_system` are readonly
+    on existing rows because payroll calculation refers to the nine built-in
+    codes by name.
+    """
+    list_display = ('name', 'code', 'entry_type', 'classification',
+                    'is_active', 'is_system', 'allow_manual_entry',
+                    'rolls_up_to_other', 'sort_order')
+    list_filter = ('entry_type', 'classification', 'is_active', 'is_system')
+    search_fields = ('code', 'name', 'description')
+    ordering = ('sort_order', 'name')
+
+    def get_readonly_fields(self, request, obj=None):
+        return ('code', 'is_system') if obj else ()

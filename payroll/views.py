@@ -38,6 +38,15 @@ from attendance.views.utils import (
     SALES_PERFORMANCE_V2_START, compute_sales_performance_v2_days,
 )
 from .models import PayrollAdjustment, Bank, BankSubmission, DeductionEntry, DeductionCarryover, GeneratedDocument, ExchangeRate, FrozenPayrollMonth, PaidSalaryRecord, CommissionTierSettings, DEDUCTION_CATEGORY_CHOICES, PAYMENT_METHOD_CHOICES, OTHER_DEDUCTION_CATEGORIES, PayrollNote
+# Phase 2 — Deduction Master. These read the configurable DeductionType
+# table and fall back to the two constants above when it is empty, so an
+# unmigrated database behaves exactly as it did before.
+from .models import (
+    DeductionType,
+    deduction_type_groups,
+    other_rollup_codes,
+    valid_deduction_codes,
+)
 from .services import get_effective_salary_structure
 from .services import convert_employee_deduction_currency
 
@@ -1144,6 +1153,7 @@ def _deserialize_payroll_context(snapshot, selected_month, selected_year):
         'INR_COMMISSION_THRESHOLD': _get_tier_settings('INR')[0],
         'INR_OVERFLOW_RATE': int(_get_tier_settings('INR')[1]),
         'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
+        'DEDUCTION_TYPE_GROUPS': deduction_type_groups(),
         'is_frozen': True,
     }
 
@@ -1816,6 +1826,7 @@ def payroll_dashboard(request):
         'frozen_at': None,
         'frozen_by': None,
         'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
+        'DEDUCTION_TYPE_GROUPS': deduction_type_groups(),
     }
 
     return render(request, 'payroll/dashboard.html', context)
@@ -3023,9 +3034,35 @@ def add_deduction(request):
     if not all([emp_type, employee_id, category, total_amount, start_year, start_month]):
         return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
 
-    valid_categories = {c[0] for c in DEDUCTION_CATEGORY_CHOICES}
-    if category not in valid_categories:
+    if category not in valid_deduction_codes():
         return JsonResponse({'success': False, 'error': 'Invalid category'}, status=400)
+
+    # Phase 2 — per-type rules from the Deduction Master. `dtype` is None when
+    # the master table has not been seeded, in which case no extra rule applies
+    # and this behaves exactly as it did before.
+    dtype = DeductionType.objects.filter(code=category).first()
+    if dtype:
+        if not dtype.is_active:
+            return JsonResponse({
+                'success': False,
+                'error': f'{dtype.name} is no longer available for new entries.',
+            }, status=400)
+        if not dtype.allow_manual_entry:
+            return JsonResponse({
+                'success': False,
+                'error': f'{dtype.name} is calculated by payroll and cannot be '
+                         f'entered by hand.',
+            }, status=400)
+        if not dtype.allow_split_months and int(split_months or 1) > 1:
+            return JsonResponse({
+                'success': False,
+                'error': f'{dtype.name} cannot be spread over multiple months.',
+            }, status=400)
+        if dtype.requires_note and not (note or '').strip():
+            return JsonResponse({
+                'success': False,
+                'error': f'{dtype.name} requires a note explaining the entry.',
+            }, status=400)
 
     if emp_type == 'inhouse':
         try:
@@ -3675,6 +3712,12 @@ def payroll_test_dashboard(request):
     """Payroll dashboard with 4 tables by employee category."""
     selected_month, selected_year = get_selected_month_year(request)
 
+    # Phase 2 — which deduction codes the "Other" column absorbs, read once
+    # from the Deduction Master. Deliberately hoisted: this is consulted per
+    # employee below, and a query inside that loop would cost one round trip
+    # per person on every dashboard load.
+    _OTHER_CATS = other_rollup_codes()
+
     # Legacy frozen-month protection: if this month was previously frozen with the
     # old payroll system, skip carryover mutations so the historical DB state is
     # not overwritten.  PaidSalaryRecord overlay (populated by convert_frozen_to_paid)
@@ -4047,7 +4090,7 @@ def payroll_test_dashboard(request):
         def _ded_col(cat):
             return _categories.get(cat, 0.0) if cat in _ded_for_total else None
         _other_total = round(sum(
-            _categories.get(c, 0.0) for c in OTHER_DEDUCTION_CATEGORIES if c in _ded_for_total
+            _categories.get(c, 0.0) for c in _OTHER_CATS if c in _ded_for_total
         ), 2)
         ded_cols = {
             'late': _ded_col('late_deduction'),
@@ -4114,7 +4157,7 @@ def payroll_test_dashboard(request):
         def _ded_col(cat):
             return _categories.get(cat, 0.0) if cat in _ded_for_total else None
         _other_total = round(sum(
-            _categories.get(c, 0.0) for c in OTHER_DEDUCTION_CATEGORIES if c in _ded_for_total
+            _categories.get(c, 0.0) for c in _OTHER_CATS if c in _ded_for_total
         ), 2)
         ded_cols = {
             'late': _ded_col('late_deduction'),
@@ -4241,7 +4284,7 @@ def payroll_test_dashboard(request):
                 'late': None if _live_cols['late'] is None else _snap_cat.get('late_deduction', 0.0),
                 'leave': None if _live_cols['leave'] is None else _snap_cat.get('leave_deduction', 0.0),
                 'advance': None if _live_cols['advance'] is None else _snap_cat.get('advance', 0.0),
-                'other': round(sum(_snap_cat.get(c, 0.0) or 0.0 for c in OTHER_DEDUCTION_CATEGORIES), 2),
+                'other': round(sum(_snap_cat.get(c, 0.0) or 0.0 for c in _OTHER_CATS), 2),
                 'carryover': snap.get('carryover_in', 0) or 0,
             }
 
@@ -5173,6 +5216,7 @@ def payroll_test_dashboard(request):
         'npr_exchange_rate': npr_exchange_rate,
         'all_employees_json': all_employees_json,
         'DEDUCTION_CATEGORY_CHOICES': DEDUCTION_CATEGORY_CHOICES,
+        'DEDUCTION_TYPE_GROUPS': deduction_type_groups(),
         'carryover_schedule': carryover_schedule,
         'carryover_pending_count': carryover_pending_count,
         'carryover_pending_aed': carryover_pending_aed,

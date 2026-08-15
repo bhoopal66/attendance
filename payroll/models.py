@@ -2,6 +2,7 @@
 Payroll models for salary adjustments, DSA bank submissions, and deduction tracking.
 """
 
+import re
 from decimal import Decimal
 
 from django.conf import settings
@@ -43,6 +44,159 @@ _DEDUCTION_CATS = {
     'advance', 'visa_status_change', 'clawback', 'leave_deduction',
     'late_deduction', 'other_deduction',
 }
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 - Deduction Master lookup helpers
+# ---------------------------------------------------------------------------
+# The three constants above stay exactly as they are. They are the FALLBACK,
+# and they are what every existing `from .models import ...` still gets, so
+# nothing breaks if this module is imported before the DeductionType table
+# exists (fresh database, or `migrate` mid-flight).
+#
+# Callers that want the *configurable* list call the functions below instead.
+# Each one reads the DeductionType table and falls back to the constant if the
+# table is missing or empty. That fallback is what makes this phase safe: with
+# an unseeded table, every function returns precisely today's behaviour.
+#
+# CACHING - read this before changing it.
+# `DeductionEntry.entry_type` is evaluated once per entry inside payroll loops,
+# so a query per call is not acceptable. The map is cached in-process with a
+# short TTL and is invalidated immediately in the worker that saves a type.
+# Under multiple gunicorn workers a *sibling* worker can therefore serve a
+# stale map for up to _TYPE_CACHE_TTL seconds after a type is added or edited.
+# The practical effect is limited to a brand-new custom type briefly rendering
+# with the wrong deduction/addition styling; no stored amount is affected, and
+# the nine system types never change. Lowering the TTL costs queries; removing
+# the cache costs a query per deduction entry per page render.
+
+import time as _time
+
+_TYPE_CACHE_TTL = 30.0
+_type_cache = {'at': 0.0, 'rows': None}
+
+# Field order of the cached tuples. Kept as one constant so the several
+# unpackings below cannot drift out of step with the query.
+_TYPE_FIELDS = ('code', 'name', 'entry_type', 'is_active',
+                'allow_manual_entry', 'rolls_up_to_other', 'colour')
+
+
+def _deduction_type_rows(force=False):
+    """All DeductionType rows as plain tuples, cached. Never raises."""
+    now = _time.monotonic()
+    if not force and _type_cache['rows'] is not None and now - _type_cache['at'] < _TYPE_CACHE_TTL:
+        return _type_cache['rows']
+    try:
+        rows = list(
+            DeductionType.objects.order_by('sort_order', 'name')
+            .values_list(*_TYPE_FIELDS)
+        )
+    except Exception:
+        # Table not created yet (initial migrate), or the database is
+        # unavailable. Callers fall back to the module constants.
+        return []
+    _type_cache['rows'] = rows
+    _type_cache['at'] = now
+    return rows
+
+
+def invalidate_deduction_type_cache():
+    """Drop the cached type map in this worker. Called from DeductionType.save()."""
+    _type_cache['rows'] = None
+    _type_cache['at'] = 0.0
+
+
+def _fallback_rows():
+    """The nine hard-coded categories shaped like DeductionType rows."""
+    return [
+        (code, label,
+         'deduction' if code in _DEDUCTION_CATS else 'addition',
+         True,
+         True,   # allow_manual_entry - today's form offers every category
+         code in OTHER_DEDUCTION_CATEGORIES,
+         '')
+        for code, label in DEDUCTION_CATEGORY_CHOICES
+    ]
+
+
+def deduction_category_choices(include_inactive=False):
+    """(code, label) for every configured type - the configurable replacement
+    for DEDUCTION_CATEGORY_CHOICES. Falls back to the constant when unseeded."""
+    rows = _deduction_type_rows() or _fallback_rows()
+    return [(c, n) for c, n, _t, active, _m, _r, _col in rows
+            if include_inactive or active]
+
+
+def manual_deduction_choices():
+    """Types a user may pick by hand.
+
+    A type with allow_manual_entry off is excluded. That flag is meant for
+    attendance-derived types (leave, late) which payroll computes itself, where
+    a manual entry deducts the same absence twice - but it ships ON for all
+    nine seeded types so that this phase changes nothing, and is the operator's
+    to turn off.
+    """
+    rows = _deduction_type_rows() or _fallback_rows()
+    return [(c, n) for c, n, _t, active, manual, _r, _col in rows
+            if active and manual]
+
+
+def deduction_type_groups(manual_only=True):
+    """[(group_label, [(code, label), ...]), ...] for grouped <select> menus."""
+    rows = _deduction_type_rows() or _fallback_rows()
+    ded, add = [], []
+    for code, name, etype, active, manual, _r, _col in rows:
+        if not active or (manual_only and not manual):
+            continue
+        (ded if etype == 'deduction' else add).append((code, name))
+    out = []
+    if ded:
+        out.append(('Deductions', ded))
+    if add:
+        out.append(('Additions', add))
+    return out
+
+
+def deduction_codes():
+    """Set of codes that reduce net pay - the configurable _DEDUCTION_CATS."""
+    rows = _deduction_type_rows()
+    if not rows:
+        return set(_DEDUCTION_CATS)
+    return {c for c, _n, t, _a, _m, _r, _col in rows if t == 'deduction'}
+
+
+def valid_deduction_codes():
+    """Every acceptable value for DeductionEntry.category, active or not.
+
+    Deliberately includes inactive types: deactivating a type must stop new
+    entries being created - which the form does - but must not invalidate the
+    historical entries that already carry that code.
+    """
+    rows = _deduction_type_rows() or _fallback_rows()
+    return {c for c, _n, _t, _a, _m, _r, _col in rows}
+
+
+def other_rollup_codes():
+    """Codes the dashboard shows inside the single "Other" deductions column.
+
+    The configurable replacement for OTHER_DEDUCTION_CATEGORIES. Every
+    deduction code must appear in exactly one displayed column or the itemized
+    columns stop summing to the Deductions total, which is why any type without
+    a column of its own is forced into this one - see DeductionType.save().
+
+    Call this ONCE per view and reuse the result; it is consulted per employee.
+    """
+    rows = _deduction_type_rows()
+    if not rows:
+        return list(OTHER_DEDUCTION_CATEGORIES)
+    return [c for c, _n, t, _a, _m, rollup, _col in rows
+            if t == 'deduction' and rollup]
+
+
+def deduction_type_colours():
+    """{code: hex colour} for badge styling. Empty when unseeded."""
+    return {c: (col or '#64748b')
+            for c, _n, _t, _a, _m, _r, col in _deduction_type_rows()}
 
 
 class PayrollAdjustment(models.Model):
@@ -257,7 +411,10 @@ class DeductionEntry(models.Model):
 
     @property
     def entry_type(self):
-        return 'deduction' if self.category in _DEDUCTION_CATS else 'addition'
+        # Table-backed via deduction_codes(), which falls back to the static
+        # _DEDUCTION_CATS set when the master table is empty - so an unseeded
+        # database behaves exactly as it did before Phase 2.
+        return 'deduction' if self.category in deduction_codes() else 'addition'
 
     @property
     def installment_amount(self):
@@ -926,3 +1083,213 @@ class EmployeeTarget(models.Model):
 
     def __str__(self):
         return f'{self.person_label} — {self.year}/{self.month:02d}: {self.target_accounts} accounts'
+# ===========================================================================
+# Phase 2 - Deduction Master
+# ===========================================================================
+
+class DeductionType(models.Model):
+    """Configurable master list of deduction and addition types.
+
+    Replaces the hard-coded DEDUCTION_CATEGORY_CHOICES list with rows a user
+    can edit, without touching a single stored amount:
+
+    `DeductionEntry.category` is UNCHANGED - same column, same values, same
+    max_length. This table is a *registry keyed on those values*, not a foreign
+    key. That is deliberate. Converting `category` to an FK would rewrite every
+    historical deduction row on a live payroll database in order to gain
+    referential integrity the application does not currently need, and would
+    make the migration impossible to reverse cleanly. A registry gives the
+    configurability the specification asks for at zero risk to history.
+
+    WHAT IS ENFORCED, AND WHAT IS NOT
+    ---------------------------------
+    Every field on this model changes real behaviour today:
+
+        is_active           - hidden from the entry form; existing entries keep working
+        allow_manual_entry  - excluded from the entry form (attendance-derived types)
+        allow_split_months  - the entry form refuses split_months > 1
+        rolls_up_to_other   - which dashboard column the amount lands in
+        requires_note       - the entry form refuses a blank note
+        sort_order / colour / name - presentation
+
+    Fields the specification asks for that are NOT here yet - approval
+    requirement, document requirement, employee consent, automatic Recoverable
+    creation, statutory ceilings and recovery priority - arrive with the phases
+    that actually implement them (3, 4, 5 and 6). A checkbox that silently does
+    nothing is worse than a missing one: somebody ticks "requires approval",
+    believes approval is now required, and it is not.
+
+    `classification`, `description` and `gl_account_code` are documentation
+    fields, inert by design. `gl_account_code` is a label held ready for the
+    Phase 9 GL export; nothing posts to a ledger today.
+    """
+
+    ENTRY_TYPES = [
+        ('deduction', 'Deduction'),
+        ('addition', 'Addition'),
+    ]
+
+    CLASSIFICATIONS = [
+        ('statutory', 'Statutory'),
+        ('contractual', 'Contractual'),
+        ('recovery', 'Recovery / Loan'),
+        ('attendance', 'Attendance-derived'),
+        ('disciplinary', 'Disciplinary'),
+        ('voluntary', 'Voluntary'),
+        ('other', 'Other'),
+    ]
+
+    code = models.SlugField(
+        max_length=30, unique=True,
+        help_text='Stable identifier stored on every deduction entry. '
+                  'Cannot exceed 30 characters - it must fit '
+                  'DeductionEntry.category - and cannot be changed once used.',
+    )
+    name = models.CharField(max_length=120, help_text='Label shown to users.')
+    entry_type = models.CharField(
+        max_length=10, choices=ENTRY_TYPES, default='deduction',
+        help_text='Whether this reduces or increases net pay. '
+                  'Fixed at creation - flipping it would reverse the sign of '
+                  'every historical entry already carrying this code.',
+    )
+    classification = models.CharField(
+        max_length=20, choices=CLASSIFICATIONS, default='other',
+        help_text='Reporting grouping only. Does not affect calculation.',
+    )
+    description = models.TextField(blank=True)
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Inactive types disappear from the entry form. Existing '
+                  'entries continue to be deducted - deactivating a type is '
+                  'not a way to cancel money already scheduled.',
+    )
+    is_system = models.BooleanField(
+        default=False,
+        help_text='One of the nine original built-in categories. Payroll '
+                  'calculation and dashboard columns refer to these codes '
+                  'directly, so they cannot be renamed at code level or '
+                  'deleted.',
+    )
+    allow_manual_entry = models.BooleanField(
+        default=True,
+        help_text='Off for types payroll derives itself from attendance '
+                  '(leave, late). Adding those by hand deducts the same '
+                  'absence twice.',
+    )
+    allow_split_months = models.BooleanField(
+        default=True,
+        help_text='Whether the amount may be spread over several months.',
+    )
+    rolls_up_to_other = models.BooleanField(
+        default=True,
+        help_text='Show this amount in the dashboard "Other" deductions '
+                  'column. Only the four types with a dedicated column '
+                  '(Late, Leave, Advance, Carryover) may turn this off - '
+                  'every other deduction must land in exactly one column or '
+                  'the itemized figures stop summing to the total.',
+    )
+    requires_note = models.BooleanField(
+        default=False,
+        help_text='Refuse to save an entry of this type without a note.',
+    )
+
+    gl_account_code = models.CharField(
+        max_length=40, blank=True,
+        help_text='General ledger account. Recorded for the future GL export; '
+                  'nothing posts to a ledger yet.',
+    )
+    colour = models.CharField(
+        max_length=7, blank=True, default='',
+        help_text='Hex colour for the badge, e.g. #eb6834. Blank uses the default grey.',
+    )
+    sort_order = models.PositiveIntegerField(
+        default=100, help_text='Lower numbers appear first in menus.',
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.CharField(max_length=150, blank=True)
+    updated_by = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = 'Deduction Type'
+        verbose_name_plural = 'Deduction Types'
+
+    # -- guards ------------------------------------------------------------
+
+    #: Deduction codes that own a dedicated dashboard column and therefore must
+    #: NOT also roll up into "Other" - they would be counted twice.
+    DEDICATED_COLUMN_CODES = ('late_deduction', 'leave_deduction', 'advance')
+
+    def clean(self):
+        super().clean()
+        if self.code:
+            self.code = self.code.strip().lower()
+        if len(self.code or '') > 30:
+            raise ValidationError({'code': 'Code cannot exceed 30 characters.'})
+        if not re.match(r'^[a-z][a-z0-9_]*$', self.code or ''):
+            raise ValidationError({
+                'code': 'Code must start with a letter and contain only '
+                        'lowercase letters, digits and underscores.'
+            })
+        if self.pk:
+            was = type(self).objects.filter(pk=self.pk).values(
+                'code', 'entry_type', 'is_system').first()
+            if was:
+                if was['is_system'] and self.code != was['code']:
+                    raise ValidationError({
+                        'code': 'The code of a built-in type cannot be changed - '
+                                'payroll calculation refers to it by name.'
+                    })
+                if self.entry_type != was['entry_type'] and self.has_entries():
+                    raise ValidationError({
+                        'entry_type': 'This type already has entries. Switching '
+                                      'between deduction and addition would '
+                                      'reverse the sign of money already recorded.'
+                    })
+        if self.colour and not re.match(r'^#[0-9a-fA-F]{6}$', self.colour):
+            raise ValidationError({'colour': 'Colour must be a hex value like #eb6834.'})
+
+    def has_entries(self):
+        return DeductionEntry.objects.filter(category=self.code).exists()
+
+    def entry_count(self):
+        return DeductionEntry.objects.filter(category=self.code).count()
+
+    def save(self, *args, **kwargs):
+        if self.code:
+            self.code = self.code.strip().lower()
+        # Additions are not shown in the deductions columns at all, so the
+        # rollup flag is meaningless for them - normalise it rather than
+        # leaving a value that reads as if it did something.
+        if self.entry_type != 'deduction':
+            self.rolls_up_to_other = False
+        elif self.code not in self.DEDICATED_COLUMN_CODES:
+            # A deduction with no column of its own MUST roll into "Other",
+            # otherwise its amount is in the Deductions total but in none of
+            # the itemized columns, and the row silently stops reconciling.
+            self.rolls_up_to_other = True
+        super().save(*args, **kwargs)
+        invalidate_deduction_type_cache()
+
+    def delete(self, *args, **kwargs):
+        if self.is_system:
+            raise ValidationError('Built-in types cannot be deleted. Deactivate it instead.')
+        if self.has_entries():
+            raise ValidationError(
+                f'{self.name} has {self.entry_count()} entry(s) recorded against it. '
+                'Deactivate it instead - deleting would orphan those amounts.'
+            )
+        result = super().delete(*args, **kwargs)
+        invalidate_deduction_type_cache()
+        return result
+
+    @property
+    def badge_colour(self):
+        return self.colour or ('#b91c1c' if self.entry_type == 'deduction' else '#166534')
+
+    def __str__(self):
+        return f'{self.name} ({self.code})'
+
