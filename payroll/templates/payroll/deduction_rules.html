@@ -1,0 +1,646 @@
+{% extends 'attendance/base.html' %}
+{% load static humanize %}
+
+{% block title %}Deduction Limits — Payroll{% endblock %}
+{% block page_title %}Deduction Limits{% endblock %}
+
+{% block extra_css %}
+<style>
+    .rl-container { padding:20px; max-width:1240px; margin:0 auto; }
+    .rl-header { display:flex; justify-content:space-between; align-items:center;
+        margin-bottom:18px; flex-wrap:wrap; gap:12px; }
+    .rl-title { font-size:1.4rem; font-weight:700; color:#0f172a; margin:0;
+        display:flex; align-items:center; gap:10px; }
+    .rl-actions { display:flex; gap:10px; align-items:center; }
+
+    .btn-primary { padding:10px 18px; background:#1D4ED8; color:#fff; border:none;
+        border-radius:8px; cursor:pointer; font-weight:500; font-size:0.875rem; }
+    .btn-primary:hover { background:#1E40AF; }
+    .btn-back { padding:9px 16px; background:#f1f5f9; color:#1e293b; border:1px solid #e2e8f0;
+        border-radius:8px; font-size:0.875rem; text-decoration:none; display:inline-flex; }
+
+    .rl-tabs { display:flex; gap:4px; border-bottom:1px solid #e1e0d9; margin-bottom:18px; }
+    .rl-tab { padding:9px 16px; border:none; background:none; cursor:pointer;
+        font-size:0.85rem; color:#64748b; border-bottom:2px solid transparent; font-weight:500; }
+    .rl-tab.on { color:#1D4ED8; border-bottom-color:#1D4ED8; }
+    .rl-panel { display:none; }
+    .rl-panel.on { display:block; }
+
+    .rl-stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+    .rl-stat { background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+        padding:10px 16px; font-size:0.78rem; color:#475569; min-width:120px; }
+    .rl-stat strong { display:block; font-size:1.15rem; color:#0f172a;
+        font-variant-numeric:tabular-nums; margin-bottom:2px; }
+    .rl-stat.warn strong { color:#b45309; }
+    .rl-stat.bad strong  { color:#b91c1c; }
+
+    .banner { border-radius:10px; padding:14px 18px; margin-bottom:20px;
+        font-size:0.85rem; line-height:1.55; display:flex; gap:10px; align-items:flex-start; }
+    .banner-info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
+    .banner-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+    .banner-ok   { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+
+    .rl-card { background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08);
+        overflow:hidden; margin-bottom:24px; }
+    .rl-table-wrap { overflow-x:auto; }
+    .rl-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+    .rl-table th { padding:10px 14px; text-align:left; font-size:0.68rem; font-weight:600;
+        text-transform:uppercase; letter-spacing:0.5px; color:#64748b; background:#f8fafc;
+        border-bottom:1px solid #e1e0d9; white-space:nowrap; }
+    .rl-table td { padding:10px 14px; border-bottom:1px solid #e1e0d9; color:#1e293b;
+        vertical-align:top; font-variant-numeric:tabular-nums; }
+    .rl-table tbody tr:last-child td { border-bottom:none; }
+    .rl-table tbody tr:hover { background:#fafafa; }
+    .rl-table tbody tr.off td { opacity:0.55; }
+    .rl-table th.text-right, .rl-table td.text-right { text-align:right; }
+    .rl-table th.text-center, .rl-table td.text-center { text-align:center; }
+
+    .rl-name { font-weight:600; color:#0f172a; }
+    .rl-code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:0.68rem;
+        color:#94a3b8; }
+    .rl-sub { color:#64748b; font-size:0.74rem; line-height:1.45; max-width:300px; }
+
+    .pill { display:inline-block; padding:2px 9px; border-radius:20px; font-size:0.68rem;
+        font-weight:600; white-space:nowrap; border:1px solid transparent; }
+    .pill-grey  { background:#f1f5f9; color:#64748b; border-color:#e2e8f0; }
+    .pill-blue  { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+    .pill-green { background:#dcfce7; color:#166534; border-color:#bbf7d0; }
+    .pill-amber { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+    .pill-red   { background:#fee2e2; color:#b91c1c; border-color:#fecaca; }
+
+    .action-btns { display:flex; gap:6px; justify-content:flex-end; }
+    .btn-sm { padding:5px 11px; border-radius:6px; cursor:pointer; font-size:0.75rem;
+        font-weight:500; border:1px solid; }
+    .btn-edit { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+    .btn-tog  { background:#f8fafc; color:#64748b; border-color:#e2e8f0; }
+    .btn-del  { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+    .btn-lock { background:#f8fafc; color:#cbd5e1; border-color:#f1f5f9; cursor:not-allowed; }
+
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5);
+        z-index:1000; justify-content:center; align-items:center; backdrop-filter:blur(4px);
+        padding:20px; overflow-y:auto; }
+    .modal-overlay.show { display:flex; }
+    .modal-box { background:#fff; border-radius:16px; width:100%; max-width:680px;
+        box-shadow:0 20px 50px rgba(0,0,0,0.3); max-height:92vh; display:flex; flex-direction:column; }
+    .modal-head { padding:16px 24px; border-bottom:1px solid #e2e8f0; display:flex;
+        justify-content:space-between; align-items:center; }
+    .modal-head h3 { margin:0; font-size:1rem; font-weight:700; color:#0f172a; }
+    .modal-close { width:28px; height:28px; background:#f1f5f9; border:none; border-radius:6px;
+        color:#64748b; font-size:1.1rem; cursor:pointer; }
+    .modal-body { padding:20px 24px; overflow-y:auto; }
+
+    .fieldset-label { font-size:0.7rem; font-weight:700; text-transform:uppercase;
+        letter-spacing:0.5px; color:#64748b; margin:18px 0 10px; padding-top:14px;
+        border-top:1px solid #f1f5f9; }
+    .fieldset-label:first-child { margin-top:0; padding-top:0; border-top:none; }
+    .form-row { display:flex; gap:14px; }
+    .form-row > .form-group { flex:1; }
+    .form-group { margin-bottom:14px; }
+    .form-group label { display:block; font-size:0.8rem; color:#334155; margin-bottom:5px;
+        font-weight:500; }
+    .form-group input, .form-group select, .form-group textarea { width:100%; padding:9px 12px;
+        border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; box-sizing:border-box;
+        font-family:inherit; background:#fff; color:#0f172a; }
+    .form-group textarea { resize:vertical; min-height:54px; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+        outline:none; border-color:#1D4ED8; box-shadow:0 0 0 3px rgba(29,78,216,0.08); }
+    .form-group input:disabled, .form-group select:disabled { background:#f8fafc; color:#94a3b8; }
+    .form-hint { font-size:0.72rem; color:#94a3b8; margin-top:4px; line-height:1.45; }
+    .form-hint.warn { color:#b45309; }
+
+    .switch-row { display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
+        background:#fffbeb; border:1px solid #fde68a; border-radius:8px; margin-top:6px; }
+    .switch-row input[type=checkbox] { width:16px; height:16px; margin:2px 0 0; flex:0 0 16px;
+        cursor:pointer; accent-color:#b45309; }
+    .switch-row label { margin:0; font-size:0.82rem; color:#0f172a; font-weight:600; }
+
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; align-items:center;
+        margin-top:18px; padding-top:16px; border-top:1px solid #f1f5f9; }
+    .btn-cancel { padding:9px 18px; background:#f1f5f9; color:#1e293b; border:1px solid #e2e8f0;
+        border-radius:8px; cursor:pointer; font-size:0.875rem; }
+    .btn-save { padding:9px 20px; background:#1D4ED8; color:#fff; border:none; border-radius:8px;
+        cursor:pointer; font-weight:500; font-size:0.875rem; }
+    .btn-save:disabled { background:#cbd5e1; cursor:not-allowed; }
+    .modal-error { display:none; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c;
+        border-radius:8px; padding:10px 12px; font-size:0.8rem; margin-bottom:14px; }
+    .modal-error.show { display:block; }
+
+    .toast { position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:8px;
+        font-size:0.875rem; font-weight:500; z-index:2000; display:none;
+        box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+    .toast.success { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+    .toast.error   { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+    .toast.show    { display:block; }
+    .empty-state { padding:48px 20px; text-align:center; color:#94a3b8; font-size:0.9rem; }
+
+    @media (max-width:860px) {
+        .rl-container { padding:12px; }
+        .rl-header { flex-direction:column; align-items:flex-start; }
+        .rl-table th, .rl-table td { padding:8px 10px; }
+        .rl-sub { display:none; }
+        .form-row { flex-direction:column; gap:0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rl-container">
+
+    <div class="rl-header">
+        <h1 class="rl-title">
+            <svg width="22" height="22" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+            </svg>
+            Deduction Limits
+        </h1>
+        <div class="rl-actions">
+            <a href="{% url 'payroll_dashboard' %}" class="btn-back">← Back to Payroll</a>
+            <button class="btn-primary" onclick="openNew()">+ New Rule</button>
+        </div>
+    </div>
+
+    <div class="rl-tabs">
+        <button class="rl-tab on" onclick="showTab(this,'panel-rules')">Rules</button>
+        <button class="rl-tab" onclick="showTab(this,'panel-check')">Pre-payroll check</button>
+    </div>
+
+    <!-- ─────────────── RULES ─────────────── -->
+    <div class="rl-panel on" id="panel-rules">
+        {% if active_count == 0 %}
+        <div class="banner banner-info">
+            <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <strong>No limit is being enforced.</strong>
+                This engine ships with nothing enabled and nothing pre-filled — statutory deduction
+                ceilings are a legal question, and a percentage invented by the software would look
+                authoritative while quietly capping real salaries. Create a rule, record the law or
+                policy it comes from, then switch it on. Until then, nothing here changes any figure.
+            </div>
+        </div>
+        {% else %}
+        <div class="banner banner-warn">
+            <div>
+                <strong>{{ active_count }} rule{{ active_count|pluralize }} active.</strong>
+                Rules marked <em>Block</em> will refuse a new deduction or loan activation that
+                breaches them. Rules marked <em>Warn</em> allow it and flag it.
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="banner banner-info">
+            <div>
+                <strong>What a rule can see.</strong> Limits are measured against <em>recorded</em>
+                deductions — deduction entries, loan instalments and incoming carryover.
+                Leave and lateness deductions are calculated by payroll at render time and are never
+                stored as entries, so they are <strong>not</strong> included. Read a ceiling as
+                “of the recorded deductions”, not as a cap on total payroll deductions.
+            </div>
+        </div>
+
+        <div class="rl-card">
+            <div class="rl-table-wrap">
+            <table class="rl-table">
+                <thead>
+                    <tr>
+                        <th style="min-width:200px;">Rule</th>
+                        <th>Applies to</th>
+                        <th>Ceiling</th>
+                        <th>Effective</th>
+                        <th class="text-center">On breach</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="ruleBody"></tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─────────────── CHECK ─────────────── -->
+    <div class="rl-panel" id="panel-check">
+        <div class="rl-stats">
+            <div class="rl-stat"><strong>{{ active_count }}</strong>active rules</div>
+            <div class="rl-stat"><strong>{{ checked_employees }}</strong>employees checked</div>
+            <div class="rl-stat {% if breach_count %}bad{% endif %}"><strong>{{ breach_count }}</strong>breaches</div>
+            <div class="rl-stat {% if uneval_count %}warn{% endif %}"><strong>{{ uneval_count }}</strong>could not be checked</div>
+        </div>
+
+        {% if active_count == 0 %}
+        <div class="banner banner-info">
+            Nothing to check — no rule is active for {{ check_month }}/{{ check_year }}.
+        </div>
+        {% elif breach_count == 0 and uneval_count == 0 %}
+        <div class="banner banner-ok">
+            <strong>All clear for {{ check_month }}/{{ check_year }}.</strong>
+            Every active rule was evaluated for every employee, and none binds.
+        </div>
+        {% else %}
+        <div class="banner banner-warn">
+            <div>
+                {% if breach_count %}<strong>{{ breach_count }} breach{{ breach_count|pluralize:"es" }}</strong> for {{ check_month }}/{{ check_year }}.{% endif %}
+                {% if uneval_count %}
+                <strong>{{ uneval_count }} check{{ uneval_count|pluralize }} could not be run</strong> —
+                shown below with the reason. These are <em>not</em> passes: the rule could not be
+                evaluated, so nothing is known either way.
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="rl-card">
+            <div class="rl-table-wrap">
+            <table class="rl-table">
+                <thead>
+                    <tr>
+                        <th style="min-width:180px;">Employee</th>
+                        <th>Breaches</th>
+                        <th>Could not be checked</th>
+                        <th class="text-center">Passed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in check_rows %}
+                    <tr>
+                        <td>
+                            <div class="rl-name">{{ row.name }}</div>
+                            <div class="rl-code">{{ row.tcr }}{% if row.employee_type == 'remote' %} · remote{% endif %}</div>
+                        </td>
+                        <td>
+                            {% for b in row.breaches %}
+                            <div style="margin-bottom:6px;">
+                                <span class="pill {% if b.enforcement == 'block' %}pill-red{% else %}pill-amber{% endif %}">{{ b.rule }}</span>
+                                <div class="rl-sub">{{ b.reason }} — over by {{ b.excess|floatformat:2|intcomma }}</div>
+                            </div>
+                            {% empty %}<span style="color:#cbd5e1">—</span>{% endfor %}
+                        </td>
+                        <td>
+                            {% for u in row.unevaluated %}
+                            <div style="margin-bottom:6px;">
+                                <span class="pill pill-grey">{{ u.rule }}</span>
+                                <div class="rl-sub">{{ u.reason }}</div>
+                            </div>
+                            {% empty %}<span style="color:#cbd5e1">—</span>{% endfor %}
+                        </td>
+                        <td class="text-center">{{ row.passed }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4" class="empty-state">No employees evaluated — no rule is active for this month.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- rule form -->
+<div class="modal-overlay" id="ruleModal">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3 id="ruleModalTitle">New Rule</h3>
+            <button class="modal-close" onclick="closeRule()">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-error" id="ruleError"></div>
+
+            <div class="fieldset-label">What the rule is</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="fName" placeholder="e.g. Maximum monthly recovery" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Code</label>
+                    <input type="text" id="fCode" maxlength="40" placeholder="e.g. max_monthly_recovery" autocomplete="off">
+                    <div class="form-hint" id="codeHint">Cannot be changed later.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="fDescription" placeholder="What this limit is for."></textarea>
+            </div>
+
+            <div class="fieldset-label">What it limits</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Scope</label>
+                    <select id="fScope" onchange="syncScope()">
+                        {% for v, l in scope_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" id="typeWrap" style="display:none;">
+                    <label>Deduction type</label>
+                    <select id="fDeductionCode">
+                        {% for v, l in deduction_codes %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Percentage ceiling</label>
+                    <input type="number" id="fPercent" step="0.001" min="0.001" max="100" placeholder="e.g. 25">
+                    <div class="form-hint">Leave blank to use only an amount ceiling.</div>
+                </div>
+                <div class="form-group">
+                    <label>of</label>
+                    <select id="fBasis">
+                        {% for v, l in basis_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                    </select>
+                    <div class="form-hint">From the approved salary structure. Remote staff have no basic — a basic-based rule reports as “could not be checked” for them, never as passed.</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Amount ceiling</label>
+                    <input type="number" id="fAmount" step="0.01" min="0.01" placeholder="e.g. 1500.00">
+                    <div class="form-hint">Optional. If both are set, whichever is lower binds.</div>
+                </div>
+                <div class="form-group">
+                    <label>Currency</label>
+                    <input type="text" id="fCurrency" maxlength="3" value="AED">
+                    <div class="form-hint">Employees paid in another currency are skipped rather than converted at an assumed rate.</div>
+                </div>
+            </div>
+
+            <div class="fieldset-label">Who and when</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Employees</label>
+                    <select id="fApplies">
+                        {% for v, l in applies_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Department <span style="color:#94a3b8;font-weight:400;">(optional)</span></label>
+                    <input type="text" id="fDepartment" placeholder="blank = all">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Effective from</label>
+                    <div style="display:flex;gap:8px;">
+                        <select id="fFromMonth" style="flex:2"></select>
+                        <select id="fFromYear" style="flex:1"></select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Until <span style="color:#94a3b8;font-weight:400;">(optional)</span></label>
+                    <div style="display:flex;gap:8px;">
+                        <select id="fToMonth" style="flex:2"></select>
+                        <select id="fToYear" style="flex:1"></select>
+                    </div>
+                    <div class="form-hint">Leave both blank for no end date.</div>
+                </div>
+            </div>
+
+            <div class="fieldset-label">Enforcement</div>
+            <div class="form-group">
+                <label>On breach</label>
+                <select id="fEnforcement">
+                    {% for v, l in enforce_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Legal or policy reference</label>
+                <input type="text" id="fReference" maxlength="255" placeholder="e.g. UAE Labour Law Art. 25 / Board policy HR-014">
+                <div class="form-hint warn">Required before the rule can be switched on. An enforced ceiling with no source cannot be defended to an employee or an auditor.</div>
+            </div>
+            <div class="switch-row">
+                <input type="checkbox" id="fActive">
+                <div>
+                    <label for="fActive">Active — enforce this rule now</label>
+                    <div class="form-hint">Leave off to save it as a draft while the reference is confirmed.</div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeRule()">Cancel</button>
+                <button class="btn-save" id="btnSaveRule" onclick="saveRule()">Save rule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+{{ rules|json_script:"ruleData" }}
+<script>
+    let RULES = JSON.parse(document.getElementById('ruleData').textContent);
+    let editing = null;
+    const MONTHS = ['January','February','March','April','May','June','July',
+                    'August','September','October','November','December'];
+
+    const csrf = () => (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    function toast(msg, kind) {
+        const t = document.getElementById('toast');
+        t.textContent = msg; t.className = 'toast ' + (kind || 'success') + ' show';
+        setTimeout(() => t.classList.remove('show'), 4000);
+    }
+    function showTab(btn, id) {
+        document.querySelectorAll('.rl-tab').forEach(b => b.classList.remove('on'));
+        document.querySelectorAll('.rl-panel').forEach(p => p.classList.remove('on'));
+        btn.classList.add('on');
+        document.getElementById(id).classList.add('on');
+    }
+    const period = (y, m) => m ? `${MONTHS[m-1].slice(0,3)} ${y}` : '';
+
+    function rowHtml(r) {
+        const scope = r.scope === 'type' ? `${esc(r.scope_label)}: ${esc(r.deduction_code)}` : esc(r.scope_label);
+        return `
+        <tr class="${r.is_active ? '' : 'off'}">
+            <td>
+                <div class="rl-name">${esc(r.name)}</div>
+                <div class="rl-code">${esc(r.code)}</div>
+                ${r.description ? `<div class="rl-sub">${esc(r.description)}</div>` : ''}
+                ${r.legal_reference ? `<div class="rl-sub" style="color:#92400e">Ref: ${esc(r.legal_reference)}</div>` : ''}
+            </td>
+            <td>
+                <span class="pill pill-blue">${esc(r.applies_label)}</span>
+                ${r.department ? `<div class="rl-sub">${esc(r.department)}</div>` : ''}
+                <div class="rl-sub">${scope}</div>
+            </td>
+            <td><strong>${esc(r.ceiling_label)}</strong></td>
+            <td>${period(r.effective_from_year, r.effective_from_month)}${
+                r.effective_to_year ? ' → ' + period(r.effective_to_year, r.effective_to_month) : ' → open'}</td>
+            <td class="text-center"><span class="pill ${r.enforcement === 'block' ? 'pill-red' : 'pill-amber'}">${esc(r.enforcement_label.split(' ')[0])}</span></td>
+            <td class="text-center"><span class="pill ${r.is_active ? 'pill-green' : 'pill-grey'}">${r.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+                <div class="action-btns">
+                    <button class="btn-sm btn-edit" onclick="openEdit(${r.id})">Edit</button>
+                    <button class="btn-sm btn-tog" onclick="toggleRule(${r.id})">${r.is_active ? 'Deactivate' : 'Activate'}</button>
+                    ${r.is_active
+                        ? `<span class="btn-sm btn-lock" title="Deactivate before deleting">Delete</span>`
+                        : `<button class="btn-sm btn-del" onclick="deleteRule(${r.id})">Delete</button>`}
+                </div>
+            </td>
+        </tr>`;
+    }
+
+    function render() {
+        document.getElementById('ruleBody').innerHTML = RULES.length
+            ? RULES.map(rowHtml).join('')
+            : '<tr><td colspan="7" class="empty-state">No rules defined. Nothing is being limited.</td></tr>';
+    }
+
+    function fillPeriods() {
+        const now = new Date(), base = now.getFullYear();
+        let mo = MONTHS.map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
+        let yr = ''; for (let y = base - 2; y <= base + 3; y++) yr += `<option value="${y}">${y}</option>`;
+        document.getElementById('fFromMonth').innerHTML = mo;
+        document.getElementById('fFromYear').innerHTML = yr;
+        document.getElementById('fToMonth').innerHTML = '<option value="">—</option>' + mo;
+        document.getElementById('fToYear').innerHTML = '<option value="">—</option>' + yr;
+        document.getElementById('fFromMonth').value = now.getMonth() + 1;
+        document.getElementById('fFromYear').value = base;
+    }
+
+    function syncScope() {
+        document.getElementById('typeWrap').style.display =
+            document.getElementById('fScope').value === 'type' ? '' : 'none';
+    }
+    function setErr(msg) {
+        const e = document.getElementById('ruleError');
+        if (!msg) { e.classList.remove('show'); e.textContent = ''; return; }
+        e.textContent = msg; e.classList.add('show');
+    }
+
+    function openNew() {
+        editing = null; setErr(''); fillPeriods();
+        document.getElementById('ruleModalTitle').textContent = 'New Rule';
+        ['fName','fCode','fDescription','fPercent','fAmount','fDepartment','fReference']
+            .forEach(id => document.getElementById(id).value = '');
+        document.getElementById('fCode').disabled = false;
+        document.getElementById('fScope').value = 'all';
+        document.getElementById('fBasis').value = 'basic';
+        document.getElementById('fCurrency').value = 'AED';
+        document.getElementById('fApplies').value = 'all';
+        document.getElementById('fEnforcement').value = 'warn';
+        document.getElementById('fActive').checked = false;
+        syncScope();
+        document.getElementById('ruleModal').classList.add('show');
+        document.getElementById('fName').focus();
+    }
+
+    function openEdit(id) {
+        const r = RULES.find(x => x.id === id);
+        if (!r) return;
+        editing = r; setErr(''); fillPeriods();
+        document.getElementById('ruleModalTitle').textContent = 'Edit ' + r.name;
+        document.getElementById('fName').value = r.name;
+        document.getElementById('fCode').value = r.code;
+        document.getElementById('fCode').disabled = true;
+        document.getElementById('fDescription').value = r.description || '';
+        document.getElementById('fScope').value = r.scope;
+        document.getElementById('fDeductionCode').value = r.deduction_code || '';
+        document.getElementById('fPercent').value = r.max_percent ?? '';
+        document.getElementById('fAmount').value = r.max_amount ?? '';
+        document.getElementById('fBasis').value = r.basis;
+        document.getElementById('fCurrency').value = r.amount_currency;
+        document.getElementById('fApplies').value = r.applies_to;
+        document.getElementById('fDepartment').value = r.department || '';
+        document.getElementById('fEnforcement').value = r.enforcement;
+        document.getElementById('fReference').value = r.legal_reference || '';
+        document.getElementById('fActive').checked = r.is_active;
+        document.getElementById('fFromMonth').value = r.effective_from_month;
+        document.getElementById('fFromYear').value = r.effective_from_year;
+        document.getElementById('fToMonth').value = r.effective_to_month || '';
+        document.getElementById('fToYear').value = r.effective_to_year || '';
+        syncScope();
+        document.getElementById('ruleModal').classList.add('show');
+    }
+
+    const closeRule = () => {
+        document.getElementById('ruleModal').classList.remove('show'); editing = null;
+    };
+
+    async function post(url, body) {
+        const res = await fetch(url, {method:'POST',
+            headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},
+            body: JSON.stringify(body || {})});
+        let d = {};
+        try { d = await res.json(); } catch (e) {}
+        if (!res.ok || !d.success) throw new Error(d.error || `Request failed (${res.status})`);
+        return d;
+    }
+
+    async function saveRule() {
+        const btn = document.getElementById('btnSaveRule');
+        setErr('');
+        const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? null : v; };
+        const payload = {
+            id: editing ? editing.id : null,
+            code: document.getElementById('fCode').value.trim().toLowerCase(),
+            name: document.getElementById('fName').value.trim(),
+            description: document.getElementById('fDescription').value.trim(),
+            scope: document.getElementById('fScope').value,
+            deduction_code: document.getElementById('fDeductionCode').value,
+            basis: document.getElementById('fBasis').value,
+            max_percent: num('fPercent'),
+            max_amount: num('fAmount'),
+            amount_currency: document.getElementById('fCurrency').value.trim().toUpperCase() || 'AED',
+            applies_to: document.getElementById('fApplies').value,
+            department: document.getElementById('fDepartment').value.trim(),
+            enforcement: document.getElementById('fEnforcement').value,
+            is_active: document.getElementById('fActive').checked,
+            legal_reference: document.getElementById('fReference').value.trim(),
+            effective_from_year: document.getElementById('fFromYear').value,
+            effective_from_month: document.getElementById('fFromMonth').value,
+            effective_to_year: num('fToYear'),
+            effective_to_month: num('fToMonth'),
+        };
+        if (!payload.name) { setErr('Give the rule a name.'); return; }
+        if (!editing && !payload.code) { setErr('Give the rule a code.'); return; }
+        btn.disabled = true;
+        try {
+            const d = await post('{% url "rule_save" %}', payload);
+            const i = RULES.findIndex(x => x.id === d.rule.id);
+            if (i >= 0) RULES[i] = d.rule; else RULES.push(d.rule);
+            RULES.sort((a,b) => (b.is_active - a.is_active) || a.name.localeCompare(b.name));
+            render(); closeRule();
+            toast(d.rule.is_active
+                ? 'Rule saved and active — reload the check tab to see its effect.'
+                : 'Rule saved as inactive. It enforces nothing until you switch it on.');
+        } catch (e) { setErr(e.message); }
+        finally { btn.disabled = false; }
+    }
+
+    async function toggleRule(id) {
+        const r = RULES.find(x => x.id === id);
+        if (!r) return;
+        if (!r.is_active && !confirm(
+            `Activate "${r.name}"?\n\n${r.ceiling_label}\n` +
+            `On breach: ${r.enforcement === 'block' ? 'the entry is refused' : 'the entry is allowed and flagged'}.\n\n` +
+            `From now on this applies to new deductions and loan activations.`)) return;
+        try {
+            const d = await post('{% url "rule_toggle" %}', {id: id});
+            r.is_active = d.is_active; render();
+            toast(d.is_active ? 'Rule active.' : 'Rule deactivated — nothing is enforced by it now.');
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function deleteRule(id) {
+        const r = RULES.find(x => x.id === id);
+        if (!r || !confirm(`Delete "${r.name}" permanently?`)) return;
+        try {
+            await post('{% url "rule_delete" %}', {id: id});
+            RULES = RULES.filter(x => x.id !== id); render();
+            toast('Rule deleted.');
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    document.getElementById('ruleModal').addEventListener('click', function (e) {
+        if (e.target === this) closeRule();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRule(); });
+
+    fillPeriods(); render();
+</script>
+{% endblock %}

@@ -11,6 +11,8 @@ from .models import (
     DeductionType,
     # Phase 3 — Loans
     Loan, LoanInstallment,
+    # Phase 4 — Rules & limits
+    DeductionRule,
 )
 
 
@@ -319,3 +321,17 @@ class LoanAdmin(admin.ModelAdmin):
         p = obj.person
         return p.name if p else '—'
     person_name.short_description = 'Employee'
+
+
+@admin.register(DeductionRule)
+class DeductionRuleAdmin(admin.ModelAdmin):
+    """Support access. The Payroll > Deduction Limits page is the intended route.
+
+    `full_clean` is not called by the admin's default save path for the
+    is_active/legal_reference pairing, so activate rules from the app page —
+    that is where the "no enforced ceiling without a source" guard lives.
+    """
+    list_display = ('name', 'code', 'ceiling_label', 'scope', 'applies_to',
+                    'enforcement', 'is_active')
+    list_filter = ('is_active', 'enforcement', 'scope', 'applies_to', 'basis')
+    search_fields = ('code', 'name', 'description', 'legal_reference')

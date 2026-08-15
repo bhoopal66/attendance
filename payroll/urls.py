@@ -9,6 +9,7 @@ from . import views_notes
 from . import views_range_report
 from . import views_deduction_types
 from . import views_loans
+from . import views_rules
 from . import views_debug
 
 urlpatterns = [
@@ -91,6 +92,12 @@ urlpatterns = [
     path('api/loans/cancel/', views_loans.loan_cancel, name='loan_cancel'),
     path('api/loans/waive/', views_loans.loan_waive, name='loan_waive'),
     path('api/loans/delete/', views_loans.loan_delete, name='loan_delete'),
+
+    # Phase 4 — Deduction rules & limits
+    path('deduction-limits/', views_rules.deduction_rules, name='deduction_rules'),
+    path('api/rules/save/', views_rules.rule_save, name='rule_save'),
+    path('api/rules/toggle/', views_rules.rule_toggle, name='rule_toggle'),
+    path('api/rules/delete/', views_rules.rule_delete, name='rule_delete'),
 
     # Phase D — Range / Annual Report
     path('range-report/', views_range_report.range_report, name='payroll_range_report'),
