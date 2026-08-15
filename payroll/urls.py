@@ -11,6 +11,7 @@ from . import views_deduction_types
 from . import views_loans
 from . import views_rules
 from . import views_paid_holidays
+from . import views_headcount
 from . import views_debug
 
 urlpatterns = [
@@ -105,6 +106,9 @@ urlpatterns = [
     path('api/paid-holidays/preview/', views_paid_holidays.preview, name='paid_holiday_preview'),
     path('api/paid-holidays/confirm/', views_paid_holidays.confirm, name='paid_holiday_confirm'),
     path('api/paid-holidays/withdraw/', views_paid_holidays.withdraw, name='paid_holiday_withdraw'),
+
+    # Workforce headcount by month
+    path('headcount/', views_headcount.headcount, name='headcount'),
 
     # Phase D — Range / Annual Report
     path('range-report/', views_range_report.range_report, name='payroll_range_report'),
