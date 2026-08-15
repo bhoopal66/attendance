@@ -1493,6 +1493,15 @@ class AnnualLeave(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
 
+    actual_rejoining_date = models.DateField(
+        null=True, blank=True,
+        help_text="The date the employee actually returned to work. Often "
+                  "end_date + 1, but not always \u2014 an employee can come back "
+                  "late or early, and Sunday entitlement restarts from the day "
+                  "they were really back, not the day the leave was scheduled "
+                  "to end. Left blank, the Sunday engine infers end_date + 1 "
+                  "and flags the figure as inferred.",
+    )
     is_paid = models.BooleanField(
         default=True,
         help_text="Whether the employee is paid during this annual leave period"

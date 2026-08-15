@@ -1950,3 +1950,117 @@ class PaidHolidayAward(models.Model):
             return f'{who}: skipped ({self.skip_reason})'
         return f'{who}: {self.days} day(s) x {self.daily_rate} = {self.currency} {self.amount}'
 
+
+# ===========================================================================
+# Sunday Entitlement — persisted calculation and override
+# ===========================================================================
+
+class SundayEntitlementRecord(models.Model):
+    """One employee's weekly-off entitlement for one payroll period.
+
+    Stores the individual Sunday dates and the reason each was included or
+    excluded — not just the count. A bare "3" cannot be defended six months
+    later when somebody asks why it was not 5, and recomputing it then may
+    give a different answer because the underlying leave or joining records
+    have since been edited.
+
+    OVERRIDE (spec §13)
+    -------------------
+    `system_calculated_count` is written once and NEVER overwritten.
+    An override sets `override_count` alongside it, with a reason and an
+    actor. `final_count` reads the override when present and the calculated
+    figure otherwise, so callers ask one question and payroll always knows
+    both numbers.
+    """
+
+    employee = models.ForeignKey(
+        'attendance.Employee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='sunday_entitlements')
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='sunday_entitlements')
+
+    year = models.IntegerField()
+    month = models.IntegerField(help_text='1-12')
+    period_start = models.DateField()
+    period_end = models.DateField()
+
+    total_sundays = models.PositiveIntegerField(default=0)
+    system_calculated_count = models.PositiveIntegerField(
+        default=0, help_text='What the engine calculated. Never overwritten by an override.')
+    override_count = models.PositiveIntegerField(
+        null=True, blank=True, help_text='HR-approved figure, when it differs from the calculation.')
+    basis = models.CharField(max_length=60, blank=True)
+    eligibility_start_date = models.DateField(null=True, blank=True)
+
+    #: [{"sunday": "2026-08-02", "status": "Excluded", "reason": "...", "rule": "..."}]
+    breakdown = models.JSONField(
+        default=list, blank=True,
+        help_text='Every Sunday in the period with its verdict and reason, so the '
+                  'figure can be reconstructed exactly as it was calculated.')
+
+    calculated_at = models.DateTimeField(auto_now=True)
+    override_reason = models.TextField(blank=True)
+    override_by = models.CharField(max_length=150, blank=True)
+    override_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-year', '-month']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'year', 'month'],
+                condition=models.Q(employee__isnull=False),
+                name='uniq_sunday_inhouse_period'),
+            models.UniqueConstraint(
+                fields=['remote_employee', 'year', 'month'],
+                condition=models.Q(remote_employee__isnull=False),
+                name='uniq_sunday_remote_period'),
+        ]
+        indexes = [models.Index(fields=['year', 'month'])]
+        verbose_name = 'Sunday Entitlement'
+        verbose_name_plural = 'Sunday Entitlements'
+
+    @property
+    def person(self):
+        return self.employee or self.remote_employee
+
+    @property
+    def employee_type(self):
+        return 'inhouse' if self.employee_id else 'remote'
+
+    @property
+    def final_count(self):
+        """The figure payroll should use."""
+        return self.system_calculated_count if self.override_count is None else self.override_count
+
+    @property
+    def is_overridden(self):
+        return self.override_count is not None
+
+    @property
+    def excluded_count(self):
+        return max(0, self.total_sundays - self.system_calculated_count)
+
+    def clean(self):
+        super().clean()
+        if self.employee and self.remote_employee:
+            raise ValidationError('A record belongs to one employee, not both.')
+        if not self.employee and not self.remote_employee:
+            raise ValidationError('A record must be linked to an employee.')
+        if not 1 <= (self.month or 0) <= 12:
+            raise ValidationError({'month': 'Month must be between 1 and 12.'})
+        if self.override_count is not None:
+            if not (self.override_reason or '').strip():
+                raise ValidationError({
+                    'override_reason':
+                        'An override needs a reason. Changing what an employee is paid '
+                        'without recording why cannot be defended to them or to an auditor.'})
+            if self.override_count > self.total_sundays:
+                raise ValidationError({
+                    'override_count':
+                        f'There are only {self.total_sundays} Sundays in this period.'})
+
+    def __str__(self):
+        who = self.person.name if self.person else '?'
+        tail = f' (overridden from {self.system_calculated_count})' if self.is_overridden else ''
+        return f'{who} {self.year}/{self.month:02d}: {self.final_count}/{self.total_sundays}{tail}'
