@@ -48,6 +48,10 @@ from .models import (
     other_rollup_codes,
     valid_deduction_codes,
 )
+# Phase 4 — deduction limits. Imported lazily inside the function that uses it
+# would be cheaper, but this module is already imported at startup and the
+# rules service imports nothing from here, so there is no cycle.
+from .services_deduction_rules import check_proposed as check_proposed_deduction
 from .services import get_effective_salary_structure
 from .services import convert_employee_deduction_currency
 
@@ -3082,6 +3086,30 @@ def add_deduction(request):
     else:
         return JsonResponse({'success': False, 'error': 'Invalid employee type'}, status=400)
 
+    # ---- Phase 4: deduction limits ------------------------------------
+    # Checked BEFORE the entry is written, so a blocking rule refuses rather
+    # than creating a breach and reporting it afterwards. With no active rule
+    # this is a no-op — the engine ships with nothing enabled.
+    try:
+        _per_month = Decimal(str(total_amount)) / max(1, int(split_months or 1))
+        _blocking, _warning, _uneval = check_proposed_deduction(
+            employee, emp_type, category, _per_month,
+            int(start_year), int(start_month))
+    except Exception:
+        # A limits engine must never be the reason payroll data cannot be
+        # recorded. Log it and let the entry through rather than blocking on
+        # our own failure.
+        logger.exception('Deduction rule check failed — entry allowed through')
+        _blocking, _warning, _uneval = [], [], []
+
+    if _blocking:
+        return JsonResponse({
+            'success': False,
+            'error': 'Blocked by ' + ('; '.join(
+                f'{r.rule.name} ({r.reason})' for r in _blocking)),
+            'rule_blocked': True,
+        }, status=400)
+
     try:
         entry = DeductionEntry.objects.create(
             **fk_kwargs,
@@ -3100,7 +3128,14 @@ def add_deduction(request):
         "DeductionEntry added: %s %s %s by %s",
         employee.name, category, total_amount, request.user.username,
     )
-    return JsonResponse({'success': True})
+    return JsonResponse({
+        'success': True,
+        # Warn-level breaches and rules that could not be evaluated are
+        # surfaced rather than swallowed: the entry was allowed, and the
+        # person who made it should know a ceiling was passed.
+        'warnings': [f'{r.rule.name}: {r.reason}' for r in _warning],
+        'unevaluated': [f'{r.rule.name}: {r.reason}' for r in _uneval],
+    })
 
 
 @login_required

@@ -23,6 +23,7 @@ from attendance.models import AuditLog, Employee, RemoteEmployee
 from attendance.audit import log_audit
 from attendance.views.utils import MONTH_NAMES, section_required
 
+from . import services_deduction_rules as rules_svc
 from . import services_loans as svc
 from .models import Loan, LoanInstallment
 
@@ -284,12 +285,38 @@ def loan_activate(request):
     loan, _ = _load(request)
     if loan is None:
         return JsonResponse({'success': False, 'error': 'Loan not found'}, status=404)
+    # Phase 4 — check the monthly instalment against any active limit before
+    # writing the deductions. Checked at the first deduction month: a loan
+    # whose instalment breaches a ceiling in month one will breach in every
+    # month, and refusing here is far cheaper than unwinding posted entries.
+    try:
+        per_month = (loan.principal / loan.installment_count) if loan.installment_count else loan.principal
+        blocking, warning, uneval = rules_svc.check_proposed(
+            loan.person, loan.employee_type, Loan.DEDUCTION_CODE, per_month,
+            loan.first_deduction_year, loan.first_deduction_month)
+    except Exception:
+        logger.exception('Deduction rule check failed on loan activation — allowed through')
+        blocking, warning, uneval = [], [], []
+
+    if blocking:
+        return JsonResponse({
+            'success': False,
+            'error': 'Blocked by ' + '; '.join(
+                f'{r.rule.name} ({r.reason})' for r in blocking),
+            'rule_blocked': True,
+        }, status=400)
+
     try:
         svc.activate(loan, actor=request.user.username)
     except (ValueError, ValidationError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
     loan.refresh_from_db()
-    return JsonResponse({'success': True, 'loan': _serialise_loan(loan)})
+    return JsonResponse({
+        'success': True,
+        'loan': _serialise_loan(loan),
+        'warnings': [f'{r.rule.name}: {r.reason}' for r in warning],
+        'unevaluated': [f'{r.rule.name}: {r.reason}' for r in uneval],
+    })
 
 
 @login_required
