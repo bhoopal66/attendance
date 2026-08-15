@@ -57,6 +57,12 @@ FIELD_GROUPS = {
         'roles': {HR_ADMIN, EXEC_DIRECTOR},
         'masked': False,
     },
+    'identity_meta': {
+        'label': 'Visa type',
+        'detail': 'Category of UAE visa — not a number, so not masked',
+        'roles': {HR_ADMIN, EXEC_DIRECTOR},
+        'masked': False,
+    },
     'bank': {
         'label': 'Bank details',
         'detail': 'Bank name and IBAN — drives WPS SIF generation',

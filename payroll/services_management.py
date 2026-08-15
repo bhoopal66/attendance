@@ -13,7 +13,10 @@ from decimal import Decimal
 
 ZERO = Decimal('0')
 
-EXPIRY_WINDOW_DAYS = 60      # documents expiring within this window are alerted
+# Kept only for anything still importing it. The live definition of "expiring"
+# is attendance.services_compliance.EXPIRY_TIERS — do not reintroduce a second
+# window here.
+EXPIRY_WINDOW_DAYS = 90
 LOW_COMPLETENESS_PCT = 60    # profiles below this are listed in data health
 TOP_N = 5
 
@@ -98,7 +101,14 @@ def management_snapshot(year, month):
             'link_key': 'run',
         })
 
-    # documents expired / expiring soon
+    # Documents expired / expiring soon.
+    #
+    # The bands come from attendance.services_compliance — the SAME function
+    # the Compliance Watchlist uses. This dashboard used to carry its own
+    # single 60-day window, so the two screens could disagree about whether a
+    # document was urgent. One definition of "expiring", used twice.
+    from attendance.services_compliance import expiry_tier
+
     today = date.today()
     doc_alerts_expired, doc_alerts_expiring = [], []
     docs = EmployeeDocument.objects.filter(expiry_date__isnull=False).select_related(
@@ -110,10 +120,11 @@ def management_snapshot(year, month):
         d = doc.days_to_expiry
         if d is None:
             continue
-        label = f'{person.name} — {doc.get_document_type_display()} ({doc.expiry_date})'
-        if d < 0:
+        tier = expiry_tier(doc.expiry_date, today)
+        label = f'{person.name} — {doc.get_document_type_display()} ({doc.expiry_date}, {d}d)'
+        if tier == 'expired':
             doc_alerts_expired.append(label)
-        elif d <= EXPIRY_WINDOW_DAYS:
+        elif tier in ('tier30', 'tier60', 'tier90'):
             doc_alerts_expiring.append(label)
     if doc_alerts_expired:
         alerts.append({
@@ -127,8 +138,8 @@ def management_snapshot(year, month):
     if doc_alerts_expiring:
         alerts.append({
             'severity': 'warning',
-            'title':    f'Documents expiring within {EXPIRY_WINDOW_DAYS} days',
-            'detail':   'Renewals to schedule.',
+            'title':    'Documents expiring within 90 days',
+            'detail':   'Renewals to schedule — banded 90/60/30 on the Compliance Watchlist.',
             'items':    doc_alerts_expiring[:8],
             'count':    len(doc_alerts_expiring),
             'link_key': 'documents',

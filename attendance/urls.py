@@ -42,6 +42,14 @@ urlpatterns = [
     path('employees/unlink/', views.unlink_employees, name='unlink_employees'),
     # Employee Profile — 360° view (Phase 3)
     path('employees/<str:person_id>/profile/', views.employee_profile, name='employee_profile'),
+    # Reveal one masked compliance value. POST only, role-checked server-side,
+    # and every call writes an AuditLog 'view' row.
+    path('employees/<str:person_id>/profile/compliance/reveal/',
+         views.compliance_reveal, name='compliance_reveal'),
+    # Compliance Watchlist — 90/60/30 expiry bands across all staff
+    path('compliance/', views.compliance_watchlist, name='compliance_watchlist'),
+    path('compliance/export/', views.compliance_watchlist_csv,
+         name='compliance_watchlist_csv'),
     # Leave Management (Admin)
     path('on-duty-requests/', views.on_duty_requests, name='on_duty_requests'),
     path('on-duty-requests/approve-all/', views.approve_all_on_duty, name='approve_all_on_duty'),

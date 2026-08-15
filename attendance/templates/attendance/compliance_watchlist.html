@@ -1,0 +1,150 @@
+{% extends "attendance/base.html" %}
+{% load humanize %}
+{% block title %}Compliance Watchlist{% endblock %}
+
+{% block content %}
+<div class="cw-wrap">
+    <div class="cw-head">
+        <div>
+            <h1>Compliance Watchlist</h1>
+            <div class="cw-sub">
+                Documents banded at 90 / 60 / 30 days, plus compliance review and probation.
+                {% if role_label %}Viewing as <strong>{{ role_label }}</strong>.{% endif %}
+            </div>
+        </div>
+        {% if permitted %}
+        <div class="cw-actions">
+            <a class="cw-btn" href="?{% if include_inactive %}{% else %}inactive=1{% endif %}">
+                {% if include_inactive %}Active staff only{% else %}Include leavers{% endif %}</a>
+            <a class="cw-btn cw-btn-primary" href="{% url 'compliance_watchlist_csv' %}{% if include_inactive %}?inactive=1{% endif %}">Export CSV</a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if not permitted %}
+    <div class="cw-empty">
+        <strong>No compliance data is visible to your role.</strong>
+        Expiry dates and probation are governed by your business role, set in User Management —
+        separately from which pages you may open. Ask IT Admin to assign yours.
+    </div>
+    {% else %}
+
+    <div class="cw-stats">
+        <div class="cw-stat cw-expired"><strong>{{ counts.expired }}</strong>expired</div>
+        <div class="cw-stat cw-tier30"><strong>{{ counts.tier30 }}</strong>within 30 days</div>
+        <div class="cw-stat cw-tier60"><strong>{{ counts.tier60 }}</strong>within 60 days</div>
+        <div class="cw-stat cw-tier90"><strong>{{ counts.tier90 }}</strong>within 90 days</div>
+        <div class="cw-stat cw-missing"><strong>{{ counts.missing }}</strong>not recorded</div>
+        <div class="cw-stat cw-ok"><strong>{{ clear }}</strong>fully clear</div>
+    </div>
+    <div class="cw-line">
+        {{ flagged }} of {{ total_people }} staff need attention ·
+        {{ review_counts.never }} never reviewed ·
+        {{ review_counts.due }} review overdue
+        {% if see_probation %} · {{ probation_due }} probation review due{% endif %}
+    </div>
+
+    {% if not rows %}
+    <div class="cw-clear">
+        <strong>Nothing to act on.</strong> Every active employee has current documents,
+        a compliance review inside 90 days, and no probation review outstanding.
+    </div>
+    {% else %}
+    <div class="cw-table-wrap">
+        <table class="cw-table">
+            <thead>
+                <tr>
+                    <th>Employee</th><th>Department</th><th>Status</th>
+                    {% if see_expiry %}{% for t, label, n in document_rows %}<th>{{ label }}</th>{% endfor %}{% endif %}
+                    <th>Review</th>
+                    {% if see_probation %}<th>Probation</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in rows %}
+                <tr>
+                    <td>
+                        {% if r.person_id %}<a href="{% url 'employee_profile' person_id=r.person_id %}">{{ r.name }}</a>
+                        {% else %}{{ r.name }}{% endif %}
+                        {% if r.employee_type == 'remote' %}<span class="cw-pill cw-grey">remote</span>{% endif %}
+                        <div class="cw-tcr">{{ r.tcr }}</div>
+                    </td>
+                    <td>{{ r.department|default:"—" }}</td>
+                    <td><span class="cw-pill cw-{{ r.worst_tier }}">{{ r.worst_tier_label }}</span></td>
+                    {% if see_expiry %}
+                        {% for cell in r.documents %}
+                        <td class="cw-cell">
+                            {% if cell.tier == 'missing' %}<span class="cw-none">not recorded</span>
+                            {% else %}
+                                <span class="cw-pill cw-{{ cell.tier }}">{% if cell.days < 0 %}{{ cell.days }}d{% else %}{{ cell.days }}d{% endif %}</span>
+                                <div class="cw-date">{{ cell.expiry|date:"d M Y" }}</div>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    {% endif %}
+                    <td>
+                        {% if r.review_state == 'never' %}<span class="cw-pill cw-grey">never</span>
+                        {% elif r.review_state == 'due' %}<span class="cw-pill cw-tier60">overdue</span>
+                        {% else %}<span class="cw-pill cw-ok-pill">{{ r.reviewed_at|date:"d M Y" }}</span>{% endif %}
+                    </td>
+                    {% if see_probation %}
+                    <td>
+                        {% if r.probation_state == 'review_due' %}
+                            <span class="cw-pill cw-tier30">review due</span>
+                            <div class="cw-date">day 75 was {{ r.probation_review_due|date:"d M Y" }}{% if r.probation_is_inferred %} (inferred){% endif %}</div>
+                        {% elif r.probation_state == 'in_probation' %}<span class="cw-pill cw-grey">in probation</span>
+                        {% elif r.probation_state == 'passed' %}<span class="cw-none">passed</span>
+                        {% else %}<span class="cw-none">—</span>{% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+<style>
+.cw-wrap { padding: 22px 26px; }
+.cw-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px; }
+.cw-head h1 { font-size:1.35rem; margin:0 0 4px; color:#0f172a; }
+.cw-sub { font-size:0.82rem; color:#64748b; }
+.cw-actions { display:flex; gap:8px; }
+.cw-btn { padding:8px 14px; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc;
+    color:#1e293b; font-size:0.8rem; text-decoration:none; }
+.cw-btn-primary { background:#1D4ED8; color:#fff; border-color:#1D4ED8; }
+.cw-empty, .cw-clear { font-size:0.85rem; padding:14px 16px; border-radius:8px; line-height:1.6; }
+.cw-empty { background:#fffbeb; border:1px solid #fde68a; color:#475569; }
+.cw-clear { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.cw-stats { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+.cw-stat { flex:1; min-width:110px; border-radius:10px; padding:12px 14px; font-size:0.72rem;
+    text-transform:uppercase; letter-spacing:0.4px; border:1px solid #e2e8f0; background:#fff; }
+.cw-stat strong { display:block; font-size:1.5rem; letter-spacing:0; margin-bottom:2px; }
+.cw-stat.cw-expired { border-color:#fecaca; color:#991b1b; }
+.cw-stat.cw-tier30  { border-color:#fed7aa; color:#9a3412; }
+.cw-stat.cw-tier60  { border-color:#fde68a; color:#92400e; }
+.cw-stat.cw-tier90  { border-color:#fef08a; color:#854d0e; }
+.cw-stat.cw-missing { border-color:#e2e8f0; color:#64748b; }
+.cw-stat.cw-ok      { border-color:#bbf7d0; color:#15803d; }
+.cw-line { font-size:0.78rem; color:#64748b; margin-bottom:16px; }
+.cw-table-wrap { overflow-x:auto; border:1px solid #e2e8f0; border-radius:10px; background:#fff; }
+.cw-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+.cw-table th { text-align:left; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.4px;
+    color:#64748b; background:#f8fafc; padding:9px 10px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+.cw-table td { padding:9px 10px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+.cw-table a { color:#1D4ED8; text-decoration:none; font-weight:600; }
+.cw-tcr { font-size:0.68rem; color:#94a3b8; }
+.cw-date { font-size:0.68rem; color:#94a3b8; margin-top:3px; }
+.cw-none { color:#cbd5e1; font-size:0.75rem; font-style:italic; }
+.cw-pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:0.68rem; font-weight:700; }
+.cw-expired  { background:#fee2e2; color:#991b1b; }
+.cw-tier30   { background:#ffedd5; color:#9a3412; }
+.cw-tier60   { background:#fef3c7; color:#92400e; }
+.cw-tier90   { background:#fef9c3; color:#854d0e; }
+.cw-missing  { background:#f1f5f9; color:#64748b; }
+.cw-valid, .cw-ok-pill { background:#dcfce7; color:#15803d; }
+.cw-grey     { background:#f1f5f9; color:#475569; }
+</style>
+{% endblock %}

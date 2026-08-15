@@ -41,7 +41,18 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
-from ..models import Employee, EmploymentHistory, SalaryStructure, EmployerCostSetup, EmployeeDocument, Recoverable
+from django.utils import timezone
+
+import datetime
+
+from ..models import (
+    AuditLog, Employee, EmploymentHistory, SalaryStructure, EmployerCostSetup,
+    EmployeeDocument, Recoverable,
+)
+from ..audit import log_audit
+from .. import compliance_access as access
+from .. import services_compliance as svc_compliance
+from ..services_compliance import build_block as build_compliance_block
 from .utils import section_required
 
 logger = logging.getLogger('attendance')
@@ -155,6 +166,13 @@ def employee_profile(request, person_id):
         'blood_group_choices':  Employee.BLOOD_GROUP_CHOICES,
         'status_choices':       Employee.EMPLOYMENT_STATUS_CHOICES,
         'currency_choices':     Employee._meta.get_field('currency').choices,
+        # Compliance block — assembled per viewer. A field this user may not
+        # see is ABSENT from the context, not present and hidden by the
+        # template, so it never reaches the browser at all.
+        'compliance':           build_compliance_block(employee, request.user),
+        'visa_type_choices':    Employee.VISA_TYPE_CHOICES,
+        'contract_type_choices': Employee.CONTRACT_TYPE_CHOICES,
+        'commission_plans':     _commission_plans(),
     }
     return render(request, 'attendance/employee_profile.html', context)
 
@@ -174,6 +192,7 @@ def _handle_section_post(request, employee):
         'document':     _save_document,
         'recoverable':  _save_recoverable,
         'onboarding':   _save_onboarding,
+        'compliance':   _save_compliance,
     }
     handler = handlers.get(section)
     if not handler:
@@ -551,3 +570,110 @@ def _save_onboarding(request, emp):
     for key in ONBOARDING_ITEMS:
         checklist[key] = request.POST.get(f'checklist_{key}') == 'on'
     emp.onboarding_checklist = checklist
+
+
+# ── Compliance block ──────────────────────────────────────────────────────────
+
+def _commission_plans():
+    """Active plans for the picklist. Imported lazily — attendance must not
+    depend on payroll at module import time; payroll already imports
+    attendance, and a module-level pair would be a cycle waiting for a
+    reordering."""
+    from payroll.models import CommissionPlan
+    return CommissionPlan.objects.filter(is_active=True)
+
+
+def _parse_date(value):
+    """'' -> None, a real date -> date. Anything else is an error, not a None.
+
+    Silently swallowing an unparseable date would clear a probation end date
+    the user believed they had just set.
+    """
+    if not value:
+        return None
+    try:
+        return datetime.datetime.strptime(value, '%Y-%m-%d').date()
+    except ValueError:
+        raise ValueError(f'"{value}" is not a valid date (expected YYYY-MM-DD).')
+
+
+def _save_compliance(request, emp):
+    """Write only the fields this user is entitled to write.
+
+    A field the caller may not write is IGNORED, not rejected — a form that
+    posts every field it rendered should not fail because one of them was
+    read-only for this viewer. What matters is that it does not land.
+    """
+    role = access.role_of(request.user)
+    writable = svc_compliance.writable_fields(role, emp)
+    changed = []
+    for field in svc_compliance.WRITE_RULES:
+        if field not in request.POST:
+            continue
+        if field not in writable:
+            logger.warning(
+                'Compliance write REFUSED: user=%s role=%s field=%s employee=%s',
+                request.user.username, role or 'none', field, emp.pk)
+            continue
+        value = _get(request, field)
+        if field == 'probation_end_date':
+            setattr(emp, field, _parse_date(value))
+        else:
+            setattr(emp, field, value)
+        changed.append(field)
+
+    if 'confirm_review' in request.POST:
+        emp.compliance_reviewed_at = timezone.now()
+        emp.compliance_reviewed_by = request.user.username
+        changed.append('compliance_review')
+
+    # Deliberately NOT full_clean(). This form touches at most seven fields on
+    # a row that may have been created years ago; running whole-model
+    # validation would let unrelated legacy data block a compliance edit. The
+    # rules that matter here are checked directly.
+    if emp.probation_end_date and emp.joining_date and \
+            emp.probation_end_date < emp.joining_date:
+        raise ValueError('Probation cannot end before the joining date.')
+    if emp.contract_type and emp.contract_type not in dict(Employee.CONTRACT_TYPE_CHOICES):
+        raise ValueError('Unrecognised contract type.')
+    if emp.visa_type and emp.visa_type not in dict(Employee.VISA_TYPE_CHOICES):
+        raise ValueError('Unrecognised visa type.')
+    from payroll.models import CommissionPlan
+    if emp.commission_plan_code and not CommissionPlan.objects.filter(
+            code=emp.commission_plan_code).exists():
+        raise ValueError(
+            f'No commission plan with code "{emp.commission_plan_code}". '
+            'Create it first rather than storing a code nothing resolves to.')
+
+    if changed:
+        log_audit(request.user.username, AuditLog.ACTION_UPDATE, emp,
+                  note=f'Compliance updated: {", ".join(changed)}'[:255])
+
+
+@login_required
+@user_passes_test(section_required('employees'), login_url='/report/')
+@require_http_methods(["POST"])
+def compliance_reveal(request, person_id):
+    """Hand back one full masked value, and record that it happened.
+
+    Reading an Emirates ID is an event. If nobody can answer "who looked at
+    this and when", masking it on the page was theatre.
+    """
+    employee = get_object_or_404(Employee, person_id=person_id)
+    group = (request.POST.get('group') or '').strip()
+    key = (request.POST.get('key') or '').strip()
+
+    value = svc_compliance.reveal(employee, request.user, group, key)
+    if value is None:
+        logger.warning(
+            'Compliance REVEAL refused: user=%s role=%s group=%s key=%s employee=%s',
+            request.user.username, access.role_of(request.user) or 'none',
+            group, key, employee.pk)
+        return JsonResponse({'ok': False, 'error': 'Not permitted, or nothing recorded.'},
+                            status=403)
+
+    log_audit(request.user.username, AuditLog.ACTION_VIEW, employee,
+              note=f'Revealed {group}/{key}'[:255])
+    logger.info('Compliance reveal: user=%s group=%s key=%s employee=%s',
+                request.user.username, group, key, employee.pk)
+    return JsonResponse({'ok': True, 'value': value})

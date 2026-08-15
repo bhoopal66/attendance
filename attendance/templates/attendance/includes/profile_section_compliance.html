@@ -1,0 +1,273 @@
+{% comment %}
+Compliance block. Every value here was decided server-side by
+attendance/compliance_access.py — a field this viewer may not see is absent
+from the context entirely, so there is nothing in this markup to hide.
+{% endcomment %}
+<div class="profile-section" id="section-compliance">
+    <div class="ps-head">
+        <h3>Compliance &amp; Statutory</h3>
+        <div class="ps-head-right">
+            {% if compliance.role_label %}
+            <span class="cmp-role">Viewing as {{ compliance.role_label }}</span>
+            {% endif %}
+            {% if compliance.review_state == 'never' %}
+            <span class="cmp-pill cmp-grey">Never reviewed</span>
+            {% elif compliance.review_state == 'due' %}
+            <span class="cmp-pill cmp-amber">Review due</span>
+            {% else %}
+            <span class="cmp-pill cmp-green">Reviewed {{ compliance.reviewed_at|date:"d M Y" }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not compliance.has_any %}
+    <div class="cmp-empty">
+        <strong>No compliance data is visible to you.</strong>
+        This block is governed by your business role, which is set separately from
+        page access — being able to open this page does not by itself grant sight of
+        identity numbers or bank details. Ask IT Admin to assign your role in User Management.
+    </div>
+    {% else %}
+
+    {% if compliance.documents %}
+    <div class="cmp-sub">Identity documents
+        <span class="cmp-note">read from the employee's document records — one number, one place</span>
+    </div>
+    <table class="cmp-table">
+        <thead><tr><th>Document</th><th>Number</th><th>Expires</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for d in compliance.documents %}
+            <tr>
+                <td>{{ d.label }}{% if d.verified %} <span class="cmp-tick" title="HR has sighted the original">&#10003;</span>{% endif %}</td>
+                <td class="cmp-mono">
+                    {% if d.number %}
+                        {% if d.number.has_value %}
+                            <span id="mask-{{ d.type }}">{{ d.number.display }}</span>
+                            {% if d.number.can_reveal %}
+                            <button type="button" class="cmp-reveal"
+                                    onclick="revealCompliance('identity_number','{{ d.type }}','mask-{{ d.type }}',this)">reveal</button>
+                            {% endif %}
+                        {% else %}<span class="cmp-missing">not recorded</span>{% endif %}
+                    {% else %}<span class="cmp-na">&ndash;</span>{% endif %}
+                </td>
+                <td>{% if d.expiry %}{{ d.expiry|date:"d M Y" }}{% else %}<span class="cmp-missing">not recorded</span>{% endif %}</td>
+                <td><span class="cmp-pill cmp-{{ d.tier }}">{{ d.tier_label }}</span>
+                    {% if d.days != None and d.tier != 'valid' and d.tier != 'missing' %}
+                    <span class="cmp-days">{{ d.days }}d</span>{% endif %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if compliance.fields %}
+    <div class="cmp-sub">Employment &amp; statutory</div>
+    <div class="cmp-grid">
+        {% for f in compliance.fields %}
+        <div class="cmp-field">
+            <div class="cmp-label">{{ f.label }}</div>
+            <div class="cmp-value{% if not f.has_value %} cmp-missing{% endif %}">
+                {% if f.has_value %}
+                    <span id="mask-{{ f.key }}">{{ f.display }}</span>
+                    {% if f.can_reveal %}
+                    <button type="button" class="cmp-reveal"
+                            onclick="revealCompliance('{{ f.group }}','{{ f.key }}','mask-{{ f.key }}',this)">reveal</button>
+                    {% endif %}
+                {% else %}not recorded{% endif %}
+            </div>
+            {% if f.inferred_note %}<div class="cmp-warn">{{ f.inferred_note }}</div>{% endif %}
+            {% if f.unknown_note %}<div class="cmp-warn">{{ f.unknown_note }}</div>{% endif %}
+            {% if f.state == 'review_due' %}<div class="cmp-warn">Probation review is due — day 75 was {{ f.review_due }}.</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if compliance.partner_banks != None %}
+    <div class="cmp-sub">Assigned partner banks
+        <span class="cmp-note">drives RO target setting</span>
+    </div>
+    <div class="cmp-banks">
+        {% for b in compliance.partner_banks %}
+        <span class="cmp-bank{% if b.is_primary %} cmp-bank-primary{% endif %}">{{ b.bank }}{% if b.is_primary %} · primary{% endif %}</span>
+        {% empty %}
+        <span class="cmp-missing">None assigned.</span>
+        {% endfor %}
+    </div>
+    {% elif compliance.is_admin_department %}
+    <div class="cmp-note-block">
+        Partner banks and commission plan do not apply to Admin-department staff —
+        they carry no RO target. The fields are not shown rather than shown empty,
+        so nobody is invited to fill one in.
+    </div>
+    {% endif %}
+
+    {% if compliance.can_write %}
+    <div class="cmp-sub">Update</div>
+    <form id="cmpForm" class="cmp-form" onsubmit="return saveCompliance(event)">
+        <div class="cmp-grid">
+            {% if 'visa_type' in compliance.writable %}
+            <div class="cmp-field">
+                <label class="cmp-label" for="f_visa_type">Visa type</label>
+                <select id="f_visa_type" name="visa_type">
+                    <option value="">— not recorded —</option>
+                    {% for v, l in visa_type_choices %}<option value="{{ v }}" {% if employee.visa_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% if 'contract_type' in compliance.writable %}
+            <div class="cmp-field">
+                <label class="cmp-label" for="f_contract_type">Contract type</label>
+                <select id="f_contract_type" name="contract_type">
+                    <option value="">— not recorded —</option>
+                    {% for v, l in contract_type_choices %}<option value="{{ v }}" {% if employee.contract_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+                </select>
+                <div class="cmp-warn">Sets the gratuity basis. Leaving it blank keeps it explicitly unknown.</div>
+            </div>
+            {% endif %}
+            {% if 'probation_end_date' in compliance.writable %}
+            <div class="cmp-field">
+                <label class="cmp-label" for="f_probation_end_date">Probation end date</label>
+                <input type="date" id="f_probation_end_date" name="probation_end_date"
+                       value="{{ employee.probation_end_date|date:'Y-m-d' }}">
+                <div class="cmp-warn">Blank means joining date + 90 days, shown as inferred.</div>
+            </div>
+            {% endif %}
+            {% if 'commission_plan_code' in compliance.writable %}
+            <div class="cmp-field">
+                <label class="cmp-label" for="f_commission_plan_code">Commission plan</label>
+                <select id="f_commission_plan_code" name="commission_plan_code">
+                    <option value="">— none —</option>
+                    {% for p in commission_plans %}<option value="{{ p.code }}" {% if employee.commission_plan_code == p.code %}selected{% endif %}>{{ p.code }} — {{ p.name }}</option>{% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% if 'taamul_connect_user_id' in compliance.writable %}
+            <div class="cmp-field">
+                <label class="cmp-label" for="f_taamul_connect_user_id">TaamulConnect user ID</label>
+                <input type="text" id="f_taamul_connect_user_id" name="taamul_connect_user_id"
+                       value="{{ employee.taamul_connect_user_id }}">
+            </div>
+            {% endif %}
+            {% if 'emergency_contact_name' in compliance.writable %}
+            <div class="cmp-field">
+                <label class="cmp-label" for="f_emergency_contact_name">Emergency contact</label>
+                <input type="text" id="f_emergency_contact_name" name="emergency_contact_name"
+                       value="{{ employee.emergency_contact_name|default:'' }}">
+                <input type="text" id="f_emergency_contact_phone" name="emergency_contact_phone"
+                       style="margin-top:6px;" placeholder="Phone"
+                       value="{{ employee.emergency_contact_phone|default:'' }}">
+            </div>
+            {% endif %}
+        </div>
+        <div class="cmp-form-actions">
+            <button type="submit" class="cmp-save">Save</button>
+            <button type="button" class="cmp-confirm" onclick="saveCompliance(event, true)">
+                Confirm record reviewed
+            </button>
+            <span class="cmp-form-note">
+                Confirming stamps your name and the date, and starts the 90-day clock again.
+                It records that a human checked this — it does not change any value.
+            </span>
+        </div>
+        <div id="cmpMsg" class="cmp-msg"></div>
+    </form>
+    {% endif %}
+
+    {% endif %}
+</div>
+
+<style>
+.cmp-role { font-size:0.72rem; color:#64748b; margin-right:8px; }
+.cmp-sub { font-size:0.8rem; font-weight:700; color:#334155; margin:18px 0 8px; }
+.cmp-note { font-weight:400; color:#94a3b8; font-size:0.72rem; margin-left:6px; }
+.cmp-note-block { font-size:0.78rem; color:#64748b; background:#f8fafc; border:1px solid #e2e8f0;
+    border-radius:8px; padding:10px 12px; margin-top:14px; line-height:1.5; }
+.cmp-empty { font-size:0.82rem; color:#475569; background:#fffbeb; border:1px solid #fde68a;
+    border-radius:8px; padding:12px 14px; line-height:1.6; }
+.cmp-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+.cmp-table th { text-align:left; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.4px;
+    color:#64748b; border-bottom:1px solid #e2e8f0; padding:6px 8px; }
+.cmp-table td { padding:8px; border-bottom:1px solid #f1f5f9; }
+.cmp-mono { font-family:ui-monospace,Menlo,Consolas,monospace; letter-spacing:0.5px; }
+.cmp-reveal { margin-left:8px; font-size:0.68rem; padding:2px 8px; border-radius:20px;
+    border:1px solid #dbe3ec; background:#f8fafc; color:#475569; cursor:pointer; }
+.cmp-reveal:hover { background:#eef2f7; }
+.cmp-pill { display:inline-block; padding:2px 9px; border-radius:20px; font-size:0.68rem; font-weight:700; }
+.cmp-expired { background:#fee2e2; color:#991b1b; }
+.cmp-tier30  { background:#ffedd5; color:#9a3412; }
+.cmp-tier60  { background:#fef3c7; color:#92400e; }
+.cmp-tier90  { background:#fef9c3; color:#854d0e; }
+.cmp-valid   { background:#dcfce7; color:#15803d; }
+.cmp-missing { color:#94a3b8; font-style:italic; }
+.cmp-grey  { background:#f1f5f9; color:#475569; }
+.cmp-amber { background:#fef3c7; color:#92400e; }
+.cmp-green { background:#dcfce7; color:#15803d; }
+.cmp-days { font-size:0.68rem; color:#94a3b8; margin-left:5px; }
+.cmp-na { color:#cbd5e1; }
+.cmp-tick { color:#15803d; font-size:0.75rem; }
+.cmp-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+.cmp-field { background:#f8fafc; border:1px solid #eef2f7; border-radius:8px; padding:10px 12px; }
+.cmp-label { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.4px; color:#64748b; margin-bottom:4px; }
+.cmp-value { font-size:0.85rem; color:#0f172a; }
+.cmp-warn { font-size:0.7rem; color:#b45309; margin-top:5px; line-height:1.45; }
+.cmp-banks { display:flex; flex-wrap:wrap; gap:8px; }
+.cmp-bank { font-size:0.75rem; padding:4px 10px; border-radius:20px; background:#eef2ff; color:#3730a3; }
+.cmp-bank-primary { background:#4338ca; color:#fff; font-weight:600; }
+.cmp-form { margin-top:4px; }
+.cmp-form select, .cmp-form input[type=text], .cmp-form input[type=date] {
+    width:100%; padding:7px 9px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.8rem; }
+.cmp-form-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:14px; }
+.cmp-save { padding:8px 16px; border-radius:8px; border:1px solid #1D4ED8; background:#1D4ED8;
+    color:#fff; font-size:0.8rem; cursor:pointer; }
+.cmp-confirm { padding:8px 16px; border-radius:8px; border:1px solid #bbf7d0; background:#f0fdf4;
+    color:#166534; font-size:0.8rem; cursor:pointer; }
+.cmp-form-note { font-size:0.72rem; color:#94a3b8; flex:1; min-width:220px; line-height:1.45; }
+.cmp-msg { font-size:0.78rem; color:#64748b; margin-top:10px; }
+.cmp-msg-bad { color:#b91c1c; }
+</style>
+
+<script>
+function saveCompliance(ev, confirmReview) {
+    if (ev) { ev.preventDefault(); }
+    var form = document.getElementById('cmpForm');
+    var data = new FormData(form);
+    if (confirmReview) {
+        if (!window.confirm('Confirm this compliance record has been reviewed?\n\n' +
+                            'Your name and today\'s date will be recorded against it.')) { return false; }
+        data.append('confirm_review', '1');
+    }
+    var msg = document.getElementById('cmpMsg');
+    msg.textContent = 'Saving…'; msg.className = 'cmp-msg';
+    fetch(window.location.pathname + '?section=compliance', {
+        method: 'POST',
+        headers: {'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || ''},
+        body: data
+    }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.ok) { msg.textContent = 'Saved. Reloading…'; setTimeout(function () { location.reload(); }, 700); }
+        else { msg.textContent = d.error || 'Could not save.'; msg.className = 'cmp-msg cmp-msg-bad'; }
+    }).catch(function () {
+        msg.textContent = 'Could not reach the server.'; msg.className = 'cmp-msg cmp-msg-bad';
+    });
+    return false;
+}
+
+function revealCompliance(group, key, targetId, btn) {
+    var body = new URLSearchParams({group: group, key: key});
+    btn.disabled = true; btn.textContent = '…';
+    fetch(window.location.pathname + 'compliance/reveal/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || ''},
+        body: body
+    }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.ok) {
+            document.getElementById(targetId).textContent = d.value;
+            btn.remove();   // shown once; the read is already in the audit log
+        } else {
+            btn.disabled = false; btn.textContent = 'reveal';
+            alert(d.error || 'Not permitted.');
+        }
+    }).catch(function () { btn.disabled = false; btn.textContent = 'reveal'; });
+}
+</script>

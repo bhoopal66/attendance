@@ -53,7 +53,8 @@ from .employee_management import (
     link_employees,
     unlink_employees,
 )
-from .employee_profile import employee_profile  # Phase 3
+from .employee_profile import compliance_reveal, employee_profile  # Phase 3
+from .compliance import compliance_watchlist, compliance_watchlist_csv
 from .leave_management import (
     leave_management,
     on_duty_requests,
@@ -125,6 +126,9 @@ __all__ = [
     'unlink_employees',
     # Employee Profile (Phase 3)
     'employee_profile',
+    'compliance_reveal',
+    'compliance_watchlist',
+    'compliance_watchlist_csv',
     # Leave Management
     'leave_management',
     'on_duty_requests',

@@ -1760,12 +1760,17 @@ class AuditLog(models.Model):
     ACTION_UPDATE     = 'update'
     ACTION_DELETE     = 'delete'
     ACTION_TRANSITION = 'transition'
+    # Reading a masked identity number is an event in its own right. Without
+    # it, nobody can answer "who looked at this Emirates ID, and when" — and
+    # masking it on the page would be theatre.
+    ACTION_VIEW       = 'view'
 
     ACTION_CHOICES = [
         (ACTION_CREATE,     'Create'),
         (ACTION_UPDATE,     'Update'),
         (ACTION_DELETE,     'Delete'),
         (ACTION_TRANSITION, 'Status Change'),
+        (ACTION_VIEW,       'Sensitive Data Viewed'),
     ]
 
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
