@@ -140,6 +140,24 @@ def run(TCR, YEAR, MONTH):
     recs = {r.date: r for r in AttendanceRecord.objects.filter(
         employee=emp, date__gte=p_start, date__lte=p_end)}
 
+    # Days outside the employment window. A day before someone joined is not an
+    # absence and not a paid day, and reading the calendar without this makes a
+    # new starter look like a serial absentee.
+    unemployed = set()
+    try:
+        from payroll.views import employment_window, not_employed_dates
+        unemployed = not_employed_dates(emp, p_start, p_end)
+        _win = employment_window(emp, p_start, p_end)
+        print()
+        print(f'EMPLOYMENT WINDOW inside this period: '
+              f'{_win[0] if _win else "NOT EMPLOYED AT ALL"}'
+              f'{" .. " + str(_win[1]) if _win else ""}')
+        print(f'  joining {emp.joining_date}   leaving {emp.leaving_date}')
+        print(f'  calendar days outside employment: {len(unemployed)}'
+              f'  -> charged pro-rata, NOT as absence')
+    except Exception as exc:                                    # noqa: BLE001
+        print(f'  (employment window lookup failed: {exc!r})')
+
     # Sundays the bridge rule charges. get_bridge_sunday_days returns DAY
     # NUMBERS, which is only unambiguous because a 21st-20th period never
     # repeats a day number; do not reuse this shortcut on a longer window.
@@ -196,7 +214,9 @@ def run(TCR, YEAR, MONTH):
         if c in annual_dates:
             flags.append('annual-leave')
 
-        if is_sun:
+        if c in unemployed:
+            reads = 'NOT EMPLOYED - pro-rata, not an absence'
+        elif is_sun:
             reads = ('BRIDGE SUNDAY - CHARGED (leave either side)'
                      if c.day in bridge_days else 'Sunday')
         elif is_hol:
@@ -233,6 +253,9 @@ def run(TCR, YEAR, MONTH):
     print(f'  dates inside an APPROVED LeaveRequest {len(approved_dates)}')
     print(f'  dates inside an AnnualLeave span      {len(annual_dates)}')
     print(f'  days this script reads as absent      {len(charged)}   {[str(d) for d in charged]}')
+    print(f'  days outside employment               {len(unemployed)}'
+          f'   {sorted(str(d) for d in unemployed)[:6]}'
+          f'{" ..." if len(unemployed) > 6 else ""}')
 
     line()
     print('LEAVE ON RECORD')

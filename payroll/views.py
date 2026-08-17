@@ -288,6 +288,63 @@ def approved_leave_dates(emp, emp_type, start, end, holiday_dates=None):
     return out
 
 
+def employment_window(emp, start, end):
+    """The part of [start, end] this person was actually employed for.
+
+    Returns (effective_start, effective_end), or None if they were not employed
+    at any point in the period.
+
+    `joining_date` missing means they cannot be placed in time at all. This
+    returns the whole period in that case, because refusing to pay someone
+    because a date field is blank is worse than paying them, but the caller
+    reports it so the blank gets filled in rather than quietly assumed.
+    """
+    joining = getattr(emp, 'joining_date', None)
+    leaving = getattr(emp, 'leaving_date', None)
+    if joining is None:
+        return start, end
+    eff_start = max(start, joining)
+    eff_end = min(end, leaving) if leaving else end
+    if eff_start > eff_end:
+        return None
+    return eff_start, eff_end
+
+
+def not_employed_dates(emp, start, end):
+    """Every calendar day in the period BEFORE joining or AFTER leaving.
+
+    Calendar days, not working days — and that distinction is the whole point.
+
+    A day before someone joined is not an absence. Until now it was counted as
+    one: a person who started on the 31st was marked absent for the ten days of
+    the period that preceded their own first day, which inflated their absence
+    record and made the deduction look like a punishment.
+
+    It is also not a paid day. Salary is paid for the period and reduced by what
+    is not worked, so the ONLY way a mid-period joiner ends up with the right
+    money is for these days to be taken off. Charging every calendar day in the
+    stretch — Sundays and public holidays included — is what makes that exactly
+    pro-rata. The old behaviour charged only the working days, which quietly
+    paid a new starter for the Sundays before they were hired.
+
+    So: not absent, not paid, and named as its own thing.
+    """
+    window = employment_window(emp, start, end)
+    out = set()
+    day = start
+    if window is None:
+        while day <= end:
+            out.add(day)
+            day += datetime.timedelta(days=1)
+        return out
+    eff_start, eff_end = window
+    while day <= end:
+        if day < eff_start or day > eff_end:
+            out.add(day)
+        day += datetime.timedelta(days=1)
+    return out
+
+
 def marked_paid_leave_dates(emp, emp_type, start, end, holiday_dates=None):
     """Dates in [start, end] an admin marked PAID LEAVE on the attendance calendar.
 
@@ -347,8 +404,14 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
             employee=emp, date__gte=month_start, date__lte=month_end
         )}
         full_days = half_days = late_days = absent_days = 0
+        _unemployed = not_employed_dates(emp, month_start, month_end)
         _c = month_start
         while _c <= month_end:
+            if _c in _unemployed:
+                # Outside their employment. Not absent — they did not fail to
+                # come in, they had not been hired yet (or had already left).
+                _c += datetime.timedelta(days=1)
+                continue
             if _c.weekday() == 6 or _c in _holiday_dates:
                 _c += datetime.timedelta(days=1)
                 continue
@@ -450,6 +513,16 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     # attendance figure unless the row says otherwise. `attendance_exempt`
     # is what lets the screen say "not attendance-scaled" instead of leaving
     # the reader to assume the deduction was simply zero.
+    # Days outside the employment window, charged as pro-rata rather than as
+    # absence. Every calendar day, so the arithmetic reduces to
+    # salary x employed days / period days. Applied even to performance-paid
+    # staff: their pay is independent of ATTENDANCE, not of whether they were
+    # employed. Paying a performance salary for a fortnight before someone was
+    # hired is not an exemption, it is a mistake.
+    not_employed_days = float(len(not_employed_dates(emp, month_start, month_end)))
+    pro_rata_deduction = round(daily_rate * not_employed_days, 2)
+    missing_joining_date = getattr(emp, 'joining_date', None) is None
+
     attendance_exempt = False
     if getattr(emp, 'payroll_type', 'attendance') == 'performance':
         attendance_exempt = True
@@ -461,6 +534,7 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
             absent_days + (half_days * 0.5) + (late_half_days * 0.5) + bridge_sunday_count
         )
         deduction = daily_rate * total_deduction_days
+    deduction += pro_rata_deduction
     base_payroll = salary - deduction
 
     adjustments = PayrollAdjustment.objects.filter(employee=emp, year=year, month=month)
@@ -535,6 +609,9 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'late_half_days': late_half_days,
         'paid_leave_days': paid_leave_days,
         'marked_paid_leave_days': marked_paid_leave_days,
+        'not_employed_days': not_employed_days,
+        'pro_rata_deduction': pro_rata_deduction,
+        'missing_joining_date': missing_joining_date,
         'bridge_sunday_count': bridge_sunday_count,
         'annual_leave_days': annual_leave_days,
         'annual_leave_compensation': round(annual_leave_compensation, 2),
@@ -699,10 +776,25 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         marked_paid_leave_days = float(len(
             marked_paid_leave_dates(emp, emp_type, _ms, _me)))
 
+        # Same rule as the in-house path: days outside the employment window are
+        # neither present nor absent. They come off `total_working_days` so they
+        # cannot fall into the absence figure, and are charged separately as
+        # pro-rata over every calendar day.
+        _unemployed = not_employed_dates(emp, _ms, _me)
+        _unemployed_workdays = len({
+            d for d in _unemployed
+            if d.weekday() != 6 and d not in set(Holiday.objects.filter(
+                date__gte=_ms, date__lte=_me).values_list('date', flat=True))
+        })
+        not_employed_days = float(len(_unemployed))
+        pro_rata_deduction = round(daily_rate * not_employed_days, 2)
+        missing_joining_date = getattr(emp, 'joining_date', None) is None
+
         absent_days = max(
-            0, total_working_days - present_days - paid_leave_days_honoured
+            0, total_working_days - _unemployed_workdays - present_days
+            - paid_leave_days_honoured
         ) + bridge_sunday_count
-        deduction = daily_rate * absent_days
+        deduction = daily_rate * absent_days + pro_rata_deduction
         base_salary = round(salary - deduction, 2)
         al_compensation, al_days = _sales_annual_leave_compensation(
             emp, emp_type, year, month, _ms, _me, daily_rate
@@ -725,6 +817,9 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             # the paths that honoured it.
             'paid_leave_days': paid_leave_days_honoured,
             'marked_paid_leave_days': marked_paid_leave_days,
+            'not_employed_days': not_employed_days,
+            'pro_rata_deduction': pro_rata_deduction,
+            'missing_joining_date': missing_joining_date,
             'total_working_days': total_working_days,
             'present_days': present_days,
             'bridge_sunday_count': bridge_sunday_count,
