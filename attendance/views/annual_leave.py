@@ -78,7 +78,11 @@ def add_annual_leave(request):
     start_date_str = request.POST.get('start_date', '').strip()
     end_date_str = request.POST.get('end_date', '').strip()
     is_paid = request.POST.get('is_paid') == 'true'
-    salary_percentage = request.POST.get('salary_percentage', '100').strip()
+    # 50, not 100: the form always posts a value, so this only bites when a
+    # caller omits the field entirely. It must agree with the model default
+    # or the same leave would be worth two different amounts depending on
+    # which door it came through.
+    salary_percentage = request.POST.get('salary_percentage', '50').strip()
     reason = request.POST.get('reason', '').strip()
     admin_notes = request.POST.get('admin_notes', '').strip()
 

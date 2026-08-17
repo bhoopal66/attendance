@@ -1650,8 +1650,13 @@ class AnnualLeave(models.Model):
         help_text="Whether the employee is paid during this annual leave period"
     )
     salary_percentage = models.DecimalField(
-        max_digits=5, decimal_places=2, default=100,
-        help_text="Percentage of normal salary paid during leave (0–100). Only relevant when is_paid=True."
+        max_digits=5, decimal_places=2, default=50,
+        help_text="Percentage of normal salary paid during leave (0–100). Only "
+                  "relevant when is_paid=True. Company rule: annual leave is paid "
+                  "at 50% of gross, on the same daily rate as paid leave and paid "
+                  "holidays (gross / days in the pay period). Existing rows keep "
+                  "whatever percentage they were saved with — this default "
+                  "changes new entries only, so no month already paid moves.",
     )
 
     reason = models.TextField(blank=True, help_text="Reason for the annual leave")

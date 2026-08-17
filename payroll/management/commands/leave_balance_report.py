@@ -78,12 +78,24 @@ class Command(BaseCommand):
         for cur, amt in sorted(exposure.items()):
             self.stdout.write(self.style.WARNING(
                 f'  Encashment exposure {cur} {amt:,.2f} — what the untaken balance '
-                f'would cost if everyone left tomorrow'))
+                f'would cost if everyone left tomorrow, at the company rate of '
+                f'{svc.POLICY_LEAVE_PCT:g}% of gross'))
+        _short = {}
+        for r in rows:
+            if r.get('encashment_shortfall'):
+                _short[r['currency']] = (_short.get(r['currency'], 0)
+                                         + r['encashment_shortfall'])
+        for cur, amt in sorted(_short.items()):
+            self.stdout.write(self.style.ERROR(
+                f'  Below the Article 29 floor by {cur} {amt:,.2f} in total — leave '
+                f'encashed on termination is payable at basic salary, 100%. This is '
+                f'the gap between what the policy pays and that floor.'))
         if unknown_basic:
             self.stdout.write(self.style.WARNING(
-                f'  {unknown_basic} employees have NO known basic salary, so their '
-                f'encashment is NOT in that total. The exposure above is therefore a '
-                f'floor, not the whole number.'))
+                f'  {unknown_basic} employees have NO known basic salary. They ARE '
+                f'in the exposure above — it is computed from gross — but their '
+                f'Article 29 comparison could not be made, so a shortfall against '
+                f'the statutory floor cannot be ruled out for them.'))
         if negatives:
             self.stdout.write(self.style.ERROR(
                 f'  {negatives} employees have taken MORE leave than they have accrued.'))

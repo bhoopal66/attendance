@@ -374,8 +374,8 @@
             <div class="form-group" id="pctGroup">
                 <label>Salary Percentage <span style="font-weight:400;color:var(--text-secondary);">(how much % of normal salary)</span></label>
                 <div class="pct-row">
-                    <input type="range" id="pctSlider" min="0" max="100" step="1" value="100" oninput="syncPct('slider')">
-                    <input type="number" id="pctNumber" min="0" max="100" step="1" value="100" oninput="syncPct('number')">
+                    <input type="range" id="pctSlider" min="0" max="100" step="1" value="50" oninput="syncPct('slider')">
+                    <input type="number" id="pctNumber" min="0" max="100" step="1" value="50" oninput="syncPct('number')">
                     <span style="font-size:0.85rem;color:var(--text-secondary);">%</span>
                 </div>
             </div>
@@ -441,8 +441,10 @@ function openAddModal() {
     document.getElementById('startDate').value = '';
     document.getElementById('endDate').value = '';
     document.getElementById('radioPaid').checked = true;
-    document.getElementById('pctSlider').value = 100;
-    document.getElementById('pctNumber').value = 100;
+    /* 50% is the company rule for annual leave. Opening the form at 100
+       made the default outcome a full-pay leave that nobody chose. */
+    document.getElementById('pctSlider').value = 50;
+    document.getElementById('pctNumber').value = 50;
     document.getElementById('pctGroup').style.display = '';
     document.getElementById('leaveReason').value = '';
     document.getElementById('adminNotes').value = '';
@@ -468,7 +470,7 @@ function syncPct(source) {
         number.value = slider.value;
     } else {
         let v = parseFloat(number.value);
-        if (isNaN(v)) v = 100;
+        if (isNaN(v)) v = 50;
         v = Math.max(0, Math.min(100, v));
         number.value = v;
         slider.value = v;

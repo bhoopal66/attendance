@@ -118,10 +118,16 @@ def header_facts(employee, today=None):
                     f'{ls["accrued_days"]:g} accrued − {ls["taken_days"]:g} taken'),
             'negative': ls['balance_days'] is not None and ls['balance_days'] < 0,
         })
+        # The label has to name the BASE, not just the amount. "At basic rate"
+        # was accurate when encashment was basic-salary-based; it is now 50% of
+        # gross, and a stale label on a settlement figure is worse than no label.
+        _sub = f'at {ls["policy_pct"]:g}% of gross'
+        if ls.get('encashment_shortfall'):
+            _sub += f' — {_fmt_money(ls["encashment_shortfall"], currency)} below basic-at-100%'
         facts.append({'key': 'Encashment exposure',
                       'value': _fmt_money(ls['encashment_value'], currency),
-                      'sub': 'at basic rate' if ls['encashment_value'] is not None
-                             else 'basic salary unknown'})
+                      'sub': _sub if ls['encashment_value'] is not None
+                             else 'no joining date on record'})
     except Exception:
         logger.debug('leave summary unavailable for %s', employee.pk)
         facts.append({'key': 'Leave balance', 'value': None, 'sub': None})

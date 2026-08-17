@@ -51,6 +51,21 @@ ACCRUAL_FULL_DAYS_PER_YEAR = 30.0
 # divisor is therefore an argument everywhere below, never a hidden constant.
 DEFAULT_DIVISOR = 30
 
+# ---------------------------------------------------------------- pay policy
+# Annual leave is paid at 50% of the gross wage — leave taken AND leave
+# encashed — on the same daily rate as paid leave and paid holidays. Payroll
+# enforces the same figure through AnnualLeave.salary_percentage, whose default
+# is now 50; this module must agree with it or the balance report will
+# contradict the payslip it is meant to explain.
+#
+# Article 29 of Federal Decree-Law 33/2021 pays leave TAKEN at the full wage
+# and leave ENCASHED at basic salary. 50% of gross is below both for any
+# structure where basic exceeds half of gross, which is most of them. That is
+# not this module's decision to make, so it computes BOTH: the policy figure
+# that will be paid, and the statutory figure beside it. A shortfall is
+# reported, never silently absorbed.
+POLICY_LEAVE_PCT = 50.0
+
 
 def _d(value):
     return Decimal(str(value or 0))
@@ -171,16 +186,55 @@ def daily_rate(amount, divisor=DEFAULT_DIVISOR):
     return (Decimal(amount) / Decimal(divisor)).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
-def leave_pay(days, full_wage, divisor=DEFAULT_DIVISOR):
-    """Leave TAKEN — full wage. Article 29."""
+def leave_pay(days, full_wage, divisor=DEFAULT_DIVISOR,
+              pct=POLICY_LEAVE_PCT):
+    """Leave TAKEN — `pct`% of the gross wage. Company rule, default 50%."""
+    rate = daily_rate(full_wage, divisor)
+    if rate is None:
+        return None
+    return (rate * _d(days) * _d(pct) / _d(100)).quantize(
+        CENT, rounding=ROUND_HALF_UP)
+
+
+def statutory_leave_pay(days, full_wage, divisor=DEFAULT_DIVISOR):
+    """What Article 29 says leave TAKEN is worth: the full wage, 100%.
+
+    Kept as a separate function, not a comment, so the gap between what the
+    law sets as the floor and what the company pays is a number somebody can
+    look at rather than an argument nobody has.
+    """
     rate = daily_rate(full_wage, divisor)
     if rate is None:
         return None
     return (rate * _d(days)).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
-def encashment(days, basic, divisor=DEFAULT_DIVISOR):
-    """Leave ENCASHED — basic only. None when basic is unknown."""
+def encashment_policy(days, full_wage, divisor=DEFAULT_DIVISOR,
+                      pct=POLICY_LEAVE_PCT):
+    """Leave ENCASHED under the company rule — `pct`% of the GROSS wage.
+
+    RENAMED, not edited. The old `encashment(days, basic, ...)` took basic
+    salary in the second position; this takes gross. Had the name been kept,
+    every existing call would have carried on running and quietly returned a
+    figure computed from the wrong base — half of basic instead of half of
+    gross. A renamed function turns that into an AttributeError at import,
+    which is the failure anybody would rather have.
+    """
+    rate = daily_rate(full_wage, divisor)
+    if rate is None:
+        return None
+    return (rate * _d(max(0.0, days)) * _d(pct) / _d(100)).quantize(
+        CENT, rounding=ROUND_HALF_UP)
+
+
+def encashment_statutory(days, basic, divisor=DEFAULT_DIVISOR):
+    """The Article 29 floor for ENCASHMENT: basic salary, 100%.
+
+    None when basic is unknown — `RemoteEmployee` has no SalaryStructure at
+    all, and some in-house staff have none approved. A fabricated basic becomes
+    a real number on a final settlement and nobody downstream would know it was
+    invented.
+    """
     rate = daily_rate(basic, divisor)
     if rate is None:
         return None
@@ -214,6 +268,23 @@ def leave_summary(employee, as_of=None, divisor=DEFAULT_DIVISOR,
         notes.append('remote employee — LeaveRequest cannot reach them, so only '
                      'AnnualLeave rows were counted')
 
+    # Both figures, then the gap. Computed here rather than inline in the dict
+    # so the shortfall can be turned into a note instead of being a column
+    # somebody has to notice.
+    _enc_policy = (None if balance is None
+                   else encashment_policy(balance, full, divisor))
+    _enc_statutory = (None if (balance is None or basic is None)
+                      else encashment_statutory(balance, basic, divisor))
+    _enc_shortfall = None
+    if _enc_policy is not None and _enc_statutory is not None:
+        gap = _enc_statutory - _enc_policy
+        if gap > 0:
+            _enc_shortfall = gap
+            notes.append(
+                'encashment at %g%% of gross is %s BELOW basic-salary-at-100%%, '
+                'the Article 29 floor for leave paid out on termination'
+                % (POLICY_LEAVE_PCT, gap))
+
     return {
         'employee': employee,
         'employee_type': 'inhouse' if employee.__class__.__name__ == 'Employee' else 'remote',
@@ -231,7 +302,10 @@ def leave_summary(employee, as_of=None, divisor=DEFAULT_DIVISOR,
         'divisor': divisor,
         'day_rate_full': day_full,
         'day_rate_basic': day_basic,
-        'encashment_value': (None if (balance is None or basic is None)
-                             else encashment(balance, basic, divisor)),
+        'encashment_value': _enc_policy,
+        'encashment_statutory': _enc_statutory,
+        'encashment_basis': 'policy %g%% of gross' % POLICY_LEAVE_PCT,
+        'encashment_shortfall': _enc_shortfall,
+        'policy_pct': POLICY_LEAVE_PCT,
         'notes': notes,
     }
