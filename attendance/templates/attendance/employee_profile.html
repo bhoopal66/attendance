@@ -200,6 +200,103 @@ instead of nine screens down.
 {% endblock %}
 
 {% block extra_js %}
+{% comment %}
+RESTORED SAVE LAYER
+-------------------
+editSection / cancelSection / saveSection / showToast live HERE, in the shell —
+NOT in the thirteen section includes, which only call them. Replacing this
+block with the rail script alone left every Edit and Save button on the page
+wired to a function that no longer existed: the page rendered perfectly and
+nothing could be edited. The rail script is appended below rather than
+substituted for it.
+{% endcomment %}
+<script>
+const PROFILE_URL = "{% url 'employee_profile' employee.person_id %}";
+const CSRF = "{{ csrf_token }}";
+
+/* `const` at the top level of a <script> creates a SCRIPT-SCOPED binding, not a
+   property of `window`. The Documents and Recoverables includes both post to
+   `window.PROFILE_URL`, which was therefore undefined, so the browser sent
+       POST /employees/<id>/profile/undefined?section=document   -> 404
+   the 404 HTML failed to parse as JSON, and the catch() reported it as
+   "Network error - please try again." Nothing has ever saved from either of
+   those two cards. This is not a network fault and never was. */
+window.PROFILE_URL = PROFILE_URL;
+window.CSRF = CSRF;
+
+/* ── Toggle section edit mode ──────────────────────────── */
+function editSection(sectionId) {
+    document.getElementById('view-' + sectionId).classList.add('hidden');
+    document.getElementById('form-' + sectionId).classList.add('active');
+}
+function cancelSection(sectionId) {
+    document.getElementById('form-' + sectionId).classList.remove('active');
+    document.getElementById('view-' + sectionId).classList.remove('hidden');
+}
+
+/* ── Save a section via AJAX ───────────────────────────── */
+async function saveSection(sectionId, formEl) {
+    const btn = formEl.querySelector('.btn-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const fd = new FormData(formEl);
+    fd.append('csrfmiddlewaretoken', CSRF);
+
+    try {
+        const resp = await fetch(PROFILE_URL + '?section=' + sectionId, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-CSRFToken': CSRF },
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            cancelSection(sectionId);
+            updateCompleteness(data.completeness);
+            showToast('Saved successfully', 'success');
+            // Refresh page so view-mode data shows updated values
+            setTimeout(() => location.reload(), 600);
+        } else {
+            showToast(data.error || 'Save failed', 'error');
+        }
+    } catch (e) {
+        showToast('Network error — please retry', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+    }
+}
+
+/* ── Completeness bar ──────────────────────────────────── */
+function updateCompleteness(pct) {
+    /* The completeness bar was removed from the redesigned header — nobody
+       acted on the percentage. The elements may therefore be absent, and an
+       unguarded write here would throw on EVERY successful save, making a save
+       that worked look like a save that failed. */
+    var el = document.getElementById('completeness-pct');
+    var bar = document.getElementById('completeness-bar');
+    if (el) { el.textContent = pct + '%'; }
+    if (bar) { bar.style.width = pct + '%'; }
+}
+
+/* ── Checklist toggle styling ──────────────────────────── */
+document.querySelectorAll('.checklist-item input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+        cb.closest('.checklist-item').classList.toggle('checked', cb.checked);
+    });
+});
+
+/* ── Toast ─────────────────────────────────────────────── */
+let toastTimer;
+function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (type || '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+
 <script>
 /* The rail is built from what is actually on the page, not from a list kept
    in this file. Add or remove a section include and the navigation follows —

@@ -252,6 +252,42 @@ def _get_commission(year, month, employee=None, remote_employee=None, currency='
     ))
 
 
+def approved_leave_dates(emp, emp_type, start, end, holiday_dates=None):
+    """Dates in [start, end] covered by an APPROVED leave request.
+
+    ONE DEFINITION, TWO CALLERS. Until now only `_get_inhouse_payroll_row`
+    consulted LeaveRequest, so an approved sick leave was paid for an Admin
+    employee and deducted from a Sales employee — the same approval, two
+    different outcomes depending on which section the person sat in. Both
+    paths now call this.
+
+    Sundays and public holidays are left out because they are already
+    non-working: counting them would credit a day nobody was going to lose.
+
+    Returns an empty set for remote employees. `LeaveRequest.employee` is a FK
+    to `Employee` only — the model has no remote link, so a remote employee
+    CANNOT hold an approved leave request. That is a gap in the models, not a
+    result of this function, and it is reported by the payroll row rather than
+    passed off as "no leave".
+    """
+    if emp_type != 'inhouse':
+        return set()
+    if holiday_dates is None:
+        holiday_dates = set(Holiday.objects.filter(
+            date__gte=start, date__lte=end).values_list('date', flat=True))
+    out = set()
+    for lr in LeaveRequest.objects.filter(
+        employee=emp, status='approved',
+        start_date__lte=end, end_date__gte=start,
+    ):
+        day, last = max(lr.start_date, start), min(lr.end_date, end)
+        while day <= last:
+            if day.weekday() != 6 and day not in holiday_dates:
+                out.add(day)
+            day += datetime.timedelta(days=1)
+    return out
+
+
 def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_holidays, days_in_period=None):
     """Build a payroll data row for one in-house employee."""
     _cross_month = (month_start.month != month_end.month or month_start.year != month_end.year)
@@ -263,17 +299,9 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         _holiday_dates = set(Holiday.objects.filter(
             date__gte=month_start, date__lte=month_end
         ).values_list('date', flat=True))
-        _approved_leave_dates = set()
-        for lr in LeaveRequest.objects.filter(
-            employee=emp, status='approved',
-            start_date__lte=month_end, end_date__gte=month_start,
-        ):
-            _c = max(lr.start_date, month_start)
-            _e = min(lr.end_date, month_end)
-            while _c <= _e:
-                if _c.weekday() != 6 and _c not in _holiday_dates:
-                    _approved_leave_dates.add(_c)
-                _c += datetime.timedelta(days=1)
+        # Same helper the sales path now uses, so the two cannot drift.
+        _approved_leave_dates = approved_leave_dates(
+            emp, 'inhouse', month_start, month_end, _holiday_dates)
         _recs = {r.date: r for r in AttendanceRecord.objects.filter(
             employee=emp, date__gte=month_start, date__lte=month_end
         )}
@@ -368,8 +396,15 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     # and an approved-leave Mon is treated as unpaid leave (one daily_rate off).
     bridge_sunday_count = len(get_bridge_sunday_days(emp, month_start, month_end))
 
-    # Performance-based payroll: no late/leave deductions
+    # Performance-based payroll: no late/leave deductions.
+    # FLAGGED, not silent. Their salary is deliberately independent of
+    # attendance, but a full salary sitting next to 4 absent days reads like an
+    # attendance figure unless the row says otherwise. `attendance_exempt`
+    # is what lets the screen say "not attendance-scaled" instead of leaving
+    # the reader to assume the deduction was simply zero.
+    attendance_exempt = False
     if getattr(emp, 'payroll_type', 'attendance') == 'performance':
+        attendance_exempt = True
         total_deduction_days = 0
         deduction = 0.0
     else:
@@ -455,6 +490,9 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'annual_leave_days': annual_leave_days,
         'annual_leave_compensation': round(annual_leave_compensation, 2),
         'annual_leave_extra_deduction': round(annual_leave_extra_deduction, 2),
+        'attendance_exempt': attendance_exempt,
+        'attendance_exempt_reason': ('performance-based payroll — salary is not '
+                                     'scaled by attendance' if attendance_exempt else ''),
         'total_deduction_days': round(total_deduction_days, 1),
         'daily_rate': round(daily_rate, 2),
         'deduction': round(deduction, 2),
@@ -723,14 +761,25 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         al_compensation, al_days = _sales_annual_leave_compensation(
             emp, emp_type, year, month, _ms, _me, daily_rate
         )
+        # APPROVED LEAVE IS PAID LEAVE HERE TOO.
+        # This branch used to derive absence purely from attendance, so an
+        # approved sick or casual leave counted as a day absent and was
+        # deducted — while the same approval on an Admin employee was paid in
+        # full. Same approval, two answers, decided by which section the
+        # person happened to sit in.
+        _approved_leave = approved_leave_dates(emp, emp_type, _ms, _me)
+        paid_leave_days_honoured = float(len(_approved_leave))
         effective_present = present_days + (half_days * 0.5)
-        if effective_present == 0 and al_compensation == 0:
-            # No attendance and no paid leave at all: deduct the entire calendar
-            # month (including Sundays/holidays) so net salary is zero rather
-            # than paying the non-working-day portion of the daily rate.
+        if effective_present == 0 and al_compensation == 0 and not _approved_leave:
+            # No attendance, no paid leave of any kind: deduct the entire
+            # calendar month (Sundays and holidays included) so net salary is
+            # zero rather than paying the non-working-day portion of the rate.
             absent_days = float(days_in_month)
         else:
-            absent_days = max(0, total_working_days - effective_present) + bridge_sunday_count
+            absent_days = max(
+                0,
+                total_working_days - effective_present - paid_leave_days_honoured
+            ) + bridge_sunday_count
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
         net_payroll = round(base_salary + al_compensation + incentives - reductions, 2)
@@ -747,6 +796,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             'present_days': present_days,
             'half_days': half_days,
             'absent_days': round(absent_days, 1),
+            'paid_leave_days': paid_leave_days_honoured,
             'deduction': round(deduction, 2),
             'annual_leave_compensation': al_compensation,
             'annual_leave_days': al_days,
