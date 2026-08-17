@@ -288,6 +288,47 @@ def approved_leave_dates(emp, emp_type, start, end, holiday_dates=None):
     return out
 
 
+def marked_paid_leave_dates(emp, emp_type, start, end, holiday_dates=None):
+    """Dates in [start, end] an admin marked PAID LEAVE on the attendance calendar.
+
+    THE THIRD MECHANISM. A day can be excused three different ways and they are
+    not interchangeable:
+
+        AttendanceRecord.is_paid_leave   admin ticks the day blue on the calendar
+        LeaveRequest status='approved'   the employee applied and it was granted
+        AnnualLeave span at X%           assigned leave, paid at a percentage
+
+    All three already reach the right NET figure. This function exists because
+    only the last two were ever REPORTED. The attendance calendar would say
+    "Paid Leave 1" while the payroll table said "—" in every leave column, which
+    reads as the day having been thrown away. It was not: the absence deduction
+    was simply never raised for it.
+
+    Days that also carry a punch or a work-from-home flag are left out — those
+    were counted as present, and counting them again here would show a day of
+    leave next to a day of attendance for the same date. Sundays and public
+    holidays are left out for the same reason as in `approved_leave_dates`: they
+    were never going to be lost.
+
+    FOR DISPLAY ONLY. Nothing downstream may add this to pay. The employee has
+    already been paid for these days by not being docked for them; paying again
+    is paying twice.
+    """
+    if emp_type != 'inhouse':
+        return set()
+    if holiday_dates is None:
+        holiday_dates = set(Holiday.objects.filter(
+            date__gte=start, date__lte=end).values_list('date', flat=True))
+    rows = AttendanceRecord.objects.filter(
+        employee=emp, date__gte=start, date__lte=end, is_paid_leave=True,
+    ).values_list('date', 'first_in', 'is_work_from_home')
+    return {
+        d for d, first_in, wfh in rows
+        if not first_in and not wfh
+        and d.weekday() != 6 and d not in holiday_dates
+    }
+
+
 def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_holidays, days_in_period=None):
     """Build a payroll data row for one in-house employee."""
     _cross_month = (month_start.month != month_end.month or month_start.year != month_end.year)
@@ -388,6 +429,13 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
     )
     paid_leave_days = sum(_leave_days_in_month(leave, month_start, month_end) for leave in approved_leaves)
 
+    # `_holiday_dates` is populated only on the cross-month branch; passing an
+    # empty set would silently let a public holiday be counted as a leave day,
+    # so hand over None and let the helper look them up.
+    marked_paid_leave_days = float(len(marked_paid_leave_dates(
+        emp, 'inhouse', month_start, month_end,
+        _holiday_dates if _holiday_dates else None)))
+
     daily_rate = salary / days_in_month if salary > 0 else 0.0
     # Every 3 late days = 1 half-day deduction
     late_half_days = late_days // 3
@@ -486,6 +534,7 @@ def _get_inhouse_payroll_row(emp, year, month, month_start, month_end, total_hol
         'late_days': late_days,
         'late_half_days': late_half_days,
         'paid_leave_days': paid_leave_days,
+        'marked_paid_leave_days': marked_paid_leave_days,
         'bridge_sunday_count': bridge_sunday_count,
         'annual_leave_days': annual_leave_days,
         'annual_leave_compensation': round(annual_leave_compensation, 2),
@@ -644,6 +693,11 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         # credited twice.
         _approved_leave = approved_leave_dates(emp, emp_type, _ms, _me)
         paid_leave_days_honoured = float(len(_approved_leave - _present_dates))
+        # Calendar-marked paid leave is ALREADY inside `_present_dates` on this
+        # path — the present_days query counts is_paid_leave as present. So it is
+        # reported, never subtracted again.
+        marked_paid_leave_days = float(len(
+            marked_paid_leave_dates(emp, emp_type, _ms, _me)))
 
         absent_days = max(
             0, total_working_days - present_days - paid_leave_days_honoured
@@ -670,6 +724,7 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             # made the column look like paid leave was being ignored even in
             # the paths that honoured it.
             'paid_leave_days': paid_leave_days_honoured,
+            'marked_paid_leave_days': marked_paid_leave_days,
             'total_working_days': total_working_days,
             'present_days': present_days,
             'bridge_sunday_count': bridge_sunday_count,
@@ -4212,6 +4267,13 @@ def payroll_test_dashboard(request):
         daily = float(p.get('daily_rate') or 0.0)
         return round(daily * float(p.get('paid_leave_days') or 0.0), 2)
 
+    def _marked_paid_leave_value(p):
+        """Calendar-marked paid leave x daily rate: the other deduction never raised."""
+        if not p:
+            return 0.0
+        daily = float(p.get('daily_rate') or 0.0)
+        return round(daily * float(p.get('marked_paid_leave_days') or 0.0), 2)
+
     def _annual_leave_value(p):
         """Annual-leave compensation, net of the Sunday/holiday charge-back."""
         if not p:
@@ -4291,6 +4353,7 @@ def payroll_test_dashboard(request):
             'ded_cols': ded_cols,
             'add_cols': _add_cols(_categories),
             'paid_leave_value': _paid_leave_value(p),
+            'marked_paid_leave_value': _marked_paid_leave_value(p),
             'annual_leave_value': _annual_leave_value(p),
         })
 
@@ -4361,6 +4424,7 @@ def payroll_test_dashboard(request):
             'ded_cols': ded_cols,
             'add_cols': _add_cols(_categories),
             'paid_leave_value': _paid_leave_value(p),
+            'marked_paid_leave_value': _marked_paid_leave_value(p),
             'annual_leave_value': _annual_leave_value(p),
         })
 
@@ -4517,6 +4581,7 @@ def payroll_test_dashboard(request):
         # Neither leave column is part of any total, so a locked month reads
         # them from the lock or says nothing — never a stale live figure.
         row['paid_leave_value'] = snap.get('paid_leave_value')
+        row['marked_paid_leave_value'] = snap.get('marked_paid_leave_value')
         row['annual_leave_value'] = snap.get('annual_leave_value')
 
     # ---- Phase E6b: category label + Gross Pay breakdown on the summary table ----
@@ -5809,6 +5874,9 @@ def mark_paid_salary(request):
             # neither is ever added to a total.
             'paid_leave_value': round(
                 float(row.get('daily_rate') or 0) * float(row.get('paid_leave_days') or 0), 2),
+            'marked_paid_leave_value': round(
+                float(row.get('daily_rate') or 0)
+                * float(row.get('marked_paid_leave_days') or 0), 2),
             'annual_leave_value': round(
                 float(row.get('annual_leave_compensation') or 0)
                 - float(row.get('annual_leave_extra_deduction') or 0), 2),
