@@ -4385,6 +4385,17 @@ def payroll_test_dashboard(request):
         total_ded = d['total_deductions'] if d else 0.0
         total_add = d['total_additions'] if d else 0.0
         carryover_in = d['carryover_in'] if d else 0.0
+        # A day marked PAID LEAVE was CHARGED as a non-worked day, exactly like a
+        # public holiday. The holiday is handed back through a paid-holiday
+        # DeductionEntry addition; paid leave was the only one of the two taken
+        # away and never returned. It is added here.
+        #
+        # Derived from the attendance calendar rather than stored as a
+        # DeductionEntry, because the marking on the calendar IS the
+        # declaration. A stored row would be a second copy of the same fact,
+        # free to drift from it and free to be created twice by a re-run.
+        marked_pl = _marked_paid_leave_value(p)
+        total_add = round(total_add + marked_pl, 2)
         final_salary = round(payroll_net - total_ded + total_add, 2)
         if not is_frozen and key not in _paid_emp_keys:
             if final_salary < 0:
@@ -4413,7 +4424,15 @@ def payroll_test_dashboard(request):
         # total_ded are included, plus carryover_in, so the modal always
         # reconciles exactly to the total shown in the table.
         _ded_for_total = d.get('ded_for_total', _DED_COLS) if d else _DED_COLS
-        _categories = d['categories'] if d else {}
+        # A COPY, then the derived amount folded into the existing `paid_leave`
+        # addition column so the money appears where an operator looks for it.
+        # Copied because `d['categories']` belongs to the deductions module, and
+        # writing into it would make this figure indistinguishable from a booked
+        # DeductionEntry to everything downstream.
+        _categories = dict(d['categories']) if d else {}
+        if marked_pl:
+            _categories['paid_leave'] = round(
+                float(_categories.get('paid_leave') or 0.0) + marked_pl, 2)
         ded_breakdown_json = json.dumps({
             'items': {c: _categories.get(c, 0.0) for c in _ded_for_total if _categories.get(c, 0.0)},
             'carryover_in': carryover_in,
@@ -4448,7 +4467,10 @@ def payroll_test_dashboard(request):
             'ded_cols': ded_cols,
             'add_cols': _add_cols(_categories),
             'paid_leave_value': _paid_leave_value(p),
-            'marked_paid_leave_value': _marked_paid_leave_value(p),
+            # Kept for the snapshot and for audit, no longer for the greyed
+            # leave group: the money is in ADDITIONS now, and showing it in both
+            # places would read as two payments for one day.
+            'marked_paid_leave_value': marked_pl,
             'annual_leave_value': _annual_leave_value(p),
         })
 
@@ -4460,6 +4482,17 @@ def payroll_test_dashboard(request):
         total_ded = d['total_deductions'] if d else 0.0
         total_add = d['total_additions'] if d else 0.0
         carryover_in = d['carryover_in'] if d else 0.0
+        # A day marked PAID LEAVE was CHARGED as a non-worked day, exactly like a
+        # public holiday. The holiday is handed back through a paid-holiday
+        # DeductionEntry addition; paid leave was the only one of the two taken
+        # away and never returned. It is added here.
+        #
+        # Derived from the attendance calendar rather than stored as a
+        # DeductionEntry, because the marking on the calendar IS the
+        # declaration. A stored row would be a second copy of the same fact,
+        # free to drift from it and free to be created twice by a re-run.
+        marked_pl = _marked_paid_leave_value(p)
+        total_add = round(total_add + marked_pl, 2)
         final_salary = round(payroll_net - total_ded + total_add, 2)
         if not is_frozen and key not in _paid_emp_keys:
             if final_salary < 0:
@@ -4484,7 +4517,15 @@ def payroll_test_dashboard(request):
         if final_salary == 0.0 and round(payroll_net - total_ded + total_add, 2) < 0:
             carryover_out = round(abs(payroll_net - total_ded + total_add), 2)
         _ded_for_total = d.get('ded_for_total', _DED_COLS) if d else _DED_COLS
-        _categories = d['categories'] if d else {}
+        # A COPY, then the derived amount folded into the existing `paid_leave`
+        # addition column so the money appears where an operator looks for it.
+        # Copied because `d['categories']` belongs to the deductions module, and
+        # writing into it would make this figure indistinguishable from a booked
+        # DeductionEntry to everything downstream.
+        _categories = dict(d['categories']) if d else {}
+        if marked_pl:
+            _categories['paid_leave'] = round(
+                float(_categories.get('paid_leave') or 0.0) + marked_pl, 2)
         ded_breakdown_json = json.dumps({
             'items': {c: _categories.get(c, 0.0) for c in _ded_for_total if _categories.get(c, 0.0)},
             'carryover_in': carryover_in,
@@ -4519,7 +4560,10 @@ def payroll_test_dashboard(request):
             'ded_cols': ded_cols,
             'add_cols': _add_cols(_categories),
             'paid_leave_value': _paid_leave_value(p),
-            'marked_paid_leave_value': _marked_paid_leave_value(p),
+            # Kept for the snapshot and for audit, no longer for the greyed
+            # leave group: the money is in ADDITIONS now, and showing it in both
+            # places would read as two payments for one day.
+            'marked_paid_leave_value': marked_pl,
             'annual_leave_value': _annual_leave_value(p),
         })
 
