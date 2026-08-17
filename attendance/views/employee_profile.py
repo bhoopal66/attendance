@@ -53,6 +53,7 @@ from ..audit import log_audit
 from .. import compliance_access as access
 from .. import services_compliance as svc_compliance
 from ..services_compliance import build_block as build_compliance_block
+from ..services_profile_header import build as build_profile_header
 from .utils import section_required
 
 logger = logging.getLogger('attendance')
@@ -170,6 +171,10 @@ def employee_profile(request, person_id):
         # see is ABSENT from the context, not present and hidden by the
         # template, so it never reaches the browser at all.
         'compliance':           build_compliance_block(employee, request.user),
+        # Redesigned header: state, alerts and key facts. An empty alert list
+        # renders nothing at all — see services_profile_header for why there is
+        # no "everything is fine" banner.
+        **build_profile_header(employee),
         'visa_type_choices':    Employee.VISA_TYPE_CHOICES,
         'contract_type_choices': Employee.CONTRACT_TYPE_CHOICES,
         'commission_plans':     _commission_plans(),

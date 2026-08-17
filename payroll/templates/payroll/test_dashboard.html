@@ -120,18 +120,39 @@ table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
    Numeric cells are additionally held on one line, so "content width" means
    the width of the figure rather than of some wrapped fragment of it. */
 .table-wrap > table { width: 100%; table-layout: auto; }
+/* ── Payroll tables — the content decides the width ─────────────────────
+   `th.text-right` USED TO BE IN THIS LIST, and that one line was the whole
+   problem: it forbade every right-aligned heading from ever wrapping, so a
+   column headed "Abu Dhabi Commercial Bank" was at least as wide as that
+   phrase on one line — 235px to hold a single digit. The figures need
+   nowrap. The headings never did. */
 .table-wrap > table td.num,
-.table-wrap > table th.text-right,
 .table-wrap > table td.text-right { white-space: nowrap; }
+
+/* Headings wrap onto rows, bottom-aligned so a one-line heading sits on the
+   baseline of a three-line neighbour. No max-width and no `ch` constant:
+   wrapping at spaces makes the floor the longest single word, which is what
+   "content decides the width" means. A cap would split "Commercial" mid-word
+   to satisfy a number nobody chose. Measured in Chromium, five bank columns:
+   table 1687px -> 1165px, bank columns 893px -> 413px. */
+.table-wrap > table thead th {
+    white-space: normal;
+    overflow-wrap: normal;
+    line-height: 1.25;
+    vertical-align: bottom;
+}
 /* Identity column soaks up the remainder. finalTable leads with a checkbox,
    so its name column is the second cell; the category tables lead with the
    name itself. */
+/* The identity column absorbs whatever slack is left, forcing every other
+   column down to its content width. Applied to EVERY table rather than a list
+   of ids: the Remote Sales table and the four summary tables carry no id, so
+   they were silently excluded and were the ones that looked wrong. A rule
+   that must be re-applied by hand to each new table gets forgotten. */
+.table-wrap > table tbody td:first-child { width: 100%; }
+/* finalTable leads with a checkbox, so its identity column is the second. */
+#finalTable tbody td:first-child { width: auto; }
 #finalTable tbody td:nth-child(2) { width: 100%; }
-#adminInhouseTable tbody td:first-child,
-#adminRemoteTable tbody td:first-child,
-#salesFixedTable tbody td:first-child,
-#salesPerfTestTable tbody td:first-child,
-#salesPerfInhouseTable tbody td:first-child { width: 100%; }
 /* Tighter gutters across the data tables. At 20-plus columns the padding was
    costing more width than the figures themselves. The outer edges keep a
    roomier gutter so the table doesn't collide with the card border. */
