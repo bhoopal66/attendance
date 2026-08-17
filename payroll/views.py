@@ -609,12 +609,17 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
         _ms = period_start or datetime.date(year, month, 1)
         _me = period_end or datetime.date(year, month, days_in_month)
         if emp_type == 'inhouse':
-            present_days = AttendanceRecord.objects.filter(
+            # Dates, not a count: the approved-leave subtraction below has to
+            # know WHICH days were already credited, or a day that is both
+            # punched and inside an approved leave span gets paid twice.
+            _present_dates = set(AttendanceRecord.objects.filter(
                 employee=emp, date__gte=_ms, date__lte=_me,
             ).filter(
                 Q(first_in__isnull=False) | Q(is_work_from_home=True) | Q(is_paid_leave=True)
-            ).count()
+            ).values_list('date', flat=True))
+            present_days = len(_present_dates)
         else:
+            _present_dates = set()
             call_records = RemoteCallRecord.objects.filter(
                 employee=emp, date__gte=_ms, date__lte=_me,
             ).only('answered_calls', 'no_answered', 'busy', 'failed')
@@ -625,7 +630,24 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             )
         bridge_sunday_count = len(get_bridge_sunday_days(emp, _ms, _me))
 
-        absent_days = max(0, total_working_days - present_days) + bridge_sunday_count
+        # An APPROVED leave request must land exactly where an admin-marked
+        # paid-leave day lands: not deducted. `present_days` above already
+        # honours the is_paid_leave flag, but nothing here consulted
+        # LeaveRequest, so the very same approval was honoured for an
+        # attendance-paid employee (see _get_inhouse_payroll_row) and charged
+        # as an absence for a fixed-salary one. Same approval, two answers,
+        # decided by a checkbox on the employee record.
+        #
+        # `approved_leave_dates` already drops Sundays and public holidays —
+        # they are non-working and were never going to be lost. Subtracting
+        # `_present_dates` drops days that were ALSO punched, so no day is
+        # credited twice.
+        _approved_leave = approved_leave_dates(emp, emp_type, _ms, _me)
+        paid_leave_days_honoured = float(len(_approved_leave - _present_dates))
+
+        absent_days = max(
+            0, total_working_days - present_days - paid_leave_days_honoured
+        ) + bridge_sunday_count
         deduction = daily_rate * absent_days
         base_salary = round(salary - deduction, 2)
         al_compensation, al_days = _sales_annual_leave_compensation(
@@ -642,6 +664,15 @@ def _get_sales_payroll_row(emp, year, month, emp_type, banks, days_in_month=None
             'salary': round(salary, 2),
             'daily_rate': round(daily_rate, 2),
             'absent_days': absent_days,
+            # Reported so the Paid Leave column can show it. This is money that
+            # was NEVER DEDUCTED, not money added on top — see the comment on
+            # _paid_leave_value in the dashboard view. Reporting 0 here is what
+            # made the column look like paid leave was being ignored even in
+            # the paths that honoured it.
+            'paid_leave_days': paid_leave_days_honoured,
+            'total_working_days': total_working_days,
+            'present_days': present_days,
+            'bridge_sunday_count': bridge_sunday_count,
             'deduction': round(deduction, 2),
             'annual_leave_compensation': al_compensation,
             'annual_leave_days': al_days,
