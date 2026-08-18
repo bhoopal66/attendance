@@ -648,3 +648,267 @@ class AuditLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# --- Phase 1a: legal entities -------------------------------------------------
+# Registered so entities can be added from day one, as requested: "I should add
+# entities as and when required." A dedicated settings page can replace this
+# later; until then the admin is a working door rather than a missing one.
+from attendance.models import Company as _Company
+
+
+@admin.register(_Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'legal_name', 'is_active', 'headcount')
+    list_filter = ('is_active',)
+    search_fields = ('code', 'name', 'legal_name', 'trade_licence_number')
+
+    def headcount(self, obj):
+        # Both employee types, because a company that looks empty when it holds
+        # 27 remote staff is worse than no number at all.
+        return obj.employees.count() + obj.remoteemployees.count()
+    headcount.short_description = 'Employees'
+
+
+# --- Phase 2: effective-dated assignments -------------------------------------
+# Read-oriented on purpose. Assignments are opened through
+# services_assignments.open_assignment(), which closes the previous period in
+# the same transaction. Hand-editing a row here would leave a gap or an overlap
+# with nothing to catch it, so the list is browsable and the rows are not.
+from attendance.models import EmployeeAssignment as _EmployeeAssignment
+
+
+@admin.register(_EmployeeAssignment)
+class EmployeeAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('person', 'effective_from', 'effective_to', 'is_current',
+                    'change_type', 'department', 'designation', 'reporting_manager')
+    list_filter = ('is_current', 'change_type', 'department')
+    search_fields = ('employee__name', 'remote_employee__name',
+                     'designation', 'department')
+    date_hierarchy = 'effective_from'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+# --- Phase 3: approvals and timeline ------------------------------------------
+from attendance.models import (
+    ApprovalChain as _ApprovalChain,
+    ApprovalChainStep as _ApprovalChainStep,
+    ApprovalRequest as _ApprovalRequest,
+    ApprovalStep as _ApprovalStep,
+    EmployeeTimelineEvent as _EmployeeTimelineEvent,
+)
+
+
+class _ChainStepInline(admin.TabularInline):
+    model = _ApprovalChainStep
+    extra = 1
+
+
+@admin.register(_ApprovalChain)
+class ApprovalChainAdmin(admin.ModelAdmin):
+    # Chains ARE editable — that is the configuration surface. A chain with no
+    # steps is refused at submit time rather than silently auto-approving.
+    list_display = ('request_type', 'company', 'description', 'is_active', 'step_count')
+    list_filter = ('request_type', 'is_active')
+    inlines = [_ChainStepInline]
+
+    def step_count(self, obj):
+        return obj.steps.count()
+    step_count.short_description = 'Steps'
+
+
+class _ApprovalStepInline(admin.TabularInline):
+    model = _ApprovalStep
+    extra = 0
+    can_delete = False
+    readonly_fields = ('sequence', 'role_required', 'label', 'decision',
+                       'decided_by', 'decided_at', 'comments')
+
+
+@admin.register(_ApprovalRequest)
+class ApprovalRequestAdmin(admin.ModelAdmin):
+    # Read-only on purpose. Decisions go through services_approvals.decide(),
+    # which enforces order and applies the change. Editing a decision here
+    # would record an approval that never applied anything.
+    list_display = ('request_type', 'person', 'summary', 'effective_date',
+                    'status', 'submitted_by', 'submitted_at', 'applied_at')
+    list_filter = ('status', 'request_type')
+    search_fields = ('employee__name', 'remote_employee__name', 'summary')
+    inlines = [_ApprovalStepInline]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(_EmployeeTimelineEvent)
+class EmployeeTimelineEventAdmin(admin.ModelAdmin):
+    list_display = ('event_date', 'person', 'category', 'event_type', 'title')
+    list_filter = ('category', 'event_type')
+    search_fields = ('employee__name', 'remote_employee__name', 'title', 'detail')
+    date_hierarchy = 'event_date'
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+# --- Phase 5: identity and compliance -----------------------------------------
+from attendance.models import (
+    EmployeeDependent as _EmployeeDependent,
+    EmployeeEducation as _EmployeeEducation,
+    EmployeeInsurance as _EmployeeInsurance,
+    EmployeeMedicalFitness as _EmployeeMedicalFitness,
+    EmployeePreviousEmployment as _EmployeePreviousEmployment,
+    EmployeeQualification as _EmployeeQualification,
+    EmployeeVisa as _EmployeeVisa,
+)
+
+
+@admin.register(_EmployeeVisa)
+class EmployeeVisaAdmin(admin.ModelAdmin):
+    # Editable, unlike assignments: a visa row is a record of a document, not a
+    # period whose neighbours have to be closed. Renewals should still go
+    # through services_identity.renew_visa(), which retires the previous one.
+    list_display = ('person', 'residence_permit_number', 'visa_type', 'sponsor',
+                    'issue_date', 'expiry_date', 'status', 'is_current')
+    list_filter = ('status', 'is_current', 'sponsor_type', 'visa_type')
+    search_fields = ('employee__name', 'remote_employee__name', 'uid_number',
+                     'visa_file_number', 'residence_permit_number')
+    date_hierarchy = 'expiry_date'
+
+
+@admin.register(_EmployeeDependent)
+class EmployeeDependentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'person', 'relationship', 'date_of_birth',
+                    'sponsored_by_company', 'insurance_covered', 'visa_expiry')
+    list_filter = ('relationship', 'sponsored_by_company', 'insurance_covered')
+    search_fields = ('name', 'employee__name', 'remote_employee__name', 'passport_number')
+
+
+@admin.register(_EmployeeInsurance)
+class EmployeeInsuranceAdmin(admin.ModelAdmin):
+    list_display = ('person', 'provider', 'policy_number', 'category',
+                    'coverage_start', 'coverage_end', 'is_current')
+    list_filter = ('provider', 'is_current', 'covers_dependents')
+    search_fields = ('employee__name', 'remote_employee__name', 'policy_number',
+                     'member_number')
+    date_hierarchy = 'coverage_end'
+
+
+@admin.register(_EmployeeMedicalFitness)
+class EmployeeMedicalFitnessAdmin(admin.ModelAdmin):
+    list_display = ('person', 'test_date', 'centre', 'result',
+                    'certificate_number', 'expiry_date')
+    list_filter = ('result',)
+    search_fields = ('employee__name', 'remote_employee__name',
+                     'certificate_number', 'application_number')
+
+
+@admin.register(_EmployeeEducation)
+class EmployeeEducationAdmin(admin.ModelAdmin):
+    list_display = ('person', 'qualification', 'institution', 'country',
+                    'completion_date', 'attested', 'mofa_attested',
+                    'uae_embassy_attested')
+    list_filter = ('attested', 'mofa_attested', 'uae_embassy_attested', 'country')
+    search_fields = ('employee__name', 'remote_employee__name', 'qualification',
+                     'institution')
+
+
+@admin.register(_EmployeeQualification)
+class EmployeeQualificationAdmin(admin.ModelAdmin):
+    list_display = ('person', 'title', 'issuing_authority', 'membership_number',
+                    'expiry_date', 'cpd_required', 'is_current')
+    list_filter = ('is_current', 'cpd_required', 'issuing_authority')
+    search_fields = ('employee__name', 'remote_employee__name', 'title',
+                     'membership_number')
+    date_hierarchy = 'expiry_date'
+
+
+@admin.register(_EmployeePreviousEmployment)
+class EmployeePreviousEmploymentAdmin(admin.ModelAdmin):
+    list_display = ('person', 'employer', 'designation', 'from_date', 'to_date',
+                    'reference_checked')
+    list_filter = ('reference_checked', 'country')
+    search_fields = ('employee__name', 'remote_employee__name', 'employer')
+
+
+# --- Phase 6: leave policy and ledger -----------------------------------------
+from attendance.models import (
+    EmployeeReturnToWork as _EmployeeReturnToWork,
+    LeaveLedgerEntry as _LeaveLedgerEntry,
+    LeavePolicy as _LeavePolicy,
+    LeavePolicyVersion as _LeavePolicyVersion,
+    LeaveType as _LeaveType,
+)
+
+
+class _LeavePolicyVersionInline(admin.TabularInline):
+    model = _LeavePolicyVersion
+    extra = 0
+    # A version is added, never edited: editing the numbers on a version that
+    # has already been paid against rewrites history silently. Add a new one
+    # with a later effective_from instead.
+    readonly_fields = ('effective_from', 'source_reference')
+
+
+@admin.register(_LeavePolicy)
+class LeavePolicyAdmin(admin.ModelAdmin):
+    list_display = ('name', 'leave_type_code', 'labour_jurisdiction', 'company',
+                    'is_active', 'version_count')
+    list_filter = ('leave_type_code', 'labour_jurisdiction', 'is_active')
+    inlines = [_LeavePolicyVersionInline]
+
+    def version_count(self, obj):
+        return obj.versions.count()
+    version_count.short_description = 'Versions'
+
+
+@admin.register(_LeavePolicyVersion)
+class LeavePolicyVersionAdmin(admin.ModelAdmin):
+    list_display = ('policy', 'effective_from', 'effective_to', 'full_days_per_year',
+                    'pay_percentage', 'divisor_basis', 'source_reference')
+    list_filter = ('accrual_basis', 'divisor_basis', 'encashment_basis')
+
+
+@admin.register(_LeaveLedgerEntry)
+class LeaveLedgerEntryAdmin(admin.ModelAdmin):
+    # READ ONLY. Every row states the balance it left behind; editing one makes
+    # every later row assert a balance that never existed. Corrections go on the
+    # end as a dated adjustment, through services_leave_ledger.post().
+    list_display = ('entry_date', 'person', 'leave_type_code', 'kind', 'days',
+                    'balance_after', 'description', 'created_by')
+    list_filter = ('kind', 'leave_type_code')
+    search_fields = ('employee__name', 'remote_employee__name', 'description', 'reason')
+    date_hierarchy = 'entry_date'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(_EmployeeReturnToWork)
+class EmployeeReturnToWorkAdmin(admin.ModelAdmin):
+    list_display = ('person', 'leave_type_code', 'leave_start', 'expected_return',
+                    'actual_return', 'delay_days', 'delay_authorised',
+                    'payroll_effective_date')
+    list_filter = ('delay_authorised', 'leave_type_code')
+    search_fields = ('employee__name', 'remote_employee__name')
+
+
+@admin.register(_LeaveType)
+class LeaveTypeAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_paid', 'consumes_annual_entitlement',
+                    'requires_document', 'max_days_per_year', 'is_active')
+    list_filter = ('is_paid', 'consumes_annual_entitlement', 'is_active')

@@ -185,6 +185,69 @@ class BaseEmployee(models.Model):
         ('OnTime', 'OnTime'),
         ('Taamul', 'Taamul'),
     ]
+    company = models.ForeignKey(
+        'attendance.Company', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='%(class)ss',
+        help_text="Which legal entity employs this person. NULLABLE for now: "
+                  "the column lands first, every existing employee is assigned "
+                  "to a default entity by the seed_company command, and only "
+                  "then is it made required. Making it required in the same "
+                  "migration that creates it would fail on the first row of a "
+                  "live payroll database. "
+                  "on_delete=PROTECT because deleting a company out from under "
+                  "44 payroll records should be refused, not cascaded.",
+    )
+
+    # --- MOHRE identifiers (§9) -------------------------------------------
+    # IDENTIFIERS ONLY. The work permit's expiry is deliberately NOT here: the
+    # labour card already exists as an EmployeeDocument and the compliance
+    # watchlist reads its expiry. A second expiry date would give the same
+    # renewal two answers, and the one nobody is watching would be the wrong
+    # one. What lives here is the set of numbers a MOHRE query is made against.
+    mohre_person_number = models.CharField(
+        max_length=40, blank=True, default='', db_index=True,
+        help_text='MOHRE person number — follows the individual, not the permit.')
+    labour_card_number = models.CharField(max_length=40, blank=True, default='')
+    work_permit_number = models.CharField(max_length=40, blank=True, default='')
+    work_permit_type = models.CharField(max_length=60, blank=True, default='')
+    work_permit_status = models.CharField(max_length=40, blank=True, default='')
+    establishment_number = models.CharField(
+        max_length=40, blank=True, default='',
+        help_text="The employing establishment's MOHRE number. Held per employee "
+                  "as well as per company because an employee can sit under a "
+                  "different establishment from their entity's default.")
+    labour_contract_number = models.CharField(max_length=60, blank=True, default='')
+    mohre_job_title = models.CharField(
+        max_length=120, blank=True, default='',
+        help_text='Job title AS FILED WITH MOHRE, which is frequently not the '
+                  'internal designation. Both are needed: one for the labour '
+                  'file, one for the org chart.')
+    skill_level = models.CharField(max_length=30, blank=True, default='')
+
+    LABOUR_JURISDICTION_CHOICES = [
+        ('', '— not recorded —'),
+        ('mohre', 'MOHRE — UAE mainland'),
+        ('uae_own_visa', 'UAE — own / spouse visa'),
+        ('offshore', 'Non-UAE / offshore'),
+        ('other', 'Other'),
+    ]
+    labour_jurisdiction = models.CharField(
+        max_length=20, choices=LABOUR_JURISDICTION_CHOICES, blank=True,
+        default='', db_index=True,
+        help_text="Which employment regime this person actually falls under. "
+                  "NOT a formality: MOHRE staff are covered by UAE labour law "
+                  "(Article 29 leave pay, gratuity, WPS); offshore staff working "
+                  "from India or Nepal are not covered by any of it and are "
+                  "governed by their contract instead. "
+                  "Deliberately BLANK by default rather than defaulting to "
+                  "MOHRE — a wrong jurisdiction stamped on the whole workforce "
+                  "is worse than an empty one, because it looks like a decision "
+                  "somebody made. Statutory rules are NOT yet gated on this "
+                  "field (bhoopal, 17 Aug 2026): it records the truth now so "
+                  "gating can be switched on later without re-deriving who is "
+                  "who, one employee at a time, from memory.",
+    )
+
     visa_provider = models.CharField(
         max_length=20,
         choices=VISA_PROVIDER_CHOICES,
@@ -496,6 +559,8 @@ class Employee(BaseEmployee):
         max_length=50, null=True, blank=True,
         help_text="Emirates ID / Aadhaar / National ID number",
     )
+    passport_type = models.CharField(max_length=40, blank=True, default='')
+    passport_place_of_issue = models.CharField(max_length=100, blank=True, default='')
     passport_number = models.CharField(max_length=30, null=True, blank=True)
 
     # Bank Details
@@ -811,6 +876,16 @@ class SalaryStructure(models.Model):
         max_length=3, default='AED',
         help_text="ISO currency code (e.g. AED, INR, NPR)",
     )
+    revision_type = models.CharField(
+        max_length=30, blank=True, default='',
+        help_text="Annual increment, promotion, market adjustment, correction, "
+                  "other. Free text rather than choices so a new category does "
+                  "not need a migration; the transaction layer supplies it.")
+    approved_by = models.CharField(
+        max_length=150, blank=True, default='',
+        help_text="Who signed it off. Written by the approval engine, not by "
+                  "hand — a name typed into a box is not an approval.")
+    approved_at = models.DateTimeField(null=True, blank=True)
     revision_reason = models.TextField(
         blank=True,
         help_text="Business reason for this salary revision (e.g. Annual appraisal)",
@@ -1808,3 +1883,955 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f'{self.get_action_display()} {self.model_name} #{self.object_id} by {self.actor or "system"} @ {self.timestamp:%Y-%m-%d %H:%M}'
+
+
+class Company(models.Model):
+    """A legal entity. Taamul, NAAS, and whatever comes next.
+
+    ADDED BY THE USER, NOT SEEDED BY A DEVELOPER. bhoopal's instruction on
+    17 Aug 2026 was that entities must be addable as and when required, so this
+    ships with no hard-coded list: one default row is created from the existing
+    data and everything after that is entered through the UI.
+
+    Deliberately LEAN. The specification (§82) lists work week, leave rules,
+    payroll rules, approval rules, WPS configuration, gratuity rules, holiday
+    calendar and salary components as per-company settings. None of them are
+    fields here, because each belongs on the table that already owns that
+    concept — a holiday calendar is a property of Holiday, not of Company.
+    Putting them here would create a second place for the same rule to live and
+    a second chance for the two to disagree. They arrive as `company` foreign
+    keys on those tables, one phase at a time.
+    """
+    code = models.CharField(
+        max_length=12, unique=True,
+        help_text="Short handle, e.g. TAM or NAAS. Used in reports and exports. "
+                  "NOT used to build employee numbers — those stay in the TCR "
+                  "format, entered by hand (bhoopal, 17 Aug 2026).",
+    )
+    name = models.CharField(max_length=120, help_text="Trading name as people say it.")
+    legal_name = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="Full registered name, for contracts and letters. Blank is "
+                  "allowed — an unfilled field is better than a guessed one on "
+                  "a document somebody signs.",
+    )
+    trade_licence_number = models.CharField(max_length=60, blank=True, default='')
+    establishment_number = models.CharField(
+        max_length=60, blank=True, default='',
+        help_text="MOHRE establishment number, where the entity has one.",
+    )
+    default_labour_jurisdiction = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text="Suggested jurisdiction for new employees of this entity. A "
+                  "SUGGESTION, not an override: jurisdiction is decided per "
+                  "employee, because one entity can hold MOHRE staff, own-visa "
+                  "staff and offshore staff at the same time — as this one does.",
+    )
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'Companies'
+
+    def __str__(self):
+        return f'{self.name} ({self.code})'
+
+
+class EmployeeAssignment(models.Model):
+    """Where a person sat, and when. The §1 principle, made concrete.
+
+    Today `department`, `team`, `location`, `designation` and
+    `reporting_manager` are single overwritable fields on the employee row.
+    Change someone's manager and the previous manager stops having existed —
+    which makes every historical approval, every past appraisal and every "who
+    signed this off" question unanswerable. This table is the record that
+    survives the change.
+
+    SHAPES ARE COPIED, NOT IMPROVED
+    -------------------------------
+    `department`, `team`, `location` and `designation` are CharFields here
+    because that is exactly what they are on the employee row today, even
+    though Department, Team, Location and DesignationMaster tables exist beside
+    them. Normalising strings onto those master tables is real work with real
+    ambiguity ("Admin" vs "Administration") and it belongs in its own pass with
+    its own reconciliation. Copying the shapes verbatim is what makes the
+    backfill provably lossless: every value that goes in comes back out
+    identical, and that can be asserted row by row.
+
+    OVERLAP
+    -------
+    One assignment per employee may be current at a time, and periods must not
+    overlap. That is enforced in `clean()` and in
+    `services_assignments.open_assignment()`, NOT by a partial unique index —
+    MySQL does not support conditional constraints, so a
+    `UniqueConstraint(condition=...)` would be silently useless on the very
+    database this runs on. What IS enforced at database level is the part MySQL
+    can do: no two assignments for the same person starting on the same day.
+    """
+
+    CHANGE_JOINING = 'joining'
+    CHANGE_PROMOTION = 'promotion'
+    CHANGE_TRANSFER = 'transfer'
+    CHANGE_MANAGER = 'manager_change'
+    CHANGE_REGRADE = 'regrade'
+    CHANGE_CORRECTION = 'correction'
+    CHANGE_REHIRE = 'rehire'
+    CHANGE_OTHER = 'other'
+    CHANGE_TYPE_CHOICES = [
+        (CHANGE_JOINING, 'Joining'),
+        (CHANGE_PROMOTION, 'Promotion'),
+        (CHANGE_TRANSFER, 'Transfer'),
+        (CHANGE_MANAGER, 'Manager change'),
+        (CHANGE_REGRADE, 'Grade change'),
+        (CHANGE_CORRECTION, 'Correction'),
+        (CHANGE_REHIRE, 'Rehire'),
+        (CHANGE_OTHER, 'Other'),
+    ]
+
+    employee = models.ForeignKey(
+        'attendance.Employee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='assignments')
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='assignments')
+    company = models.ForeignKey(
+        'attendance.Company', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='assignments',
+        help_text="The entity as at this assignment. Held here as well as on "
+                  "the employee because moving between entities IS a transfer, "
+                  "and the old row has to keep saying where they used to be.")
+
+    effective_from = models.DateField(db_index=True)
+    effective_to = models.DateField(
+        null=True, blank=True, db_index=True,
+        help_text="Blank means open-ended — this is the arrangement in force. "
+                  "Closed by the next assignment, never by hand.")
+    is_current = models.BooleanField(
+        default=True, db_index=True,
+        help_text="Denormalised for querying. `effective_to IS NULL` is the "
+                  "truth; this is the index that makes 'who is where today' "
+                  "cheap. services_assignments keeps the two in step.")
+
+    department = models.CharField(max_length=100, blank=True, default='')
+    team = models.CharField(max_length=100, blank=True, default='')
+    location = models.CharField(max_length=100, blank=True, default='')
+    designation = models.CharField(max_length=100, blank=True, default='')
+    grade = models.CharField(
+        max_length=50, blank=True, default='',
+        help_text="New — no grade exists on the employee row today, so this is "
+                  "empty on every backfilled row rather than invented.")
+    job_level = models.CharField(max_length=50, blank=True, default='')
+    cost_centre = models.CharField(max_length=50, blank=True, default='')
+
+    reporting_manager = models.ForeignKey(
+        'attendance.Employee', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='managed_assignments')
+    functional_manager = models.ForeignKey(
+        'attendance.Employee', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='functionally_managed_assignments')
+
+    change_type = models.CharField(
+        max_length=20, choices=CHANGE_TYPE_CHOICES, default=CHANGE_OTHER, db_index=True)
+    reason = models.TextField(
+        blank=True, default='',
+        help_text="Why this changed. Empty on backfilled rows, which is honest: "
+                  "nobody recorded a reason at the time and inventing one would "
+                  "put words in somebody's mouth.")
+
+    approved_by = models.CharField(max_length=150, blank=True, default='')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-effective_from', '-id']
+        verbose_name = 'Employee assignment'
+        indexes = [
+            models.Index(fields=['employee', 'is_current']),
+            models.Index(fields=['remote_employee', 'is_current']),
+            models.Index(fields=['employee', 'effective_from']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'effective_from'],
+                name='uniq_assignment_inhouse_start'),
+            models.UniqueConstraint(
+                fields=['remote_employee', 'effective_from'],
+                name='uniq_assignment_remote_start'),
+        ]
+
+    def __str__(self):
+        who = self.employee or self.remote_employee
+        end = self.effective_to.isoformat() if self.effective_to else 'current'
+        return f'{who} — {self.designation or self.department or "assignment"} ({self.effective_from} to {end})'
+
+    @property
+    def person(self):
+        return self.employee or self.remote_employee
+
+    def clean(self):
+        super().clean()
+        if self.employee and self.remote_employee:
+            raise ValidationError(
+                'An assignment belongs to either an in-house or a remote employee, not both.')
+        if not self.employee and not self.remote_employee:
+            raise ValidationError('An assignment must belong to an employee.')
+        if self.effective_to and self.effective_from and self.effective_to < self.effective_from:
+            raise ValidationError({'effective_to': 'Cannot end before it starts.'})
+
+        # Overlap. Enforced here because MySQL cannot express it as a constraint.
+        if self.effective_from:
+            qs = EmployeeAssignment.objects.filter(
+                employee=self.employee, remote_employee=self.remote_employee)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            end = self.effective_to
+            for other in qs:
+                o_end = other.effective_to
+                starts_before_other_ends = (o_end is None or self.effective_from <= o_end)
+                other_starts_before_this_ends = (end is None or other.effective_from <= end)
+                if starts_before_other_ends and other_starts_before_this_ends:
+                    raise ValidationError(
+                        'Overlaps an existing assignment (%s to %s). Close that one first.'
+                        % (other.effective_from, o_end or 'current'))
+
+
+class EmployeeTimelineEvent(models.Model):
+    """One line in the story of an employee. §46 calls this mandatory.
+
+    Joined · confirmed · salary revised · promoted · manager changed · leave
+    taken · warning issued · visa renewed · resigned. One chronology, filterable,
+    that answers "what happened to this person" without opening six screens.
+
+    DEDUPE, AND WHY IT IS A STRING
+    ------------------------------
+    Events are written by backfills and by live code, and both run more than
+    once. Without a key, re-running a backfill doubles everyone's history —
+    which is worse than no timeline, because it looks authoritative.
+
+    The key is a single unique CharField rather than a composite unique index
+    across (employee, remote_employee, type, source, date). MySQL treats NULLs
+    in a unique index as distinct, and exactly one of those two FKs is always
+    NULL, so the composite version would permit duplicates on the very database
+    this runs on. 190 characters because that is the utf8mb4 index limit.
+
+    SOURCE IS A STRING PAIR, NOT A GENERIC FOREIGN KEY
+    --------------------------------------------------
+    Same choice AuditLog already made in this codebase: `source_model` and
+    `source_id` as plain fields, so the attendance app never takes a hard
+    dependency on payroll to render a payroll event.
+    """
+
+    CATEGORY_CHOICES = [
+        ('employment', 'Employment'),
+        ('salary', 'Salary'),
+        ('leave', 'Leave'),
+        ('attendance', 'Attendance'),
+        ('promotion', 'Promotion'),
+        ('warning', 'Warning'),
+        ('document', 'Document'),
+        ('payroll', 'Payroll'),
+        ('performance', 'Performance'),
+        ('compliance', 'Compliance'),
+        ('other', 'Other'),
+    ]
+
+    employee = models.ForeignKey(
+        'attendance.Employee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='timeline_events')
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='timeline_events')
+
+    event_date = models.DateField(db_index=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES,
+                                default='other', db_index=True)
+    event_type = models.CharField(max_length=50, db_index=True)
+    title = models.CharField(max_length=200)
+    detail = models.TextField(blank=True, default='')
+
+    source_model = models.CharField(max_length=60, blank=True, default='')
+    source_id = models.CharField(max_length=40, blank=True, default='')
+
+    dedupe_key = models.CharField(max_length=190, unique=True)
+    created_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-event_date', '-id']
+        indexes = [
+            models.Index(fields=['employee', 'event_date']),
+            models.Index(fields=['remote_employee', 'event_date']),
+            models.Index(fields=['category', 'event_date']),
+        ]
+
+    def __str__(self):
+        return f'{self.event_date} — {self.title}'
+
+    @property
+    def person(self):
+        return self.employee or self.remote_employee
+
+
+class ApprovalChain(models.Model):
+    """Who has to say yes to a given kind of transaction, in what order.
+
+    Configurable per company, with a fallback: a chain whose `company` is blank
+    applies to every entity that has no chain of its own. That is what makes
+    adding a second entity cheap — it inherits until somebody says otherwise.
+
+    §58 also wants chains varying by department, amount and grade. Not built:
+    those conditions have no callers yet, and a configuration surface nobody
+    fills in is a place for stale rules to hide.
+    """
+    request_type = models.CharField(max_length=40, db_index=True)
+    company = models.ForeignKey(
+        'attendance.Company', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='approval_chains',
+        help_text="Blank means this chain is the fallback for every entity.")
+    description = models.CharField(max_length=200, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['request_type', 'company__code']
+        constraints = [
+            models.UniqueConstraint(fields=['request_type', 'company'],
+                                    name='uniq_chain_per_type_company'),
+        ]
+
+    def __str__(self):
+        return f'{self.request_type} — {self.company.code if self.company else "all entities"}'
+
+
+class ApprovalChainStep(models.Model):
+    """One rung of a chain: a role that must approve, and where it sits."""
+    chain = models.ForeignKey(ApprovalChain, on_delete=models.CASCADE, related_name='steps')
+    sequence = models.PositiveIntegerField(help_text='1 = first approver.')
+    role_required = models.CharField(
+        max_length=30,
+        help_text="Matches UserProfile.role. Kept as a string rather than a "
+                  "choices list so a role added later does not need a migration "
+                  "here as well.")
+    label = models.CharField(max_length=100, blank=True, default='')
+
+    class Meta:
+        ordering = ['sequence']
+        constraints = [
+            models.UniqueConstraint(fields=['chain', 'sequence'], name='uniq_step_per_chain'),
+        ]
+
+    def __str__(self):
+        return f'{self.chain.request_type} #{self.sequence} {self.role_required}'
+
+
+class ApprovalRequest(models.Model):
+    """A transaction waiting for permission, with the values as submitted.
+
+    §89: the payload is a SNAPSHOT. If the employee master changes while this
+    sits pending, the approver still sees exactly what was submitted. Anything
+    else means people approve one thing and a different thing takes effect.
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    request_type = models.CharField(max_length=40, db_index=True)
+    employee = models.ForeignKey(
+        'attendance.Employee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='approval_requests')
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='approval_requests')
+    company = models.ForeignKey(
+        'attendance.Company', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='approval_requests')
+
+    payload = models.JSONField(
+        default=dict,
+        help_text="The submitted values, frozen. Never recomputed from the "
+                  "employee record — that is the whole point (§89).")
+    summary = models.CharField(
+        max_length=300, blank=True, default='',
+        help_text="Human-readable one-liner, also frozen at submit time.")
+    effective_date = models.DateField(null=True, blank=True)
+    reason = models.TextField(blank=True, default='')
+
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES,
+                              default=STATUS_PENDING, db_index=True)
+    submitted_by = models.CharField(max_length=150, blank=True, default='')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    applied_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the approved change actually took effect. Separate from "
+                  "decided_at because approval and application can fail apart.")
+    apply_error = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-submitted_at']
+        indexes = [models.Index(fields=['status', 'request_type'])]
+
+    def __str__(self):
+        return f'{self.request_type} for {self.person} ({self.status})'
+
+    @property
+    def person(self):
+        return self.employee or self.remote_employee
+
+    @property
+    def pending_step(self):
+        return self.steps.filter(decision=ApprovalStep.DECISION_PENDING).order_by('sequence').first()
+
+
+class ApprovalStep(models.Model):
+    """One approver's answer on one request."""
+    DECISION_PENDING = 'pending'
+    DECISION_APPROVED = 'approved'
+    DECISION_REJECTED = 'rejected'
+    DECISION_CHOICES = [
+        (DECISION_PENDING, 'Pending'),
+        (DECISION_APPROVED, 'Approved'),
+        (DECISION_REJECTED, 'Rejected'),
+    ]
+
+    request = models.ForeignKey(ApprovalRequest, on_delete=models.CASCADE, related_name='steps')
+    sequence = models.PositiveIntegerField()
+    role_required = models.CharField(max_length=30)
+    label = models.CharField(max_length=100, blank=True, default='')
+    decision = models.CharField(max_length=12, choices=DECISION_CHOICES,
+                                default=DECISION_PENDING, db_index=True)
+    decided_by = models.CharField(max_length=150, blank=True, default='')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    comments = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['sequence']
+        constraints = [
+            models.UniqueConstraint(fields=['request', 'sequence'],
+                                    name='uniq_step_per_request'),
+        ]
+
+    def __str__(self):
+        return f'#{self.sequence} {self.role_required} — {self.decision}'
+
+
+class PersonScopedModel(models.Model):
+    """Abstract base for the dual-employee pattern.
+
+    Seven Phase 5 tables need the same two nullable foreign keys and the same
+    guard: exactly one of them, never both, never neither. Repeating that seven
+    times is seven chances to leave the guard off one of them — which is how a
+    record ends up belonging to nobody and disappearing from every report that
+    joins through an employee.
+    """
+    employee = models.ForeignKey(
+        'attendance.Employee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='%(class)ss')
+    remote_employee = models.ForeignKey(
+        'attendance.RemoteEmployee', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='%(class)ss')
+
+    class Meta:
+        abstract = True
+
+    @property
+    def person(self):
+        return self.employee or self.remote_employee
+
+    def clean(self):
+        super().clean()
+        if self.employee and self.remote_employee:
+            raise ValidationError(
+                'This record belongs to either an in-house or a remote employee, not both.')
+        if not self.employee and not self.remote_employee:
+            raise ValidationError('This record must belong to an employee.')
+
+
+class EmployeeVisa(PersonScopedModel):
+    """UAE residency visas, kept as a history rather than overwritten (§11).
+
+    Today a renewal replaces the previous visa and the old permit number stops
+    having existed. That matters: a cancelled visa's file number is what a
+    government query is made against months later.
+
+    WHERE EXPIRY LIVES, AND WHY IT IS HERE
+    --------------------------------------
+    An expiry date is intrinsic to the visa, so it belongs on the visa. But
+    `services_compliance.watchlist()` reads expiry from `EmployeeDocument`, and
+    two tables holding the same date is how the dashboard ends up disagreeing
+    with the record. `document` links this row to the scan that the watchlist
+    already tracks so the pair can be reconciled — and until the watchlist is
+    pointed at this table, THE DOCUMENT REMAINS THE ONE THE ALERTS COME FROM.
+    That is a deliberate, temporary duplication, written down rather than
+    discovered later.
+    """
+    VISA_STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('expired', 'Expired'),
+        ('cancelled', 'Cancelled'),
+        ('under_process', 'Under process'),
+    ]
+    SPONSOR_TYPE_CHOICES = [
+        ('company', 'Company'),
+        ('spouse', 'Spouse'),
+        ('parent', 'Parent'),
+        ('self', 'Self / investor'),
+        ('free_zone', 'Free zone authority'),
+        ('other', 'Other'),
+    ]
+
+    uid_number = models.CharField(max_length=40, blank=True, default='',
+                                  help_text='Unified ID — stays with the person across visas.')
+    visa_file_number = models.CharField(max_length=60, blank=True, default='')
+    residence_permit_number = models.CharField(max_length=60, blank=True, default='')
+    visa_type = models.CharField(max_length=30, blank=True, default='')
+    sponsor = models.CharField(max_length=150, blank=True, default='')
+    sponsor_type = models.CharField(max_length=20, choices=SPONSOR_TYPE_CHOICES,
+                                    blank=True, default='')
+    place_of_issue = models.CharField(max_length=100, blank=True, default='')
+    issue_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True, db_index=True)
+    status = models.CharField(max_length=20, choices=VISA_STATUS_CHOICES,
+                              default='active', db_index=True)
+    is_current = models.BooleanField(default=True, db_index=True)
+    inside_country = models.BooleanField(
+        null=True, blank=True,
+        help_text='Issued in-country or out. Null means not recorded — which is '
+                  'different from "outside".')
+    cancellation_date = models.DateField(null=True, blank=True)
+    cancellation_reference = models.CharField(max_length=80, blank=True, default='')
+    document = models.ForeignKey(
+        'attendance.EmployeeDocument', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='visas', help_text='The scan the compliance watchlist tracks.')
+    notes = models.TextField(blank=True, default='')
+    created_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-issue_date', '-id']
+        indexes = [models.Index(fields=['employee', 'is_current']),
+                   models.Index(fields=['expiry_date'])]
+
+    def __str__(self):
+        return f'{self.person} — visa {self.residence_permit_number or self.visa_file_number or "?"}'
+
+
+class EmployeeDependent(PersonScopedModel):
+    """Spouse and children — sponsorship, documents and cover (§15)."""
+    RELATIONSHIP_CHOICES = [
+        ('spouse', 'Spouse'), ('son', 'Son'), ('daughter', 'Daughter'),
+        ('father', 'Father'), ('mother', 'Mother'), ('other', 'Other'),
+    ]
+    name = models.CharField(max_length=150)
+    relationship = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES)
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=10, blank=True, default='')
+    nationality = models.CharField(max_length=80, blank=True, default='')
+    passport_number = models.CharField(max_length=60, blank=True, default='')
+    passport_expiry = models.DateField(null=True, blank=True)
+    emirates_id = models.CharField(max_length=40, blank=True, default='')
+    emirates_id_expiry = models.DateField(null=True, blank=True)
+    visa_expiry = models.DateField(null=True, blank=True)
+    sponsored_by_company = models.BooleanField(
+        default=False,
+        help_text='Whether the company sponsors this dependent. Drives cost and '
+                  'renewal responsibility, so it is not the same as "has a visa".')
+    insurance_covered = models.BooleanField(default=False)
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['relationship', 'name']
+
+    def __str__(self):
+        return f'{self.name} ({self.get_relationship_display()})'
+
+
+class EmployeeInsurance(PersonScopedModel):
+    """Health insurance, with the cost split (§14)."""
+    provider = models.CharField(max_length=120)
+    policy_number = models.CharField(max_length=80, blank=True, default='')
+    member_number = models.CharField(max_length=80, blank=True, default='')
+    category = models.CharField(max_length=60, blank=True, default='')
+    network = models.CharField(max_length=60, blank=True, default='')
+    coverage_start = models.DateField(null=True, blank=True)
+    coverage_end = models.DateField(null=True, blank=True, db_index=True)
+    covers_employee = models.BooleanField(default=True)
+    covers_dependents = models.BooleanField(default=False)
+    total_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    employer_contribution = models.DecimalField(max_digits=10, decimal_places=2,
+                                                null=True, blank=True)
+    employee_contribution = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Any employee share. NOT derived from total minus employer — a '
+                  'derived figure would silently absorb a data-entry error into '
+                  'a payroll deduction.')
+    currency = models.CharField(max_length=3, default='AED')
+    is_current = models.BooleanField(default=True, db_index=True)
+    document = models.ForeignKey(
+        'attendance.EmployeeDocument', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='insurance_policies')
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-coverage_start', '-id']
+
+    def __str__(self):
+        return f'{self.provider} — {self.policy_number or "no policy no."}'
+
+
+class EmployeeMedicalFitness(PersonScopedModel):
+    """Medical fitness tests, which recur — hence a table, not fields (§13)."""
+    RESULT_CHOICES = [('fit', 'Fit'), ('unfit', 'Unfit'),
+                      ('pending', 'Pending'), ('referred', 'Referred')]
+    application_number = models.CharField(max_length=80, blank=True, default='')
+    test_date = models.DateField(null=True, blank=True)
+    centre = models.CharField(max_length=150, blank=True, default='')
+    result = models.CharField(max_length=20, choices=RESULT_CHOICES,
+                              blank=True, default='')
+    certificate_number = models.CharField(max_length=80, blank=True, default='')
+    expiry_date = models.DateField(null=True, blank=True, db_index=True)
+    document = models.ForeignKey(
+        'attendance.EmployeeDocument', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='medical_tests')
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-test_date', '-id']
+        verbose_name_plural = 'Employee medical fitness records'
+
+    def __str__(self):
+        return f'{self.person} — medical {self.test_date or "undated"}'
+
+
+class EmployeeEducation(PersonScopedModel):
+    """Academic qualifications, with attestation state (§16).
+
+    Attestation is three booleans rather than one status, because MOFA and the
+    UAE embassy are separate steps that fail separately, and "attested" without
+    saying by whom is not an answer anyone can act on.
+    """
+    qualification = models.CharField(max_length=120)
+    degree = models.CharField(max_length=120, blank=True, default='')
+    specialisation = models.CharField(max_length=120, blank=True, default='')
+    institution = models.CharField(max_length=200, blank=True, default='')
+    country = models.CharField(max_length=80, blank=True, default='')
+    start_date = models.DateField(null=True, blank=True)
+    completion_date = models.DateField(null=True, blank=True)
+    grade = models.CharField(max_length=40, blank=True, default='')
+    certificate_number = models.CharField(max_length=80, blank=True, default='')
+    attested = models.BooleanField(default=False)
+    mofa_attested = models.BooleanField(default=False)
+    uae_embassy_attested = models.BooleanField(default=False)
+    document = models.ForeignKey(
+        'attendance.EmployeeDocument', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='education_records')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-completion_date', '-id']
+
+    def __str__(self):
+        return f'{self.qualification} — {self.institution or "?"}'
+
+
+class EmployeeQualification(PersonScopedModel):
+    """Professional licences and memberships — CA, ACCA, CPA, CFA, medical (§17).
+
+    Separate from EmployeeEducation because these EXPIRE and carry CPD
+    obligations. Folding them into one table would leave every academic degree
+    with a null expiry and every licence with a null grade, and would put a
+    lapsing practising licence in a table nothing checks for renewal.
+    """
+    title = models.CharField(max_length=120)
+    issuing_authority = models.CharField(max_length=150, blank=True, default='')
+    membership_number = models.CharField(max_length=80, blank=True, default='')
+    issue_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True, db_index=True)
+    cpd_required = models.BooleanField(default=False)
+    cpd_hours_required = models.PositiveIntegerField(null=True, blank=True)
+    is_current = models.BooleanField(default=True, db_index=True)
+    document = models.ForeignKey(
+        'attendance.EmployeeDocument', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='qualifications')
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-issue_date', '-id']
+
+    def __str__(self):
+        return f'{self.title} — {self.membership_number or "no member no."}'
+
+
+class EmployeePreviousEmployment(PersonScopedModel):
+    """Employment before this one, and whether the reference was actually taken (§18)."""
+    employer = models.CharField(max_length=200)
+    country = models.CharField(max_length=80, blank=True, default='')
+    designation = models.CharField(max_length=120, blank=True, default='')
+    from_date = models.DateField(null=True, blank=True)
+    to_date = models.DateField(null=True, blank=True)
+    last_salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    salary_currency = models.CharField(max_length=3, blank=True, default='')
+    reason_for_leaving = models.CharField(max_length=200, blank=True, default='')
+    reference_name = models.CharField(max_length=150, blank=True, default='')
+    reference_contact = models.CharField(max_length=150, blank=True, default='')
+    reference_checked = models.BooleanField(
+        default=False,
+        help_text='Whether the reference was TAKEN, not whether a contact was '
+                  'recorded. An unchecked reference beside a filled-in phone '
+                  'number is exactly the gap an audit asks about.')
+    reference_checked_by = models.CharField(max_length=150, blank=True, default='')
+    reference_checked_at = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-to_date', '-id']
+        verbose_name_plural = 'Employee previous employment'
+
+    def __str__(self):
+        return f'{self.employer} — {self.designation or "?"}'
+
+
+class LeaveType(models.Model):
+    """Configurable leave types (§28).
+
+    LANDED, NOT WIRED. `LeaveRequest.leave_type` keeps its hard-coded choices
+    for now: repointing a field that every leave screen, the payroll engine and
+    two reports already read is a migration of live data, not a model addition,
+    and it belongs in its own pass. This table is what that pass will read.
+    """
+    code = models.CharField(max_length=30, unique=True)
+    name = models.CharField(max_length=80)
+    is_paid = models.BooleanField(default=True)
+    consumes_annual_entitlement = models.BooleanField(
+        default=False,
+        help_text='Whether taking this draws down the annual leave balance. '
+                  'Sick leave does not; annual leave does. Getting this wrong '
+                  'is how a balance quietly runs out.')
+    requires_document = models.BooleanField(default=False)
+    max_days_per_year = models.PositiveIntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.code})'
+
+
+class LeavePolicy(models.Model):
+    """A named entitlement rule set — §29 forbids hard-coding these.
+
+    Scoped by jurisdiction, company and employee category so MOHRE staff and
+    offshore staff can be governed differently, which is the whole reason the
+    jurisdiction field exists. A policy with everything blank is the fallback.
+    """
+    name = models.CharField(max_length=120)
+    leave_type_code = models.CharField(
+        max_length=30, default='annual',
+        help_text="Which leave this governs. A string, not an FK to LeaveType, "
+                  "so a policy can be written before the type table is wired in.")
+    labour_jurisdiction = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text='Blank means it applies regardless of jurisdiction.')
+    company = models.ForeignKey('attendance.Company', on_delete=models.CASCADE,
+                                null=True, blank=True, related_name='leave_policies')
+    employee_category = models.CharField(max_length=40, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['leave_type_code', 'name']
+        verbose_name_plural = 'Leave policies'
+
+    def __str__(self):
+        bits = [self.labour_jurisdiction or 'any jurisdiction',
+                self.company.code if self.company else 'all entities']
+        return f'{self.name} ({", ".join(bits)})'
+
+
+class LeavePolicyVersion(models.Model):
+    """The numbers, effective-dated (§29).
+
+    Statutory rules change. When they do, a new VERSION is added with a start
+    date — the old one is not edited. That is what lets a settlement computed in
+    2025 still be reproducible in 2027 under the rule that actually applied.
+    """
+    policy = models.ForeignKey(LeavePolicy, on_delete=models.CASCADE, related_name='versions')
+    effective_from = models.DateField(db_index=True)
+    effective_to = models.DateField(null=True, blank=True)
+
+    min_months_for_entitlement = models.DecimalField(
+        max_digits=5, decimal_places=2, default=6,
+        help_text='Below this, entitlement is zero — a rule, not a rounding.')
+    short_service_days_per_month = models.DecimalField(
+        max_digits=5, decimal_places=2, default=2,
+        help_text='Days earned per month between the minimum and one year.')
+    full_days_per_year = models.DecimalField(max_digits=5, decimal_places=2, default=30)
+
+    accrual_basis = models.CharField(
+        max_length=20, default='monthly',
+        help_text="'monthly' accrues pro-rata; 'anniversary' credits only on "
+                  "completed years. bhoopal chose monthly on 17 Aug 2026 (D8).")
+    pay_percentage = models.DecimalField(
+        max_digits=5, decimal_places=2, default=50,
+        help_text='Percentage of the wage paid while on this leave. 50 per D7.')
+    divisor_basis = models.CharField(
+        max_length=20, default='period_days',
+        help_text="'period_days' divides by days in the pay period, matching the "
+                  "payroll engine; 'fixed_30' uses the UAE leave-salary "
+                  "convention. They differ by about 3% in a 31-day month, so "
+                  "this is a real choice and not a formatting preference.")
+    max_carry_forward_days = models.DecimalField(max_digits=5, decimal_places=2,
+                                                 null=True, blank=True)
+    carry_forward_expires_after_months = models.PositiveIntegerField(null=True, blank=True)
+    encashment_allowed = models.BooleanField(default=True)
+    encashment_basis = models.CharField(
+        max_length=20, default='gross',
+        help_text="'gross' or 'basic'. D7 chose gross at the pay percentage; "
+                  "Article 29 sets basic-at-100% as the floor for termination.")
+
+    source_reference = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text='Where this rule comes from — e.g. "Federal Decree-Law 33/2021 '
+                  'Art. 29" or "Board minute 12 Aug 2026". An unsourced statutory '
+                  'number is impossible to defend later.')
+    approved_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-effective_from']
+        constraints = [
+            models.UniqueConstraint(fields=['policy', 'effective_from'],
+                                    name='uniq_policy_version_start'),
+        ]
+
+    def __str__(self):
+        return f'{self.policy.name} from {self.effective_from}'
+
+
+class LeaveLedgerEntry(PersonScopedModel):
+    """Every movement in a leave balance (§30).
+
+    A single `balance = 18` field cannot answer "why 18", cannot be audited, and
+    cannot be corrected without destroying what it was before. This is the
+    ledger: opening balance, accruals, days taken, adjustments, carry-forward,
+    encashment, expiry, reversals — each with a date, a reason and a source.
+
+    `balance_after` is stored rather than recomputed on read. A running balance
+    that is derived every time changes retrospectively whenever an old row is
+    touched, so a payslip printed last month would no longer reproduce. Stored,
+    it is a statement of what the balance WAS at that point.
+    """
+    KIND_OPENING = 'opening'
+    KIND_ACCRUAL = 'accrual'
+    KIND_TAKEN = 'taken'
+    KIND_ADJUSTMENT = 'adjustment'
+    KIND_CARRY_FORWARD = 'carry_forward'
+    KIND_ENCASHMENT = 'encashment'
+    KIND_EXPIRY = 'expiry'
+    KIND_REVERSAL = 'reversal'
+    KIND_CHOICES = [
+        (KIND_OPENING, 'Opening balance'),
+        (KIND_ACCRUAL, 'Accrual'),
+        (KIND_TAKEN, 'Leave taken'),
+        (KIND_ADJUSTMENT, 'Manual adjustment'),
+        (KIND_CARRY_FORWARD, 'Carry forward'),
+        (KIND_ENCASHMENT, 'Encashment'),
+        (KIND_EXPIRY, 'Expiry'),
+        (KIND_REVERSAL, 'Reversal'),
+    ]
+
+    leave_type_code = models.CharField(max_length=30, default='annual', db_index=True)
+    entry_date = models.DateField(db_index=True)
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, db_index=True)
+    days = models.DecimalField(
+        max_digits=7, decimal_places=2,
+        help_text='POSITIVE credits the balance, NEGATIVE consumes it. One '
+                  'signed column rather than debit/credit pairs, because two '
+                  'columns invite a row with both filled in.')
+    balance_after = models.DecimalField(max_digits=8, decimal_places=2)
+
+    description = models.CharField(max_length=200, blank=True, default='')
+    reason = models.TextField(
+        blank=True, default='',
+        help_text='Required for manual adjustments — enforced in the service, '
+                  'because an unexplained balance change is the thing an audit '
+                  'goes looking for first.')
+    source_model = models.CharField(max_length=60, blank=True, default='')
+    source_id = models.CharField(max_length=40, blank=True, default='')
+    dedupe_key = models.CharField(max_length=190, unique=True)
+
+    approved_by = models.CharField(max_length=150, blank=True, default='')
+    created_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['entry_date', 'id']
+        verbose_name_plural = 'Leave ledger entries'
+        indexes = [
+            models.Index(fields=['employee', 'leave_type_code', 'entry_date']),
+            models.Index(fields=['remote_employee', 'leave_type_code', 'entry_date']),
+        ]
+
+    def __str__(self):
+        return f'{self.entry_date} {self.get_kind_display()} {self.days:+} -> {self.balance_after}'
+
+
+class EmployeeReturnToWork(PersonScopedModel):
+    """Coming back from leave (§31).
+
+    Exists because of one specific failure: returning from annual leave was
+    being handled by editing the joining date, which destroyed length of
+    service, gratuity and every anniversary calculation at once. §97 names it.
+    THIS RECORD IS WHAT CHANGES; the joining date is never touched.
+    """
+    leave_type_code = models.CharField(max_length=30, blank=True, default='')
+    leave_start = models.DateField(null=True, blank=True)
+    expected_return = models.DateField(null=True, blank=True)
+    actual_return = models.DateField(null=True, blank=True)
+    delay_days = models.IntegerField(
+        null=True, blank=True,
+        help_text='Actual minus expected. Stored, not derived, so a later change '
+                  'to either date cannot silently rewrite a delay that was '
+                  'already actioned.')
+    delay_authorised = models.BooleanField(default=False)
+    supporting_document = models.ForeignKey(
+        'attendance.EmployeeDocument', on_delete=models.SET_NULL, null=True,
+        blank=True, related_name='return_to_work_records')
+    payroll_effective_date = models.DateField(
+        null=True, blank=True,
+        help_text='When payroll starts paying them again. Deliberately separate '
+                  'from actual_return and from the joining date — §97 forbids '
+                  'mixing the legal employment date with the payroll one.')
+    attendance_effective_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default='')
+    approved_by = models.CharField(max_length=150, blank=True, default='')
+    created_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-actual_return', '-id']
+        verbose_name_plural = 'Employee return to work'
+
+    def __str__(self):
+        return f'{self.person} returned {self.actual_return or "(not yet)"}'
