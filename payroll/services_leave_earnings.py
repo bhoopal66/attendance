@@ -172,6 +172,15 @@ def wage_components(employee, as_of=None):
                     + _d(structure.phone) + _d(structure.other_allowance))
             return full.quantize(CENT), basic.quantize(CENT), 'salary structure'
     # No approved structure, or a remote employee, which has none by design.
+    #
+    # And if there is no salary either, the full wage is UNKNOWN — not zero.
+    # Decimal('0') here made an employee with no salary on file report an
+    # encashment exposure of 0.00, which reads as "they are owed nothing"
+    # when the truth is "we do not know what they earn". Same rule as
+    # `daily_rate()` a few lines below: None, not zero, when it cannot be
+    # worked out.
+    if not employee.salary:
+        return None, None, 'no salary structure and no salary on the employee'
     return _d(employee.salary).quantize(CENT), None, 'Employee.salary (no structure)'
 
 
