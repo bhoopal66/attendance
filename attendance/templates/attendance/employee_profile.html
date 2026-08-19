@@ -108,6 +108,98 @@ instead of nine screens down.
 .profile-section thead th { white-space:normal; overflow-wrap:normal;
   line-height:1.25; vertical-align:bottom; }
 .profile-section tbody td:first-child { width:100%; }
+
+/* ── The 13 section includes: shared styles ─────────────────────────
+   THIS BLOCK IS WHAT MAKES THE PAGE WORK, not just what makes it pretty.
+   The includes ship markup with .section-card / .view-mode / .edit-form,
+   and the JS toggles .hidden and .active — but the Zoho re-skin replaced
+   the stylesheet targeting .profile-section/.ps-head, class names the
+   includes never used. Result: no rule hid .edit-form, so every section
+   rendered its read view AND its edit form at once, stacked as bare text.
+   The three lines marked BEHAVIOUR below are the actual fix; everything
+   else is the table look bhoopal asked for on 19 Aug 2026. */
+.section-card { background:#fff; border:1px solid #E2E8F0; border-radius:10px;
+  overflow:hidden; scroll-margin-top:16px; }
+.section-card.full-width { grid-column:1 / -1; }
+.section-head { display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid #F1F5F9; background:#fff; }
+.section-title { display:flex; align-items:center; gap:8px; font-size:.82rem;
+  font-weight:650; color:#0F172A; letter-spacing:.2px; }
+.section-title svg { color:var(--primary-color,#EA580C); flex:0 0 auto; }
+.section-body { padding:6px 18px 14px; }
+
+.btn-edit-section { font-size:.75rem; font-weight:600; color:#334155;
+  background:#fff; border:1px solid #E2E8F0; border-radius:6px;
+  padding:4px 12px; cursor:pointer; font-family:inherit; }
+.btn-edit-section:hover { border-color:var(--primary-color,#EA580C);
+  color:var(--primary-color,#EA580C); background:#FFF7ED; }
+
+/* View mode: a ruled two-column table — label | value */
+.view-mode { display:table; width:100%; border-collapse:collapse; }
+.info-row { display:table-row; }
+.info-label, .info-value { display:table-cell; padding:9px 0;
+  border-bottom:1px solid #F1F5F9; vertical-align:top; }
+.info-row:last-child .info-label, .info-row:last-child .info-value { border-bottom:none; }
+.info-label { width:200px; font-size:.76rem; color:#64748B; padding-right:16px; }
+.info-value { font-size:.85rem; color:#0F172A; font-weight:500; word-break:break-word; }
+.info-value.masked { font-family:monospace; letter-spacing:.1em; }
+.info-empty { color:#94A3B8; font-style:italic; font-weight:400; }
+
+/* Edit mode: HIDDEN until the Edit button opens it.  ── BEHAVIOUR ── */
+.edit-form { display:none; padding-top:10px; }
+.edit-form.active { display:block; }                 /* ── BEHAVIOUR ── */
+.view-mode.hidden { display:none; }                  /* ── BEHAVIOUR ── */
+
+.form-row { margin-bottom:.85rem; }
+.form-row:last-child { margin-bottom:0; }
+.form-row label { display:block; font-size:.74rem; font-weight:600;
+  color:#64748B; margin-bottom:.3rem; }
+.form-row input, .form-row select, .form-row textarea { width:100%;
+  padding:.48rem .7rem; border:1px solid #E2E8F0; border-radius:8px;
+  font-size:.85rem; color:#0F172A; background:#fff; box-sizing:border-box;
+  font-family:inherit; }
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  outline:none; border-color:var(--primary-color,#EA580C);
+  box-shadow:0 0 0 3px rgba(234,88,12,.1); }
+.form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+.form-actions { display:flex; gap:.5rem; margin-top:1rem; }
+.btn-save { padding:.45rem 1.1rem; background:var(--primary-color,#EA580C);
+  color:#fff; border:none; border-radius:7px; font-size:.8rem; font-weight:650;
+  cursor:pointer; font-family:inherit; }
+.btn-save:hover { opacity:.9; }
+.btn-cancel-edit { padding:.45rem .9rem; background:#fff; color:#64748B;
+  border:1px solid #E2E8F0; border-radius:7px; font-size:.8rem; cursor:pointer;
+  font-family:inherit; }
+.btn-cancel-edit:hover { background:#F1F5F9; }
+.save-spinner { display:none; }
+
+.photo-upload-wrap { display:flex; align-items:center; gap:1rem; }
+.photo-preview-sm { width:56px; height:56px; border-radius:50%; object-fit:cover;
+  border:2px solid #FED7AA; }
+.photo-placeholder-sm { width:56px; height:56px; border-radius:50%;
+  background:var(--primary-color,#EA580C); display:flex; align-items:center;
+  justify-content:center; font-size:1.25rem; font-weight:700; color:#fff;
+  flex:0 0 auto; }
+
+.checklist-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem .75rem; }
+@media (max-width:500px) { .checklist-grid { grid-template-columns:1fr; } }
+.checklist-item { display:flex; align-items:center; gap:.5rem; padding:.55rem .7rem;
+  border-radius:8px; border:1px solid #E2E8F0; cursor:pointer; font-size:.82rem;
+  color:#0F172A; user-select:none; }
+.checklist-item:hover { background:#FFF7ED; border-color:#FED7AA; }
+.checklist-item input[type="checkbox"] { accent-color:var(--primary-color,#EA580C);
+  width:15px; height:15px; flex:0 0 auto; }
+.checklist-item.checked { background:#FFF7ED; border-color:#FDBA74; }
+.checklist-item.checked label { color:#9A3412; font-weight:600; }
+.checklist-save-wrap { margin-top:1rem; display:flex; justify-content:flex-end; }
+
+.toast { position:fixed; bottom:1.5rem; right:1.5rem; background:#1E293B;
+  color:#fff; padding:.7rem 1.1rem; border-radius:10px; font-size:.84rem;
+  font-weight:500; box-shadow:0 4px 16px rgba(0,0,0,.25); z-index:9999;
+  display:none; align-items:center; gap:.5rem; }
+.toast.show { display:flex; }
+.toast.success { border-left:3px solid #22C55E; }
+.toast.error { border-left:3px solid #EF4444; }
 </style>
 {% endblock %}
 
@@ -304,10 +396,11 @@ function showToast(msg, type) {
 (function () {
   var rail = document.getElementById('profileRail');
   if (!rail) return;
-  var sections = [].slice.call(document.querySelectorAll('.section-grid .profile-section'));
+  var sections = [].slice.call(document.querySelectorAll(
+      '.section-grid .profile-section, .section-grid .section-card'));
 
   var links = sections.map(function (sec, i) {
-    var h = sec.querySelector('.ps-head h3, .ps-head h2, h3, h2');
+    var h = sec.querySelector('.ps-head h3, .ps-head h2, .section-head .section-title, h3, h2');
     var label = h ? h.textContent.trim().replace(/\s+/g, ' ') : 'Section ' + (i + 1);
     if (!sec.id) { sec.id = 'psec-' + i; }
     var a = document.createElement('a');
