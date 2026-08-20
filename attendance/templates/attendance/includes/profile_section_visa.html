@@ -1,0 +1,174 @@
+{% comment %}
+Section card: Visa — the richer EmployeeVisa record (sponsor, renewal history).
+Additive to the Compliance section's document-based UAE Visa expiry row —
+that row remains the source the compliance alerts read from; see the model's
+own docstring. Identity numbers here are masked using the same
+compliance_reveal endpoint (group='visa_number').
+{% endcomment %}
+<div class="section-card full-width" id="section-visa">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Visa
+        </span>
+        <div class="ps-head-right">
+            <button class="btn-edit-section" onclick="toggleVisaForm('renew')">
+                {% if visa_current %}+ Renew{% else %}+ Add Visa{% endif %}
+            </button>
+            {% if visa_current %}
+            <button class="btn-edit-section" onclick="toggleVisaForm('cancel')">Cancel current</button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="section-body">
+
+        {% if visa_current %}
+        <div class="view-mode">
+            <div class="info-row">
+                <div class="info-label">Status</div>
+                <div class="info-value">{{ visa_current.get_status_display }}{% if visa_current.is_current %} · current{% endif %}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Visa type</div>
+                <div class="info-value">{{ visa_current.visa_type|default:"—" }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Sponsor</div>
+                <div class="info-value">{{ visa_current.sponsor|default:"—" }}{% if visa_current.sponsor_type %} ({{ visa_current.get_sponsor_type_display }}){% endif %}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Issue / Expiry</div>
+                <div class="info-value">
+                    {{ visa_current.issue_date|date:"d M Y"|default:"—" }} &rarr; {{ visa_current.expiry_date|date:"d M Y"|default:"—" }}
+                </div>
+            </div>
+            {% for f in visa_masked %}
+            <div class="info-row">
+                <div class="info-label">{{ f.label }}</div>
+                <div class="info-value">
+                    {% if f.has_value %}
+                        <span class="info-value masked" id="mask-visa-{{ f.key }}">{{ f.display }}</span>
+                        {% if f.can_reveal %}
+                        <button type="button" class="cmp-reveal"
+                                onclick="revealCompliance('visa_number','{{ f.key }}','mask-visa-{{ f.key }}',this)">reveal</button>
+                        {% endif %}
+                    {% else %}<span class="info-empty">not recorded</span>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="info-empty">No visa on record.</p>
+        {% endif %}
+
+        <form id="form-visa" class="edit-form" method="post"
+              onsubmit="submitVisaForm(event, this)">
+            {% csrf_token %}
+            <div class="rtw-form-grid">
+                <div class="form-row"><label>UID number</label><input type="text" name="uid_number"></div>
+                <div class="form-row"><label>Visa file number</label><input type="text" name="visa_file_number"></div>
+                <div class="form-row"><label>Residence permit number</label><input type="text" name="residence_permit_number"></div>
+                <div class="form-row">
+                    <label>Visa type</label>
+                    <select name="visa_type">
+                        <option value="">—</option>
+                        {% for v, l in visa_type_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row"><label>Sponsor</label><input type="text" name="sponsor"></div>
+                <div class="form-row">
+                    <label>Sponsor type</label>
+                    <select name="sponsor_type">
+                        <option value="">—</option>
+                        {% for v, l in visa_sponsor_type_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row"><label>Place of issue</label><input type="text" name="place_of_issue"></div>
+                <div class="form-row"><label>Issue date</label><input type="date" name="issue_date"></div>
+                <div class="form-row"><label>Expiry date</label><input type="date" name="expiry_date"></div>
+            </div>
+            <div class="form-row" style="margin-top:.5rem;"><label>Notes</label><input type="text" name="notes"></div>
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save Visa</button>
+                <button type="button" class="btn-cancel-edit" onclick="toggleVisaForm('renew')">Cancel</button>
+            </div>
+        </form>
+
+        <form id="form-visa_cancel" class="edit-form" method="post"
+              onsubmit="submitVisaCancelForm(event, this)">
+            {% csrf_token %}
+            <div class="rtw-form-grid">
+                <div class="form-row"><label>Cancellation date</label><input type="date" name="cancellation_date" required></div>
+                <div class="form-row"><label>Reference</label><input type="text" name="cancellation_reference"></div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Confirm Cancellation</button>
+                <button type="button" class="btn-cancel-edit" onclick="toggleVisaForm('cancel')">Cancel</button>
+            </div>
+        </form>
+
+        {% if visa_history_rows|length > 1 %}
+        <details class="sun-detail" style="margin-top:1rem;">
+            <summary>Visa history ({{ visa_history_rows|length }})</summary>
+            <table class="rec-table" style="margin-top:.5rem;">
+                <thead><tr><th>Status</th><th>Type</th><th>Sponsor</th><th>Issue</th><th>Expiry</th></tr></thead>
+                <tbody>
+                {% for v in visa_history_rows %}
+                    <tr>
+                        <td>{{ v.get_status_display }}{% if v.is_current %} · current{% endif %}</td>
+                        <td>{{ v.visa_type|default:"—" }}</td>
+                        <td>{{ v.sponsor|default:"—" }}</td>
+                        <td>{{ v.issue_date|date:"d M Y"|default:"—" }}</td>
+                        <td>{{ v.expiry_date|date:"d M Y"|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </details>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+(function () {
+    window.toggleVisaForm = function (which) {
+        var id = which === 'cancel' ? 'form-visa_cancel' : 'form-visa';
+        document.getElementById(id).classList.toggle('active');
+    };
+    window.submitVisaForm = function (event, formEl) {
+        event.preventDefault();
+        var btn = formEl.querySelector('.btn-save');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        var data = new FormData(formEl);
+        fetch(window.PROFILE_URL + '?section=visa', {
+            method: 'POST', headers: { 'X-CSRFToken': data.get('csrfmiddlewaretoken') }, body: data,
+        }).then(function (r) { return r.json(); }).then(function (json) {
+            if (json.ok) { window.location.reload(); }
+            else { alert('Could not save visa: ' + (json.error || 'unknown error'));
+                   btn.disabled = false; btn.textContent = 'Save Visa'; }
+        }).catch(function () {
+            alert('Network error — please try again.');
+            btn.disabled = false; btn.textContent = 'Save Visa';
+        });
+    };
+    window.submitVisaCancelForm = function (event, formEl) {
+        event.preventDefault();
+        if (!window.confirm('Cancel the current visa? This cannot be undone from here.')) { return; }
+        var btn = formEl.querySelector('.btn-save');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        var data = new FormData(formEl);
+        fetch(window.PROFILE_URL + '?section=visa_cancel', {
+            method: 'POST', headers: { 'X-CSRFToken': data.get('csrfmiddlewaretoken') }, body: data,
+        }).then(function (r) { return r.json(); }).then(function (json) {
+            if (json.ok) { window.location.reload(); }
+            else { alert('Could not cancel visa: ' + (json.error || 'unknown error'));
+                   btn.disabled = false; btn.textContent = 'Confirm Cancellation'; }
+        }).catch(function () {
+            alert('Network error — please try again.');
+            btn.disabled = false; btn.textContent = 'Confirm Cancellation';
+        });
+    };
+})();
+</script>

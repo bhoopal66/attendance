@@ -14,9 +14,17 @@
     <div class="section-body">
 
         {% if employment_history %}
+        <div class="history-filters">
+            <button type="button" class="history-chip on" data-filter="all" onclick="filterHistory('all')">All</button>
+            <button type="button" class="history-chip" data-filter="designation" onclick="filterHistory('designation')">Designation</button>
+            <button type="button" class="history-chip" data-filter="transfer" onclick="filterHistory('transfer')">Transfers</button>
+            <button type="button" class="history-chip" data-filter="reporting_manager" onclick="filterHistory('reporting_manager')">Manager</button>
+            <button type="button" class="history-chip" data-filter="salary" onclick="filterHistory('salary')">Salary</button>
+            <button type="button" class="history-chip" data-filter="employment_status" onclick="filterHistory('employment_status')">Status</button>
+        </div>
         <div class="history-timeline">
             {% for entry in employment_history %}
-            <div class="history-row">
+            <div class="history-row" data-change-type="{{ entry.change_type }}">
                 <!-- Date column -->
                 <div class="history-date">
                     <span class="history-date-day">{{ entry.effective_date|date:"d" }}</span>
@@ -202,6 +210,13 @@
 }
 .history-reason svg { flex-shrink: 0; margin-top: 1px; }
 
+/* Filter chips */
+.history-filters { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:.85rem; }
+.history-chip { font-size:.74rem; font-weight:600; padding:4px 11px; border-radius:20px;
+    border:1px solid #e2e8f0; background:#fff; color:#64748b; cursor:pointer; font-family:inherit; }
+.history-chip:hover { border-color:var(--primary-color,#EA580C); }
+.history-chip.on { background:var(--primary-color,#EA580C); border-color:var(--primary-color,#EA580C); color:#fff; }
+
 /* Empty state */
 .history-empty {
     display: flex;
@@ -214,3 +229,20 @@
 }
 .history-empty p { margin: .2rem 0; }
 </style>
+
+<script>
+(function () {
+    var TRANSFER_TYPES = ['department', 'team', 'location'];
+    window.filterHistory = function (filter) {
+        document.querySelectorAll('.history-chip').forEach(function (chip) {
+            chip.classList.toggle('on', chip.dataset.filter === filter);
+        });
+        document.querySelectorAll('.history-row').forEach(function (row) {
+            var type = row.dataset.changeType;
+            var show = filter === 'all' || type === filter ||
+                       (filter === 'transfer' && TRANSFER_TYPES.indexOf(type) !== -1);
+            row.style.display = show ? '' : 'none';
+        });
+    };
+})();
+</script>

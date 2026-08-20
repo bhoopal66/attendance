@@ -252,7 +252,7 @@ def _apply_status_change(request, actor=''):
         # EmploymentHistory is in-house only, and pre-dates this engine. Written
         # to as well as the timeline so anything already reading it keeps working.
         EmploymentHistory.objects.create(
-            employee=request.employee, change_type='status',
+            employee=request.employee, change_type='employment_status',
             effective_date=request.effective_date,
             previous_value=payload.get('from_label') or payload.get('from') or '',
             new_value=payload.get('to_label') or new_status,

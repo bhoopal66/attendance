@@ -1,0 +1,149 @@
+{% comment %}Section card: Asset register — custody, not money. Marking one lost can auto-create a linked Recoverable.{% endcomment %}
+<div class="section-card full-width">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>
+            Assets
+        </span>
+        <button class="btn-edit-section" onclick="toggleAssetForm('issue')">+ Issue Asset</button>
+    </div>
+    <div class="section-body">
+
+        <form class="rtw-add-form" id="form-asset-issue" style="display:none;"
+              method="post" onsubmit="submitAssetForm(event, this, 'issue')">
+            {% csrf_token %}
+            <input type="hidden" name="asset_action" value="issue">
+            <div class="rtw-form-grid">
+                <div class="form-row">
+                    <label>Type <span class="req">*</span></label>
+                    <select name="asset_type" required>
+                        {% for v, l in asset_type_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row"><label>Asset tag</label><input type="text" name="asset_tag"></div>
+                <div class="form-row"><label>Serial number</label><input type="text" name="serial_number"></div>
+                <div class="form-row"><label>Value</label><input type="number" name="value" min="0" step="0.01"></div>
+                <div class="form-row">
+                    <label>Condition at issue</label>
+                    <select name="condition_at_issue">
+                        {% for v, l in asset_condition_choices %}<option value="{{ v }}" {% if v == 'new' %}selected{% endif %}>{{ l }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row"><label>Issued date</label><input type="date" name="issued_date"></div>
+                <div class="form-row"><label>Expected return date</label><input type="date" name="expected_return_date"></div>
+            </div>
+            <div class="form-row" style="margin-top:.5rem;"><label>Description</label><input type="text" name="description"></div>
+            <div class="form-row"><label>Notes</label><input type="text" name="notes"></div>
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save Asset</button>
+                <button type="button" class="btn-cancel-edit" onclick="toggleAssetForm('issue')">Cancel</button>
+            </div>
+        </form>
+
+        {% if assets %}
+        <div class="table-scroll">
+            <table class="rec-table">
+                <thead><tr><th>Type</th><th>Tag / Serial</th><th>Status</th><th>Issued</th><th>Returned</th><th>Recovery</th><th>Actions</th></tr></thead>
+                <tbody>
+                {% for a in assets %}
+                    <tr class="{% if a.status == 'returned' %}rec-row-settled{% endif %}">
+                        <td>{{ a.get_asset_type_display }}{% if a.description %} — {{ a.description }}{% endif %}</td>
+                        <td>{{ a.asset_tag|default:"—" }}{% if a.serial_number %} / {{ a.serial_number }}{% endif %}</td>
+                        <td>
+                            <span class="rec-status-badge {% if a.status == 'issued' %}rec-status-active{% elif a.status == 'returned' %}rec-status-settled{% else %}rec-status-on_hold{% endif %}">
+                                {{ a.get_status_display }}
+                            </span>
+                        </td>
+                        <td>{{ a.issued_date|date:"d M Y" }}</td>
+                        <td>{{ a.returned_date|date:"d M Y"|default:"—" }}</td>
+                        <td>{% if a.recoverable %}{{ a.recoverable.currency }} {{ a.recoverable.total_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+                        <td>
+                            {% if a.status == 'issued' %}
+                            <button type="button" class="cmp-reveal" onclick="toggleAssetForm('return', {{ a.id }})">Return</button>
+                            <button type="button" class="cmp-reveal" onclick="toggleAssetForm('lost', {{ a.id }})">Mark lost</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr id="asset-return-row-{{ a.id }}" style="display:none;">
+                        <td colspan="7">
+                            <form class="asset-inline-form" onsubmit="submitAssetForm(event, this, 'return')">
+                                {% csrf_token %}
+                                <input type="hidden" name="asset_action" value="return">
+                                <input type="hidden" name="asset_id" value="{{ a.id }}">
+                                <label>Returned date <input type="date" name="returned_date" required></label>
+                                <label>Condition
+                                    <select name="condition_current">
+                                        {% for v, l in asset_condition_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                                    </select>
+                                </label>
+                                <button type="submit" class="btn-save">Confirm Return</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr id="asset-lost-row-{{ a.id }}" style="display:none;">
+                        <td colspan="7">
+                            <form class="asset-inline-form" onsubmit="submitAssetForm(event, this, 'mark_lost')">
+                                {% csrf_token %}
+                                <input type="hidden" name="asset_action" value="mark_lost">
+                                <input type="hidden" name="asset_id" value="{{ a.id }}">
+                                <label>Recovery amount <input type="number" name="recovery_amount" min="0" step="0.01" placeholder="leave blank if none"></label>
+                                <label>Currency
+                                    <select name="currency">
+                                        <option value="AED" selected>AED</option><option value="INR">INR</option>
+                                    </select>
+                                </label>
+                                <label>Reason <input type="text" name="reason" required></label>
+                                <button type="submit" class="btn-save">Confirm Lost</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="info-empty">No assets recorded.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.asset-inline-form { display:flex; flex-wrap:wrap; gap:.75rem; align-items:end; padding:.6rem 0; }
+.asset-inline-form label { display:flex; flex-direction:column; font-size:.74rem; font-weight:600; color:#64748b; gap:.25rem; }
+.asset-inline-form input, .asset-inline-form select { padding:.4rem .6rem; border:1px solid #e2e8f0; border-radius:6px; font-size:.82rem; }
+</style>
+
+<script>
+(function () {
+    window.toggleAssetForm = function (which, assetId) {
+        if (which === 'issue') {
+            var f = document.getElementById('form-asset-issue');
+            f.style.display = (f.style.display === 'none' || !f.style.display) ? 'block' : 'none';
+            return;
+        }
+        var rowId = which === 'return' ? 'asset-return-row-' + assetId : 'asset-lost-row-' + assetId;
+        var row = document.getElementById(rowId);
+        if (row) { row.style.display = (row.style.display === 'none' || !row.style.display) ? 'table-row' : 'none'; }
+    };
+    window.submitAssetForm = function (event, formEl, action) {
+        event.preventDefault();
+        var btn = formEl.querySelector('[type="submit"]');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+        var data = new FormData(formEl);
+        fetch(window.PROFILE_URL + '?section=asset', {
+            method: 'POST', headers: { 'X-CSRFToken': data.get('csrfmiddlewaretoken') }, body: data,
+        }).then(function (r) { return r.json(); }).then(function (json) {
+            if (json.ok) { window.location.reload(); }
+            else {
+                alert('Could not save: ' + (json.error || 'unknown error'));
+                if (btn) { btn.disabled = false; btn.textContent = btn.textContent; }
+            }
+        }).catch(function () {
+            alert('Network error — please try again.');
+            if (btn) { btn.disabled = false; }
+        });
+    };
+})();
+</script>

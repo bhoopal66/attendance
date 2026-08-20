@@ -85,25 +85,99 @@ SECTIONS = (
     SECTION_SALES_PERF_METHOD2,
 )
 
+#: Display labels for the 4 *pay-cycle groups* — deliberately excludes
+#: SECTION_SALES_PERF_METHOD2, which is the same remote employees as
+#: SECTION_SALES_PERF recalculated for display, not a separate population.
+#: See attendance.models.SalaryCycleGroupDefault.
+SECTION_LABELS = {
+    SECTION_ADMIN_INHOUSE: 'Admin (In-house)',
+    SECTION_ADMIN_REMOTE: 'Admin (Remote)',
+    SECTION_SALES_FIXED: 'Sales (Fixed Salary)',
+    SECTION_SALES_PERF: 'Sales (Performance)',
+}
+
+
+# ------------------------------------------------------- group classification
+
+def classify_employee_section(employee):
+    """Which pay-cycle group (one of SECTION_LABELS' keys) this employee
+    belongs to, or None if they don't fall into any of the 4 — same rules
+    `select_employees()` uses, applied to a single employee instead of
+    listing everyone. Not gated on `is_active`: an employee's group is
+    "which cycle rules apply to them", which should still resolve correctly
+    when recalculating a past month for someone since deactivated.
+    """
+    from attendance.models import Employee, RemoteEmployee
+
+    if isinstance(employee, RemoteEmployee):
+        if employee.tcr_id and Employee.objects.filter(
+                tcr_id=employee.tcr_id, is_active=True).exists():
+            return None  # paid via their in-house record instead
+        if employee.department == 'Admin':
+            return SECTION_ADMIN_REMOTE
+        return SECTION_SALES_FIXED if employee.is_fixed_salary else SECTION_SALES_PERF
+
+    if employee.department == 'Admin':
+        return SECTION_ADMIN_INHOUSE
+    if employee.department == 'Sales':
+        return SECTION_SALES_FIXED if employee.is_fixed_salary else SECTION_SALES_PERF
+    return None
+
+
+def classify_employees_bulk(employees):
+    """Same as `classify_employee_section`, batched — one query for the
+    shared in-house `tcr_id` exclusion set instead of one per employee.
+
+    Returns {employee.pk: group_key_or_None}.
+    """
+    from attendance.models import Employee, RemoteEmployee
+
+    employees = list(employees)
+    inhouse_tcr = set(
+        Employee.objects.filter(is_active=True)
+        .exclude(tcr_id__isnull=True).exclude(tcr_id='')
+        .values_list('tcr_id', flat=True)
+    )
+
+    result = {}
+    for emp in employees:
+        if isinstance(emp, RemoteEmployee):
+            if emp.tcr_id and emp.tcr_id in inhouse_tcr:
+                result[emp.pk] = None
+            elif emp.department == 'Admin':
+                result[emp.pk] = SECTION_ADMIN_REMOTE
+            else:
+                result[emp.pk] = SECTION_SALES_FIXED if emp.is_fixed_salary else SECTION_SALES_PERF
+        else:
+            if emp.department == 'Admin':
+                result[emp.pk] = SECTION_ADMIN_INHOUSE
+            elif emp.department == 'Sales':
+                result[emp.pk] = SECTION_SALES_FIXED if emp.is_fixed_salary else SECTION_SALES_PERF
+            else:
+                result[emp.pk] = None
+    return result
+
 
 # ---------------------------------------------------------------- pay period
 
 def get_pay_period(employee, year, month, _cache=None):
     """Resolve one employee's pay period for a given calendar month.
 
-    `_cache` is an optional dict for callers processing many employees — the
-    period depends only on `salary_cycle_start_day`, so a handful of distinct
-    values covers the whole workforce and recomputing per employee is waste.
+    `_cache` is an optional dict for callers processing many employees,
+    keyed by employee pk — a period now depends on that employee's own
+    cycle-change history (not just a single shared cycle_start_day, since
+    changes are clipped to an exact date), so it is no longer shareable
+    across employees, only across repeated calls for the same one.
     """
-    from payroll.views import _get_employee_pay_period
+    from attendance.services_salary_cycle import get_employee_pay_period
 
-    day = employee.salary_cycle_start_day or 21
-    if _cache is not None and day in _cache:
-        return _cache[day]
-    start, end, days, holidays = _get_employee_pay_period(day, year, month)
+    cache_key = employee.pk
+    if _cache is not None and cache_key in _cache:
+        return _cache[cache_key]
+    start, end, days, holidays = get_employee_pay_period(employee, year, month)
     period = PayPeriod(start, end, days, holidays)
     if _cache is not None:
-        _cache[day] = period
+        _cache[cache_key] = period
     return period
 
 

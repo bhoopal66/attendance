@@ -30,6 +30,15 @@ Phase 10 addition:
   GET context includes perf_trend (12-month target-vs-achieved series) and
   perf_current (latest month's performance row). Read-only on the profile —
   targets are edited on the Team Performance page or in Django admin.
+
+360 Coverage addition:
+  GET context now also includes: return-to-work records, the current
+  payroll period's weekly-off (Sunday) entitlement, the current EmployeeVisa
+  (masked identity numbers, revealed via the existing compliance_reveal
+  endpoint with group='visa_number'), an itemized leave ledger, active/past
+  warnings, the asset register, and a cross-model audit trail. New handlers:
+  _save_return_to_work, _save_sunday_override, _save_visa, _save_visa_cancel,
+  _save_warning, _save_asset.
 """
 
 import json
@@ -37,6 +46,7 @@ import logging
 from datetime import date
 
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
@@ -46,8 +56,9 @@ from django.utils import timezone
 import datetime
 
 from ..models import (
-    AuditLog, Employee, EmploymentHistory, SalaryStructure, EmployerCostSetup,
-    EmployeeDocument, Recoverable,
+    AuditLog, Employee, EmployeeAsset, EmployeeReturnToWork, EmployeeVisa,
+    EmployeeWarning, EmploymentHistory, LeaveLedgerEntry, SalaryStructure,
+    EmployerCostSetup, EmployeeDocument, Recoverable,
 )
 from ..audit import log_audit
 from .. import compliance_access as access
@@ -116,11 +127,44 @@ def employee_profile(request, person_id):
     )
     cost_history = employee.cost_setups.order_by('-effective_from', '-created_at')
 
+    # Salary cycle — employee override + group + company default timelines
+    from ..services_salary_cycle import default_cycle_timeline, employee_cycle_timeline, group_cycle_timeline
+    from payroll.services_payroll_engine import SECTION_LABELS, classify_employee_section
+    salary_cycle_history = employee_cycle_timeline(employee)
+    salary_cycle_defaults = default_cycle_timeline()
+    salary_cycle_group_key = classify_employee_section(employee)
+    salary_cycle_group_label = SECTION_LABELS.get(salary_cycle_group_key, salary_cycle_group_key) if salary_cycle_group_key else None
+    salary_cycle_group_history = group_cycle_timeline(salary_cycle_group_key) if salary_cycle_group_key else []
+
     # Employee documents — all records, ordered by type then newest first
     documents = employee.documents.order_by('document_type', '-created_at')
 
     # Recoverables — all records, newest first; split by status for display
     recoverables = employee.recoverables.order_by('-created_at')
+
+    # Return to work — every recorded coming-back-from-leave event.
+    return_to_work_records = EmployeeReturnToWork.objects.filter(
+        employee=employee).order_by('-actual_return', '-id')
+
+    # Current visa + full renewal history, identity numbers masked per the
+    # same role matrix as Emirates ID/passport.
+    from ..services_identity import current_visa, visa_history, visa_masked_fields
+    visa_role = access.role_of(request.user)
+    visa_current = current_visa(employee)
+    visa_history_rows = visa_history(employee)
+    visa_masked = visa_masked_fields(visa_current, visa_role)
+
+    # Itemized leave: the ledger (every movement) plus request history (status/approver).
+    leave_ledger = LeaveLedgerEntry.objects.filter(employee=employee).order_by('-entry_date', '-id')
+    leave_requests = employee.leave_requests.order_by('-start_date')
+
+    # Warnings — full history, newest first.
+    from ..services_warnings import warning_history
+    warnings = warning_history(employee)
+
+    # Assets — full custody register.
+    from ..services_assets import asset_history
+    assets = asset_history(employee)
 
     # Phase 10 — performance trend (12 months ending this month).
     # Imported lazily to avoid a module-level attendance→payroll import cycle.
@@ -138,6 +182,20 @@ def employee_profile(request, person_id):
         logger.exception('Performance trend unavailable for employee %s', employee.pk)
         perf_trend, perf_current, perf_max, perf_has_data = [], None, 0, False
 
+    # Weekly-off (Sunday) entitlement for the current payroll period. Imported
+    # lazily — same attendance→payroll cycle concern as perf_trend above.
+    try:
+        from payroll.services_sunday_entitlement_db import entitlement_summary
+        sunday_entitlement = entitlement_summary(employee, 'inhouse', today_d.year, today_d.month)
+    except Exception:
+        logger.exception('Sunday entitlement unavailable for employee %s', employee.pk)
+        sunday_entitlement = None
+
+    # Cross-model audit trail — paginated, newest first.
+    from ..services_audit_trail import employee_audit_trail
+    audit_trail_page = Paginator(employee_audit_trail(employee), 25).get_page(
+        request.GET.get('audit_page'))
+
     context = {
         'employee':           employee,
         'managers':           managers,
@@ -150,11 +208,32 @@ def employee_profile(request, person_id):
         'salary_history':     salary_history,
         'current_cost':       current_cost,
         'cost_history':       cost_history,
+        'salary_cycle_history':  salary_cycle_history,
+        'salary_cycle_group_label':   salary_cycle_group_label,
+        'salary_cycle_group_history': salary_cycle_group_history,
+        'salary_cycle_defaults': salary_cycle_defaults,
         'documents':          documents,
         'document_type_choices': EmployeeDocument.DOCUMENT_TYPES,
         'recoverables':            recoverables,
         'recoverable_type_choices': Recoverable.RECOVERABLE_TYPES,
         'recoverable_status_choices': Recoverable.STATUS_CHOICES,
+        # 360 coverage additions
+        'return_to_work_records': return_to_work_records,
+        'sunday_entitlement':     sunday_entitlement,
+        'visa_current':           visa_current,
+        'visa_history_rows':      visa_history_rows,
+        'visa_masked':            visa_masked,
+        'visa_status_choices':    EmployeeVisa.VISA_STATUS_CHOICES,
+        'visa_sponsor_type_choices': EmployeeVisa.SPONSOR_TYPE_CHOICES,
+        'leave_ledger':           leave_ledger,
+        'leave_requests':         leave_requests,
+        'warnings':               warnings,
+        'warning_severity_choices': EmployeeWarning.SEVERITY_CHOICES,
+        'warning_category_choices': EmployeeWarning.CATEGORY_CHOICES,
+        'assets':                 assets,
+        'asset_type_choices':     EmployeeAsset.ASSET_TYPE_CHOICES,
+        'asset_condition_choices': EmployeeAsset.CONDITION_CHOICES,
+        'audit_trail_page':       audit_trail_page,
         # Phase 10 — performance
         'perf_trend':    perf_trend,
         'perf_current':  perf_current,
@@ -198,6 +277,12 @@ def _handle_section_post(request, employee):
         'recoverable':  _save_recoverable,
         'onboarding':   _save_onboarding,
         'compliance':   _save_compliance,
+        'return_to_work':     _save_return_to_work,
+        'sunday_entitlement': _save_sunday_override,
+        'visa':               _save_visa,
+        'visa_cancel':        _save_visa_cancel,
+        'warning':            _save_warning,
+        'asset':              _save_asset,
     }
     handler = handlers.get(section)
     if not handler:
@@ -431,7 +516,17 @@ def _save_bank(request, emp):
     emp.bank_name              = _get(request, 'bank_name') or None
     emp.bank_account_number    = _get(request, 'bank_account_number') or None
     emp.bank_routing_code      = _get(request, 'bank_routing_code') or None
-    emp.salary_cycle_start_day = int(_get(request, 'salary_cycle_start_day') or 21)
+
+    if _get(request, 'salary_cycle_start_day'):
+        from ..services_salary_cycle import set_employee_cycle_override
+        eff_date = _get(request, 'salary_cycle_effective_date') or date.today().isoformat()
+        set_employee_cycle_override(
+            emp,
+            _get(request, 'salary_cycle_start_day'),
+            eff_date,
+            actor=request.user.username if request.user.is_authenticated else 'system',
+            note=_get(request, 'salary_cycle_note'),
+        )
 
 
 def _save_cost(request, emp):
@@ -575,6 +670,157 @@ def _save_onboarding(request, emp):
     for key in ONBOARDING_ITEMS:
         checklist[key] = request.POST.get(f'checklist_{key}') == 'on'
     emp.onboarding_checklist = checklist
+
+
+def _actor(request):
+    return request.user.username if request.user.is_authenticated else 'system'
+
+
+def _save_return_to_work(request, emp):
+    """Create a new EmployeeReturnToWork row. Existing rows are never edited
+    here — this section is add-only, like Documents and Recoverables."""
+    def _date(key):
+        return _get(request, key) or None
+
+    expected = _date('expected_return')
+    actual = _date('actual_return')
+    delay_days = None
+    if expected and actual:
+        delay_days = (datetime.date.fromisoformat(actual) - datetime.date.fromisoformat(expected)).days
+
+    rtw = EmployeeReturnToWork.objects.create(
+        employee=emp,
+        leave_type_code=_get(request, 'leave_type_code'),
+        leave_start=_date('leave_start'),
+        expected_return=expected,
+        actual_return=actual,
+        delay_days=delay_days,
+        delay_authorised=request.POST.get('delay_authorised') == 'on',
+        payroll_effective_date=_date('payroll_effective_date'),
+        attendance_effective_date=_date('attendance_effective_date'),
+        notes=_get(request, 'notes'),
+        approved_by=_get(request, 'approved_by'),
+        created_by=_actor(request),
+    )
+    log_audit(_actor(request), AuditLog.ACTION_CREATE, rtw,
+              note=f'Return to work recorded for {emp.name} ({emp.person_id})'[:255])
+    # Standalone row — emp.save() afterward is a harmless no-op, same as Documents.
+
+
+def _save_sunday_override(request, emp):
+    from payroll.services_sunday_entitlement_db import apply_override, save_entitlement
+
+    year = int(_get(request, 'year'))
+    month = int(_get(request, 'month'))
+    new_count = _get(request, 'override_count')
+    reason = _get(request, 'override_reason')
+
+    record = save_entitlement(emp, 'inhouse', year, month)
+    apply_override(record, new_count, reason, _actor(request))
+    # apply_override already writes its own AuditLog row — do not duplicate it here.
+
+
+def _save_visa(request, emp):
+    from ..services_identity import renew_visa
+
+    fields = {}
+    for key in ('uid_number', 'visa_file_number', 'residence_permit_number',
+                'visa_type', 'sponsor', 'sponsor_type', 'place_of_issue', 'notes'):
+        fields[key] = _get(request, key)
+    fields['issue_date'] = _get(request, 'issue_date') or None
+    fields['expiry_date'] = _get(request, 'expiry_date') or None
+    inside = _get(request, 'inside_country')
+    fields['inside_country'] = {'1': True, '0': False}.get(inside)
+
+    new_visa = renew_visa(emp, actor=_actor(request), supersede_status='expired', **fields)
+    # renew_visa records its own EmployeeTimelineEvent but not an AuditLog row —
+    # the audit trail panel needs one to surface visa changes.
+    log_audit(_actor(request), AuditLog.ACTION_CREATE, new_visa,
+              note=f'Visa renewed for {emp.name} ({emp.person_id})'[:255])
+    # Standalone row — emp.save() afterward is a no-op.
+
+
+def _save_visa_cancel(request, emp):
+    from ..services_identity import cancel_visa
+
+    cancellation_date = _get(request, 'cancellation_date') or str(date.today())
+    reference = _get(request, 'cancellation_reference')
+    visa = cancel_visa(emp, cancellation_date, reference=reference, actor=_actor(request))
+    log_audit(_actor(request), AuditLog.ACTION_UPDATE, visa,
+              note=f'Visa cancelled for {emp.name} ({emp.person_id})'[:255])
+
+
+def _save_warning(request, emp):
+    from ..services_warnings import issue_warning
+
+    issue_warning(
+        emp, actor=_actor(request),
+        severity=_get(request, 'severity'),
+        category=_get(request, 'category') or 'other',
+        issued_date=_get(request, 'issued_date') or str(date.today()),
+        incident_date=_get(request, 'incident_date') or None,
+        description=_get(request, 'description'),
+        valid_until=_get(request, 'valid_until') or None,
+        issued_by=_get(request, 'issued_by') or _actor(request),
+        notes=_get(request, 'notes'),
+    )
+
+
+def _save_asset(request, emp):
+    from decimal import Decimal, InvalidOperation
+
+    from ..services_assets import issue_asset, mark_lost, return_asset
+
+    action = _get(request, 'asset_action') or 'issue'
+    actor = _actor(request)
+
+    if action == 'issue':
+        def _dec(key):
+            raw = _get(request, key)
+            if not raw:
+                return None
+            try:
+                return Decimal(raw)
+            except InvalidOperation:
+                return None
+
+        issue_asset(
+            emp, actor=actor,
+            asset_type=_get(request, 'asset_type'),
+            asset_tag=_get(request, 'asset_tag'),
+            description=_get(request, 'description'),
+            serial_number=_get(request, 'serial_number'),
+            value=_dec('value'),
+            condition_at_issue=_get(request, 'condition_at_issue') or 'new',
+            issued_date=_get(request, 'issued_date') or str(date.today()),
+            expected_return_date=_get(request, 'expected_return_date') or None,
+            notes=_get(request, 'notes'),
+        )
+        return
+
+    asset = get_object_or_404(EmployeeAsset, pk=_get(request, 'asset_id'), employee=emp)
+
+    if action == 'return':
+        return_asset(asset, actor, _get(request, 'returned_date') or str(date.today()),
+                     condition_current=_get(request, 'condition_current'))
+        return
+
+    if action == 'mark_lost':
+        def _dec(key):
+            raw = _get(request, key)
+            if not raw:
+                return None
+            try:
+                return Decimal(raw)
+            except InvalidOperation:
+                return None
+
+        mark_lost(asset, actor, recovery_amount=_dec('recovery_amount'),
+                  currency=_get(request, 'currency') or 'AED',
+                  reason=_get(request, 'reason'))
+        return
+
+    raise ValueError(f'Unknown asset action: {action}')
 
 
 # ── Compliance block ──────────────────────────────────────────────────────────

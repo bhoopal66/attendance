@@ -52,6 +52,9 @@ from .employee_management import (
     delete_employee,
     link_employees,
     unlink_employees,
+    employee_salary_cycle_history,
+    employee_salary_cycle_history_add,
+    employee_salary_cycle_history_delete,
 )
 from .employee_profile import compliance_reveal, employee_profile  # Phase 3
 from .compliance import compliance_watchlist, compliance_watchlist_csv
@@ -124,6 +127,9 @@ __all__ = [
     'delete_employee',
     'link_employees',
     'unlink_employees',
+    'employee_salary_cycle_history',
+    'employee_salary_cycle_history_add',
+    'employee_salary_cycle_history_delete',
     # Employee Profile (Phase 3)
     'employee_profile',
     'compliance_reveal',

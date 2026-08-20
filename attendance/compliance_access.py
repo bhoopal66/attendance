@@ -63,6 +63,12 @@ FIELD_GROUPS = {
         'roles': {HR_ADMIN, EXEC_DIRECTOR},
         'masked': False,
     },
+    'visa_number': {
+        'label': 'Visa identity numbers',
+        'detail': 'UID, visa file number and residence permit number (EmployeeVisa)',
+        'roles': {HR_ADMIN, EXEC_DIRECTOR},
+        'masked': True,
+    },
     'bank': {
         'label': 'Bank details',
         'detail': 'Bank name and IBAN — drives WPS SIF generation',

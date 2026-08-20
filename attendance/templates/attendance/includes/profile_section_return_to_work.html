@@ -1,0 +1,136 @@
+{% comment %}Section card: Return to Work — records coming back from leave, separate from joining_date{% endcomment %}
+<div class="section-card full-width">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H3m18 8V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2v3"/>
+            </svg>
+            Return to Work
+        </span>
+        <button class="btn-edit-section" onclick="toggleRtwForm()">+ Add Record</button>
+    </div>
+    <div class="section-body">
+
+        <form class="rtw-add-form" id="form-return_to_work" style="display:none;"
+              method="post" onsubmit="submitRtwForm(event, this)">
+            {% csrf_token %}
+            <div class="rtw-form-grid">
+                <div class="form-row">
+                    <label>Leave type</label>
+                    <input type="text" name="leave_type_code" placeholder="e.g. annual, sick">
+                </div>
+                <div class="form-row">
+                    <label>Leave start</label>
+                    <input type="date" name="leave_start">
+                </div>
+                <div class="form-row">
+                    <label>Expected return</label>
+                    <input type="date" name="expected_return">
+                </div>
+                <div class="form-row">
+                    <label>Actual return</label>
+                    <input type="date" name="actual_return">
+                </div>
+                <div class="form-row">
+                    <label>Payroll effective date</label>
+                    <input type="date" name="payroll_effective_date">
+                </div>
+                <div class="form-row">
+                    <label>Attendance effective date</label>
+                    <input type="date" name="attendance_effective_date">
+                </div>
+                <div class="form-row">
+                    <label>Approved by</label>
+                    <input type="text" name="approved_by">
+                </div>
+                <div class="form-row" style="display:flex; align-items:center; gap:.4rem; padding-top:1.4rem;">
+                    <input type="checkbox" name="delay_authorised" id="rtw_delay_authorised" style="width:auto;">
+                    <label for="rtw_delay_authorised" style="margin:0;">Delay authorised</label>
+                </div>
+            </div>
+            <div class="form-row" style="margin-top:.5rem;">
+                <label>Notes</label>
+                <input type="text" name="notes">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save Record</button>
+                <button type="button" class="btn-cancel-edit" onclick="toggleRtwForm()">Cancel</button>
+            </div>
+        </form>
+
+        {% if return_to_work_records %}
+        <div class="table-scroll">
+            <table class="rec-table">
+                <thead>
+                    <tr>
+                        <th>Leave type</th><th>Leave start</th><th>Expected return</th>
+                        <th>Actual return</th><th>Delay</th><th>Payroll effective</th>
+                        <th>Notes</th><th>Approved by</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in return_to_work_records %}
+                    <tr>
+                        <td>{{ r.leave_type_code|default:"—" }}</td>
+                        <td>{{ r.leave_start|date:"d M Y"|default:"—" }}</td>
+                        <td>{{ r.expected_return|date:"d M Y"|default:"—" }}</td>
+                        <td>{{ r.actual_return|date:"d M Y"|default:"—" }}</td>
+                        <td>
+                            {% if r.delay_days != None %}
+                                {% if r.delay_days > 0 %}
+                                <span class="rtw-delay {% if r.delay_authorised %}rtw-delay-ok{% else %}rtw-delay-bad{% endif %}">
+                                    {{ r.delay_days }}d {% if r.delay_authorised %}(authorised){% else %}(unauthorised){% endif %}
+                                </span>
+                                {% else %}on time{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ r.payroll_effective_date|date:"d M Y"|default:"—" }}</td>
+                        <td class="rec-notes-cell">{{ r.notes|default:"—" }}</td>
+                        <td class="rec-added-cell">{{ r.approved_by|default:"—" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="info-empty">No return-to-work records yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.rtw-form-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:.5rem .75rem; }
+@media (max-width:900px) { .rtw-form-grid { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:600px) { .rtw-form-grid { grid-template-columns:1fr; } }
+.rtw-delay { font-size:.72rem; font-weight:700; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+.rtw-delay-ok  { background:rgba(16,185,129,.12); color:#059669; }
+.rtw-delay-bad { background:rgba(239,68,68,.12); color:#dc2626; }
+</style>
+
+<script>
+(function () {
+    window.toggleRtwForm = function () {
+        var form = document.getElementById('form-return_to_work');
+        if (!form) return;
+        form.style.display = (form.style.display === 'none' || !form.style.display) ? 'block' : 'none';
+    };
+    window.submitRtwForm = function (event, formEl) {
+        event.preventDefault();
+        var btn = formEl.querySelector('[type="submit"]');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+        var data = new FormData(formEl);
+        fetch(window.PROFILE_URL + '?section=return_to_work', {
+            method: 'POST', headers: { 'X-CSRFToken': data.get('csrfmiddlewaretoken') }, body: data,
+        }).then(function (r) { return r.json(); }).then(function (json) {
+            if (json.ok) { window.location.reload(); }
+            else {
+                alert('Could not save: ' + (json.error || 'unknown error'));
+                if (btn) { btn.disabled = false; btn.textContent = 'Save Record'; }
+            }
+        }).catch(function () {
+            alert('Network error — please try again.');
+            if (btn) { btn.disabled = false; btn.textContent = 'Save Record'; }
+        });
+    };
+})();
+</script>

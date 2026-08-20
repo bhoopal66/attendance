@@ -78,8 +78,18 @@ def save_entitlement(employee, employee_type, year, month, result=None,
 
     kw = ({'employee': employee} if employee_type == 'inhouse'
           else {'remote_employee': employee})
+    # defaults must satisfy the NOT NULL columns on first creation — an empty
+    # dict here only ever worked because nothing called this function before.
     record, _ = SundayEntitlementRecord.objects.get_or_create(
-        year=year, month=month, defaults={}, **kw)
+        year=year, month=month, defaults={
+            'period_start': result['payroll_period_start'],
+            'period_end': result['payroll_period_end'],
+            'total_sundays': result['total_sundays_in_period'],
+            'system_calculated_count': result['eligible_sunday_count'],
+            'basis': result['basis'][:60],
+            'eligibility_start_date': result['sunday_eligibility_start_date'],
+            'breakdown': result['audit_rows'],
+        }, **kw)
 
     record.period_start = result['payroll_period_start']
     record.period_end = result['payroll_period_end']

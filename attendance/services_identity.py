@@ -163,6 +163,32 @@ def expiring_identity(person, today=None):
     return rows
 
 
+VISA_NUMBER_FIELDS = [
+    ('uid_number', 'UID number'),
+    ('visa_file_number', 'Visa file number'),
+    ('residence_permit_number', 'Residence permit number'),
+]
+
+
+def visa_masked_fields(visa, role):
+    """The current visa's identity numbers, masked per the same rules as
+    Emirates ID/passport — reveal goes through the existing
+    compliance_reveal endpoint with group='visa_number'."""
+    from . import compliance_access as access
+
+    if visa is None:
+        return []
+    out = []
+    for key, label in VISA_NUMBER_FIELDS:
+        payload = access.field_payload(role, 'visa_number', getattr(visa, key))
+        if payload is None:
+            continue
+        row = {'key': key, 'label': label}
+        row.update(payload)
+        out.append(row)
+    return out
+
+
 def identity_summary(person, today=None):
     """One dict for the profile — counts, the current visa, and what needs doing."""
     from attendance.models import (

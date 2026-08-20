@@ -213,6 +213,47 @@
     }
     .cycle-badge.default { background: #f1f5f9; color: #475569; }
 
+    /* Company Default Pay Cycle panel */
+    .default-cycle-body { padding: 18px 20px; }
+    .default-cycle-current {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    .default-cycle-current .label { font-size: 0.8rem; color: #64748b; }
+    .default-cycle-current .value { font-size: 1.05rem; font-weight: 700; color: #0f172a; }
+    .default-cycle-form {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+    .default-cycle-form .form-group { flex: 0 0 auto; min-width: 130px; }
+    .default-cycle-form .form-group.note-field { flex: 1 1 220px; }
+    .cycle-history-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+    .cycle-history-table th {
+        text-align: left;
+        padding: 6px 10px;
+        color: #64748b;
+        font-weight: 600;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .cycle-history-table td {
+        padding: 7px 10px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
+    }
+    .cycle-history-empty { color: #94a3b8; font-size: 0.8rem; padding: 6px 0; }
+
     /* 3-way salary type selector — stacked rows */
     .stype-pills {
         display: flex;
@@ -521,6 +562,63 @@
         <a href="{% url 'payroll_dashboard' %}" style="padding:9px 16px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;text-decoration:none;font-weight:500;">
             ← Back to Payroll
         </a>
+    </div>
+
+    <!-- Company Default Pay Cycle -->
+    <div class="emp-section">
+        <div class="emp-section-header" style="background:#f8fafc; color:#0f172a;">
+            <span class="section-h-title">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Company Default Pay Cycle
+            </span>
+            <span class="section-h-count">Applies to every employee without their own override</span>
+        </div>
+        <div class="default-cycle-body">
+            <div class="default-cycle-current">
+                <span class="label">Currently in effect:</span>
+                <span class="value" id="defaultCycleCurrent">—</span>
+            </div>
+            <div class="default-cycle-form">
+                <div class="form-group">
+                    <label>Cycle</label>
+                    <select id="defCycleDay" onchange="onDefCycleChange()">
+                        <option value="21">21st → 20th</option>
+                        <option value="1">Full month (1st → last day)</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div class="form-group" id="defCycleCustomWrap" style="display:none;">
+                    <label>Start day</label>
+                    <input type="number" id="defCycleCustomDay" min="2" max="28" placeholder="2–28">
+                </div>
+                <div class="form-group">
+                    <label>Effective month</label>
+                    <input type="number" id="defCycleMonth" min="1" max="12" placeholder="MM">
+                </div>
+                <div class="form-group">
+                    <label>Effective year</label>
+                    <input type="number" id="defCycleYear" min="2000" max="2100" placeholder="YYYY">
+                </div>
+                <div class="form-group note-field">
+                    <label>Note</label>
+                    <input type="text" id="defCycleNote" maxlength="255" placeholder="Reason for this change (required if backdating into a paid month)">
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <button type="button" class="btn-save" style="padding:9px 16px;" onclick="saveDefaultCycle()">Add Change</button>
+                </div>
+            </div>
+            <div id="defCycleFeedback" class="save-feedback"></div>
+            <table class="cycle-history-table" id="defCycleHistoryTable">
+                <thead>
+                    <tr><th>Effective From</th><th>Cycle</th><th>Note</th><th>By</th></tr>
+                </thead>
+                <tbody id="defCycleHistoryBody">
+                    <tr><td colspan="4" class="cycle-history-empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Stats -->
@@ -848,19 +946,47 @@
                         <option value="Taamul">Taamul</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Pay Cycle</label>
-                    <select id="editCycleDay" onchange="onCycleChange()">
-                        <option value="21">21st → 20th (default)</option>
-                        <option value="1">Full month (1st → last day)</option>
-                        <option value="custom">Custom</option>
-                    </select>
-                    <div id="customCycleWrap" style="display:none;margin-top:8px;">
-                        <input type="number" id="editCycleCustomDay" min="2" max="28" placeholder="Start day (2–28)"
-                               style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;box-sizing:border-box;">
-                        <div style="font-size:0.72rem;color:#64748b;margin-top:4px;">Period runs from this day of the previous month to (day − 1) of the selected month.</div>
+            </div>
+
+            <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:14px;">
+                <div style="font-size:0.85rem;font-weight:600;color:#0f172a;margin-bottom:2px;">Pay Cycle</div>
+                <div style="font-size:0.75rem;color:#64748b;margin-bottom:10px;">Currently: <strong id="editCycleCurrentLabel">—</strong>. Changes here are dated and don't affect months already computed with a different cycle.</div>
+                <div class="form-row" style="margin-bottom:8px;">
+                    <div class="form-group">
+                        <label>Cycle</label>
+                        <select id="editCycleDay" onchange="onCycleChange()">
+                            <option value="21">21st → 20th</option>
+                            <option value="1">Full month (1st → last day)</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                        <div id="customCycleWrap" style="display:none;margin-top:8px;">
+                            <input type="number" id="editCycleCustomDay" min="2" max="28" placeholder="Start day (2–28)"
+                                   style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Effective month</label>
+                        <input type="number" id="editCycleMonth" min="1" max="12" placeholder="MM">
+                    </div>
+                    <div class="form-group">
+                        <label>Effective year</label>
+                        <input type="number" id="editCycleYear" min="2000" max="2100" placeholder="YYYY">
                     </div>
                 </div>
+                <div class="form-row" style="margin-bottom:8px;">
+                    <div class="form-group">
+                        <label>Note <span style="font-weight:400;color:#94a3b8;">(required if backdating into a paid month)</span></label>
+                        <input type="text" id="editCycleNote" maxlength="255" placeholder="Reason for this change">
+                    </div>
+                    <div class="form-group" style="flex:0 0 auto; align-self:flex-end;">
+                        <button type="button" class="btn-save" style="padding:9px 16px;" onclick="saveCycleOverride()">Update Pay Cycle</button>
+                    </div>
+                </div>
+                <div id="editCycleFeedback" class="save-feedback"></div>
+                <table class="cycle-history-table" id="editCycleHistoryTable">
+                    <thead><tr><th>Effective From</th><th>Cycle</th><th>Note</th><th>By</th></tr></thead>
+                    <tbody id="editCycleHistoryBody"><tr><td colspan="4" class="cycle-history-empty">Loading…</td></tr></tbody>
+                </table>
             </div>
 
             <div class="modal-actions">
@@ -914,10 +1040,90 @@
             document.getElementById('editCycleCustomDay').value = day;
         }
         onCycleChange();
+        document.getElementById('editCycleCurrentLabel').textContent = cycleLabel(day);
+        const today = new Date();
+        document.getElementById('editCycleMonth').value = today.getMonth() + 1;
+        document.getElementById('editCycleYear').value = today.getFullYear();
+        document.getElementById('editCycleNote').value = '';
+        document.getElementById('editCycleFeedback').className = 'save-feedback';
+        document.getElementById('editCycleFeedback').textContent = '';
+        loadCycleHistory(empType, empId);
 
         selectSalaryType(editSalaryType);
         selectCurrency(editCurrency);
         document.getElementById('editModal').classList.add('show');
+    }
+
+    function cycleLabel(day) {
+        if (day === 1) return 'Full month (1st → last day)';
+        return `Day ${day} → Day ${day - 1} (next month)`;
+    }
+
+    async function loadCycleHistory(empType, empId) {
+        const body = document.getElementById('editCycleHistoryBody');
+        body.innerHTML = '<tr><td colspan="4" class="cycle-history-empty">Loading…</td></tr>';
+        try {
+            const res = await fetch(`/payroll/api/employee/${empType}/${empId}/salary-cycle/`);
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Failed to load');
+            renderCycleHistoryRows(body, data.history, 'Override');
+        } catch {
+            body.innerHTML = '<tr><td colspan="4" class="cycle-history-empty">Could not load history.</td></tr>';
+        }
+    }
+
+    function renderCycleHistoryRows(tbody, rows, sourceLabel) {
+        if (!rows || rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="cycle-history-empty">No ${sourceLabel.toLowerCase()} entries yet — following the company default.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = rows.map(r => `
+            <tr>
+                <td>${r.effective_month}/${r.effective_year}</td>
+                <td>${r.cycle_start_day === 1 ? 'Full month' : 'Day ' + r.cycle_start_day}</td>
+                <td>${r.note ? escapeHtml(r.note) : '—'}</td>
+                <td>${r.created_by ? escapeHtml(r.created_by) : '—'}</td>
+            </tr>
+        `).join('');
+    }
+
+    async function saveCycleOverride() {
+        const fb = document.getElementById('editCycleFeedback');
+        fb.className = 'save-feedback';
+        const sel = document.getElementById('editCycleDay').value;
+        const day = sel === 'custom' ? parseInt(document.getElementById('editCycleCustomDay').value) : parseInt(sel);
+        if (isNaN(day) || day < 1 || day > 28) {
+            fb.className = 'save-feedback error';
+            fb.textContent = 'Please enter a valid start day (1–28).';
+            return;
+        }
+        try {
+            const res = await fetch(`/payroll/api/employee/${editEmpType}/${editEmpId}/salary-cycle/add/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                body: JSON.stringify({
+                    cycle_start_day: day,
+                    effective_year: parseInt(document.getElementById('editCycleYear').value),
+                    effective_month: parseInt(document.getElementById('editCycleMonth').value),
+                    note: document.getElementById('editCycleNote').value,
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                fb.className = 'save-feedback success';
+                fb.textContent = 'Pay cycle updated.';
+                document.getElementById('editCycleCurrentLabel').textContent = cycleLabel(data.current_cycle_start_day);
+                renderCycleHistoryRows(document.getElementById('editCycleHistoryBody'), data.history, 'Override');
+                const cycleEl = document.getElementById(`cycle-${editEmpType}-${editEmpId}`);
+                if (cycleEl) cycleEl.innerHTML = cycleBadgeHtml(data.current_cycle_start_day);
+            } else {
+                fb.className = 'save-feedback error';
+                fb.textContent = data.error || 'Save failed.';
+            }
+        } catch {
+            fb.className = 'save-feedback error';
+            fb.textContent = 'Network error. Please try again.';
+        }
     }
 
     function selectSalaryType(type) {
@@ -965,15 +1171,6 @@
         const designation = document.getElementById('editDesig').value.trim();
         const department = document.getElementById('editDept').value;
         const visaProvider = document.getElementById('editVisaProvider').value;
-        const cycleSelectVal = document.getElementById('editCycleDay').value;
-        const cycleDay = cycleSelectVal === 'custom'
-            ? parseInt(document.getElementById('editCycleCustomDay').value)
-            : parseInt(cycleSelectVal);
-        if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 28) {
-            fb.className = 'save-feedback error';
-            fb.textContent = 'Please enter a valid start day (1–28).';
-            return;
-        }
 
         // Map the unified 3-way selector back to the two backend fields
         const isFixedSalary = (editSalaryType === 'fixed');
@@ -994,7 +1191,6 @@
                     payroll_type: payrollType,
                     is_fixed_salary: isFixedSalary,
                     visa_provider: visaProvider,
-                    salary_cycle_start_day: cycleDay,
                 }),
             });
             const data = await res.json();
@@ -1107,6 +1303,72 @@
 
     document.getElementById('editModal').addEventListener('click', function(e) {
         if (e.target === this) closeEdit();
+    });
+
+    /* ── Company Default Pay Cycle panel ─────────────────────────────── */
+    function onDefCycleChange() {
+        const val = document.getElementById('defCycleDay').value;
+        document.getElementById('defCycleCustomWrap').style.display = val === 'custom' ? 'block' : 'none';
+    }
+
+    async function loadDefaultCycle() {
+        const body = document.getElementById('defCycleHistoryBody');
+        try {
+            const res = await fetch('/payroll/api/salary-cycle-default/');
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Failed to load');
+            const current = data.defaults && data.defaults.length ? data.defaults[0] : null;
+            document.getElementById('defaultCycleCurrent').textContent = current
+                ? cycleLabel(current.cycle_start_day) + ` (from ${current.effective_month}/${current.effective_year})`
+                : 'Full month (no default entries yet — every employee follows their own field)';
+            renderCycleHistoryRows(body, data.defaults, 'Default');
+        } catch {
+            body.innerHTML = '<tr><td colspan="4" class="cycle-history-empty">Could not load default cycle history.</td></tr>';
+        }
+    }
+
+    async function saveDefaultCycle() {
+        const fb = document.getElementById('defCycleFeedback');
+        fb.className = 'save-feedback';
+        const sel = document.getElementById('defCycleDay').value;
+        const day = sel === 'custom' ? parseInt(document.getElementById('defCycleCustomDay').value) : parseInt(sel);
+        if (isNaN(day) || day < 1 || day > 28) {
+            fb.className = 'save-feedback error';
+            fb.textContent = 'Please enter a valid start day (1–28).';
+            return;
+        }
+        try {
+            const res = await fetch('/payroll/api/salary-cycle-default/add/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                body: JSON.stringify({
+                    cycle_start_day: day,
+                    effective_year: parseInt(document.getElementById('defCycleYear').value),
+                    effective_month: parseInt(document.getElementById('defCycleMonth').value),
+                    note: document.getElementById('defCycleNote').value,
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                fb.className = 'save-feedback success';
+                fb.textContent = 'Default pay cycle updated.';
+                document.getElementById('defCycleNote').value = '';
+                loadDefaultCycle();
+            } else {
+                fb.className = 'save-feedback error';
+                fb.textContent = data.error || 'Save failed.';
+            }
+        } catch {
+            fb.className = 'save-feedback error';
+            fb.textContent = 'Network error. Please try again.';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date();
+        document.getElementById('defCycleMonth').value = today.getMonth() + 1;
+        document.getElementById('defCycleYear').value = today.getFullYear();
+        loadDefaultCycle();
     });
 </script>
 {% endblock %}

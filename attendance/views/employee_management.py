@@ -3,6 +3,7 @@ Employee management views for admin users.
 Custom interface for managing all employees without Django admin.
 """
 
+import datetime
 import json
 import logging
 
@@ -11,6 +12,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.hashers import make_password
+from django.views.decorators.http import require_http_methods
 
 from ..models import (
     AttendanceRecord, EarlyLeaveRequest, Employee, EmployeeIDAlias,
@@ -179,7 +181,7 @@ def update_employee(request):
         old_currencies = {'inhouse': inhouse.currency, 'remote': remote.currency}
         for emp_key, emp in (('inhouse', inhouse), ('remote', remote)):
             for field in ALLOWED_UPDATE_FIELDS:
-                if field not in data:
+                if field not in data or field == 'salary_cycle_start_day':
                     continue
                 # designation/warning fields only exist on RemoteEmployee
                 if field in ('designation', 'warning_count', 'last_warning_date') and not hasattr(emp, field):
@@ -188,8 +190,6 @@ def update_employee(request):
                 if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
                              'joining_date', 'leaving_date', 'tcr_id', 'visa_provider', 'last_warning_date'):
                     value = value or None
-                elif field == 'salary_cycle_start_day':
-                    value = int(value) if value is not None else 21
                 elif field == 'is_fixed_salary':
                     value = bool(value)
                 elif field == 'warning_count':
@@ -203,6 +203,14 @@ def update_employee(request):
             remote.full_clean(exclude=['extension_id'])
             inhouse.save()
             remote.save()
+            if 'salary_cycle_start_day' in data:
+                from ..services_salary_cycle import set_employee_cycle_override
+                eff_date = data.get('salary_cycle_effective_date') or datetime.date.today().isoformat()
+                note = data.get('salary_cycle_note', '')
+                set_employee_cycle_override(inhouse, data['salary_cycle_start_day'], eff_date,
+                                             actor=request.user.username, note=note)
+                set_employee_cycle_override(remote, data['salary_cycle_start_day'], eff_date,
+                                             actor=request.user.username, note=note)
             if old_currencies['inhouse'] != inhouse.currency or old_currencies['remote'] != remote.currency:
                 from payroll.services import convert_employee_deduction_currency
                 if old_currencies['inhouse'] != inhouse.currency:
@@ -229,7 +237,7 @@ def update_employee(request):
 
     # Update allowed fields
     for field in ALLOWED_UPDATE_FIELDS:
-        if field not in data:
+        if field not in data or field == 'salary_cycle_start_day':
             continue
         # designation/warning fields only exist on RemoteEmployee
         if field in ('designation', 'warning_count', 'last_warning_date') and not hasattr(emp, field):
@@ -238,8 +246,6 @@ def update_employee(request):
         if field in ('email', 'phone', 'department', 'location', 'team', 'designation',
                      'joining_date', 'leaving_date', 'tcr_id', 'visa_provider', 'last_warning_date'):
             value = value or None
-        elif field == 'salary_cycle_start_day':
-            value = int(value) if value is not None else 21
         elif field == 'is_fixed_salary':
             value = bool(value)
         elif field == 'warning_count':
@@ -253,6 +259,14 @@ def update_employee(request):
     try:
         emp.full_clean(exclude=['person_id', 'extension_id'])
         emp.save()
+        if 'salary_cycle_start_day' in data:
+            from ..services_salary_cycle import set_employee_cycle_override
+            eff_date = data.get('salary_cycle_effective_date') or datetime.date.today().isoformat()
+            set_employee_cycle_override(
+                emp, data['salary_cycle_start_day'], eff_date,
+                actor=request.user.username,
+                note=data.get('salary_cycle_note', ''),
+            )
         if old_currency != emp.currency:
             from payroll.services import convert_employee_deduction_currency
             emp_key = 'inhouse' if employee_type == 'inhouse' else 'remote'
@@ -581,3 +595,99 @@ def unlink_employees(request):
         remote.name, remote.id, inhouse_name, tcr_id, request.user.username
     )
     return JsonResponse({'success': True, 'message': f'Unlinked {remote.name} from {inhouse_name}'})
+
+
+def _serialize_cycle_row(row):
+    return {
+        'id': row.id,
+        'cycle_start_day': row.cycle_start_day,
+        'effective_date': row.effective_date.isoformat(),
+        'note': row.note,
+        'created_by': row.created_by,
+        'created_at': row.created_at.strftime('%Y-%m-%d %H:%M'),
+    }
+
+
+@login_required
+@user_passes_test(section_required('employees'), login_url='/report/')
+def employee_salary_cycle_history(request, emp_type, employee_id):
+    """Current pay cycle + this employee's override/group/company timelines."""
+    from ..services_salary_cycle import default_cycle_timeline, employee_cycle_timeline, group_cycle_timeline
+
+    emp = _get_employee_by_type(employee_id, emp_type)
+    if not emp:
+        return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+
+    from payroll.services_payroll_engine import SECTION_LABELS, classify_employee_section
+    group_key = classify_employee_section(emp)
+    group_label = SECTION_LABELS.get(group_key, group_key) if group_key else None
+    group_rows = group_cycle_timeline(group_key) if group_key else []
+
+    return JsonResponse({
+        'success': True,
+        'current_cycle_start_day': emp.salary_cycle_start_day,
+        'group': {'key': group_key, 'label': group_label} if group_key else None,
+        'history': [_serialize_cycle_row(r) for r in employee_cycle_timeline(emp)],
+        'group_history': [_serialize_cycle_row(r) for r in group_rows],
+        'defaults': [_serialize_cycle_row(r) for r in default_cycle_timeline()],
+    })
+
+
+@login_required
+@user_passes_test(section_required('employees'), login_url='/report/')
+@require_http_methods(["POST"])
+def employee_salary_cycle_history_add(request, emp_type, employee_id):
+    """Add (or correct) one dated pay-cycle override for this employee."""
+    from ..services_salary_cycle import employee_cycle_timeline, set_employee_cycle_override
+
+    emp = _get_employee_by_type(employee_id, emp_type)
+    if not emp:
+        return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    eff_date = data.get('effective_date') or datetime.date.today().isoformat()
+    try:
+        obj = set_employee_cycle_override(
+            emp,
+            data.get('cycle_start_day'),
+            eff_date,
+            actor=request.user.username,
+            note=data.get('note', ''),
+            allow_noop_skip=False,
+        )
+    except ValidationError as e:
+        return JsonResponse({'success': False, 'error': '; '.join(e.messages)}, status=400)
+
+    return JsonResponse({
+        'success': True,
+        'warning': getattr(obj, 'warning', None),
+        'current_cycle_start_day': emp.salary_cycle_start_day,
+        'history': [_serialize_cycle_row(r) for r in employee_cycle_timeline(emp)],
+    })
+
+
+@login_required
+@user_passes_test(section_required('employees'), login_url='/report/')
+@require_http_methods(["POST"])
+def employee_salary_cycle_history_delete(request, emp_type, employee_id, history_id):
+    """Undo the most recent pay-cycle override for this employee only."""
+    from ..services_salary_cycle import delete_latest_employee_override, employee_cycle_timeline
+
+    emp = _get_employee_by_type(employee_id, emp_type)
+    if not emp:
+        return JsonResponse({'success': False, 'error': 'Employee not found'}, status=404)
+
+    try:
+        delete_latest_employee_override(emp, history_id, actor=request.user.username)
+    except ValidationError as e:
+        return JsonResponse({'success': False, 'error': '; '.join(e.messages)}, status=400)
+
+    return JsonResponse({
+        'success': True,
+        'current_cycle_start_day': emp.salary_cycle_start_day,
+        'history': [_serialize_cycle_row(r) for r in employee_cycle_timeline(emp)],
+    })

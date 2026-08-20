@@ -1,0 +1,70 @@
+{% comment %}
+Section card: Leave — itemized, read-only. Leave is requested/approved
+through the existing portal/admin workflow, not edited from this page,
+matching how Performance is already read-only here.
+{% endcomment %}
+<div class="section-card full-width">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Leave
+        </span>
+    </div>
+    <div class="section-body">
+
+        <div class="cmp-sub">Ledger — every movement
+            <span class="cmp-note">accrual, taken, adjustment, carry-forward, encashment, expiry, reversal</span>
+        </div>
+        {% if leave_ledger %}
+        <div class="table-scroll">
+            <table class="rec-table">
+                <thead><tr><th>Date</th><th>Type</th><th>Kind</th><th>Days</th><th>Balance after</th><th>Description</th></tr></thead>
+                <tbody>
+                {% for l in leave_ledger %}
+                    <tr>
+                        <td>{{ l.entry_date|date:"d M Y" }}</td>
+                        <td>{{ l.leave_type_code }}</td>
+                        <td>{{ l.get_kind_display }}</td>
+                        <td class="rec-amount-cell {% if l.days < 0 %}rec-outstanding-positive{% else %}rec-recovered{% endif %}">{{ l.days }}</td>
+                        <td class="rec-amount-cell">{{ l.balance_after }}</td>
+                        <td class="rec-notes-cell">{{ l.description|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="info-empty">No leave ledger entries recorded.</p>
+        {% endif %}
+
+        <div class="cmp-sub" style="margin-top:18px;">Requests
+            <span class="cmp-note">portal submissions and their approval status</span>
+        </div>
+        {% if leave_requests %}
+        <div class="table-scroll">
+            <table class="rec-table">
+                <thead><tr><th>Type</th><th>Start</th><th>End</th><th>Status</th><th>Reason</th></tr></thead>
+                <tbody>
+                {% for r in leave_requests %}
+                    <tr>
+                        <td>{{ r.get_leave_type_display }}</td>
+                        <td>{{ r.start_date|date:"d M Y" }}</td>
+                        <td>{{ r.end_date|date:"d M Y" }}</td>
+                        <td>
+                            <span class="rec-status-badge rec-status-{% if r.status == 'approved' %}active{% elif r.status == 'rejected' %}waived{% else %}on_hold{% endif %}">
+                                {{ r.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="rec-notes-cell">{{ r.reason|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="info-empty">No leave requests recorded.</p>
+        {% endif %}
+    </div>
+</div>

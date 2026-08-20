@@ -1,0 +1,91 @@
+{% comment %}Section card: Weekly-off (Sunday) entitlement for the current payroll period{% endcomment %}
+<div class="section-card">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Weekly-Off Entitlement
+        </span>
+        {% if sunday_entitlement %}
+        <button class="btn-edit-section" onclick="editSection('sunday_entitlement')">Override</button>
+        {% endif %}
+    </div>
+    <div class="section-body">
+
+        {% if sunday_entitlement %}
+        <div id="view-sunday_entitlement" class="view-mode">
+            <div class="info-row">
+                <div class="info-label">Total Sundays this period</div>
+                <div class="info-value">{{ sunday_entitlement.total_sundays }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">System calculated</div>
+                <div class="info-value">{{ sunday_entitlement.calculated_count }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Final (paid) count</div>
+                <div class="info-value" style="font-weight:700;">{{ sunday_entitlement.final_count }}</div>
+            </div>
+            {% if sunday_entitlement.is_overridden %}
+            <div class="info-row">
+                <div class="info-label">HR override</div>
+                <div class="info-value">
+                    {{ sunday_entitlement.override_by }} on {{ sunday_entitlement.override_at|date:"d M Y" }}
+                    — {{ sunday_entitlement.override_reason }}
+                </div>
+            </div>
+            {% endif %}
+            <div class="info-row">
+                <div class="info-label">Basis</div>
+                <div class="info-value" style="font-size:.78rem; color:#64748b;">{{ sunday_entitlement.basis }}</div>
+            </div>
+        </div>
+
+        {% if sunday_entitlement.audit_rows %}
+        <details class="sun-detail">
+            <summary>Show per-Sunday breakdown ({{ sunday_entitlement.audit_rows|length }})</summary>
+            <table class="rec-table" style="margin-top:.5rem;">
+                <thead><tr><th>Sunday</th><th>Status</th><th>Reason</th></tr></thead>
+                <tbody>
+                {% for row in sunday_entitlement.audit_rows %}
+                    <tr>
+                        <td>{{ row.sunday }}</td>
+                        <td>{{ row.status }}</td>
+                        <td class="rec-notes-cell">{{ row.reason }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </details>
+        {% endif %}
+
+        <form id="form-sunday_entitlement" class="edit-form" method="post"
+              onsubmit="saveSection('sunday_entitlement', this); return false;">
+            {% csrf_token %}
+            <input type="hidden" name="year" value="{{ perf_year }}">
+            <input type="hidden" name="month" value="{{ perf_month }}">
+            <div class="form-row">
+                <label>Override count</label>
+                <input type="number" name="override_count" min="0" required
+                       value="{{ sunday_entitlement.final_count }}">
+            </div>
+            <div class="form-row">
+                <label>Reason <span class="req">*</span></label>
+                <input type="text" name="override_reason" required placeholder="Why the system figure is being overridden">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save</button>
+                <button type="button" class="btn-cancel-edit" onclick="cancelSection('sunday_entitlement')">Cancel</button>
+            </div>
+        </form>
+        {% else %}
+        <p class="info-empty">Weekly-off entitlement could not be calculated for this employee this period.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.sun-detail { margin-top:.75rem; font-size:.8rem; }
+.sun-detail summary { cursor:pointer; color:var(--primary-color,#EA580C); font-weight:600; }
+</style>

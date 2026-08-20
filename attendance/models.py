@@ -928,6 +928,116 @@ class SalaryStructure(models.Model):
 
 
 # ============================================
+# Salary cycle history — company-wide default
+# ============================================
+
+class SalaryCycleDefault(models.Model):
+    """Company-wide default pay cycle, effective-dated by an exact date.
+
+    An employee follows this timeline unless they have their own
+    `SalaryCycleHistory` row — see `attendance.services_salary_cycle`, which
+    resolves this and `SalaryCycleHistory` together and CLIPS the period
+    either side of `effective_date` so a cycle change never re-pays or skips
+    a day: the old cycle's last period ends the day before `effective_date`,
+    the new cycle's first period starts exactly on it. With zero rows here,
+    resolution falls through to each employee's legacy
+    `salary_cycle_start_day` field, so adding this feature changes nothing
+    until someone actually records a default.
+    """
+    cycle_start_day = models.PositiveSmallIntegerField(
+        help_text="1 = calendar month (1st to last day); 2-28 = day of the "
+                   "previous month the cycle starts on"
+    )
+    effective_date = models.DateField(
+        help_text="Exact date this cycle takes effect (inclusive)"
+    )
+    note = models.CharField(max_length=255, blank=True)
+    created_by = models.CharField(
+        max_length=150, blank=True,
+        help_text="Username of the admin who created this entry",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-effective_date']
+        verbose_name = 'Salary Cycle Default'
+        verbose_name_plural = 'Salary Cycle Defaults'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['effective_date'],
+                name='uniq_salary_cycle_default_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"Default: day {self.cycle_start_day} (from {self.effective_date})"
+
+    def clean(self):
+        super().clean()
+        if self.cycle_start_day is not None and not (1 <= self.cycle_start_day <= 28):
+            raise ValidationError({'cycle_start_day': 'Cycle start day must be between 1 and 28.'})
+
+
+class SalaryCycleGroupDefault(models.Model):
+    """Pay cycle for one payroll group, effective-dated by an exact date.
+
+    Sits between `SalaryCycleHistory` (one employee's own override) and
+    `SalaryCycleDefault` (everyone) in the resolution order — see
+    `attendance.services_salary_cycle._merged_timeline`. A group with its
+    own entries governs every employee classified into it (by
+    `payroll.services_payroll_engine.classify_employee_section` — department
+    / `is_fixed_salary` / `tcr_id` dedup, computed live, not stored) from
+    its earliest entry onward, overriding the company default for them
+    specifically, unless that particular employee also has their own
+    `SalaryCycleHistory` row (which wins over the group in turn).
+
+    `group` values must match `payroll.services_payroll_engine.SECTION_*`
+    keys — `sales_perf_method2` is deliberately excluded: it's the same
+    remote employees as `sales_perf`, just recalculated for display, so it
+    is not a separate pay-cycle population.
+    """
+    GROUP_CHOICES = [
+        ('admin_inhouse', 'Admin (In-house)'),
+        ('admin_remote', 'Admin (Remote)'),
+        ('sales_fixed', 'Sales (Fixed Salary)'),
+        ('sales_perf', 'Sales (Performance)'),
+    ]
+    group = models.CharField(max_length=32, choices=GROUP_CHOICES)
+    cycle_start_day = models.PositiveSmallIntegerField(
+        help_text="1 = calendar month (1st to last day); 2-28 = day of the "
+                   "previous month the cycle starts on"
+    )
+    effective_date = models.DateField(
+        help_text="Exact date this cycle takes effect (inclusive)"
+    )
+    note = models.CharField(max_length=255, blank=True)
+    created_by = models.CharField(
+        max_length=150, blank=True,
+        help_text="Username of the admin who created this entry",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-effective_date']
+        verbose_name = 'Salary Cycle Group Default'
+        verbose_name_plural = 'Salary Cycle Group Defaults'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['group', 'effective_date'],
+                name='uniq_salary_cycle_group_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_group_display()}: day {self.cycle_start_day} (from {self.effective_date})"
+
+    def clean(self):
+        super().clean()
+        if self.cycle_start_day is not None and not (1 <= self.cycle_start_day <= 28):
+            raise ValidationError({'cycle_start_day': 'Cycle start day must be between 1 and 28.'})
+
+
+# ============================================
 # Phase 6 — Employer Cost Setup
 # ============================================
 
@@ -2609,6 +2719,60 @@ class EmployeePreviousEmployment(PersonScopedModel):
         return f'{self.employer} — {self.designation or "?"}'
 
 
+class SalaryCycleHistory(PersonScopedModel):
+    """Per-employee pay-cycle override, effective-dated by an exact date.
+
+    Most employees never need a row here — they simply follow
+    `SalaryCycleDefault`. This table exists for the exception: one employee
+    who needs a different cycle than everyone else, from a given date
+    onward. See `attendance.services_salary_cycle` for how this and
+    `SalaryCycleDefault` are merged into one timeline and CLIPPED either
+    side of each `effective_date` so a change never re-pays or skips a day:
+    the outgoing cycle's last period ends the day before `effective_date`,
+    the incoming cycle's first period starts exactly on it. A period with no
+    rows in either table resolves exactly as it did before this feature
+    existed (the legacy `salary_cycle_start_day` field, unclipped).
+    """
+    cycle_start_day = models.PositiveSmallIntegerField(
+        help_text="1 = calendar month (1st to last day); 2-28 = day of the "
+                   "previous month the cycle starts on"
+    )
+    effective_date = models.DateField(
+        help_text="Exact date this override takes effect (inclusive)"
+    )
+    note = models.CharField(max_length=255, blank=True)
+    created_by = models.CharField(
+        max_length=150, blank=True,
+        help_text="Username of the admin who created this entry",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-effective_date']
+        verbose_name = 'Salary Cycle History'
+        verbose_name_plural = 'Salary Cycle Histories'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'effective_date'],
+                condition=models.Q(employee__isnull=False),
+                name='uniq_salary_cycle_emp_date',
+            ),
+            models.UniqueConstraint(
+                fields=['remote_employee', 'effective_date'],
+                condition=models.Q(remote_employee__isnull=False),
+                name='uniq_salary_cycle_remote_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.person.name}: day {self.cycle_start_day} (from {self.effective_date})"
+
+    def clean(self):
+        super().clean()
+        if self.cycle_start_day is not None and not (1 <= self.cycle_start_day <= 28):
+            raise ValidationError({'cycle_start_day': 'Cycle start day must be between 1 and 28.'})
+
+
 class LeaveType(models.Model):
     """Configurable leave types (§28).
 
@@ -2835,3 +2999,122 @@ class EmployeeReturnToWork(PersonScopedModel):
 
     def __str__(self):
         return f'{self.person} returned {self.actual_return or "(not yet)"}'
+
+
+class EmployeeWarning(PersonScopedModel):
+    """Disciplinary record — verbal/written/final warning or suspension.
+
+    Every state change (issue, withdraw, acknowledge) is expected to go
+    through attendance/services_warnings.py, which audits it — a warning is
+    exactly the kind of action that must be answerable later, not a passive
+    record like an uploaded document.
+    """
+    SEVERITY_CHOICES = [
+        ('verbal',     'Verbal warning'),
+        ('written',    'Written warning'),
+        ('final',      'Final warning'),
+        ('suspension', 'Suspension'),
+    ]
+    CATEGORY_CHOICES = [
+        ('attendance',  'Attendance'),
+        ('conduct',     'Conduct'),
+        ('performance', 'Performance'),
+        ('policy',      'Policy violation'),
+        ('safety',      'Safety'),
+        ('other',       'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('active',    'Active'),
+        ('expired',   'Expired'),
+        ('appealed',  'Appealed'),
+        ('withdrawn', 'Withdrawn'),
+    ]
+
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
+    issued_date = models.DateField()
+    incident_date = models.DateField(null=True, blank=True)
+    description = models.TextField()
+    document = models.ForeignKey(
+        'attendance.EmployeeDocument', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='warnings')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active', db_index=True)
+    valid_until = models.DateField(
+        null=True, blank=True,
+        help_text='Many policies expire a warning after N months.')
+    acknowledged_by_employee = models.BooleanField(default=False)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    issued_by = models.CharField(max_length=150, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+    created_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-issued_date', '-id']
+        indexes = [models.Index(fields=['employee', 'status'])]
+
+    def __str__(self):
+        return f'{self.person} — {self.get_severity_display()} ({self.issued_date})'
+
+
+class EmployeeAsset(PersonScopedModel):
+    """Company property issued to an employee — custody, not money.
+
+    Distinct from Recoverable.recoverable_type='asset', which only tracks an
+    amount owed for an asset/loan. This is the register of what was actually
+    handed over: serial number, condition, issue/return dates. Marking one
+    lost is expected to go through attendance/services_assets.py, which links
+    a Recoverable so the cost isn't tracked in two disagreeing places.
+    """
+    ASSET_TYPE_CHOICES = [
+        ('laptop',      'Laptop'),
+        ('mobile',      'Mobile phone'),
+        ('sim',         'SIM card'),
+        ('vehicle',     'Vehicle'),
+        ('access_card', 'Access card'),
+        ('uniform',     'Uniform'),
+        ('tool',        'Tool / equipment'),
+        ('other',       'Other'),
+    ]
+    CONDITION_CHOICES = [
+        ('new',     'New'),
+        ('good',    'Good'),
+        ('fair',    'Fair'),
+        ('damaged', 'Damaged'),
+        ('lost',    'Lost'),
+    ]
+    STATUS_CHOICES = [
+        ('issued',      'Issued'),
+        ('returned',    'Returned'),
+        ('lost',        'Lost'),
+        ('written_off', 'Written off'),
+    ]
+
+    asset_type = models.CharField(max_length=20, choices=ASSET_TYPE_CHOICES)
+    asset_tag = models.CharField(max_length=60, blank=True, default='')
+    description = models.CharField(max_length=200, blank=True, default='')
+    serial_number = models.CharField(max_length=100, blank=True, default='')
+    value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    condition_at_issue = models.CharField(max_length=20, choices=CONDITION_CHOICES, default='new')
+    condition_current = models.CharField(max_length=20, choices=CONDITION_CHOICES, blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='issued', db_index=True)
+    issued_date = models.DateField()
+    expected_return_date = models.DateField(null=True, blank=True)
+    returned_date = models.DateField(null=True, blank=True)
+    recoverable = models.ForeignKey(
+        'attendance.Recoverable', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='linked_assets',
+        help_text='Set when a lost/damaged asset becomes a money-owed ledger row.')
+    notes = models.TextField(blank=True, default='')
+    issued_by = models.CharField(max_length=150, blank=True, default='')
+    created_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-issued_date', '-id']
+        indexes = [models.Index(fields=['employee', 'status'])]
+
+    def __str__(self):
+        return f'{self.person} — {self.get_asset_type_display()} ({self.get_status_display()})'

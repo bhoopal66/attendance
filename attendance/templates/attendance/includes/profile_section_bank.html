@@ -12,8 +12,12 @@
         <!-- View Mode -->
         <div class="view-mode" id="view-bank">
             <div class="info-row">
-                <span class="info-label">Pay Cycle Start</span>
-                <span class="info-value">{{ employee.salary_cycle_start_day|default:21 }}th of month</span>
+                <span class="info-label">Pay Cycle</span>
+                <span class="info-value">
+                    {% if employee.salary_cycle_start_day == 1 %}Full month (1st &rarr; last day)
+                    {% else %}Day {{ employee.salary_cycle_start_day|default:21 }} &rarr; Day {{ employee.salary_cycle_start_day|default:21|add:"-1" }} (next month)
+                    {% endif %}
+                </span>
             </div>
             <div class="info-row">
                 <span class="info-label">Bank</span>
@@ -31,6 +35,57 @@
                 <span class="info-label">IFSC / Routing</span>
                 <span class="info-value">{% if employee.bank_routing_code %}{{ employee.bank_routing_code }}{% else %}<span class="info-empty">—</span>{% endif %}</span>
             </div>
+
+            <!-- ── Pay Cycle History ─────────────────────────────────────── -->
+            {% if salary_cycle_history or salary_cycle_group_history or salary_cycle_defaults %}
+            <div class="salary-history-wrap">
+                <div class="salary-history-title">Pay Cycle History</div>
+                <table class="salary-history-table">
+                    <thead>
+                        <tr>
+                            <th>Effective From</th>
+                            <th>Cycle</th>
+                            <th>Source</th>
+                            <th>Note</th>
+                            <th>By</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in salary_cycle_history %}
+                        <tr class="{% if forloop.first %}salary-row-current{% endif %}">
+                            <td>{{ row.effective_date|date:"d M Y" }}</td>
+                            <td>{% if row.cycle_start_day == 1 %}Full month{% else %}Day {{ row.cycle_start_day }}{% endif %}</td>
+                            <td>Employee override</td>
+                            <td class="salary-reason-cell">{{ row.note|default:"—" }}</td>
+                            <td>{{ row.created_by|default:"—" }}</td>
+                            <td>{% if forloop.first %}<button type="button" class="btn-cancel-edit" style="padding:3px 10px;font-size:0.72rem;" onclick="deleteBankCycleOverride({{ row.id }})">Delete</button>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                        {% for row in salary_cycle_group_history %}
+                        <tr>
+                            <td>{{ row.effective_date|date:"d M Y" }}</td>
+                            <td>{% if row.cycle_start_day == 1 %}Full month{% else %}Day {{ row.cycle_start_day }}{% endif %}</td>
+                            <td>Group default ({{ salary_cycle_group_label }})</td>
+                            <td class="salary-reason-cell">{{ row.note|default:"—" }}</td>
+                            <td>{{ row.created_by|default:"—" }}</td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+                        {% for row in salary_cycle_defaults %}
+                        <tr>
+                            <td>{{ row.effective_date|date:"d M Y" }}</td>
+                            <td>{% if row.cycle_start_day == 1 %}Full month{% else %}Day {{ row.cycle_start_day }}{% endif %}</td>
+                            <td>Company default</td>
+                            <td class="salary-reason-cell">{{ row.note|default:"—" }}</td>
+                            <td>{{ row.created_by|default:"—" }}</td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Edit Mode -->
@@ -39,11 +94,25 @@
             {% csrf_token %}
 
             <div class="form-row">
-                <label>Salary Cycle Start Day</label>
-                <select name="salary_cycle_start_day">
-                    <option value="1"  {% if employee.salary_cycle_start_day == 1 %}selected{% endif %}>1st (calendar month)</option>
-                    <option value="21" {% if employee.salary_cycle_start_day == 21 or not employee.salary_cycle_start_day %}selected{% endif %}>21st (prev 21 → curr 20)</option>
+                <label>Pay Cycle</label>
+                <select name="salary_cycle_start_day" id="bankCycleSelect" onchange="onBankCycleChange()">
+                    <option value="1" {% if employee.salary_cycle_start_day == 1 %}selected{% endif %}>Full month (1st &rarr; last day)</option>
+                    <option value="21" {% if employee.salary_cycle_start_day == 21 or not employee.salary_cycle_start_day %}selected{% endif %}>21st &rarr; 20th (default)</option>
+                    <option value="custom" {% if employee.salary_cycle_start_day and employee.salary_cycle_start_day != 1 and employee.salary_cycle_start_day != 21 %}selected{% endif %}>Custom</option>
                 </select>
+                <div id="bankCycleCustomWrap" style="display:none; margin-top:6px;">
+                    <input type="number" id="bankCycleCustomDay" min="2" max="28"
+                           value="{% if employee.salary_cycle_start_day and employee.salary_cycle_start_day != 1 and employee.salary_cycle_start_day != 21 %}{{ employee.salary_cycle_start_day }}{% endif %}"
+                           placeholder="Start day (2–28)">
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Effective Date</label>
+                <input type="date" name="salary_cycle_effective_date" id="bankCycleDate">
+            </div>
+            <div class="form-row">
+                <label>Note <span style="font-weight:400; color:var(--text-secondary);">(optional)</span></label>
+                <input type="text" name="salary_cycle_note" maxlength="255" placeholder="Reason for this change">
             </div>
 
             <div class="form-row">
@@ -69,3 +138,48 @@
 
     </div>
 </div>
+
+<script>
+function onBankCycleChange() {
+    const sel = document.getElementById('bankCycleSelect');
+    const wrap = document.getElementById('bankCycleCustomWrap');
+    wrap.style.display = (sel.value === 'custom') ? 'block' : 'none';
+}
+(function initBankCycleDefaults() {
+    const dateEl = document.getElementById('bankCycleDate');
+    if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+    onBankCycleChange();
+})();
+document.getElementById('form-bank').addEventListener('submit', function() {
+    const sel = document.getElementById('bankCycleSelect');
+    if (sel.value === 'custom') {
+        const day = document.getElementById('bankCycleCustomDay').value;
+        let opt = sel.querySelector('option[data-custom]');
+        if (!opt) {
+            opt = document.createElement('option');
+            opt.setAttribute('data-custom', '1');
+            sel.appendChild(opt);
+        }
+        opt.value = day;
+        sel.value = day;
+    }
+});
+
+async function deleteBankCycleOverride(historyId) {
+    if (!confirm('Remove this pay cycle entry? This can only be undone by adding a new one.')) return;
+    try {
+        const res = await fetch(`/employees/inhouse/{{ employee.id }}/salary-cycle/${historyId}/delete/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF },
+        });
+        const data = await res.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            showToast(data.error || 'Delete failed.', 'error');
+        }
+    } catch {
+        showToast('Network error. Please try again.', 'error');
+    }
+}
+</script>

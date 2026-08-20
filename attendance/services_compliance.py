@@ -280,6 +280,16 @@ def reveal(employee, viewer, group, key):
     if group == 'identity_number':
         doc = _latest_documents(employee).get(key)
         return doc.document_number if doc else None
+    if group == 'visa_number':
+        from .services_identity import current_visa
+        visa = current_visa(employee)
+        if not visa:
+            return None
+        return {
+            'uid_number': visa.uid_number,
+            'visa_file_number': visa.visa_file_number,
+            'residence_permit_number': visa.residence_permit_number,
+        }.get(key)
     return None
 
 

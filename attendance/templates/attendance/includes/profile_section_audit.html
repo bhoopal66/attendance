@@ -1,0 +1,71 @@
+{% comment %}
+Section card: Audit Trail — every AuditLog row this employee or a record
+belonging to them touched (salary revisions, cost setup, recoverables,
+documents, visa, warnings, assets, deductions). Kept separate from
+Employment History above: that timeline has richer change_type/before-after
+semantics a generic `changes` dump would degrade.
+{% endcomment %}
+<div class="section-card full-width" id="section-audit">
+    <div class="section-head">
+        <span class="section-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Audit Trail
+        </span>
+        <span style="font-size:.78rem; color:var(--text-secondary);">
+            {{ audit_trail_page.paginator.count }} record{{ audit_trail_page.paginator.count|pluralize }}
+        </span>
+    </div>
+    <div class="section-body">
+        <p style="font-size:.78rem; color:#64748b; margin:0 0 12px;">
+            Job title, department, manager and salary changes are tracked in Employment History above.
+            This is every recorded system change including salary revisions, cost setup, recoverables,
+            documents, visa, warnings, assets and deductions.
+        </p>
+
+        {% if audit_trail_page.object_list %}
+        <div class="table-scroll">
+            <table class="rec-table">
+                <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Model</th><th>Changes</th><th>Note</th></tr></thead>
+                <tbody>
+                {% for row in audit_trail_page %}
+                    <tr>
+                        <td style="white-space:nowrap;">{{ row.timestamp|date:"d M Y, H:i" }}</td>
+                        <td>{{ row.actor }}</td>
+                        <td>{{ row.get_action_display }}</td>
+                        <td>{{ row.model_name }}</td>
+                        <td class="rec-notes-cell">
+                            {% for field, pair in row.changes.items %}
+                                <div>{{ field }}: {{ pair.0|default:"—" }} &rarr; {{ pair.1|default:"—" }}</div>
+                            {% empty %}—{% endfor %}
+                        </td>
+                        <td class="rec-notes-cell">{{ row.note|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if audit_trail_page.paginator.num_pages > 1 %}
+        <div class="audit-pager">
+            {% if audit_trail_page.has_previous %}
+            <a href="{% url 'employee_profile' employee.person_id %}?audit_page={{ audit_trail_page.previous_page_number }}#section-audit">&larr; Newer</a>
+            {% endif %}
+            <span>Page {{ audit_trail_page.number }} of {{ audit_trail_page.paginator.num_pages }}</span>
+            {% if audit_trail_page.has_next %}
+            <a href="{% url 'employee_profile' employee.person_id %}?audit_page={{ audit_trail_page.next_page_number }}#section-audit">Older &rarr;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="info-empty">No audited changes recorded yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.audit-pager { display:flex; align-items:center; gap:14px; margin-top:12px; font-size:.8rem; color:#475569; }
+.audit-pager a { color:var(--primary-color,#EA580C); text-decoration:none; font-weight:600; }
+.audit-pager a:hover { text-decoration:underline; }
+</style>

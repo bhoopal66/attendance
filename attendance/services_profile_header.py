@@ -75,6 +75,21 @@ def header_alerts(employee, today=None):
                                  if employee.probation_is_inferred else '.'),
                     'action': 'Employment'})
 
+    # Only severe tiers surface here — every active warning would be alert
+    # fatigue, the exact thing this module exists to avoid.
+    try:
+        from .services_warnings import active_warnings
+        severe = active_warnings(employee).filter(severity__in=('final', 'suspension'))
+        for w in severe:
+            out.append({
+                'level': 'bad',
+                'title': f'{w.get_severity_display()} on file ({w.issued_date:%d %b %Y})',
+                'detail': w.description[:120],
+                'action': 'Warnings',
+            })
+    except Exception:
+        logger.debug('warnings unavailable for %s', employee.pk)
+
     # Worst first: an expired document outranks a paperwork reminder.
     order = {'bad': 0, 'warn': 1}
     out.sort(key=lambda a: order.get(a['level'], 2))

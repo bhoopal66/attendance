@@ -13,6 +13,7 @@ from . import views_rules
 from . import views_paid_holidays
 from . import views_headcount
 from . import views_debug
+from . import views_salary_cycle
 
 urlpatterns = [
     path('', views.payroll_test_dashboard, name='payroll_dashboard'),
@@ -40,6 +41,21 @@ urlpatterns = [
     # Payroll employee database
     path('employees/', views.payroll_employees, name='payroll_employees'),
     path('api/employee/<str:emp_type>/<int:employee_id>/update/', views.payroll_employee_update, name='payroll_employee_update'),
+    # Salary cycle history — effective-dated pay cycle (per-employee + company default)
+    path('api/employee/<str:emp_type>/<int:employee_id>/salary-cycle/',
+         views_salary_cycle.employee_salary_cycle_history, name='employee_salary_cycle_history_payroll'),
+    path('api/employee/<str:emp_type>/<int:employee_id>/salary-cycle/add/',
+         views_salary_cycle.employee_salary_cycle_history_add, name='employee_salary_cycle_history_add_payroll'),
+    path('api/employee/<str:emp_type>/<int:employee_id>/salary-cycle/<int:history_id>/delete/',
+         views_salary_cycle.employee_salary_cycle_history_delete, name='employee_salary_cycle_history_delete_payroll'),
+    path('api/salary-cycle-default/', views_salary_cycle.salary_cycle_default_list, name='salary_cycle_default_list'),
+    path('api/salary-cycle-default/add/', views_salary_cycle.salary_cycle_default_add, name='salary_cycle_default_add'),
+    path('api/salary-cycle-default/<int:default_id>/delete/', views_salary_cycle.salary_cycle_default_delete, name='salary_cycle_default_delete'),
+    # Pay Cycle Management page — Groups + Company Default
+    path('pay-cycle/', views_salary_cycle.pay_cycle_management, name='pay_cycle_management'),
+    path('api/pay-cycle-groups/', views_salary_cycle.salary_cycle_groups_list, name='salary_cycle_groups_list'),
+    path('api/pay-cycle-groups/<str:group_key>/add/', views_salary_cycle.salary_cycle_group_add, name='salary_cycle_group_add'),
+    path('api/pay-cycle-groups/<str:group_key>/<int:entry_id>/delete/', views_salary_cycle.salary_cycle_group_delete, name='salary_cycle_group_delete'),
     # Deductions & Additions
     path('api/deductions/add/', views.add_deduction, name='add_deduction'),
     path('api/deductions/delete/<int:deduction_id>/', views.delete_deduction_entry, name='delete_deduction_entry'),

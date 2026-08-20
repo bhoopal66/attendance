@@ -15,6 +15,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter as _get_col_letter
 
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db.models import Q, Sum
@@ -3199,13 +3200,16 @@ def payroll_employee_update(request, emp_type, employee_id):
         emp.is_fixed_salary = bool(data['is_fixed_salary'])
 
     if 'salary_cycle_start_day' in data:
+        from attendance.services_salary_cycle import set_employee_cycle_override
+        eff_date = data.get('salary_cycle_effective_date') or datetime.date.today().isoformat()
         try:
-            cycle_day = int(data['salary_cycle_start_day'])
-            if not (1 <= cycle_day <= 28):
-                return JsonResponse({'success': False, 'error': 'salary_cycle_start_day must be 1–28'}, status=400)
-            emp.salary_cycle_start_day = cycle_day
-        except (TypeError, ValueError):
-            return JsonResponse({'success': False, 'error': 'Invalid salary_cycle_start_day'}, status=400)
+            set_employee_cycle_override(
+                emp, data['salary_cycle_start_day'], eff_date,
+                actor=request.user.username,
+                note=data.get('salary_cycle_note', ''),
+            )
+        except ValidationError as e:
+            return JsonResponse({'success': False, 'error': '; '.join(e.messages)}, status=400)
 
     if 'visa_provider' in data:
         vp = str(data['visa_provider']).strip()
@@ -3584,10 +3588,10 @@ def download_payslip(request, emp_type, emp_id):
 
     salary = float(emp.salary) if emp.salary else 0.0
 
-    # Use the employee's salary cycle — same logic as the payroll dashboard.
-    cycle_day = getattr(emp, 'salary_cycle_start_day', None) or 21
-    period_start, period_end, days_in_period, total_holidays = _get_employee_pay_period(
-        cycle_day, selected_year, selected_month
+    # Use the employee's salary cycle as it was for this month — same logic as the payroll dashboard.
+    from attendance.services_salary_cycle import get_employee_pay_period
+    period_start, period_end, days_in_period, total_holidays = get_employee_pay_period(
+        emp, selected_year, selected_month
     )
     days_in_month = days_in_period  # "Total No. of days" on the payslip
 
@@ -4012,14 +4016,16 @@ def payroll_test_dashboard(request):
     default_days = (default_period_end - default_period_start).days + 1
     default_holidays = _count_holidays_in_period(default_period_start, default_period_end)
 
-    # Per-employee pay period cache (keyed by cycle_start_day)
+    # Per-employee pay period cache (keyed by employee pk — a period now
+    # depends on that employee's own cycle-change history, not just a
+    # shared cycle_start_day, since changes are clipped to an exact date)
     _period_cache = {}
 
     def _emp_period(emp):
-        day = emp.salary_cycle_start_day or 21
-        if day not in _period_cache:
-            _period_cache[day] = _get_employee_pay_period(day, selected_year, selected_month)
-        return _period_cache[day]
+        from attendance.services_salary_cycle import get_employee_pay_period
+        if emp.pk not in _period_cache:
+            _period_cache[emp.pk] = get_employee_pay_period(emp, selected_year, selected_month)
+        return _period_cache[emp.pk]
 
     banks = list(Bank.objects.filter(is_active=True).order_by('name'))
     banks_json = json.dumps([
@@ -5905,10 +5911,10 @@ def mark_paid_salary(request):
 
     _period_cache = {}
     def _emp_period_mp(emp):
-        day = emp.salary_cycle_start_day or 21
-        if day not in _period_cache:
-            _period_cache[day] = _get_employee_pay_period(day, year, month)
-        return _period_cache[day]
+        from attendance.services_salary_cycle import get_employee_pay_period
+        if emp.pk not in _period_cache:
+            _period_cache[emp.pk] = get_employee_pay_period(emp, year, month)
+        return _period_cache[emp.pk]
 
     # Active deduction entries for this month
     active_by_emp = _defaultdict(list)

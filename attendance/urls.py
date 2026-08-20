@@ -40,6 +40,13 @@ urlpatterns = [
     path('employees/delete/', views.delete_employee, name='delete_employee'),
     path('employees/link/', views.link_employees, name='link_employees'),
     path('employees/unlink/', views.unlink_employees, name='unlink_employees'),
+    # Salary cycle history — effective-dated pay cycle per employee
+    path('employees/<str:emp_type>/<int:employee_id>/salary-cycle/',
+         views.employee_salary_cycle_history, name='employee_salary_cycle_history'),
+    path('employees/<str:emp_type>/<int:employee_id>/salary-cycle/add/',
+         views.employee_salary_cycle_history_add, name='employee_salary_cycle_history_add'),
+    path('employees/<str:emp_type>/<int:employee_id>/salary-cycle/<int:history_id>/delete/',
+         views.employee_salary_cycle_history_delete, name='employee_salary_cycle_history_delete'),
     # Employee Profile — 360° view (Phase 3)
     path('employees/<str:person_id>/profile/', views.employee_profile, name='employee_profile'),
     # Reveal one masked compliance value. POST only, role-checked server-side,

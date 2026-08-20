@@ -11,6 +11,8 @@ from .models import (
     EmploymentHistory,
     # Phase 5 — Salary Structure
     SalaryStructure,
+    # Salary Cycle History
+    SalaryCycleDefault, SalaryCycleHistory, SalaryCycleGroupDefault,
     # Phase 6 — Employer Cost
     EmployerCostSetup,
     # Phase 7 — Employee Documents
@@ -410,6 +412,35 @@ class SalaryStructureAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser  # superuser can purge if needed
+
+
+@admin.register(SalaryCycleDefault)
+class SalaryCycleDefaultAdmin(admin.ModelAdmin):
+    list_display = ('cycle_start_day', 'effective_date', 'note', 'created_by', 'created_at')
+    list_filter = ('effective_date',)
+    ordering = ('-effective_date',)
+    readonly_fields = ('created_at',)
+
+
+@admin.register(SalaryCycleHistory)
+class SalaryCycleHistoryAdmin(admin.ModelAdmin):
+    list_display = ('person_display', 'cycle_start_day', 'effective_date', 'note', 'created_by', 'created_at')
+    list_filter = ('effective_date',)
+    search_fields = ('employee__name', 'remote_employee__name', 'note')
+    ordering = ('-effective_date',)
+    readonly_fields = ('created_at',)
+
+    def person_display(self, obj):
+        return obj.person.name if obj.person else '—'
+    person_display.short_description = 'Employee'
+
+
+@admin.register(SalaryCycleGroupDefault)
+class SalaryCycleGroupDefaultAdmin(admin.ModelAdmin):
+    list_display = ('group', 'cycle_start_day', 'effective_date', 'note', 'created_by', 'created_at')
+    list_filter = ('group', 'effective_date')
+    ordering = ('-effective_date',)
+    readonly_fields = ('created_at',)
 
 
 @admin.register(EmployerCostSetup)
@@ -905,6 +936,34 @@ class EmployeeReturnToWorkAdmin(admin.ModelAdmin):
                     'payroll_effective_date')
     list_filter = ('delay_authorised', 'leave_type_code')
     search_fields = ('employee__name', 'remote_employee__name')
+
+
+# --- 360 profile coverage: warnings & asset register --------------------------
+from attendance.models import (
+    EmployeeAsset as _EmployeeAsset,
+    EmployeeWarning as _EmployeeWarning,
+)
+
+
+@admin.register(_EmployeeWarning)
+class EmployeeWarningAdmin(admin.ModelAdmin):
+    # Editable, but state changes (withdraw/acknowledge) should go through
+    # services_warnings.py so they're audited — this admin is for corrections
+    # and for creating a warning outside the profile page.
+    list_display = ('person', 'severity', 'category', 'issued_date', 'status',
+                    'valid_until', 'acknowledged_by_employee')
+    list_filter = ('severity', 'category', 'status')
+    search_fields = ('employee__name', 'remote_employee__name', 'description')
+    date_hierarchy = 'issued_date'
+
+
+@admin.register(_EmployeeAsset)
+class EmployeeAssetAdmin(admin.ModelAdmin):
+    list_display = ('person', 'asset_type', 'asset_tag', 'serial_number', 'status',
+                    'condition_current', 'issued_date', 'returned_date', 'recoverable')
+    list_filter = ('asset_type', 'status', 'condition_current')
+    search_fields = ('employee__name', 'remote_employee__name', 'asset_tag', 'serial_number')
+    date_hierarchy = 'issued_date'
 
 
 @admin.register(_LeaveType)
